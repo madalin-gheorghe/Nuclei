@@ -1,0 +1,25 @@
+* text=auto
+
+# Keep source files stable across Windows and GitHub.
+*.cs text eol=lf
+*.csproj text eol=lf
+*.sln text eol=lf
+*.resx text eol=lf
+*.settings text eol=lf
+*.config text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.csv text eol=lf
+
+# Binary assets / build artifacts
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.psd binary
+*.ai binary
+*.AI binary
+*.gha binary
+*.dll binary
+*.pdb binary
+*.diagsession binary

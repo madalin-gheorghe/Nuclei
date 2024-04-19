@@ -1,0 +1,202 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>8.0.30703</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{4EA40BDB-15B3-4ACB-9202-2FC36B9A771B}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Nuclei3</RootNamespace>
+    <AssemblyName>Nuclei3</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <IsWebBootstrapper>false</IsWebBootstrapper>
+    <TargetFrameworkProfile />
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisIgnoreBuiltInRules>false</CodeAnalysisIgnoreBuiltInRules>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>Nuclei.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="RhinoCommon">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\Program Files\Rhino 7\System\RhinoCommon.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Grasshopper">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\Program Files\Rhino 7\Plug-ins\Grasshopper\Grasshopper.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="GH_IO">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\Program Files\Rhino 7\Plug-ins\Grasshopper\GH_IO.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="ParticleGroup.cs" />
+    <Compile Include="ParticleGroup_Constructor_Ant.cs" />
+    <Compile Include="ParticleGroup_Constructor_Slime.cs" />
+    <Compile Include="Point_Extractor_ParentVoxel.cs" />
+    <Compile Include="Particle_Settings_Ant_Slime.cs" />
+    <Compile Include="Preview_Particle.cs" />
+    <Compile Include="Voxel_Settings_Wrap.cs" />
+    <Compile Include="Voxel_Settings_Ant.cs" />
+    <Compile Include="Iterations.cs" />
+    <Compile Include="Particle_Settings_Death.cs" />
+    <Compile Include="Particle_Settings_Division.cs" />
+    <Compile Include="Particle_Extractor_Point.cs" />
+    <Compile Include="Particle_Extractor_TrailPoints.cs" />
+    <Compile Include="Particle_Extractor_Vector.cs" />
+    <Compile Include="Particle_Settings_Population.cs" />
+    <Compile Include="Particle_Settings_Trail.cs" />
+    <Compile Include="Properties\NucleiIcon.cs" />
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="Properties\Settings.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+      <DependentUpon>Settings.settings</DependentUpon>
+    </Compile>
+    <Compile Include="Voxels_AND.cs" />
+    <Compile Include="Voxels_AND_NOT.cs" />
+    <Compile Include="Voxels_OR.cs" />
+    <Compile Include="Voxel_Attractor_Curve.cs" />
+    <Compile Include="Voxel_Attractor_Mesh.cs" />
+    <Compile Include="Voxel_Extractor_Box.cs" />
+    <Compile Include="Voxel_MeshInclusion.cs" />
+    <Compile Include="Voxel_Extractor_Values.cs" />
+    <Compile Include="Voxel_Extractor_Point.cs" />
+    <Compile Include="Voxel_Extractor_Vector.cs" />
+    <Compile Include="Voxel_Attractor_Point.cs" />
+    <Compile Include="Preview_Voxel.cs" />
+    <Compile Include="Voxel_Settings_Slime.cs" />
+    <Compile Include="Voxel_Values.cs" />
+    <Compile Include="Globals.cs" />
+    <Compile Include="Particle.cs" />
+    <Compile Include="NucleiInfo.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Solver.cs" />
+    <Compile Include="Voxel.cs" />
+    <Compile Include="Voxel_Constructor.cs" />
+    <Compile Include="Voxel_Values_BlendAll.cs" />
+    <Compile Include="Voxel_Vectors.cs" />
+    <Compile Include="Voxel_Vectors_BlendAll.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+    <None Include="Resources\Environment.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Particle.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\Solver.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Nuclei.ico" />
+    <None Include="Resources\Point_ParentVoxel.png" />
+    <None Include="Resources\ParticleSettings_Interaction.png" />
+    <None Include="Resources\PreviewParticles.png" />
+    <None Include="Resources\EnvironmentSettings_Wrap.png" />
+    <None Include="Resources\EnvironmentSettings_Slime.png" />
+    <None Include="Resources\EnvironmentSettings_Ant.png" />
+    <None Include="Resources\ParticleSettings_Slime.png" />
+    <None Include="Resources\ParticleSettings_Ant.png" />
+    <None Include="Resources\Particle_Slime.png" />
+    <None Include="Resources\Particle_Ant.png" />
+    <None Include="Resources\Counter.png" />
+    <None Include="Resources\VoxelBlendValues.png" />
+    <None Include="Resources\VoxelBlendVectors2.png" />
+    <None Include="Resources\VoxelsUnion.png" />
+    <None Include="Resources\VoxelsIntersection.png" />
+    <None Include="Resources\VoxelsDifference.png" />
+    <None Include="Resources\VoxelBox.png" />
+    <None Include="Resources\EnvironmentSettings.png" />
+    <None Include="Resources\EnvironmentWithValues2.png" />
+    <None Include="Resources\EnvironmentVectors3.png" />
+    <None Include="Resources\EnvironmentVectors2.png" />
+    <None Include="Resources\Nuclei2.png" />
+    <None Include="Resources\VoxelMeshAttractor.png" />
+    <None Include="Resources\VoxelMeshInclusion.png" />
+    <None Include="Resources\VoxelCurveAttractor.png" />
+    <None Include="Resources\VoxelPointAttractor.png" />
+    <None Include="Resources\VoxelBlendVectors.png" />
+    <None Include="Resources\PreviewVoxelDensities.png" />
+    <None Include="Resources\ParticlePopulationSettings.png" />
+    <None Include="Resources\ParticleTrailSettings.png" />
+    <None Include="Resources\ParticleTrails.png" />
+    <None Include="Resources\ParticleNeighbours.png" />
+    <None Include="Resources\ParticlePositions.png" />
+    <None Include="Resources\ParticleVectors.png" />
+    <None Include="Resources\VoxelDensity.png" />
+    <None Include="Resources\VoxelAddress.png" />
+    <None Include="Resources\VoxelPosition.png" />
+    <None Include="Resources\VoxelVector.png" />
+    <None Include="Resources\EnvironmentVectors.png" />
+    <None Include="Resources\EnvironmentWithValues.png" />
+    <None Include="Resources\ParticleDeath.png" />
+    <None Include="Resources\ParticleDivision.png" />
+    <None Include="Resources\Nuclei.png" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+  <PropertyGroup>
+    <PostBuildEvent>Copy "$(TargetPath)" "C:\Users\Drag And Drop\AppData\Roaming\Grasshopper\Libraries\Nuclei3.gha"
+Erase "$(TargetPath)"</PostBuildEvent>
+  </PropertyGroup>
+  <PropertyGroup>
+    <FallbackCulture>en-US</FallbackCulture>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
+    <StartProgram>C:\Program Files\Rhino 6\System\Rhino.exe</StartProgram>
+    <StartArguments>
+    </StartArguments>
+    <StartAction>Program</StartAction>
+  </PropertyGroup>
+</Project>

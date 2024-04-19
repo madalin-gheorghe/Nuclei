@@ -1,0 +1,38 @@
+# Visual Studio / user state
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build outputs
+[Bb]in/
+[Oo]bj/
+TestResults/
+packages/
+
+# Local Codex / diagnostic workspaces
+.codex-backups/
+.diag-work/
+.build-appdata/
+.codex-build-appdata/
+Nuclei/.agent/
+
+# Visual Studio diagnostics and benchmark outputs
+*.diagsession
+*.etl
+*.vsp
+*.vspx
+*.psess
+*.trace
+BenchmarkSuite1/*.csv
+BenchmarkSuite1/Nuclei*.txt
+
+# Runtime logs and temp files
+*.log
+*.tmp
+*.cache
+
+# OS files
+Thumbs.db
+.DS_Store
