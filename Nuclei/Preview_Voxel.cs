@@ -64,6 +64,9 @@ namespace Nuclei3
             } else
             {
                 voxel = null;
+                voxelPoints = null;
+                voxelValues = null;
+                clippingBox = BoundingBox.Empty;
             }
 
             //add value list
@@ -370,6 +373,7 @@ namespace Nuclei3
 
                 voxelPoints = voxePointConcurrent.ToList();
                 voxelValues = voxelValuesConcurrent.ToList();
+                updateClippingBox();
             }
         }
 
@@ -397,10 +401,22 @@ namespace Nuclei3
                     voxelPointCloud.Add(p, retrieveVoxelColor(value));
                 }
 
-                voxelPointCloud.Add(new Point3d());
-
                 if (voxelPointCloud.Count > 0) args.Display.DrawPointCloud(voxelPointCloud, (int) 3);
             }
+        }
+
+        public override BoundingBox ClippingBox
+        {
+            get { return clippingBox; }
+        }
+
+        void updateClippingBox()
+        {
+            clippingBox = BoundingBox.Empty;
+            if (voxelPoints == null || voxelPoints.Count == 0) return;
+
+            clippingBox = new BoundingBox(voxelPoints);
+            clippingBox.Inflate(Math.Max(Globals.voxelSize, 1.0));
         }
 
 
@@ -430,6 +446,7 @@ namespace Nuclei3
         List<double> voxelValues;
 
         PointCloud voxelPointCloud;
+        BoundingBox clippingBox = BoundingBox.Empty;
 
         //-------------------------------------------------------------------
 

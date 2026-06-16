@@ -16,11 +16,12 @@ namespace Nuclei3
         public int idX;
         public int idY;
         public int idZ;
-
         public double voxelSize = 1;
 
         public double minDensity = -1;
         public double maxDensity = -1;
+        public double inputMinDensity = -1;
+        public double inputMaxDensity = -1;
 
         public double density = 0;
 

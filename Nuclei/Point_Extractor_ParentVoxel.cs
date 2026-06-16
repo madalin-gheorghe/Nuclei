@@ -55,7 +55,6 @@ namespace Nuclei3
         /// <param name="DA">The DA object is used to retrieve from inputs and store in outputs.</param>
         protected override void SolveInstance(IGH_DataAccess DA)
         {
-            //points = new Grasshopper.DataTree<Point3d>();
             points = new GH_Structure<GH_Point>();
             //set inputs
             DA.GetDataTree(0, out points);
@@ -76,6 +75,24 @@ namespace Nuclei3
                 }
             }
 
+            List<GH_Point> gH_PointList = points.Branches[0];
+            GH_Point pt = gH_PointList[0];
+
+            int result = -1;
+
+            int xID = System.Convert.ToInt32((pt.Value.X - Math.Abs(pt.Value.X % voxelSize)) / voxelSize);
+            int yID = System.Convert.ToInt32((pt.Value.Y - Math.Abs(pt.Value.Y % voxelSize)) / voxelSize);
+            int zID = System.Convert.ToInt32((pt.Value.Z - Math.Abs(pt.Value.Z % voxelSize)) / voxelSize);
+
+            if (xID >= 0 && xID < resX && yID >= 0 && yID < resY && zID >= 0 && zID < resZ)
+            {
+                if (inputVoxels[xID, yID, zID] != null)
+                {
+                    Voxel parentVoxel = inputVoxels[xID, yID, zID];
+                    result = voxelIndices[xID, yID, zID];
+                }
+            }
+
             DA.SetDataTree(0, outputVoxelIndices);
         }
 
@@ -83,6 +100,7 @@ namespace Nuclei3
 
         //inputs
         Voxel[,,] inputVoxels;
+        Voxel[,,] voxels;
         int[,,] voxelIndices;
 
         GH_Structure<GH_Point> points;
@@ -107,8 +125,82 @@ namespace Nuclei3
             //determine voxelSize
             voxelSize = Globals.voxelSize;
 
+
+            //create list of empty voxels
+            voxels = new Voxel[resX, resY, resZ];
+
+            //count active voxels
+            int activeVoxelsCounter = 0;
+            Parallel.For(0, resX, i =>
+            {
+                for (int j = 0; j < resY; j++)
+                {
+                    for (int k = 0; k < resZ; k++)
+                    {
+                        if (inputVoxels[i, j, k] != null)
+                        {
+                            int parallelCounter = System.Threading.Interlocked.Increment(ref activeVoxelsCounter);
+                        }
+                    }
+                }
+            }
+            );
+
+            voxels = new Voxel[resX, resY, resZ];
+
+            if (activeVoxelsCounter == 0)
+            {
+                //if there are 0 active voxels then instantiate new voxels
+                Parallel.For(0, resX, i =>
+                {
+                    for (int j = 0; j < resY; j++)
+                    {
+                        for (int k = 0; k < resZ; k++)
+                        {
+                            voxels[i, j, k] = new Voxel(voxelSize, i, j, k);
+                        }
+                    }
+                }
+                );
+            }
+            else
+            {
+                //inherit values from input voxels
+                Parallel.For(0, resX, i =>
+                {
+                    for (int j = 0; j < resY; j++)
+                    {
+                        for (int k = 0; k < resZ; k++)
+                        {
+                            if (inputVoxels[i, j, k] != null)
+                            {
+                                Voxel inV = inputVoxels[i, j, k];
+                                if (voxels[i, j, k] == null) voxels[i, j, k] = new Voxel(voxelSize, i, j, k);
+                                Voxel outV = voxels[i, j, k];
+
+                                outV.minDensity = inV.minDensity;
+                                outV.maxDensity = inV.maxDensity;
+
+                                outV.density = inV.density;
+
+                                outV.speedMultiplier = inV.speedMultiplier;
+                                outV.sensorAngleMultiplier = inV.sensorAngleMultiplier;
+                                outV.sensorDistanceMultiplier = inV.sensorDistanceMultiplier;
+                                outV.rotationAngleMultiplier = inV.rotationAngleMultiplier;
+
+                                outV.food = inV.food;
+
+                                outV.voxelVector = inV.voxelVector;
+                                outV.frequency = inV.frequency;
+                            }
+                        }
+                    }
+                }
+                );
+            }
+
             voxelIndices = new int[resX, resY, resZ];
-            int counter = -1;
+            int counter = 0;
 
             for (int i = 0; i < resX; i++)
             {
@@ -116,7 +208,7 @@ namespace Nuclei3
                 {
                     for (int k = 0; k < resZ; k++)
                     {
-                        Voxel inputV = inputVoxels[i, j, k];
+                        Voxel inputV = voxels[i, j, k];
 
                         if (inputV != null)
                         {
@@ -131,7 +223,6 @@ namespace Nuclei3
         int getParentVoxel(GH_Point p)
         {
             int result = -1;
-
             
             int xID = System.Convert.ToInt32((p.Value.X - Math.Abs(p.Value.X % voxelSize)) / voxelSize);
             int yID = System.Convert.ToInt32((p.Value.Y - Math.Abs(p.Value.Y % voxelSize)) / voxelSize);
@@ -139,10 +230,13 @@ namespace Nuclei3
 
             if (xID >= 0 && xID < resX && yID >= 0 && yID < resY && zID >= 0 && zID < resZ)
             {
-                if (inputVoxels[xID, yID, zID] != null)
+                if (voxels[xID, yID, zID] != null)
                 {
                     Voxel parentVoxel = inputVoxels[xID, yID, zID];
                     result = voxelIndices[xID, yID, zID];
+                } else
+                {
+                    result = -1;
                 }
             }
             

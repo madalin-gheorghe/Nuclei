@@ -112,7 +112,19 @@ namespace Nuclei3
             }
 
             //output values
-            outputVoxelValues = new List<double>();
+            int totalVoxelCount = resX * resY * resZ;
+            if (outputVoxelValues == null)
+            {
+                outputVoxelValues = new List<double>(totalVoxelCount);
+            }
+            else
+            {
+                outputVoxelValues.Clear();
+                if (outputVoxelValues.Capacity < totalVoxelCount)
+                {
+                    outputVoxelValues.Capacity = totalVoxelCount;
+                }
+            }
             for (int i = 0; i < resX; i++)
             {
                 for (int j = 0; j < resY; j++)

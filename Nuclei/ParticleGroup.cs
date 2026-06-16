@@ -23,7 +23,7 @@ namespace Nuclei3
         public List<Particle> particles = new List<Particle>();
 
         public double speed, sensorDistance, depositValue = 0;
-        public double wanderFrequency, foodWanderFrequency, baseWanderFrequency = 0;
+        public double wanderFrequency, baseWanderFrequency = 0;
         public int sensorAngle, rotationAngle = 0;
         public Color color;
 
@@ -35,7 +35,7 @@ namespace Nuclei3
         #region constructors
 
         public ParticleGroup(double _speed, double _sensorDistance, int _sensorAngle, int _rotationAngle, double _depositValue,
-            double _wanderFrequency, double _foodWanderFrequency, double _baseWanderFrequency, Color _color)
+            double _wanderFrequency, double _baseWanderFrequency, Color _color)
         {
             speed = _speed;
             sensorDistance = _sensorDistance;
@@ -43,7 +43,6 @@ namespace Nuclei3
             rotationAngle = _rotationAngle;
             depositValue = _depositValue;
             wanderFrequency = _wanderFrequency;
-            foodWanderFrequency = _foodWanderFrequency;
             baseWanderFrequency = _baseWanderFrequency;
             color = _color;
         }
@@ -57,13 +56,12 @@ namespace Nuclei3
             rotationAngle = 45;
             depositValue = 1;
             wanderFrequency = 0;
-            foodWanderFrequency = 0;
             baseWanderFrequency = 0;
         }
 
         public ParticleGroup Duplicate()
         {
-            ParticleGroup dup = new ParticleGroup(speed,sensorDistance,sensorAngle,rotationAngle,depositValue,wanderFrequency,foodWanderFrequency,baseWanderFrequency,color);
+            ParticleGroup dup = new ParticleGroup(speed,sensorDistance,sensorAngle,rotationAngle,depositValue,wanderFrequency,baseWanderFrequency,color);
             return dup;
         }
         #endregion
@@ -98,17 +96,6 @@ namespace Nuclei3
 
             wanderFrequency = Math.Floor(Math.Pow(wanderFrequency, 3) * particles.Count / 40);
             if (wanderFrequency < 1) wanderFrequency = 1;
-        }
-
-
-        public void updateFoodWanderFrequency()
-        {
-            if (foodWanderFrequency < 0) foodWanderFrequency = 0;
-            if (foodWanderFrequency > 1) foodWanderFrequency = 1;
-            foodWanderFrequency = 1 - foodWanderFrequency;
-
-            foodWanderFrequency = (int)Math.Floor(Math.Pow(foodWanderFrequency, 3) * particles.Count / 40);
-            if (foodWanderFrequency < 1) foodWanderFrequency = 1;
         }
 
         public void updateBaseWanderFrequency()

@@ -41,12 +41,10 @@ namespace Nuclei3
             //5
             pManager.AddNumberParameter("Deposit", "deposit", "The Amount of Chemoattractants Each Particle Deposits in the Environment", GH_ParamAccess.item, 1);
             //6
-            pManager.AddNumberParameter("Food Wander", "foodWander", "The Frequency of Random Directions. VALUES FROM 0 TO 1. The Larger the Value the More Chaotic", GH_ParamAccess.item, 0);
+            pManager.AddNumberParameter("Wander", "wander", "The Frequency of Random Directions. VALUES FROM 0 TO 1. The Larger the Value the More Chaotic", GH_ParamAccess.item, 0);
             //7
-            pManager.AddNumberParameter("Base Wander", "baseWander", "The Frequency of Random Directions. VALUES FROM 0 TO 1. The Larger the Value the More Chaotic", GH_ParamAccess.item, 0);
-            //8
             pManager.AddColourParameter("Colour", "colour", "The Display Color of The Particles", GH_ParamAccess.item, Color.FromArgb(125, 66, 236, 122));
-            pManager[8].Optional = true;
+            pManager[7].Optional = true;
         }
 
         /// <summary>
@@ -80,13 +78,12 @@ namespace Nuclei3
             DA.GetData("Rotation Angle", ref particleRotationAngle);
             DA.GetData("Deposit", ref particleDepositValue);
 
-            DA.GetData("Food Wander", ref foodWanderFrequency);
-            DA.GetData("Base Wander", ref baseWanderFrequency);
+            DA.GetData("Wander", ref baseWanderFrequency);
 
             DA.GetData("Colour", ref colour);
 
             ParticleGroup PG = new ParticleGroup(particleSpeed, particleSensorDistance, (int)Math.Floor(particleSensorAngle), (int)Math.Floor(particleRotationAngle), particleDepositValue,
-                -1, foodWanderFrequency, baseWanderFrequency, colour);
+                -1, baseWanderFrequency, colour);
             PG.ant = true;
             createParticles(PG);
 
@@ -106,7 +103,6 @@ namespace Nuclei3
         double particleRotationAngle;
         double particleDepositValue;
 
-        double foodWanderFrequency;
         double baseWanderFrequency;
 
         Color colour;

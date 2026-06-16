@@ -58,8 +58,21 @@ namespace Nuclei3
             //determine voxel size
             double voxelSize = Globals.voxelSize;
 
+            int totalVoxelCount = resX * resY * resZ;
+
             //add voxel centers to output list
-            outputVoxelPositions = new List<Point3d>();
+            if (outputVoxelPositions == null)
+            {
+                outputVoxelPositions = new List<Point3d>(totalVoxelCount);
+            }
+            else
+            {
+                outputVoxelPositions.Clear();
+                if (outputVoxelPositions.Capacity < totalVoxelCount)
+                {
+                    outputVoxelPositions.Capacity = totalVoxelCount;
+                }
+            }
 
             for (int i = 0; i < resX; i++)
             {
@@ -86,8 +99,7 @@ namespace Nuclei3
                     {
                         for (int k = 0; k < resZ; k++)
                         {
-                            Voxel V = new Voxel(voxelSize, i, j, k);
-                            outputVoxelPositions.Add(new Point3d(V.loc.X,V.loc.Y,V.loc.Z));
+                            outputVoxelPositions.Add(new Point3d(i * voxelSize + voxelSize / 2, j * voxelSize + voxelSize / 2, k * voxelSize + voxelSize / 2));
                         }
                     }
                 }

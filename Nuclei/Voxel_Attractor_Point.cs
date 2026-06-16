@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 using Grasshopper.Kernel;
 using Rhino.Geometry;
-using System.Runtime.Remoting.Messaging;
+//using System.Runtime.Remoting.Messaging;
 using GH_IO.Serialization;
 using System.Windows.Forms;
 
@@ -170,6 +170,8 @@ namespace Nuclei3
             Voxel[,,] dummyVoxel = new Voxel[resX, resY, resZ];
             List<Voxel> dummyVoxels = new List<Voxel>();
 
+            List<Point3d> realAttractorPoints = new List<Point3d>();
+
             for (int i = 0; i < attractorPoints.Count; i++)
             {
                 Point3d p = attractorPoints[i];
@@ -186,6 +188,8 @@ namespace Nuclei3
                     {
                         dummyVoxel[xID, yID, zID] = new Voxel(voxelSize, xID, yID, zID);
                         dummyVoxels.Add(new Voxel(voxelSize, xID, yID, zID));
+
+                        realAttractorPoints.Add(p);
                     }
                 }
             }
@@ -214,7 +218,7 @@ namespace Nuclei3
                                 {
                                     Voxel outV = new Voxel(voxelSize, u, v, w);
 
-                                    double dist = attractorPoints[i].DistanceTo(outV.loc);
+                                    double dist = realAttractorPoints[i].DistanceTo(outV.loc);
 
                                     if (theRealMin <= dist && dist <= theRealMax)
                                     {
@@ -247,6 +251,7 @@ namespace Nuclei3
                 }
             }
             );
+           
 
             if (invert)
             {
@@ -311,9 +316,9 @@ namespace Nuclei3
                             double outputDist = -1;
                             int outputDistCounter = 0;
 
-                            for (int p = 0; p < attractorPoints.Count; p++)
+                            for (int p = 0; p < realAttractorPoints.Count; p++)
                             {
-                                Point3d attractorP = attractorPoints[p];
+                                Point3d attractorP = realAttractorPoints[p];
 
                                 double dist = attractorP.DistanceTo(V.loc);
 

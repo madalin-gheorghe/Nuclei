@@ -51,7 +51,19 @@ namespace Nuclei3
             int resY = voxel.GetLength(1);
             int resZ = voxel.GetLength(2);
 
-            outputVoxelVectors = new List<Vector3d>();
+            int totalVoxelCount = resX * resY * resZ;
+            if (outputVoxelVectors == null)
+            {
+                outputVoxelVectors = new List<Vector3d>(totalVoxelCount);
+            }
+            else
+            {
+                outputVoxelVectors.Clear();
+                if (outputVoxelVectors.Capacity < totalVoxelCount)
+                {
+                    outputVoxelVectors.Capacity = totalVoxelCount;
+                }
+            }
 
             for (int k = 0; k < resZ; k++)
             {

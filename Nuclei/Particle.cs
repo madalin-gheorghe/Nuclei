@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Runtime.CompilerServices;
 
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Types;
@@ -119,8 +119,35 @@ namespace Nuclei3
 
         //-------------------------------------------------------------------
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void alignToVector(Vector3d V)
         {
+            if (!V.Unitize())
+            {
+                return;
+            }
+
+            alignToUnitVector(V);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void alignToUnitVector(Vector3d V)
+        {
+            Vector3d normal = pPlane.ZAxis;
+            if (normal.Unitize())
+            {
+                double normalDot = V.X * normal.X + V.Y * normal.Y + V.Z * normal.Z;
+                if (Math.Abs(normalDot) < 1e-9)
+                {
+                    Vector3d yAxis = Vector3d.CrossProduct(normal, V);
+                    if (yAxis.Unitize())
+                    {
+                        pPlane = new Plane(pPlane.Origin, V, yAxis);
+                        return;
+                    }
+                }
+            }
+
             Vector3d projectedX = new Vector3d(pPlane.XAxis.X, pPlane.XAxis.Y, 0);
             Vector3d projectedV = new Vector3d(V.X, V.Y, 0);
             double angleXY = Vector3d.VectorAngle(projectedX, projectedV, Plane.WorldXY);
@@ -130,6 +157,27 @@ namespace Nuclei3
             double angle = Vector3d.VectorAngle(pPlane.XAxis, V, vPlane);
 
             pPlane.Rotate(angle, vPlane.ZAxis, pPlane.Origin);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void alignToUnitVectorPlanarXY(Vector3d V)
+        {
+            Vector3d yAxis = new Vector3d(-V.Y, V.X, 0);
+            pPlane = new Plane(pPlane.Origin, V, yAxis);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void alignToUnitVectorPlanarXZ(Vector3d V)
+        {
+            Vector3d yAxis = new Vector3d(V.Z, 0, -V.X);
+            pPlane = new Plane(pPlane.Origin, V, yAxis);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void alignToUnitVectorPlanarYZ(Vector3d V)
+        {
+            Vector3d yAxis = new Vector3d(0, -V.Z, V.Y);
+            pPlane = new Plane(pPlane.Origin, V, yAxis);
         }
 
         #endregion

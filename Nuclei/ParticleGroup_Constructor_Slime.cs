@@ -83,7 +83,7 @@ namespace Nuclei3
             DA.GetData("Colour", ref colour);
 
             ParticleGroup PG = new ParticleGroup(particleSpeed, particleSensorDistance, (int) Math.Floor(particleSensorAngle), (int) Math.Floor(particleRotationAngle), particleDepositValue,
-                particleWander, -1, -1, colour);
+                particleWander, -1, colour);
             PG.ant = false;
             createParticles(PG);
 

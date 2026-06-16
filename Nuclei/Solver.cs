@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Linq;
 
 using Grasshopper;
 using Grasshopper.Kernel;
@@ -12,18 +11,20 @@ using Rhino.Geometry;
 using Rhino.Display;
 using Rhino.DocObjects;
 
+using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using System.Drawing;
 using System.Diagnostics;
 using System.Security.Cryptography.X509Certificates;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using static Nuclei3.ParticleGroup;
 
 namespace Nuclei3
 {
-    public class Solver : GH_Component
+public class Solver : GH_Component
     {
         /// <summary>
         /// Initializes a new instance of the Solver class.
@@ -78,28 +79,35 @@ namespace Nuclei3
         /// <param name="DA">The DA object is used to retrieve from inputs and store in outputs.</param>
         protected override void SolveInstance(IGH_DataAccess DA)
         {
+            long solveStart = Stopwatch.GetTimestamp();
+
             DA.GetData(0, ref reset);
 
             if (reset == true)
             {
+                resetTimingAverages();
+                TimingReporter.StartRun();
+
                 //iteration counter
                 iteration = 0;
                 antParticles = false;
+                particleCountsRequireFullReset = true;
+                particleCountTouchedCount = 0;
 
                 //utility
                 random = new System.Random(89);
                 precomputeAngles();
                 createWanderVectors();
 
+                //read solver settings before deriving voxel boundary state
+                settings = new List<String>();
+                DA.GetDataList(3, settings);
+                readSolverSettings();
+
                 //set voxels
                 DA.GetData(1, ref inputVoxels);
 
                 inheritVoxels();
-
-                //read solver settings
-                settings = new List<String>();
-                DA.GetDataList(3, settings);
-                readSolverSettings();
 
                 //set particles
                 inputParticleGroups = new List<ParticleGroup>();
@@ -120,57 +128,107 @@ namespace Nuclei3
                     createAntAgeMultipliers();
                 }
 
+                //create discrete vectors
+                //createDiscreteVectors();
+
                 this.Message = "Solution is Reset";
             }
             else
             {
+                long settingsTicks = 0;
+                long inputsTicks = 0;
+                long senseTicks = 0;
+                long moveTicks = 0;
+                long trailTicks = 0;
+                long diffuseTicks = 0;
+                long parentTicks = 0;
+                long populationTicks = 0;
+                long outputsTicks = 0;
+                long stageStart = Stopwatch.GetTimestamp();
+
                 //read solver settings
+                bool previousWrapBoundaries = wrapBoundaries;
                 settings = new List<String>();
                 DA.GetDataList(3, settings);
                 readSolverSettings();
+                bool wrapBoundaryChanged = previousWrapBoundaries != wrapBoundaries;
+                refreshVoxelBoundaryDensityLimitsIfNeeded();
+                settingsTicks = Stopwatch.GetTimestamp() - stageStart;
 
+                stageStart = Stopwatch.GetTimestamp();
                 inputParticleGroups = new List<ParticleGroup>();
                 DA.GetType();
                 DA.GetDataList(2, inputParticleGroups);
                 updateParticleGroups();
+                if (wrapBoundaryChanged)
+                {
+                    applyParticleBoundaryStateAfterWrapChange();
+                }
+                inputsTicks = Stopwatch.GetTimestamp() - stageStart;
 
                 if (iteration < maxIterations)
                 {
                     //run algorithm
                     if (iteration > 1)
                     {
+                        stageStart = Stopwatch.GetTimestamp();
                         particleSenseValuesAndVectors();
                         if (antParticles) particleSense_Ant();
+                        senseTicks = Stopwatch.GetTimestamp() - stageStart;
 
+                        stageStart = Stopwatch.GetTimestamp();
                         particleMoveAndDeposit();
+                        moveTicks = Stopwatch.GetTimestamp() - stageStart;
                     }
 
                     //particleDepositChemoattractors();
+                    stageStart = Stopwatch.GetTimestamp();
                     particleRecordTrail(); //careful with list.Add, better make arrays
+                    trailTicks = Stopwatch.GetTimestamp() - stageStart;
 
                     //voxel logics
+                    stageStart = Stopwatch.GetTimestamp();
                     diffuseVoxels();
-                    decayVoxels();
+                    diffuseTicks = Stopwatch.GetTimestamp() - stageStart;
 
                     //reorder data
+                    stageStart = Stopwatch.GetTimestamp();
                     particleCheckParentVoxel();
+                    parentTicks = Stopwatch.GetTimestamp() - stageStart;
 
                     //adaptive population
+                    stageStart = Stopwatch.GetTimestamp();
                     if (iteration > 1 && dynPop)
                     {
                         particleCheckNeighbourCount();
                         killParticles();
                         divideParticles();
                     }
+                    populationTicks = Stopwatch.GetTimestamp() - stageStart;
 
                     iteration++;
 
-                    this.Message = "Iteration: " + iteration;
                 }
 
                 //set outputs
+                stageStart = Stopwatch.GetTimestamp();
                 DA.SetData(0, particles);
                 DA.SetData(1, voxels);
+                outputsTicks = Stopwatch.GetTimestamp() - stageStart;
+
+                recordTimingAverages(
+                    settingsTicks,
+                    inputsTicks,
+                    senseTicks,
+                    moveTicks,
+                    trailTicks,
+                    diffuseTicks,
+                    parentTicks,
+                    populationTicks,
+                    outputsTicks,
+                    Stopwatch.GetTimestamp() - solveStart);
+
+                this.Message = "Iteration: " + iteration;
             }
         }
 
@@ -185,7 +243,15 @@ namespace Nuclei3
 
         Voxel[,,] inputVoxels;
         Voxel[,,] voxels;
+        Voxel[] voxelFlat;
         Voxel[] activeVoxels;
+        Voxel[] particleCountTouchedVoxels = Array.Empty<Voxel>();
+        int particleCountTouchedCount = 0;
+        bool particleCountsRequireFullReset = true;
+        bool denseVoxelGrid;
+        bool densityLimitsOnlyBoundaryVoxels;
+        bool densityLimitsDisabled;
+        bool boundaryLimitsWrapState;
 
         /////////////////////////////////////////////
 
@@ -200,9 +266,12 @@ namespace Nuclei3
 
         //voxel dimensions
         double voxelSize;
+        double voxelSizeInverse;
         int resX;
         int resY;
         int resZ;
+        int voxelStrideX;
+        int voxelStrideY;
 
         double dimX;
         double dimY;
@@ -255,11 +324,13 @@ namespace Nuclei3
         //wander
         List<Vector3d> wanderVectors = new List<Vector3d>();
 
+        //discrete 
+        bool discretizeMovement = true;
+        Vector3d[] discreteVectors = Array.Empty<Vector3d>();
+
         //ant settings
         bool antParticles = false;
 
-        double ageMultiplierBase = 1;
-        double ageMultiplierFood = 1;
         int maxAge = 100;
         double minBase = 0.1;
         double minFood = 0.2;
@@ -281,12 +352,177 @@ namespace Nuclei3
         //lists
         List<double> radAngle;
 
+        //reusable arrays for diffusion logic
+        double[] reusableWeights;
+        double[] reusableAntWeights;
+
         /////////////////////////////////////////////
 
         //random
         System.Random random = new System.Random(89);
+        private static readonly ThreadLocal<System.Random> threadLocalRandom = new ThreadLocal<System.Random>(() => new System.Random(Guid.NewGuid().GetHashCode()));
+        private static readonly ThreadLocal<double[]> threadLocalValues = new ThreadLocal<double[]>(() => new double[5]);
+        private static readonly ThreadLocal<Voxel[]> threadLocalNeighbors = new ThreadLocal<Voxel[]>(() => new Voxel[27]);
 
         /////////////////////////////////////////////
+
+        //timing
+        int timingSampleCount = 0;
+        long timingTotalTicks = 0;
+        long timingSettingsTicks = 0;
+        long timingInputsTicks = 0;
+        long timingSenseTicks = 0;
+        long timingMoveTicks = 0;
+        long timingTrailTicks = 0;
+        long timingDiffuseTicks = 0;
+        long timingParentTicks = 0;
+        long timingPopulationTicks = 0;
+        long timingOutputsTicks = 0;
+        TimingReporter.SolverContext timingContext;
+        string timingContextKey = "";
+
+        /////////////////////////////////////////////
+
+        //-------------------------------------------------------------------
+
+        void resetTimingAverages()
+        {
+            writeTimingAverages();
+            clearTimingCounters();
+        }
+
+        void clearTimingCounters()
+        {
+            timingSampleCount = 0;
+            timingTotalTicks = 0;
+            timingSettingsTicks = 0;
+            timingInputsTicks = 0;
+            timingSenseTicks = 0;
+            timingMoveTicks = 0;
+            timingTrailTicks = 0;
+            timingDiffuseTicks = 0;
+            timingParentTicks = 0;
+            timingPopulationTicks = 0;
+            timingOutputsTicks = 0;
+            timingContext = new TimingReporter.SolverContext();
+            timingContextKey = "";
+        }
+
+        void recordTimingAverages(
+            long settingsTicks,
+            long inputsTicks,
+            long senseTicks,
+            long moveTicks,
+            long trailTicks,
+            long diffuseTicks,
+            long parentTicks,
+            long populationTicks,
+            long outputsTicks,
+            long totalTicks)
+        {
+            TimingReporter.SolverContext currentContext = createTimingContext();
+            string currentContextKey = createTimingContextKey(currentContext);
+
+            if (timingSampleCount > 0 && timingContextKey != currentContextKey)
+            {
+                writeTimingAverages();
+                clearTimingCounters();
+            }
+
+            if (timingSampleCount == 0)
+            {
+                timingContext = currentContext;
+                timingContextKey = currentContextKey;
+            }
+
+            timingSampleCount++;
+            timingTotalTicks += totalTicks;
+            timingSettingsTicks += settingsTicks;
+            timingInputsTicks += inputsTicks;
+            timingSenseTicks += senseTicks;
+            timingMoveTicks += moveTicks;
+            timingTrailTicks += trailTicks;
+            timingDiffuseTicks += diffuseTicks;
+            timingParentTicks += parentTicks;
+            timingPopulationTicks += populationTicks;
+            timingOutputsTicks += outputsTicks;
+
+            if (timingSampleCount < TimingReporter.ReportFrequency) return;
+
+            writeTimingAverages();
+            clearTimingCounters();
+        }
+
+        void writeTimingAverages()
+        {
+            if (timingSampleCount <= 0) return;
+
+            int particleCount = particles != null ? particles.Count : 0;
+            int voxelCount = activeVoxels != null ? activeVoxels.Length : 0;
+
+            TimingReporter.WriteSolverAverages(
+                iteration,
+                timingSampleCount,
+                particleCount,
+                voxelCount,
+                timingContext,
+                TimingReporter.TicksToMilliseconds(timingTotalTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingSettingsTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingInputsTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingSenseTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingMoveTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingTrailTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingDiffuseTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingParentTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingPopulationTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingOutputsTicks, timingSampleCount));
+        }
+
+        TimingReporter.SolverContext createTimingContext()
+        {
+            TimingReporter.SolverContext context = new TimingReporter.SolverContext();
+            context.WrapBoundaries = wrapBoundaries;
+            context.ResX = resX;
+            context.ResY = resY;
+            context.ResZ = resZ;
+            context.ActiveVoxels = activeVoxels != null ? activeVoxels.Length : 0;
+            context.DenseVoxelGrid = denseVoxelGrid;
+            context.DimensionMode = tridimensional ? "3d" : planarXY ? "xy" : planarXZ ? "xz" : planarYZ ? "yz" : "unknown";
+            context.Diffuse = diffuse;
+            context.DiffuseRange = diffuseRange;
+            context.Decay = decay;
+            context.AntParticles = antParticles;
+            context.DiffuseRangeAnt = diffuseRange_Ant;
+            context.TrailSize = trailSize;
+            context.TrailFreq = trailFreq;
+            context.DynPop = dynPop;
+            context.Division = division;
+            context.Death = death;
+            context.MaxIterations = maxIterations;
+            return context;
+        }
+
+        string createTimingContextKey(TimingReporter.SolverContext context)
+        {
+            return (context.WrapBoundaries ? "1" : "0")
+                + "|" + context.ResX
+                + "|" + context.ResY
+                + "|" + context.ResZ
+                + "|" + context.ActiveVoxels
+                + "|" + (context.DenseVoxelGrid ? "1" : "0")
+                + "|" + context.DimensionMode
+                + "|" + context.Diffuse
+                + "|" + context.DiffuseRange
+                + "|" + context.Decay
+                + "|" + (context.AntParticles ? "1" : "0")
+                + "|" + context.DiffuseRangeAnt
+                + "|" + context.TrailSize
+                + "|" + context.TrailFreq
+                + "|" + (context.DynPop ? "1" : "0")
+                + "|" + (context.Division ? "1" : "0")
+                + "|" + (context.Death ? "1" : "0")
+                + "|" + context.MaxIterations;
+        }
 
         //-------------------------------------------------------------------
 
@@ -299,6 +535,7 @@ namespace Nuclei3
 
             //determine voxelSize
             voxelSize = Globals.voxelSize;
+            voxelSizeInverse = 1.0 / voxelSize;
 
             //determine voxel space dimensions
             dimX = resX * voxelSize;
@@ -357,8 +594,12 @@ namespace Nuclei3
 
             //create empty voxels and assign the values from the initial voxels
             voxels = new Voxel[resX, resY, resZ];
+            voxelStrideY = resZ;
+            voxelStrideX = resY * voxelStrideY;
+            voxelFlat = new Voxel[resX * resY * resZ];
 
-            ConcurrentBag<Voxel> activeVoxelsConcurrent = new ConcurrentBag<Voxel>();
+            Voxel[] tempActiveVoxels = new Voxel[resX * resY * resZ];
+            int activeVoxelCount = 0;
 
             Parallel.For(0, resX, i =>
             {
@@ -370,12 +611,16 @@ namespace Nuclei3
                         {
                             Voxel initialV = inputVoxels[i, j, k];
 
+                            int flatIndex = i * voxelStrideX + j * voxelStrideY + k;
                             Voxel V = new Voxel(voxelSize, i, j, k);
                             voxels[i, j, k] = V;
+                            voxelFlat[flatIndex] = V;
 
                             //assign the voxel values from the initial voxels
                             V.minDensity = initialV.minDensity;
                             V.maxDensity = initialV.maxDensity;
+                            V.inputMinDensity = initialV.minDensity;
+                            V.inputMaxDensity = initialV.maxDensity;
 
                             V.speedMultiplier = initialV.speedMultiplier;
                             V.sensorAngleMultiplier = initialV.sensorAngleMultiplier;
@@ -410,7 +655,8 @@ namespace Nuclei3
                             V.frequency = initialV.frequency;
 
                             //list of all active voxels
-                            activeVoxelsConcurrent.Add(V);
+                            int idx = System.Threading.Interlocked.Increment(ref activeVoxelCount) - 1;
+                            tempActiveVoxels[idx] = V;
                         }
                     }
                 }
@@ -418,7 +664,7 @@ namespace Nuclei3
             );
 
             //if all voxels are NULL, then instantiate new blank voxels
-            if (activeVoxelsConcurrent.Count == 0)
+            if (activeVoxelCount == 0)
             {
                 Parallel.For(0, resX, i =>
                 {
@@ -426,87 +672,128 @@ namespace Nuclei3
                     {
                         for (int k = 0; k < resZ; k++)
                         {
+                            int flatIndex = i * voxelStrideX + j * voxelStrideY + k;
                             voxels[i, j, k] = new Voxel(voxelSize, i, j, k);
-                            activeVoxelsConcurrent.Add(voxels[i, j, k]);
+                            voxelFlat[flatIndex] = voxels[i, j, k];
+                            int idx = System.Threading.Interlocked.Increment(ref activeVoxelCount) - 1;
+                            tempActiveVoxels[idx] = voxels[i, j, k];
                         }
                     }
                 }
             );
             }
 
-            activeVoxels = new Voxel[activeVoxelsConcurrent.Count];
-            activeVoxels = activeVoxelsConcurrent.ToArray();
-
-            int range = 1;
-
-            //assign maxDensity = 0.01 for boundary voxels
-            Parallel.For(0, resX, i =>
+            if (activeVoxelCount == tempActiveVoxels.Length)
             {
-                for (int j = 0; j < resY; j++)
+                activeVoxels = tempActiveVoxels;
+                denseVoxelGrid = true;
+            }
+            else
+            {
+                activeVoxels = new Voxel[activeVoxelCount];
+                Array.Copy(tempActiveVoxels, activeVoxels, activeVoxelCount);
+                denseVoxelGrid = false;
+            }
+
+            refreshVoxelBoundaryDensityLimits();
+            
+            // to avoid re-computing weights dynamically, we precompute with current settings
+            reusableWeights = precomputeWeights(diffuseRange);
+            
+            if (antParticles)
+            {
+                reusableAntWeights = precomputeWeights(diffuseRange_Ant);
+            }
+        }
+
+        void refreshVoxelBoundaryDensityLimitsIfNeeded()
+        {
+            if (activeVoxels == null || voxels == null || boundaryLimitsWrapState == wrapBoundaries) return;
+            refreshVoxelBoundaryDensityLimits();
+        }
+
+        void refreshVoxelBoundaryDensityLimits()
+        {
+            Voxel[,,] voxelGrid = voxels;
+            Voxel[] active = activeVoxels;
+            bool wrap = wrapBoundaries;
+            int maxX = resX - 1;
+            int maxY = resY - 1;
+            int maxZ = resZ - 1;
+
+            Parallel.For(0, active.Length, index =>
+            {
+                Voxel V = active[index];
+                int i = V.idX;
+                int j = V.idY;
+                int k = V.idZ;
+                bool boundary = false;
+
+                V.boundary = false;
+                V.minDensity = V.inputMinDensity;
+                V.maxDensity = V.inputMaxDensity;
+
+                if (!wrap)
                 {
-                    for (int k = 0; k < resZ; k++)
+                    if (tridimensional)
                     {
-                        if (voxels[i, j, k] != null)
+                        boundary = i == 0 || i == maxX || j == 0 || j == maxY || k == 0 || k == maxZ;
+                    }
+                    else if (planarXY)
+                    {
+                        boundary = i == 0 || i == maxX || j == 0 || j == maxY;
+                    }
+                    else if (planarXZ)
+                    {
+                        boundary = i == 0 || i == maxX || k == 0 || k == maxZ;
+                    }
+                    else if (planarYZ)
+                    {
+                        boundary = j == 0 || j == maxY || k == 0 || k == maxZ;
+                    }
+                }
+
+                for (int u = i - 1; !boundary && u <= i + 1; u++)
+                {
+                    for (int v = j - 1; !boundary && v <= j + 1; v++)
+                    {
+                        for (int w = k - 1; w <= k + 1; w++)
                         {
-                            Voxel V = voxels[i, j, k];
-
-                            if (wrapBoundaries==false)
+                            if (u >= 0 && u < resX && v >= 0 && v < resY && w >= 0 && w < resZ && voxelGrid[u, v, w] == null)
                             {
-                                if (tridimensional)
-                                {
-                                    if (i == 0 || i == resX - 1 || j == 0 || j == resY - 1 || k == 0 || k == resZ - 1)
-                                    {
-                                        V.maxDensity = 0.01;
-                                        V.boundary = true;
-                                    }
-                                } else if (planarXY)
-                                {
-                                    if (i == 0 || i == resX - 1 || j == 0 || j == resY - 1)
-                                    {
-                                        V.maxDensity = 0.01;
-                                        V.boundary = true;
-                                    }
-                                } else if (planarXZ)
-                                {
-                                    if (i == 0 || i == resX - 1 || k == 0 || k == resZ - 1)
-                                    {
-                                        V.maxDensity = 0.01;
-                                        V.boundary = true;
-                                    }
-                                } else if (planarYZ)
-                                {
-                                    if (j == 0 || j == resY - 1 || k == 0 || k == resZ - 1)
-                                    {
-                                        V.maxDensity = 0.01;
-                                        V.boundary = true;
-                                    }
-                                }
-                            }
-
-                            //check neighbours
-                            for (int u = i - range; u <= i + range; u++)
-                            {
-                                for (int v = j - range; v <= j + range; v++)
-                                {
-                                    for (int w = k - range; w <= k + range; w++)
-                                    {
-                                        if (u >= 0 && u < resX && v >= 0 && v < resY && w >= 0 && w < resZ)
-                                        {
-                                            if (voxels[u, v, w] == null)
-                                            {
-                                                V.maxDensity = 0.01;
-                                                V.boundary = true;
-                                                break;
-                                            }
-                                        } 
-                                    }
-                                }
+                                boundary = true;
+                                break;
                             }
                         }
                     }
                 }
+
+                if (boundary)
+                {
+                    V.maxDensity = 0.01;
+                    V.boundary = true;
+                }
+            });
+
+            bool limitsOnlyBoundary = true;
+            bool noDensityLimits = true;
+            for (int i = 0; i < active.Length; i++)
+            {
+                Voxel V = active[i];
+                bool hasLimit = V.minDensity != -1 || V.maxDensity != -1;
+                if (!hasLimit) continue;
+
+                noDensityLimits = false;
+                if (!V.boundary)
+                {
+                    limitsOnlyBoundary = false;
+                    break;
+                }
             }
-            );
+
+            densityLimitsOnlyBoundaryVoxels = limitsOnlyBoundary;
+            densityLimitsDisabled = noDensityLimits;
+            boundaryLimitsWrapState = wrap;
         }
 
         //-------------------------------------------------------------------
@@ -515,11 +802,22 @@ namespace Nuclei3
         {
             if (diffuse > 0)
             {
-                double[] newVoxelDensity = new double[activeVoxels.Length];
-                
-                double[] weights = new double[diffuseRange * 2 + 1];
-                weights = precomputeWeights(diffuseRange);
+                if (!planarYZ)
+                {
+                    xPassInPlace(reusableWeights);
+                }
 
+                if (!planarXZ)
+                {
+                    yPassInPlace(reusableWeights);
+                }
+
+                if (!planarXY)
+                {
+                    zPassInPlace(reusableWeights);
+                }
+
+                /*
                 if (iteration % 2 == 0)
                 {
                     if (!planarYZ)
@@ -561,6 +859,7 @@ namespace Nuclei3
                         assignPassDensityToVoxel(newVoxelDensity);
                     }
                 }
+                */
 
             }
 
@@ -569,23 +868,20 @@ namespace Nuclei3
             {
                 if (baseDiffuseRate > 0 || foodDiffuseRate > 0)
                 {
-                    double[] weights_ant = new double[diffuseRange_Ant * 2 + 1];
-                    weights_ant = precomputeWeights(diffuseRange_Ant);
-
                     if (iteration % 2 == 0)
                     {
                         if (!planarYZ)
                         {
-                            ants_xPass(weights_ant);
+                            ants_xPass(reusableAntWeights);
                         }
                         if (!planarXZ)
                         {
-                            ants_yPass(weights_ant);
+                            ants_yPass(reusableAntWeights);
                         }
 
                         if (!planarXY)
                         {
-                            ants_zPass(weights_ant);
+                            ants_zPass(reusableAntWeights);
                         }
                     }
 
@@ -593,539 +889,1866 @@ namespace Nuclei3
                     {
                         if (!planarXY)
                         {
-                           ants_zPass(weights_ant);
+                           ants_zPass(reusableAntWeights);
                         }
 
                         if (!planarXZ)
                         {
-                            ants_yPass(weights_ant);
+                            ants_yPass(reusableAntWeights);
                         }
 
                         if (!planarYZ)
                         {
-                            ants_xPass(weights_ant);
+                            ants_xPass(reusableAntWeights);
                         }
                     }
                 }
             }
 
 
-            //zero density for voxels at borders
-            Parallel.For(0, activeVoxels.Length, i =>
-            {
-                Voxel V = activeVoxels[i];
+            applyBoundaryAndDecay();
+        }
 
-                if (wrapBoundaries == false)
-                {                  
+        //-------------
+
+        void applyBoundaryAndDecay()
+        {
+            Voxel[] active = activeVoxels;
+            int activeCount = active.Length;
+            double densityDecay = decay;
+
+            if (!wrapBoundaries)
+            {
+                bool ant = antParticles;
+                int maxX = resX - 1;
+                int maxY = resY - 1;
+                int maxZ = resZ - 1;
+                double foodDecay = foodDecayRate;
+                double baseDecay = baseDecayRate;
+
+                Parallel.For(0, activeCount, i =>
+                {
+                    Voxel V = active[i];
+                    bool boundary = false;
+
                     if (tridimensional)
                     {
-                        if (V.idX == 0 || V.idX == resX - 1 || V.idY == 0 || V.idY == resY - 1 || V.idZ == 0 || V.idZ == resZ - 1)
+                        boundary = V.idX == 0 || V.idX == maxX || V.idY == 0 || V.idY == maxY || V.idZ == 0 || V.idZ == maxZ;
+                    }
+                    else if (planarXY)
+                    {
+                        boundary = V.idX == 0 || V.idX == maxX || V.idY == 0 || V.idY == maxY;
+                    }
+                    else if (planarXZ)
+                    {
+                        boundary = V.idX == 0 || V.idX == maxX || V.idZ == 0 || V.idZ == maxZ;
+                    }
+                    else if (planarYZ)
+                    {
+                        boundary = V.idY == 0 || V.idY == maxY || V.idZ == 0 || V.idZ == maxZ;
+                    }
+
+                    if (boundary)
+                    {
+                        V.density = 0;
+                        if (ant) V.towardsFoodPheromone = 0;
+                    }
+
+                    V.density -= densityDecay;
+                    if (V.density < 0) V.density = 0;
+
+                    if (ant)
+                    {
+                        V.towardsFoodPheromone -= foodDecay;
+                        V.towardsBasePheromone -= baseDecay;
+
+                        if (V.towardsFoodPheromone < 0) V.towardsFoodPheromone = 0;
+                        if (V.towardsBasePheromone < 0) V.towardsBasePheromone = 0;
+                    }
+                });
+            }
+            else if (antParticles)
+            {
+                double foodDecay = foodDecayRate;
+                double baseDecay = baseDecayRate;
+
+                Parallel.For(0, activeCount, i =>
+                {
+                    Voxel V = active[i];
+
+                    V.density -= densityDecay;
+                    if (V.density < 0) V.density = 0;
+
+                    V.towardsFoodPheromone -= foodDecay;
+                    V.towardsBasePheromone -= baseDecay;
+
+                    if (V.towardsFoodPheromone < 0) V.towardsFoodPheromone = 0;
+                    if (V.towardsBasePheromone < 0) V.towardsBasePheromone = 0;
+                });
+            }
+            else
+            {
+                Parallel.For(0, activeCount, i =>
+                {
+                    Voxel V = active[i];
+                    V.density -= densityDecay;
+                    if (V.density < 0) V.density = 0;
+                });
+            }
+        }
+
+        //-------------
+
+        void xPassInPlace(double[] weights)
+        {
+            Voxel[,,] voxelGrid = voxels;
+            Voxel[] flatGrid = voxelFlat;
+            int range = diffuseRange;
+            int xCount = resX;
+            int strideX = voxelStrideX;
+            int strideY = voxelStrideY;
+            bool wrap = wrapBoundaries;
+            double keep = 1 - diffuse;
+            double diffuseAmount = diffuse;
+            bool useInteriorFastPath = denseVoxelGrid && densityLimitsOnlyBoundaryVoxels && xCount > 2;
+            bool useDenseWrapFastPath = denseVoxelGrid && densityLimitsDisabled;
+
+            if (!wrap && range == 1)
+            {
+                if (tridimensional)
+                {
+                    int lineCount = resY * resZ;
+                    Parallel.For(0, lineCount, line =>
+                    {
+                        int y = line / resZ;
+                        int z = line % resZ;
+                        if (useInteriorFastPath && y > 0 && y < resY - 1 && z > 0 && z < resZ - 1)
                         {
-                            V.density = 0;
-                            
-                            //ant particles
-                            if (antParticles)
-                            {
-                                V.towardsFoodPheromone = 0;
-                            }
+                            diffuseXLineInteriorRange1NoWrapDense(flatGrid, weights, y, z, xCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseXLineRange1NoWrap(voxelGrid, weights, y, z, xCount, keep, diffuseAmount);
+                        }
+                    });
+                }
+                else if (planarXY)
+                {
+                    Parallel.For(0, resY, y =>
+                    {
+                        if (useInteriorFastPath && y > 0 && y < resY - 1)
+                        {
+                            diffuseXLineInteriorRange1NoWrapDense(flatGrid, weights, y, 0, xCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseXLineRange1NoWrap(voxelGrid, weights, y, 0, xCount, keep, diffuseAmount);
+                        }
+                    });
+                }
+                else if (planarXZ)
+                {
+                    Parallel.For(0, resZ, z =>
+                    {
+                        if (useInteriorFastPath && z > 0 && z < resZ - 1)
+                        {
+                            diffuseXLineInteriorRange1NoWrapDense(flatGrid, weights, 0, z, xCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseXLineRange1NoWrap(voxelGrid, weights, 0, z, xCount, keep, diffuseAmount);
+                        }
+                    });
+                }
+
+                return;
+            }
+
+            if (wrap && range == 1)
+            {
+                if (tridimensional)
+                {
+                    int lineCount = resY * resZ;
+                    Parallel.For(0, lineCount, () => new double[xCount], (line, loopState, lineDensity) =>
+                    {
+                        int y = line / resZ;
+                        int z = line % resZ;
+                        if (useDenseWrapFastPath)
+                        {
+                            diffuseXLineRange1WrapDense(flatGrid, weights, lineDensity, y, z, xCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseXLineRange1Wrap(voxelGrid, weights, lineDensity, y, z, xCount, keep, diffuseAmount);
+                        }
+                        return lineDensity;
+                    }, lineDensity => { });
+                }
+                else if (planarXY)
+                {
+                    Parallel.For(0, resY, () => new double[xCount], (y, loopState, lineDensity) =>
+                    {
+                        if (useDenseWrapFastPath)
+                        {
+                            diffuseXLineRange1WrapDense(flatGrid, weights, lineDensity, y, 0, xCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseXLineRange1Wrap(voxelGrid, weights, lineDensity, y, 0, xCount, keep, diffuseAmount);
+                        }
+                        return lineDensity;
+                    }, lineDensity => { });
+                }
+                else if (planarXZ)
+                {
+                    Parallel.For(0, resZ, () => new double[xCount], (z, loopState, lineDensity) =>
+                    {
+                        if (useDenseWrapFastPath)
+                        {
+                            diffuseXLineRange1WrapDense(flatGrid, weights, lineDensity, 0, z, xCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseXLineRange1Wrap(voxelGrid, weights, lineDensity, 0, z, xCount, keep, diffuseAmount);
+                        }
+                        return lineDensity;
+                    }, lineDensity => { });
+                }
+
+                return;
+            }
+
+            if (tridimensional)
+            {
+                int lineCount = resY * resZ;
+                Parallel.For(0, lineCount, () => new double[xCount], (line, loopState, lineDensity) =>
+                {
+                    int y = line / resZ;
+                    int z = line % resZ;
+                    diffuseXLine(voxelGrid, weights, lineDensity, y, z, range, xCount, wrap, keep, diffuseAmount);
+                    return lineDensity;
+                }, lineDensity => { });
+            }
+            else if (planarXY)
+            {
+                Parallel.For(0, resY, () => new double[xCount], (y, loopState, lineDensity) =>
+                {
+                    diffuseXLine(voxelGrid, weights, lineDensity, y, 0, range, xCount, wrap, keep, diffuseAmount);
+                    return lineDensity;
+                }, lineDensity => { });
+            }
+            else if (planarXZ)
+            {
+                Parallel.For(0, resZ, () => new double[xCount], (z, loopState, lineDensity) =>
+                {
+                    diffuseXLine(voxelGrid, weights, lineDensity, 0, z, range, xCount, wrap, keep, diffuseAmount);
+                    return lineDensity;
+                }, lineDensity => { });
+            }
+        }
+
+        void diffuseXLine(Voxel[,,] voxelGrid, double[] weights, double[] lineDensity, int y, int z, int range, int xCount, bool wrap, double keep, double diffuseAmount)
+        {
+            if (!wrap)
+            {
+                for (int x = 0; x < xCount; x++)
+                {
+                    Voxel V = voxelGrid[x, y, z];
+                    if (V == null) continue;
+
+                    double sum = 0;
+                    int startOffset = Math.Max(-range, -x);
+                    int endOffset = Math.Min(range, xCount - 1 - x);
+                    int weightIndex = startOffset + range;
+
+                    for (int offset = startOffset; offset <= endOffset; offset++)
+                    {
+                        Voxel neighbour = voxelGrid[x + offset, y, z];
+                        if (neighbour != null && neighbour.maxDensity != 0)
+                        {
+                            sum += neighbour.density * weights[weightIndex];
+                        }
+                        weightIndex++;
+                    }
+
+                    double val = V.density * keep + diffuseAmount * sum;
+                    if (val > 1) val = 1;
+                    if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                    if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                    lineDensity[x] = val;
+                }
+
+                for (int x = 0; x < xCount; x++)
+                {
+                    Voxel V = voxelGrid[x, y, z];
+                    if (V != null) V.density = lineDensity[x];
+                }
+
+                return;
+            }
+
+            for (int x = 0; x < xCount; x++)
+            {
+                Voxel V = voxelGrid[x, y, z];
+                if (V == null) continue;
+
+                double sum = 0;
+                int weightIndex = 0;
+
+                for (int offset = -range; offset <= range; offset++)
+                {
+                    int d_xID = x + offset;
+
+                    if (wrap)
+                    {
+                        if (d_xID < 0) d_xID += xCount;
+                        if (d_xID >= xCount) d_xID -= xCount;
+                    }
+
+                    if (d_xID >= 0 && d_xID < xCount)
+                    {
+                        Voxel neighbour = voxelGrid[d_xID, y, z];
+                        if (neighbour != null && neighbour.maxDensity != 0)
+                        {
+                            sum += neighbour.density * weights[weightIndex];
                         }
                     }
-                    else
+                    weightIndex++;
+                }
+
+                double val = V.density * keep + diffuseAmount * sum;
+                if (val > 1) val = 1;
+                if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                lineDensity[x] = val;
+            }
+
+            for (int x = 0; x < xCount; x++)
+            {
+                Voxel V = voxelGrid[x, y, z];
+                if (V != null) V.density = lineDensity[x];
+            }
+        }
+
+        void yPassInPlace(double[] weights)
+        {
+            Voxel[,,] voxelGrid = voxels;
+            Voxel[] flatGrid = voxelFlat;
+            int range = diffuseRange;
+            int yCount = resY;
+            int strideX = voxelStrideX;
+            int strideY = voxelStrideY;
+            bool wrap = wrapBoundaries;
+            double keep = 1 - diffuse;
+            double diffuseAmount = diffuse;
+            bool useInteriorFastPath = denseVoxelGrid && densityLimitsOnlyBoundaryVoxels && yCount > 2;
+            bool useDenseWrapFastPath = denseVoxelGrid && densityLimitsDisabled;
+
+            if (!wrap && range == 1)
+            {
+                if (tridimensional)
+                {
+                    int lineCount = resX * resZ;
+                    Parallel.For(0, lineCount, line =>
                     {
-                        if (planarXY)
+                        int x = line / resZ;
+                        int z = line % resZ;
+                        if (useInteriorFastPath && x > 0 && x < resX - 1 && z > 0 && z < resZ - 1)
                         {
-                            if (V.idX == 0 || V.idX == resX - 1 || V.idY == 0 || V.idY == resY - 1)
-                            {
-                                V.density = 0;
-
-                                //ant particles
-                                if (antParticles)
-                                {
-                                    V.towardsFoodPheromone = 0;
-                                }
-                            }
+                            diffuseYLineInteriorRange1NoWrapDense(flatGrid, weights, x, z, yCount, strideX, strideY, keep, diffuseAmount);
                         }
-                        else if (planarXZ)
+                        else
                         {
-                            if (V.idX == 0 || V.idX == resX - 1 || V.idZ == 0 || V.idZ == resZ - 1)
-                            {
-                                V.density = 0;
-
-                                //ant particles
-                                if (antParticles)
-                                {
-                                    V.towardsFoodPheromone = 0;
-                                }
-                            }
+                            diffuseYLineRange1NoWrap(voxelGrid, weights, x, z, yCount, keep, diffuseAmount);
                         }
-                        else if (planarYZ)
+                    });
+                }
+                else if (planarXY)
+                {
+                    Parallel.For(0, resX, x =>
+                    {
+                        if (useInteriorFastPath && x > 0 && x < resX - 1)
                         {
-                            if (V.idY == 0 || V.idY == resY - 1 || V.idZ == 0 || V.idZ == resZ - 1)
-                            {
-                                V.density = 0;
-
-                                //ant particles
-                                if (antParticles)
-                                {
-                                    V.towardsFoodPheromone = 0;
-                                }
-
-                            }
+                            diffuseYLineInteriorRange1NoWrapDense(flatGrid, weights, x, 0, yCount, strideX, strideY, keep, diffuseAmount);
                         }
+                        else
+                        {
+                            diffuseYLineRange1NoWrap(voxelGrid, weights, x, 0, yCount, keep, diffuseAmount);
+                        }
+                    });
+                }
+                else if (planarYZ)
+                {
+                    Parallel.For(0, resZ, z =>
+                    {
+                        if (useInteriorFastPath && z > 0 && z < resZ - 1)
+                        {
+                            diffuseYLineInteriorRange1NoWrapDense(flatGrid, weights, 0, z, yCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseYLineRange1NoWrap(voxelGrid, weights, 0, z, yCount, keep, diffuseAmount);
+                        }
+                    });
+                }
+
+                return;
+            }
+
+            if (wrap && range == 1)
+            {
+                if (tridimensional)
+                {
+                    int lineCount = resX * resZ;
+                    Parallel.For(0, lineCount, () => new double[yCount], (line, loopState, lineDensity) =>
+                    {
+                        int x = line / resZ;
+                        int z = line % resZ;
+                        if (useDenseWrapFastPath)
+                        {
+                            diffuseYLineRange1WrapDense(flatGrid, weights, lineDensity, x, z, yCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseYLineRange1Wrap(voxelGrid, weights, lineDensity, x, z, yCount, keep, diffuseAmount);
+                        }
+                        return lineDensity;
+                    }, lineDensity => { });
+                }
+                else if (planarXY)
+                {
+                    Parallel.For(0, resX, () => new double[yCount], (x, loopState, lineDensity) =>
+                    {
+                        if (useDenseWrapFastPath)
+                        {
+                            diffuseYLineRange1WrapDense(flatGrid, weights, lineDensity, x, 0, yCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseYLineRange1Wrap(voxelGrid, weights, lineDensity, x, 0, yCount, keep, diffuseAmount);
+                        }
+                        return lineDensity;
+                    }, lineDensity => { });
+                }
+                else if (planarYZ)
+                {
+                    Parallel.For(0, resZ, () => new double[yCount], (z, loopState, lineDensity) =>
+                    {
+                        if (useDenseWrapFastPath)
+                        {
+                            diffuseYLineRange1WrapDense(flatGrid, weights, lineDensity, 0, z, yCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseYLineRange1Wrap(voxelGrid, weights, lineDensity, 0, z, yCount, keep, diffuseAmount);
+                        }
+                        return lineDensity;
+                    }, lineDensity => { });
+                }
+
+                return;
+            }
+
+            if (tridimensional)
+            {
+                int lineCount = resX * resZ;
+                Parallel.For(0, lineCount, () => new double[yCount], (line, loopState, lineDensity) =>
+                {
+                    int x = line / resZ;
+                    int z = line % resZ;
+                    diffuseYLine(voxelGrid, weights, lineDensity, x, z, range, yCount, wrap, keep, diffuseAmount);
+                    return lineDensity;
+                }, lineDensity => { });
+            }
+            else if (planarXY)
+            {
+                Parallel.For(0, resX, () => new double[yCount], (x, loopState, lineDensity) =>
+                {
+                    diffuseYLine(voxelGrid, weights, lineDensity, x, 0, range, yCount, wrap, keep, diffuseAmount);
+                    return lineDensity;
+                }, lineDensity => { });
+            }
+            else if (planarYZ)
+            {
+                Parallel.For(0, resZ, () => new double[yCount], (z, loopState, lineDensity) =>
+                {
+                    diffuseYLine(voxelGrid, weights, lineDensity, 0, z, range, yCount, wrap, keep, diffuseAmount);
+                    return lineDensity;
+                }, lineDensity => { });
+            }
+        }
+
+        void diffuseYLine(Voxel[,,] voxelGrid, double[] weights, double[] lineDensity, int x, int z, int range, int yCount, bool wrap, double keep, double diffuseAmount)
+        {
+            if (!wrap)
+            {
+                for (int y = 0; y < yCount; y++)
+                {
+                    Voxel V = voxelGrid[x, y, z];
+                    if (V == null) continue;
+
+                    double sum = 0;
+                    int startOffset = Math.Max(-range, -y);
+                    int endOffset = Math.Min(range, yCount - 1 - y);
+                    int weightIndex = startOffset + range;
+
+                    for (int offset = startOffset; offset <= endOffset; offset++)
+                    {
+                        Voxel neighbour = voxelGrid[x, y + offset, z];
+                        if (neighbour != null && neighbour.maxDensity != 0)
+                        {
+                            sum += neighbour.density * weights[weightIndex];
+                        }
+                        weightIndex++;
+                    }
+
+                    double val = V.density * keep + diffuseAmount * sum;
+                    if (val > 1) val = 1;
+                    if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                    if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                    lineDensity[y] = val;
+                }
+
+                for (int y = 0; y < yCount; y++)
+                {
+                    Voxel V = voxelGrid[x, y, z];
+                    if (V != null) V.density = lineDensity[y];
+                }
+
+                return;
+            }
+
+            for (int y = 0; y < yCount; y++)
+            {
+                Voxel V = voxelGrid[x, y, z];
+                if (V == null) continue;
+
+                double sum = 0;
+                int weightIndex = 0;
+
+                for (int offset = -range; offset <= range; offset++)
+                {
+                    int d_yID = y + offset;
+
+                    if (wrap)
+                    {
+                        if (d_yID < 0) d_yID += yCount;
+                        if (d_yID >= yCount) d_yID -= yCount;
+                    }
+
+                    if (d_yID >= 0 && d_yID < yCount)
+                    {
+                        Voxel neighbour = voxelGrid[x, d_yID, z];
+                        if (neighbour != null && neighbour.maxDensity != 0)
+                        {
+                            sum += neighbour.density * weights[weightIndex];
+                        }
+                    }
+                    weightIndex++;
+                }
+
+                double val = V.density * keep + diffuseAmount * sum;
+                if (val > 1) val = 1;
+                if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                lineDensity[y] = val;
+            }
+
+            for (int y = 0; y < yCount; y++)
+            {
+                Voxel V = voxelGrid[x, y, z];
+                if (V != null) V.density = lineDensity[y];
+            }
+        }
+
+        void zPassInPlace(double[] weights)
+        {
+            Voxel[,,] voxelGrid = voxels;
+            Voxel[] flatGrid = voxelFlat;
+            int range = diffuseRange;
+            int zCount = resZ;
+            int strideX = voxelStrideX;
+            int strideY = voxelStrideY;
+            bool wrap = wrapBoundaries;
+            double keep = 1 - diffuse;
+            double diffuseAmount = diffuse;
+            bool useInteriorFastPath = denseVoxelGrid && densityLimitsOnlyBoundaryVoxels && zCount > 2;
+            bool useDenseWrapFastPath = denseVoxelGrid && densityLimitsDisabled;
+
+            if (!wrap && range == 1)
+            {
+                if (tridimensional)
+                {
+                    int lineCount = resX * resY;
+                    Parallel.For(0, lineCount, line =>
+                    {
+                        int x = line / resY;
+                        int y = line % resY;
+                        if (useInteriorFastPath && x > 0 && x < resX - 1 && y > 0 && y < resY - 1)
+                        {
+                            diffuseZLineInteriorRange1NoWrapDense(flatGrid, weights, x, y, zCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseZLineRange1NoWrap(voxelGrid, weights, x, y, zCount, keep, diffuseAmount);
+                        }
+                    });
+                }
+                else if (planarXZ)
+                {
+                    Parallel.For(0, resX, x =>
+                    {
+                        if (useInteriorFastPath && x > 0 && x < resX - 1)
+                        {
+                            diffuseZLineInteriorRange1NoWrapDense(flatGrid, weights, x, 0, zCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseZLineRange1NoWrap(voxelGrid, weights, x, 0, zCount, keep, diffuseAmount);
+                        }
+                    });
+                }
+                else if (planarYZ)
+                {
+                    Parallel.For(0, resY, y =>
+                    {
+                        if (useInteriorFastPath && y > 0 && y < resY - 1)
+                        {
+                            diffuseZLineInteriorRange1NoWrapDense(flatGrid, weights, 0, y, zCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseZLineRange1NoWrap(voxelGrid, weights, 0, y, zCount, keep, diffuseAmount);
+                        }
+                    });
+                }
+
+                return;
+            }
+
+            if (wrap && range == 1)
+            {
+                if (tridimensional)
+                {
+                    int lineCount = resX * resY;
+                    Parallel.For(0, lineCount, () => new double[zCount], (line, loopState, lineDensity) =>
+                    {
+                        int x = line / resY;
+                        int y = line % resY;
+                        if (useDenseWrapFastPath)
+                        {
+                            diffuseZLineRange1WrapDense(flatGrid, weights, lineDensity, x, y, zCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseZLineRange1Wrap(voxelGrid, weights, lineDensity, x, y, zCount, keep, diffuseAmount);
+                        }
+                        return lineDensity;
+                    }, lineDensity => { });
+                }
+                else if (planarXZ)
+                {
+                    Parallel.For(0, resX, () => new double[zCount], (x, loopState, lineDensity) =>
+                    {
+                        if (useDenseWrapFastPath)
+                        {
+                            diffuseZLineRange1WrapDense(flatGrid, weights, lineDensity, x, 0, zCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseZLineRange1Wrap(voxelGrid, weights, lineDensity, x, 0, zCount, keep, diffuseAmount);
+                        }
+                        return lineDensity;
+                    }, lineDensity => { });
+                }
+                else if (planarYZ)
+                {
+                    Parallel.For(0, resY, () => new double[zCount], (y, loopState, lineDensity) =>
+                    {
+                        if (useDenseWrapFastPath)
+                        {
+                            diffuseZLineRange1WrapDense(flatGrid, weights, lineDensity, 0, y, zCount, strideX, strideY, keep, diffuseAmount);
+                        }
+                        else
+                        {
+                            diffuseZLineRange1Wrap(voxelGrid, weights, lineDensity, 0, y, zCount, keep, diffuseAmount);
+                        }
+                        return lineDensity;
+                    }, lineDensity => { });
+                }
+
+                return;
+            }
+
+            if (tridimensional)
+            {
+                int lineCount = resX * resY;
+                Parallel.For(0, lineCount, () => new double[zCount], (line, loopState, lineDensity) =>
+                {
+                    int x = line / resY;
+                    int y = line % resY;
+                    diffuseZLine(voxelGrid, weights, lineDensity, x, y, range, zCount, wrap, keep, diffuseAmount);
+                    return lineDensity;
+                }, lineDensity => { });
+            }
+            else if (planarXZ)
+            {
+                Parallel.For(0, resX, () => new double[zCount], (x, loopState, lineDensity) =>
+                {
+                    diffuseZLine(voxelGrid, weights, lineDensity, x, 0, range, zCount, wrap, keep, diffuseAmount);
+                    return lineDensity;
+                }, lineDensity => { });
+            }
+            else if (planarYZ)
+            {
+                Parallel.For(0, resY, () => new double[zCount], (y, loopState, lineDensity) =>
+                {
+                    diffuseZLine(voxelGrid, weights, lineDensity, 0, y, range, zCount, wrap, keep, diffuseAmount);
+                    return lineDensity;
+                }, lineDensity => { });
+            }
+        }
+
+        void diffuseZLine(Voxel[,,] voxelGrid, double[] weights, double[] lineDensity, int x, int y, int range, int zCount, bool wrap, double keep, double diffuseAmount)
+        {
+            if (!wrap)
+            {
+                for (int z = 0; z < zCount; z++)
+                {
+                    Voxel V = voxelGrid[x, y, z];
+                    if (V == null) continue;
+
+                    double sum = 0;
+                    int startOffset = Math.Max(-range, -z);
+                    int endOffset = Math.Min(range, zCount - 1 - z);
+                    int weightIndex = startOffset + range;
+
+                    for (int offset = startOffset; offset <= endOffset; offset++)
+                    {
+                        Voxel neighbour = voxelGrid[x, y, z + offset];
+                        if (neighbour != null && neighbour.maxDensity != 0)
+                        {
+                            sum += neighbour.density * weights[weightIndex];
+                        }
+                        weightIndex++;
+                    }
+
+                    double val = V.density * keep + diffuseAmount * sum;
+                    if (val > 1) val = 1;
+                    if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                    if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                    lineDensity[z] = val;
+                }
+
+                for (int z = 0; z < zCount; z++)
+                {
+                    Voxel V = voxelGrid[x, y, z];
+                    if (V != null) V.density = lineDensity[z];
+                }
+
+                return;
+            }
+
+            for (int z = 0; z < zCount; z++)
+            {
+                Voxel V = voxelGrid[x, y, z];
+                if (V == null) continue;
+
+                double sum = 0;
+                int weightIndex = 0;
+
+                for (int offset = -range; offset <= range; offset++)
+                {
+                    int d_zID = z + offset;
+
+                    if (wrap)
+                    {
+                        if (d_zID < 0) d_zID += zCount;
+                        if (d_zID >= zCount) d_zID -= zCount;
+                    }
+
+                    if (d_zID >= 0 && d_zID < zCount)
+                    {
+                        Voxel neighbour = voxelGrid[x, y, d_zID];
+                        if (neighbour != null && neighbour.maxDensity != 0)
+                        {
+                            sum += neighbour.density * weights[weightIndex];
+                        }
+                    }
+                    weightIndex++;
+                }
+
+                double val = V.density * keep + diffuseAmount * sum;
+                if (val > 1) val = 1;
+                if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                lineDensity[z] = val;
+            }
+
+            for (int z = 0; z < zCount; z++)
+            {
+                Voxel V = voxelGrid[x, y, z];
+                if (V != null) V.density = lineDensity[z];
+            }
+        }
+
+        void diffuseXLineRange1Wrap(Voxel[,,] voxelGrid, double[] weights, double[] lineDensity, int y, int z, int xCount, double keep, double diffuseAmount)
+        {
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+
+            for (int x = 0; x < xCount; x++)
+            {
+                Voxel V = voxelGrid[x, y, z];
+                if (V == null) continue;
+
+                int leftIndex = x == 0 ? xCount - 1 : x - 1;
+                int rightIndex = x == xCount - 1 ? 0 : x + 1;
+
+                Voxel left = voxelGrid[leftIndex, y, z];
+                Voxel right = voxelGrid[rightIndex, y, z];
+
+                double sum = V.maxDensity == 0 ? 0 : V.density * centerWeight;
+                if (left != null && left.maxDensity != 0) sum += left.density * leftWeight;
+                if (right != null && right.maxDensity != 0) sum += right.density * rightWeight;
+
+                double val = V.density * keep + diffuseAmount * sum;
+                if (val > 1) val = 1;
+                if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                lineDensity[x] = val;
+            }
+
+            for (int x = 0; x < xCount; x++)
+            {
+                Voxel V = voxelGrid[x, y, z];
+                if (V != null) V.density = lineDensity[x];
+            }
+        }
+
+        void diffuseXLineRange1WrapDense(Voxel[] voxelGrid, double[] weights, double[] lineDensity, int y, int z, int xCount, int strideX, int strideY, double keep, double diffuseAmount)
+        {
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+            int baseIndex = y * strideY + z;
+
+            if (xCount == 1)
+            {
+                Voxel V = voxelGrid[baseIndex];
+                double sum = V.density * (leftWeight + centerWeight + rightWeight);
+                double val = V.density * keep + diffuseAmount * sum;
+                V.density = val > 1 ? 1 : val;
+                return;
+            }
+
+            int lastIndex = baseIndex + (xCount - 1) * strideX;
+            Voxel first = voxelGrid[baseIndex];
+            double firstSum = voxelGrid[lastIndex].density * leftWeight + first.density * centerWeight + voxelGrid[baseIndex + strideX].density * rightWeight;
+            double firstValue = first.density * keep + diffuseAmount * firstSum;
+            lineDensity[0] = firstValue > 1 ? 1 : firstValue;
+
+            double leftDensity = first.density;
+            Voxel centerVoxel = voxelGrid[baseIndex + strideX];
+            double centerDensity = centerVoxel.density;
+            int voxelIndex = baseIndex + strideX;
+            for (int x = 1; x < xCount - 1; x++)
+            {
+                double rightDensity = voxelGrid[voxelIndex + strideX].density;
+                double sum = leftDensity * leftWeight + centerDensity * centerWeight + rightDensity * rightWeight;
+                double val = centerDensity * keep + diffuseAmount * sum;
+                lineDensity[x] = val > 1 ? 1 : val;
+                leftDensity = centerDensity;
+                centerDensity = rightDensity;
+                voxelIndex += strideX;
+            }
+
+            Voxel last = voxelGrid[lastIndex];
+            double lastSum = voxelGrid[lastIndex - strideX].density * leftWeight + last.density * centerWeight + voxelGrid[baseIndex].density * rightWeight;
+            double lastValue = last.density * keep + diffuseAmount * lastSum;
+            lineDensity[xCount - 1] = lastValue > 1 ? 1 : lastValue;
+
+            voxelIndex = baseIndex;
+            for (int x = 0; x < xCount; x++)
+            {
+                voxelGrid[voxelIndex].density = lineDensity[x];
+                voxelIndex += strideX;
+            }
+        }
+
+        void diffuseYLineRange1Wrap(Voxel[,,] voxelGrid, double[] weights, double[] lineDensity, int x, int z, int yCount, double keep, double diffuseAmount)
+        {
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+
+            for (int y = 0; y < yCount; y++)
+            {
+                Voxel V = voxelGrid[x, y, z];
+                if (V == null) continue;
+
+                int leftIndex = y == 0 ? yCount - 1 : y - 1;
+                int rightIndex = y == yCount - 1 ? 0 : y + 1;
+
+                Voxel left = voxelGrid[x, leftIndex, z];
+                Voxel right = voxelGrid[x, rightIndex, z];
+
+                double sum = V.maxDensity == 0 ? 0 : V.density * centerWeight;
+                if (left != null && left.maxDensity != 0) sum += left.density * leftWeight;
+                if (right != null && right.maxDensity != 0) sum += right.density * rightWeight;
+
+                double val = V.density * keep + diffuseAmount * sum;
+                if (val > 1) val = 1;
+                if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                lineDensity[y] = val;
+            }
+
+            for (int y = 0; y < yCount; y++)
+            {
+                Voxel V = voxelGrid[x, y, z];
+                if (V != null) V.density = lineDensity[y];
+            }
+        }
+
+        void diffuseYLineRange1WrapDense(Voxel[] voxelGrid, double[] weights, double[] lineDensity, int x, int z, int yCount, int strideX, int strideY, double keep, double diffuseAmount)
+        {
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+            int baseIndex = x * strideX + z;
+
+            if (yCount == 1)
+            {
+                Voxel V = voxelGrid[baseIndex];
+                double sum = V.density * (leftWeight + centerWeight + rightWeight);
+                double val = V.density * keep + diffuseAmount * sum;
+                V.density = val > 1 ? 1 : val;
+                return;
+            }
+
+            int lastIndex = baseIndex + (yCount - 1) * strideY;
+            Voxel first = voxelGrid[baseIndex];
+            double firstSum = voxelGrid[lastIndex].density * leftWeight + first.density * centerWeight + voxelGrid[baseIndex + strideY].density * rightWeight;
+            double firstValue = first.density * keep + diffuseAmount * firstSum;
+            lineDensity[0] = firstValue > 1 ? 1 : firstValue;
+
+            double leftDensity = first.density;
+            Voxel centerVoxel = voxelGrid[baseIndex + strideY];
+            double centerDensity = centerVoxel.density;
+            int voxelIndex = baseIndex + strideY;
+            for (int y = 1; y < yCount - 1; y++)
+            {
+                double rightDensity = voxelGrid[voxelIndex + strideY].density;
+                double sum = leftDensity * leftWeight + centerDensity * centerWeight + rightDensity * rightWeight;
+                double val = centerDensity * keep + diffuseAmount * sum;
+                lineDensity[y] = val > 1 ? 1 : val;
+                leftDensity = centerDensity;
+                centerDensity = rightDensity;
+                voxelIndex += strideY;
+            }
+
+            Voxel last = voxelGrid[lastIndex];
+            double lastSum = voxelGrid[lastIndex - strideY].density * leftWeight + last.density * centerWeight + voxelGrid[baseIndex].density * rightWeight;
+            double lastValue = last.density * keep + diffuseAmount * lastSum;
+            lineDensity[yCount - 1] = lastValue > 1 ? 1 : lastValue;
+
+            voxelIndex = baseIndex;
+            for (int y = 0; y < yCount; y++)
+            {
+                voxelGrid[voxelIndex].density = lineDensity[y];
+                voxelIndex += strideY;
+            }
+        }
+
+        void diffuseZLineRange1Wrap(Voxel[,,] voxelGrid, double[] weights, double[] lineDensity, int x, int y, int zCount, double keep, double diffuseAmount)
+        {
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+
+            for (int z = 0; z < zCount; z++)
+            {
+                Voxel V = voxelGrid[x, y, z];
+                if (V == null) continue;
+
+                int leftIndex = z == 0 ? zCount - 1 : z - 1;
+                int rightIndex = z == zCount - 1 ? 0 : z + 1;
+
+                Voxel left = voxelGrid[x, y, leftIndex];
+                Voxel right = voxelGrid[x, y, rightIndex];
+
+                double sum = V.maxDensity == 0 ? 0 : V.density * centerWeight;
+                if (left != null && left.maxDensity != 0) sum += left.density * leftWeight;
+                if (right != null && right.maxDensity != 0) sum += right.density * rightWeight;
+
+                double val = V.density * keep + diffuseAmount * sum;
+                if (val > 1) val = 1;
+                if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                lineDensity[z] = val;
+            }
+
+            for (int z = 0; z < zCount; z++)
+            {
+                Voxel V = voxelGrid[x, y, z];
+                if (V != null) V.density = lineDensity[z];
+            }
+        }
+
+        void diffuseZLineRange1WrapDense(Voxel[] voxelGrid, double[] weights, double[] lineDensity, int x, int y, int zCount, int strideX, int strideY, double keep, double diffuseAmount)
+        {
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+            int baseIndex = x * strideX + y * strideY;
+
+            if (zCount == 1)
+            {
+                Voxel V = voxelGrid[baseIndex];
+                double sum = V.density * (leftWeight + centerWeight + rightWeight);
+                double val = V.density * keep + diffuseAmount * sum;
+                V.density = val > 1 ? 1 : val;
+                return;
+            }
+
+            int lastIndex = baseIndex + zCount - 1;
+            Voxel first = voxelGrid[baseIndex];
+            double firstSum = voxelGrid[lastIndex].density * leftWeight + first.density * centerWeight + voxelGrid[baseIndex + 1].density * rightWeight;
+            double firstValue = first.density * keep + diffuseAmount * firstSum;
+            lineDensity[0] = firstValue > 1 ? 1 : firstValue;
+
+            double leftDensity = first.density;
+            Voxel centerVoxel = voxelGrid[baseIndex + 1];
+            double centerDensity = centerVoxel.density;
+            int voxelIndex = baseIndex + 1;
+            for (int z = 1; z < zCount - 1; z++)
+            {
+                double rightDensity = voxelGrid[voxelIndex + 1].density;
+                double sum = leftDensity * leftWeight + centerDensity * centerWeight + rightDensity * rightWeight;
+                double val = centerDensity * keep + diffuseAmount * sum;
+                lineDensity[z] = val > 1 ? 1 : val;
+                leftDensity = centerDensity;
+                centerDensity = rightDensity;
+                voxelIndex++;
+            }
+
+            Voxel last = voxelGrid[lastIndex];
+            double lastSum = voxelGrid[lastIndex - 1].density * leftWeight + last.density * centerWeight + voxelGrid[baseIndex].density * rightWeight;
+            double lastValue = last.density * keep + diffuseAmount * lastSum;
+            lineDensity[zCount - 1] = lastValue > 1 ? 1 : lastValue;
+
+            voxelIndex = baseIndex;
+            for (int z = 0; z < zCount; z++)
+            {
+                voxelGrid[voxelIndex].density = lineDensity[z];
+                voxelIndex++;
+            }
+        }
+
+        void diffuseXLineInteriorRange1NoWrapDense(Voxel[] voxelGrid, double[] weights, int y, int z, int xCount, int strideX, int strideY, double keep, double diffuseAmount)
+        {
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+            int baseIndex = y * strideY + z;
+
+            Voxel left = voxelGrid[baseIndex];
+            Voxel center = voxelGrid[baseIndex + strideX];
+
+            double firstValue = left.density * keep + diffuseAmount * (left.density * centerWeight + center.density * rightWeight);
+            if (firstValue > 1) firstValue = 1;
+            if (left.maxDensity != -1 && firstValue > left.maxDensity) firstValue = left.maxDensity;
+            if (left.minDensity != -1 && firstValue > 0 && left.minDensity > firstValue) firstValue = left.minDensity;
+
+            Voxel previousVoxel = left;
+            double previousValue = firstValue;
+            int voxelIndex = baseIndex + strideX;
+
+            for (int x = 1; x < xCount - 1; x++)
+            {
+                Voxel right = voxelGrid[voxelIndex + strideX];
+                double val = center.density * keep + diffuseAmount * (left.density * leftWeight + center.density * centerWeight + right.density * rightWeight);
+                if (val > 1) val = 1;
+
+                previousVoxel.density = previousValue;
+                previousVoxel = center;
+                previousValue = val;
+
+                left = center;
+                center = right;
+                voxelIndex += strideX;
+            }
+
+            double lastValue = center.density * keep + diffuseAmount * (left.density * leftWeight + center.density * centerWeight);
+            if (lastValue > 1) lastValue = 1;
+            if (center.maxDensity != -1 && lastValue > center.maxDensity) lastValue = center.maxDensity;
+            if (center.minDensity != -1 && lastValue > 0 && center.minDensity > lastValue) lastValue = center.minDensity;
+
+            previousVoxel.density = previousValue;
+            center.density = lastValue;
+        }
+
+        void diffuseYLineInteriorRange1NoWrapDense(Voxel[] voxelGrid, double[] weights, int x, int z, int yCount, int strideX, int strideY, double keep, double diffuseAmount)
+        {
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+            int baseIndex = x * strideX + z;
+
+            Voxel left = voxelGrid[baseIndex];
+            Voxel center = voxelGrid[baseIndex + strideY];
+
+            double firstValue = left.density * keep + diffuseAmount * (left.density * centerWeight + center.density * rightWeight);
+            if (firstValue > 1) firstValue = 1;
+            if (left.maxDensity != -1 && firstValue > left.maxDensity) firstValue = left.maxDensity;
+            if (left.minDensity != -1 && firstValue > 0 && left.minDensity > firstValue) firstValue = left.minDensity;
+
+            Voxel previousVoxel = left;
+            double previousValue = firstValue;
+            int voxelIndex = baseIndex + strideY;
+
+            for (int y = 1; y < yCount - 1; y++)
+            {
+                Voxel right = voxelGrid[voxelIndex + strideY];
+                double val = center.density * keep + diffuseAmount * (left.density * leftWeight + center.density * centerWeight + right.density * rightWeight);
+                if (val > 1) val = 1;
+
+                previousVoxel.density = previousValue;
+                previousVoxel = center;
+                previousValue = val;
+
+                left = center;
+                center = right;
+                voxelIndex += strideY;
+            }
+
+            double lastValue = center.density * keep + diffuseAmount * (left.density * leftWeight + center.density * centerWeight);
+            if (lastValue > 1) lastValue = 1;
+            if (center.maxDensity != -1 && lastValue > center.maxDensity) lastValue = center.maxDensity;
+            if (center.minDensity != -1 && lastValue > 0 && center.minDensity > lastValue) lastValue = center.minDensity;
+
+            previousVoxel.density = previousValue;
+            center.density = lastValue;
+        }
+
+        void diffuseZLineInteriorRange1NoWrapDense(Voxel[] voxelGrid, double[] weights, int x, int y, int zCount, int strideX, int strideY, double keep, double diffuseAmount)
+        {
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+            int baseIndex = x * strideX + y * strideY;
+
+            Voxel left = voxelGrid[baseIndex];
+            Voxel center = voxelGrid[baseIndex + 1];
+
+            double firstValue = left.density * keep + diffuseAmount * (left.density * centerWeight + center.density * rightWeight);
+            if (firstValue > 1) firstValue = 1;
+            if (left.maxDensity != -1 && firstValue > left.maxDensity) firstValue = left.maxDensity;
+            if (left.minDensity != -1 && firstValue > 0 && left.minDensity > firstValue) firstValue = left.minDensity;
+
+            Voxel previousVoxel = left;
+            double previousValue = firstValue;
+            int voxelIndex = baseIndex + 1;
+
+            for (int z = 1; z < zCount - 1; z++)
+            {
+                Voxel right = voxelGrid[voxelIndex + 1];
+                double val = center.density * keep + diffuseAmount * (left.density * leftWeight + center.density * centerWeight + right.density * rightWeight);
+                if (val > 1) val = 1;
+
+                previousVoxel.density = previousValue;
+                previousVoxel = center;
+                previousValue = val;
+
+                left = center;
+                center = right;
+                voxelIndex++;
+            }
+
+            double lastValue = center.density * keep + diffuseAmount * (left.density * leftWeight + center.density * centerWeight);
+            if (lastValue > 1) lastValue = 1;
+            if (center.maxDensity != -1 && lastValue > center.maxDensity) lastValue = center.maxDensity;
+            if (center.minDensity != -1 && lastValue > 0 && center.minDensity > lastValue) lastValue = center.minDensity;
+
+            previousVoxel.density = previousValue;
+            center.density = lastValue;
+        }
+
+        void diffuseXLineRange1NoWrap(Voxel[,,] voxelGrid, double[] weights, int y, int z, int xCount, double keep, double diffuseAmount)
+        {
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+
+            Voxel left = null;
+            Voxel center = xCount > 0 ? voxelGrid[0, y, z] : null;
+            Voxel previousVoxel = null;
+            double previousValue = 0;
+
+            for (int x = 0; x < xCount; x++)
+            {
+                Voxel right = x + 1 < xCount ? voxelGrid[x + 1, y, z] : null;
+
+                if (center != null)
+                {
+                    double sum = center.maxDensity == 0 ? 0 : center.density * centerWeight;
+                    if (left != null && left.maxDensity != 0) sum += left.density * leftWeight;
+                    if (right != null && right.maxDensity != 0) sum += right.density * rightWeight;
+
+                    double val = center.density * keep + diffuseAmount * sum;
+                    if (val > 1) val = 1;
+                    if (center.maxDensity != -1 || center.minDensity != -1)
+                    {
+                        if (center.maxDensity != -1 && val > center.maxDensity) val = center.maxDensity;
+                        if (center.minDensity != -1 && val > 0 && center.minDensity > val) val = center.minDensity;
+                    }
+
+                    if (previousVoxel != null) previousVoxel.density = previousValue;
+                    previousVoxel = center;
+                    previousValue = val;
+                }
+                else
+                {
+                    if (previousVoxel != null)
+                    {
+                        previousVoxel.density = previousValue;
+                        previousVoxel = null;
                     }
                 }
+
+                left = center;
+                center = right;
             }
-            );
+
+            if (previousVoxel != null) previousVoxel.density = previousValue;
+        }
+
+        void diffuseXLineInteriorRange1NoWrap(Voxel[,,] voxelGrid, double[] weights, int y, int z, int xCount, double keep, double diffuseAmount)
+        {
+            if (xCount <= 2)
+            {
+                diffuseXLineRange1NoWrap(voxelGrid, weights, y, z, xCount, keep, diffuseAmount);
+                return;
+            }
+
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+
+            Voxel left = voxelGrid[0, y, z];
+            Voxel center = voxelGrid[1, y, z];
+
+            double firstValue = left.density * keep + diffuseAmount * (left.density * centerWeight + center.density * rightWeight);
+            if (firstValue > 1) firstValue = 1;
+            if (left.maxDensity != -1 && firstValue > left.maxDensity) firstValue = left.maxDensity;
+            if (left.minDensity != -1 && firstValue > 0 && left.minDensity > firstValue) firstValue = left.minDensity;
+
+            Voxel previousVoxel = left;
+            double previousValue = firstValue;
+
+            for (int x = 1; x < xCount - 1; x++)
+            {
+                Voxel right = voxelGrid[x + 1, y, z];
+                double val = center.density * keep + diffuseAmount * (left.density * leftWeight + center.density * centerWeight + right.density * rightWeight);
+                if (val > 1) val = 1;
+
+                previousVoxel.density = previousValue;
+                previousVoxel = center;
+                previousValue = val;
+
+                left = center;
+                center = right;
+            }
+
+            double lastValue = center.density * keep + diffuseAmount * (left.density * leftWeight + center.density * centerWeight);
+            if (lastValue > 1) lastValue = 1;
+            if (center.maxDensity != -1 && lastValue > center.maxDensity) lastValue = center.maxDensity;
+            if (center.minDensity != -1 && lastValue > 0 && center.minDensity > lastValue) lastValue = center.minDensity;
+
+            previousVoxel.density = previousValue;
+            center.density = lastValue;
+        }
+
+        void diffuseYLineRange1NoWrap(Voxel[,,] voxelGrid, double[] weights, int x, int z, int yCount, double keep, double diffuseAmount)
+        {
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+
+            Voxel left = null;
+            Voxel center = yCount > 0 ? voxelGrid[x, 0, z] : null;
+            Voxel previousVoxel = null;
+            double previousValue = 0;
+
+            for (int y = 0; y < yCount; y++)
+            {
+                Voxel right = y + 1 < yCount ? voxelGrid[x, y + 1, z] : null;
+
+                if (center != null)
+                {
+                    double sum = center.maxDensity == 0 ? 0 : center.density * centerWeight;
+                    if (left != null && left.maxDensity != 0) sum += left.density * leftWeight;
+                    if (right != null && right.maxDensity != 0) sum += right.density * rightWeight;
+
+                    double val = center.density * keep + diffuseAmount * sum;
+                    if (val > 1) val = 1;
+                    if (center.maxDensity != -1 || center.minDensity != -1)
+                    {
+                        if (center.maxDensity != -1 && val > center.maxDensity) val = center.maxDensity;
+                        if (center.minDensity != -1 && val > 0 && center.minDensity > val) val = center.minDensity;
+                    }
+
+                    if (previousVoxel != null) previousVoxel.density = previousValue;
+                    previousVoxel = center;
+                    previousValue = val;
+                }
+                else
+                {
+                    if (previousVoxel != null)
+                    {
+                        previousVoxel.density = previousValue;
+                        previousVoxel = null;
+                    }
+                }
+
+                left = center;
+                center = right;
+            }
+
+            if (previousVoxel != null) previousVoxel.density = previousValue;
+        }
+
+        void diffuseYLineInteriorRange1NoWrap(Voxel[,,] voxelGrid, double[] weights, int x, int z, int yCount, double keep, double diffuseAmount)
+        {
+            if (yCount <= 2)
+            {
+                diffuseYLineRange1NoWrap(voxelGrid, weights, x, z, yCount, keep, diffuseAmount);
+                return;
+            }
+
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+
+            Voxel left = voxelGrid[x, 0, z];
+            Voxel center = voxelGrid[x, 1, z];
+
+            double firstValue = left.density * keep + diffuseAmount * (left.density * centerWeight + center.density * rightWeight);
+            if (firstValue > 1) firstValue = 1;
+            if (left.maxDensity != -1 && firstValue > left.maxDensity) firstValue = left.maxDensity;
+            if (left.minDensity != -1 && firstValue > 0 && left.minDensity > firstValue) firstValue = left.minDensity;
+
+            Voxel previousVoxel = left;
+            double previousValue = firstValue;
+
+            for (int y = 1; y < yCount - 1; y++)
+            {
+                Voxel right = voxelGrid[x, y + 1, z];
+                double val = center.density * keep + diffuseAmount * (left.density * leftWeight + center.density * centerWeight + right.density * rightWeight);
+                if (val > 1) val = 1;
+
+                previousVoxel.density = previousValue;
+                previousVoxel = center;
+                previousValue = val;
+
+                left = center;
+                center = right;
+            }
+
+            double lastValue = center.density * keep + diffuseAmount * (left.density * leftWeight + center.density * centerWeight);
+            if (lastValue > 1) lastValue = 1;
+            if (center.maxDensity != -1 && lastValue > center.maxDensity) lastValue = center.maxDensity;
+            if (center.minDensity != -1 && lastValue > 0 && center.minDensity > lastValue) lastValue = center.minDensity;
+
+            previousVoxel.density = previousValue;
+            center.density = lastValue;
+        }
+
+        void diffuseZLineRange1NoWrap(Voxel[,,] voxelGrid, double[] weights, int x, int y, int zCount, double keep, double diffuseAmount)
+        {
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+
+            Voxel left = null;
+            Voxel center = zCount > 0 ? voxelGrid[x, y, 0] : null;
+            Voxel previousVoxel = null;
+            double previousValue = 0;
+
+            for (int z = 0; z < zCount; z++)
+            {
+                Voxel right = z + 1 < zCount ? voxelGrid[x, y, z + 1] : null;
+
+                if (center != null)
+                {
+                    double sum = center.maxDensity == 0 ? 0 : center.density * centerWeight;
+                    if (left != null && left.maxDensity != 0) sum += left.density * leftWeight;
+                    if (right != null && right.maxDensity != 0) sum += right.density * rightWeight;
+
+                    double val = center.density * keep + diffuseAmount * sum;
+                    if (val > 1) val = 1;
+                    if (center.maxDensity != -1 || center.minDensity != -1)
+                    {
+                        if (center.maxDensity != -1 && val > center.maxDensity) val = center.maxDensity;
+                        if (center.minDensity != -1 && val > 0 && center.minDensity > val) val = center.minDensity;
+                    }
+
+                    if (previousVoxel != null) previousVoxel.density = previousValue;
+                    previousVoxel = center;
+                    previousValue = val;
+                }
+                else
+                {
+                    if (previousVoxel != null)
+                    {
+                        previousVoxel.density = previousValue;
+                        previousVoxel = null;
+                    }
+                }
+
+                left = center;
+                center = right;
+            }
+
+            if (previousVoxel != null) previousVoxel.density = previousValue;
+        }
+
+        void diffuseZLineInteriorRange1NoWrap(Voxel[,,] voxelGrid, double[] weights, int x, int y, int zCount, double keep, double diffuseAmount)
+        {
+            if (zCount <= 2)
+            {
+                diffuseZLineRange1NoWrap(voxelGrid, weights, x, y, zCount, keep, diffuseAmount);
+                return;
+            }
+
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+
+            Voxel left = voxelGrid[x, y, 0];
+            Voxel center = voxelGrid[x, y, 1];
+
+            double firstValue = left.density * keep + diffuseAmount * (left.density * centerWeight + center.density * rightWeight);
+            if (firstValue > 1) firstValue = 1;
+            if (left.maxDensity != -1 && firstValue > left.maxDensity) firstValue = left.maxDensity;
+            if (left.minDensity != -1 && firstValue > 0 && left.minDensity > firstValue) firstValue = left.minDensity;
+
+            Voxel previousVoxel = left;
+            double previousValue = firstValue;
+
+            for (int z = 1; z < zCount - 1; z++)
+            {
+                Voxel right = voxelGrid[x, y, z + 1];
+                double val = center.density * keep + diffuseAmount * (left.density * leftWeight + center.density * centerWeight + right.density * rightWeight);
+                if (val > 1) val = 1;
+
+                previousVoxel.density = previousValue;
+                previousVoxel = center;
+                previousValue = val;
+
+                left = center;
+                center = right;
+            }
+
+            double lastValue = center.density * keep + diffuseAmount * (left.density * leftWeight + center.density * centerWeight);
+            if (lastValue > 1) lastValue = 1;
+            if (center.maxDensity != -1 && lastValue > center.maxDensity) lastValue = center.maxDensity;
+            if (center.minDensity != -1 && lastValue > 0 && center.minDensity > lastValue) lastValue = center.minDensity;
+
+            previousVoxel.density = previousValue;
+            center.density = lastValue;
         }
 
         //-------------
 
         double[] xPass(double[] newDensity, double[] weights)
         {
-            double[] neighbourSum = new double[activeVoxels.Length];
+            Voxel[,,] voxelGrid = voxels;
+            Voxel[] active = activeVoxels;
+            int activeCount = active.Length;
+            int range = diffuseRange;
+            int xCount = resX;
+            bool wrap = wrapBoundaries;
+            double keep = 1 - diffuse;
+            double diffuseAmount = diffuse;
 
-            //calculate density for each voxel taking into account whether voxel is active
-            Parallel.For(0, activeVoxels.Length, i =>
+            if (tridimensional)
             {
-                Voxel V = activeVoxels[i];
-
-                //diffuse
-                if (tridimensional)
+                Parallel.For(0, activeCount, i =>
                 {
+                    Voxel V = active[i];
+                    double sum = 0;
                     int weightIndex = 0;
+                    int idY = V.idY;
+                    int idZ = V.idZ;
 
-                    for (int x = -diffuseRange; x <= diffuseRange; x++)
+                    for (int x = -range; x <= range; x++)
                     {
                         int d_xID = V.idX + x;
 
-                        if (wrapBoundaries)
+                        if (wrap)
                         {
-                            if (d_xID < 0) d_xID += resX;
-                            if (d_xID > resX - 1) d_xID -= resX;
+                            if (d_xID < 0) d_xID += xCount;
+                            if (d_xID >= xCount) d_xID -= xCount;
                         }
 
-                        if (d_xID >= 0 && d_xID < resX)
+                        if (d_xID >= 0 && d_xID < xCount)
                         {
-                            if (voxels[d_xID, V.idY, V.idZ] != null)
+                            Voxel neighbour = voxelGrid[d_xID, idY, idZ];
+                            if (neighbour != null && neighbour.maxDensity != 0)
                             {
-                                Voxel neighbour = voxels[d_xID, V.idY, V.idZ];
-
-                                /*
-                                if (V.food != -1)
-                                {
-                                    if (V.particleCount != 0) neighbour.density += V.food / 2;
-                                    if (V.particleCount == 0) neighbour.density += V.food;
-                                }
-                                */
-
-                                if (neighbour.maxDensity != 0)
-                                {
-                                    neighbourSum[i] += neighbour.density * weights[weightIndex];
-                                }
+                                sum += neighbour.density * weights[weightIndex];
                             }
                         }
                         weightIndex++;
                     }
-                }
-                else //tridimensional == false
-                {
-                    if (planarXY)
-                    {
-                        int weightIndex = 0;
 
-                        for (int x = -diffuseRange; x <= diffuseRange; x++)
-                        {
-                            int d_xID = V.idX + x;
-
-                            if (wrapBoundaries)
-                            {
-                                if (d_xID < 0) d_xID += resX;
-                                if (d_xID > resX - 1) d_xID -= resX;
-                            }
-
-                            if (d_xID >= 0 && d_xID < resX)
-                            {
-                                if (voxels[d_xID, V.idY, 0] != null)
-                                {
-                                    Voxel neighbour = voxels[d_xID, V.idY, 0];
-
-                                    /*
-                                    if (V.food != -1)
-                                    {
-                                        if (V.particleCount != 0) neighbour.density += V.food / 2;
-                                        if (V.particleCount == 0) neighbour.density += V.food;
-                                    }
-                                    */
-
-                                    if (neighbour.maxDensity != 0)
-                                    {
-                                        neighbourSum[i] += neighbour.density * weights[weightIndex];
-                                    }
-                                }
-                            }
-                            weightIndex++;
-                        }
-                    }
-                    if (planarXZ)
-                    {
-                        int weightIndex = 0;
-
-                        for (int x = -diffuseRange; x <= diffuseRange; x++)
-                        {
-                            int d_xID = V.idX + x;
-
-                            if (wrapBoundaries)
-                            {
-                                if (d_xID < 0) d_xID += resX;
-                                if (d_xID > resX - 1) d_xID -= resX;
-                            }
-
-                            if (d_xID >= 0 && d_xID < resX)
-                            {
-                                if (voxels[d_xID, 0, V.idZ] != null)
-                                {
-                                    Voxel neighbour = voxels[d_xID, 0, V.idZ];
-
-                                    /*
-                                    if (V.food != -1)
-                                    {
-                                        if (V.particleCount != 0) neighbour.density += V.food / 2;
-                                        if (V.particleCount == 0) neighbour.density += V.food;
-                                    }
-                                    */
-
-                                    if (neighbour.maxDensity != 0)
-                                    {
-                                        neighbourSum[i] += neighbour.density * weights[weightIndex];
-                                    }
-                                }
-                            }
-                            weightIndex++;
-                        }
-                    }
-                }
-
-                if (tridimensional || planarXY || planarXZ)
-                {
                     //calculate new density
-                    newDensity[i] = V.density * (1 - diffuse) + diffuse * neighbourSum[i];
-
-                    if (newDensity[i] > 1) newDensity[i] = 1;
-
-                    //override values with staticDensity a.k.a. initial voxel values map
-                    if (V.maxDensity != -1)
-                    {
-                        if (newDensity[i] > V.maxDensity) newDensity[i] = V.maxDensity;
-                    }
-
-                    if (V.minDensity != -1)
-                    {
-                        //if (newDensity[i] < V.minDensity) newDensity[i] = V.minDensity;
-                        if (newDensity[i] > 0 && V.minDensity > newDensity[i]) newDensity[i] = V.minDensity;
-                    }
-                }
+                    double val = V.density * keep + diffuseAmount * sum;
+                    if (val > 1) val = 1;
+                    if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                    if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                    newDensity[i] = val;
+                });
             }
-            );
+            else if (planarXY)
+            {
+                Parallel.For(0, activeCount, i =>
+                {
+                    Voxel V = active[i];
+                    double sum = 0;
+                    int weightIndex = 0;
+                    int idY = V.idY;
+
+                    for (int x = -range; x <= range; x++)
+                    {
+                        int d_xID = V.idX + x;
+
+                        if (wrap)
+                        {
+                            if (d_xID < 0) d_xID += xCount;
+                            if (d_xID >= xCount) d_xID -= xCount;
+                        }
+
+                        if (d_xID >= 0 && d_xID < xCount)
+                        {
+                            Voxel neighbour = voxelGrid[d_xID, idY, 0];
+                            if (neighbour != null && neighbour.maxDensity != 0)
+                            {
+                                sum += neighbour.density * weights[weightIndex];
+                            }
+                        }
+                        weightIndex++;
+                    }
+
+                    //calculate new density
+                    double val = V.density * keep + diffuseAmount * sum;
+                    if (val > 1) val = 1;
+                    if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                    if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                    newDensity[i] = val;
+                });
+            }
+            else if (planarXZ)
+            {
+                Parallel.For(0, activeCount, i =>
+                {
+                    Voxel V = active[i];
+                    double sum = 0;
+                    int weightIndex = 0;
+                    int idZ = V.idZ;
+
+                    for (int x = -range; x <= range; x++)
+                    {
+                        int d_xID = V.idX + x;
+
+                        if (wrap)
+                        {
+                            if (d_xID < 0) d_xID += xCount;
+                            if (d_xID >= xCount) d_xID -= xCount;
+                        }
+
+                        if (d_xID >= 0 && d_xID < xCount)
+                        {
+                            Voxel neighbour = voxelGrid[d_xID, 0, idZ];
+                            if (neighbour != null && neighbour.maxDensity != 0)
+                            {
+                                sum += neighbour.density * weights[weightIndex];
+                            }
+                        }
+                        weightIndex++;
+                    }
+
+                    //calculate new density
+                    double val = V.density * keep + diffuseAmount * sum;
+                    if (val > 1) val = 1;
+                    if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                    if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                    newDensity[i] = val;
+                });
+            }
 
             return newDensity;
         }
 
         double[] yPass(double[] newDensity, double[] weights)
         {
-            double[] neighbourSum = new double[activeVoxels.Length];
+            Voxel[,,] voxelGrid = voxels;
+            Voxel[] active = activeVoxels;
+            int activeCount = active.Length;
+            int range = diffuseRange;
+            int yCount = resY;
+            bool wrap = wrapBoundaries;
+            double keep = 1 - diffuse;
+            double diffuseAmount = diffuse;
 
-            //calculate density for each voxel taking into account whether voxel is active
-            Parallel.For(0, activeVoxels.Length, i =>
+            if (tridimensional)
             {
-                Voxel V = activeVoxels[i];
-
-                //diffuse
-                if (tridimensional)
+                Parallel.For(0, activeCount, i =>
                 {
+                    Voxel V = active[i];
+                    double sum = 0;
                     int weightIndex = 0;
+                    int idX = V.idX;
+                    int idZ = V.idZ;
 
-                    for (int y = -diffuseRange; y <= diffuseRange; y++)
+                    for (int y = -range; y <= range; y++)
                     {
                         int d_yID = V.idY + y;
 
-                        if (wrapBoundaries)
+                        if (wrap)
                         {
-                            if (d_yID < 0) d_yID += resY;
-                            if (d_yID > resY - 1) d_yID -= resY;
+                            if (d_yID < 0) d_yID += yCount;
+                            if (d_yID >= yCount) d_yID -= yCount;
                         }
 
-                        if (d_yID >= 0 && d_yID < resY)
+                        if (d_yID >= 0 && d_yID < yCount)
                         {
-                            if (voxels[V.idX, d_yID, V.idZ] != null)
+                            Voxel neighbour = voxelGrid[idX, d_yID, idZ];
+                            if (neighbour != null && neighbour.maxDensity != 0)
                             {
-                                Voxel neighbour = voxels[V.idX, d_yID, V.idZ];
-
-                                /*
-                                if (V.food != -1)
-                                {
-                                    if (V.particleCount != 0) neighbour.density += V.food / 2;
-                                    if (V.particleCount == 0) neighbour.density += V.food;
-                                }
-                                */
-
-                                if (neighbour.maxDensity != 0)
-                                {
-                                    neighbourSum[i] += neighbour.density * weights[weightIndex];
-                                }
+                                sum += neighbour.density * weights[weightIndex];
                             }
                         }
                         weightIndex++;
                     }
-                }
-                else //tridimensional == false
-                {
-                    if (planarXY)
-                    {
-                        int weightIndex = 0;
 
-                        for (int y = -diffuseRange; y <= diffuseRange; y++)
-                        {
-                            int d_yID = V.idY + y;
-
-                            if (wrapBoundaries)
-                            {
-                                if (d_yID < 0) d_yID += resY;
-                                if (d_yID > resY - 1) d_yID -= resY;
-                            }
-
-                            if (d_yID >= 0 && d_yID < resY)
-                            {
-                                if (voxels[V.idX, d_yID, 0] != null)
-                                {
-                                    Voxel neighbour = voxels[V.idX, d_yID, 0];
-
-                                    /*
-                                    if (V.food != -1)
-                                    {
-                                        if (V.particleCount != 0) neighbour.density += V.food / 2;
-                                        if (V.particleCount == 0) neighbour.density += V.food;
-                                    }
-                                    */
-
-                                    if (neighbour.maxDensity != 0)
-                                    {
-                                        neighbourSum[i] += neighbour.density * weights[weightIndex];
-                                    }
-                                }
-                            }
-                            weightIndex++;
-                        }
-                    }
-                    else if (planarYZ)
-                    {
-                        int weightIndex = 0;
-
-                        for (int y = -diffuseRange; y <= diffuseRange; y++)
-                        {
-                            int d_yID = V.idY + y;
-
-                            if (wrapBoundaries)
-                            {
-                                if (d_yID < 0) d_yID += resY;
-                                if (d_yID > resY - 1) d_yID -= resY;
-                            }
-
-                            if (d_yID >= 0 && d_yID < resY)
-                            {
-                                if (voxels[0, d_yID, V.idZ] != null)
-                                {
-                                    Voxel neighbour = voxels[0, d_yID, V.idZ];
-
-                                    /*
-                                    if (V.food != -1)
-                                    {
-                                        if (V.particleCount != 0) neighbour.density += V.food / 2;
-                                        if (V.particleCount == 0) neighbour.density += V.food;
-                                    }
-                                    */
-
-                                    if (neighbour.maxDensity != 0)
-                                    {
-                                        neighbourSum[i] += neighbour.density * weights[weightIndex];
-                                    }
-                                }
-                            }
-                            weightIndex++;
-                        }
-                    }
-                }
-
-                if (tridimensional || planarXY || planarYZ)
-                {
                     //calculate new density
-                    newDensity[i] = V.density * (1 - diffuse) + diffuse * neighbourSum[i];
-
-                    if (newDensity[i] > 1) newDensity[i] = 1;
-
-                    //override values with staticDensity a.k.a. initial voxel values map
-                    if (V.maxDensity != -1)
-                    {
-                        if (newDensity[i] > V.maxDensity) newDensity[i] = V.maxDensity;
-                    }
-
-                    if (V.minDensity != -1)
-                    {
-                        //if (newDensity[i] < V.minDensity) newDensity[i] = V.minDensity;
-                        if (newDensity[i] > 0 && V.minDensity > newDensity[i]) newDensity[i] = V.minDensity;
-                    }
-                }
+                    double val = V.density * keep + diffuseAmount * sum;
+                    if (val > 1) val = 1;
+                    if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                    if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                    newDensity[i] = val;
+                });
             }
-            );
+            else if (planarXY)
+            {
+                Parallel.For(0, activeCount, i =>
+                {
+                    Voxel V = active[i];
+                    double sum = 0;
+                    int weightIndex = 0;
+                    int idX = V.idX;
+
+                    for (int y = -range; y <= range; y++)
+                    {
+                        int d_yID = V.idY + y;
+
+                        if (wrap)
+                        {
+                            if (d_yID < 0) d_yID += yCount;
+                            if (d_yID >= yCount) d_yID -= yCount;
+                        }
+
+                        if (d_yID >= 0 && d_yID < yCount)
+                        {
+                            Voxel neighbour = voxelGrid[idX, d_yID, 0];
+                            if (neighbour != null && neighbour.maxDensity != 0)
+                            {
+                                sum += neighbour.density * weights[weightIndex];
+                            }
+                        }
+                        weightIndex++;
+                    }
+
+                    //calculate new density
+                    double val = V.density * keep + diffuseAmount * sum;
+                    if (val > 1) val = 1;
+                    if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                    if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                    newDensity[i] = val;
+                });
+            }
+            else if (planarYZ)
+            {
+                Parallel.For(0, activeCount, i =>
+                {
+                    Voxel V = active[i];
+                    double sum = 0;
+                    int weightIndex = 0;
+                    int idZ = V.idZ;
+
+                    for (int y = -range; y <= range; y++)
+                    {
+                        int d_yID = V.idY + y;
+
+                        if (wrap)
+                        {
+                            if (d_yID < 0) d_yID += yCount;
+                            if (d_yID >= yCount) d_yID -= yCount;
+                        }
+
+                        if (d_yID >= 0 && d_yID < yCount)
+                        {
+                            Voxel neighbour = voxelGrid[0, d_yID, idZ];
+                            if (neighbour != null && neighbour.maxDensity != 0)
+                            {
+                                sum += neighbour.density * weights[weightIndex];
+                            }
+                        }
+                        weightIndex++;
+                    }
+
+                    //calculate new density
+                    double val = V.density * keep + diffuseAmount * sum;
+                    if (val > 1) val = 1;
+                    if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                    if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                    newDensity[i] = val;
+                });
+            }
 
             return newDensity;
         }
 
         double[] zPass(double[] newDensity, double[] weights)
         {
-            double[] neighbourSum = new double[activeVoxels.Length];
+            Voxel[,,] voxelGrid = voxels;
+            Voxel[] active = activeVoxels;
+            int activeCount = active.Length;
+            int range = diffuseRange;
+            int zCount = resZ;
+            bool wrap = wrapBoundaries;
+            double keep = 1 - diffuse;
+            double diffuseAmount = diffuse;
 
-            //calculate density for each voxel taking into account whether voxel is active
-            Parallel.For(0, activeVoxels.Length, i =>
+            if (tridimensional)
             {
-                Voxel V = activeVoxels[i];
-                //diffuse
-                if (tridimensional)
+                Parallel.For(0, activeCount, i =>
                 {
+                    Voxel V = active[i];
+                    double sum = 0;
                     int weightIndex = 0;
+                    int idX = V.idX;
+                    int idY = V.idY;
 
-                    for (int z = -diffuseRange; z <= diffuseRange; z++)
+                    for (int z = -range; z <= range; z++)
                     {
                         int d_zID = V.idZ + z;
 
-                        if (wrapBoundaries)
+                        if (wrap)
                         {
-                            if (d_zID < 0) d_zID += resZ;
-                            if (d_zID > resZ - 1) d_zID -= resZ;
+                            if (d_zID < 0) d_zID += zCount;
+                            if (d_zID >= zCount) d_zID -= zCount;
                         }
 
-                        if (d_zID >= 0 && d_zID < resZ)
+                        if (d_zID >= 0 && d_zID < zCount)
                         {
-                            if (voxels[V.idX, V.idY, d_zID] != null)
+                            Voxel neighbour = voxelGrid[idX, idY, d_zID];
+                            if (neighbour != null && neighbour.maxDensity != 0)
                             {
-                                Voxel neighbour = voxels[V.idX, V.idY, d_zID];
-
-                                /*
-                                if (V.food != -1)
-                                {
-                                    if (V.particleCount != 0) neighbour.density += V.food / 2;
-                                    if (V.particleCount == 0) neighbour.density += V.food;
-                                }
-                                */
-
-                                if (neighbour.maxDensity != 0)
-                                {
-                                    neighbourSum[i] += neighbour.density * weights[weightIndex];
-                                }
+                                sum += neighbour.density * weights[weightIndex];
                             }
                         }
                         weightIndex++;
                     }
-                }
-                else //tridimensional == false
-                {
-                    if (planarXZ)
-                    {
-                        int weightIndex = 0;
 
-                        for (int z = -diffuseRange; z <= diffuseRange; z++)
-                        {
-                            int d_zID = V.idZ + z;
-
-                            if (wrapBoundaries)
-                            {
-                                if (d_zID < 0) d_zID += resZ;
-                                if (d_zID > resZ - 1) d_zID -= resZ;
-                            }
-
-                            if (d_zID >= 0 && d_zID < resZ)
-                            {
-                                if (voxels[V.idX, 0, d_zID] != null)
-                                {
-                                    Voxel neighbour = voxels[V.idX, 0, d_zID];
-
-                                    /*
-                                    if (V.food != -1)
-                                    {
-                                        if (V.particleCount != 0) neighbour.density += V.food / 2;
-                                        if (V.particleCount == 0) neighbour.density += V.food;
-                                    }
-                                    */
-
-                                    if (neighbour.maxDensity != 0)
-                                    {
-                                        neighbourSum[i] += neighbour.density * weights[weightIndex];
-                                    }
-                                }
-                            }
-                            weightIndex++;
-                        }
-                    }
-                    else if (planarYZ)
-                    {
-                        int weightIndex = 0;
-
-                        for (int z = -diffuseRange; z <= diffuseRange; z++)
-                        {
-                            int d_zID = V.idZ + z;
-
-                            if (wrapBoundaries)
-                            {
-                                if (d_zID < 0) d_zID += resZ;
-                                if (d_zID > resZ - 1) d_zID -= resZ;
-                            }
-
-                            if (d_zID >= 0 && d_zID < resZ)
-                            {
-                                if (voxels[0, V.idY, d_zID] != null)
-                                {
-                                    Voxel neighbour = voxels[0, V.idY, d_zID];
-
-                                    /*
-                                    if (V.food != -1)
-                                    {
-                                        if (V.particleCount != 0) neighbour.density += V.food / 2;
-                                        if (V.particleCount == 0) neighbour.density += V.food;
-                                    }
-                                    */
-
-                                    if (neighbour.maxDensity != 0)
-                                    {
-                                        neighbourSum[i] += neighbour.density * weights[weightIndex];
-                                    }
-                                }
-                            }
-                            weightIndex++;
-                        }
-                    }
-                }
-
-                if (tridimensional || planarXZ || planarYZ)
-                {
                     //calculate new density
-                    newDensity[i] = V.density * (1 - diffuse) + diffuse * neighbourSum[i];
-
-                    if (newDensity[i] > 1) newDensity[i] = 1;
-
-                    //override values with staticDensity a.k.a. initial voxel values map
-                    if (V.maxDensity != -1)
-                    {
-                        if (newDensity[i] > V.maxDensity) newDensity[i] = V.maxDensity;
-                    }
-
-                    if (V.minDensity != -1)
-                    {
-                        //if (newDensity[i] < V.minDensity) newDensity[i] = V.minDensity;
-                        if (newDensity[i] > 0 && V.minDensity > newDensity[i]) newDensity[i] = V.minDensity;
-                    }
-
-                }
+                    double val = V.density * keep + diffuseAmount * sum;
+                    if (val > 1) val = 1;
+                    if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                    if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                    newDensity[i] = val;
+                });
             }
-            );
+            else if (planarXZ)
+            {
+                Parallel.For(0, activeCount, i =>
+                {
+                    Voxel V = active[i];
+                    double sum = 0;
+                    int weightIndex = 0;
+                    int idX = V.idX;
+
+                    for (int z = -range; z <= range; z++)
+                    {
+                        int d_zID = V.idZ + z;
+
+                        if (wrap)
+                        {
+                            if (d_zID < 0) d_zID += zCount;
+                            if (d_zID >= zCount) d_zID -= zCount;
+                        }
+
+                        if (d_zID >= 0 && d_zID < zCount)
+                        {
+                            Voxel neighbour = voxelGrid[idX, 0, d_zID];
+                            if (neighbour != null && neighbour.maxDensity != 0)
+                            {
+                                sum += neighbour.density * weights[weightIndex];
+                            }
+                        }
+                        weightIndex++;
+                    }
+
+                    //calculate new density
+                    double val = V.density * keep + diffuseAmount * sum;
+                    if (val > 1) val = 1;
+                    if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                    if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                    newDensity[i] = val;
+                });
+            }
+            else if (planarYZ)
+            {
+                Parallel.For(0, activeCount, i =>
+                {
+                    Voxel V = active[i];
+                    double sum = 0;
+                    int weightIndex = 0;
+                    int idY = V.idY;
+
+                    for (int z = -range; z <= range; z++)
+                    {
+                        int d_zID = V.idZ + z;
+
+                        if (wrap)
+                        {
+                            if (d_zID < 0) d_zID += zCount;
+                            if (d_zID >= zCount) d_zID -= zCount;
+                        }
+
+                        if (d_zID >= 0 && d_zID < zCount)
+                        {
+                            Voxel neighbour = voxelGrid[0, idY, d_zID];
+                            if (neighbour != null && neighbour.maxDensity != 0)
+                            {
+                                sum += neighbour.density * weights[weightIndex];
+                            }
+                        }
+                        weightIndex++;
+                    }
+
+                    //calculate new density
+                    double val = V.density * keep + diffuseAmount * sum;
+                    if (val > 1) val = 1;
+                    if (V.maxDensity != -1 && val > V.maxDensity) val = V.maxDensity;
+                    if (V.minDensity != -1 && val > 0 && V.minDensity > val) val = V.minDensity;
+                    newDensity[i] = val;
+                });
+            }
 
             return newDensity;
         }
@@ -1173,23 +2796,15 @@ namespace Nuclei3
 
         void ants_xPass(double[] weights)
         {
-            //ant particles
-            //results
-            double[] newTowardsFoodPheromone = new double[activeVoxels.Length];
-            double[] newTowardsBasePheromone = new double[activeVoxels.Length];
+            if (foodDiffuseRate <= 0 && baseDiffuseRate <= 0) return;
 
-            //sums
-            double[] ant_neighbourSum_towardsFood = new double[activeVoxels.Length];
-            double[] ant_neighbourSum_towardsBase = new double[activeVoxels.Length];
-
-            //calculate density for each voxel taking into account whether voxel is active
-            Parallel.For(0, activeVoxels.Length, i =>
+            if (tridimensional)
             {
-                Voxel V = activeVoxels[i];
-
-                //diffuse
-                if (tridimensional)
+                Parallel.For(0, activeVoxels.Length, i =>
                 {
+                    Voxel V = activeVoxels[i];
+                    double foodSum = 0;
+                    double baseSum = 0;
                     int weightIndex = 0;
 
                     for (int x = -diffuseRange_Ant; x <= diffuseRange_Ant; x++)
@@ -1204,173 +2819,145 @@ namespace Nuclei3
 
                         if (d_xID >= 0 && d_xID < resX)
                         {
-                            if (voxels[d_xID, V.idY, V.idZ] != null)
+                            Voxel neighbour = voxels[d_xID, V.idY, V.idZ];
+                            if (neighbour != null && neighbour.maxDensity != 0)
                             {
-                                Voxel neighbour = voxels[d_xID, V.idY, V.idZ];
-
-                                if (neighbour.maxDensity != 0)
-                                {
-                                    if (foodDiffuseRate > 0) ant_neighbourSum_towardsFood[i] += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                    if (baseDiffuseRate > 0) ant_neighbourSum_towardsBase[i] += neighbour.towardsBasePheromone * weights[weightIndex];
-                                }
+                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
+                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
                             }
                         }
                         weightIndex++;
                     }
-                }
-                else //tridimensional == false
-                {
-                    if (planarXY)
-                    {
-                        int weightIndex = 0;
 
-                        for (int x = -diffuseRange_Ant; x <= diffuseRange_Ant; x++)
-                        {
-                            int d_xID = V.idX + x;
-
-                            if (wrapBoundaries)
-                            {
-                                if (d_xID < 0) d_xID += resX;
-                                if (d_xID > resX - 1) d_xID -= resX;
-                            }
-
-                            if (d_xID >= 0 && d_xID < resX)
-                            {
-                                if (voxels[d_xID, V.idY, 0] != null)
-                                {
-                                    Voxel neighbour = voxels[d_xID, V.idY, 0];
-
-                                    if (neighbour.maxDensity != 0)
-                                    {
-                                        if (foodDiffuseRate > 0) ant_neighbourSum_towardsFood[i] += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                        if (baseDiffuseRate > 0) ant_neighbourSum_towardsBase[i] += neighbour.towardsBasePheromone * weights[weightIndex];
-                                    }
-                                }
-                            }
-                            weightIndex++;
-                        }
-                    }
-                    if (planarXZ)
-                    {
-                        int weightIndex = 0;
-
-                        for (int x = -diffuseRange_Ant; x <= diffuseRange_Ant; x++)
-                        {
-                            int d_xID = V.idX + x;
-
-                            if (wrapBoundaries)
-                            {
-                                if (d_xID < 0) d_xID += resX;
-                                if (d_xID > resX - 1) d_xID -= resX;
-                            }
-
-                            if (d_xID >= 0 && d_xID < resX)
-                            {
-                                if (voxels[d_xID, 0, V.idZ] != null)
-                                {
-                                    Voxel neighbour = voxels[d_xID, 0, V.idZ];
-
-                                    if (neighbour.maxDensity != 0)
-                                    {
-                                        if (foodDiffuseRate > 0) ant_neighbourSum_towardsFood[i] += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                        if (baseDiffuseRate > 0) ant_neighbourSum_towardsBase[i] += neighbour.towardsBasePheromone * weights[weightIndex];
-                                    }
-                                }
-                            }
-                            weightIndex++;
-                        }
-                    }
-                }
-
-                if (tridimensional || planarXY || planarXZ)
-                {
-                    //calculate new density
                     if (foodDiffuseRate > 0)
                     {
-                        //make sure it's not larger than 1
-                        if (ant_neighbourSum_towardsFood[i] > 1)
-                        {
-                            ant_neighbourSum_towardsFood[i] = 1;
-                        }
-                        
-                        //override values with staticDensity a.k.a. initial voxel values map
-                        if (V.maxDensity != -1)
-                        {
-                            if (ant_neighbourSum_towardsFood[i] > V.maxDensity) ant_neighbourSum_towardsFood[i] = V.maxDensity;
-                        }
-
-                        if (V.minDensity != -1)
-                        {
-                            if (ant_neighbourSum_towardsFood[i] < V.minDensity) ant_neighbourSum_towardsFood[i] = V.minDensity;
-                        }
+                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
+                        if (fVal > 1) fVal = 1;
+                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
+                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
+                        V.towardsFoodPheromone = fVal;
                     }
-
                     if (baseDiffuseRate > 0)
                     {
-                        //make sure it's not larger than 1
-                        if (ant_neighbourSum_towardsBase[i] > 1)
-                        {
-                            ant_neighbourSum_towardsBase[i] = 1;
-                        }
-
-                        //override values with staticDensity a.k.a. initial voxel values map
-                        if (V.maxDensity != -1)
-                        {
-                            if (ant_neighbourSum_towardsBase[i] > V.maxDensity) ant_neighbourSum_towardsBase[i] = V.maxDensity;
-                        }
-
-                        if (V.minDensity != -1)
-                        {
-                            if (ant_neighbourSum_towardsBase[i] < V.minDensity) ant_neighbourSum_towardsBase[i] = V.minDensity;
-                        }
+                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
+                        if (bVal > 1) bVal = 1;
+                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
+                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
+                        V.towardsBasePheromone = bVal;
                     }
-                }
+                });
             }
-            );
-
-            //assign the temporary stored value (calculated in the previous steps) to voxel density
-            if (foodDiffuseRate > 0 || baseDiffuseRate > 0)
+            else if (planarXY)
             {
                 Parallel.For(0, activeVoxels.Length, i =>
                 {
                     Voxel V = activeVoxels[i];
+                    double foodSum = 0;
+                    double baseSum = 0;
+                    int weightIndex = 0;
+
+                    for (int x = -diffuseRange_Ant; x <= diffuseRange_Ant; x++)
+                    {
+                        int d_xID = V.idX + x;
+
+                        if (wrapBoundaries)
+                        {
+                            if (d_xID < 0) d_xID += resX;
+                            if (d_xID > resX - 1) d_xID -= resX;
+                        }
+
+                        if (d_xID >= 0 && d_xID < resX)
+                        {
+                            Voxel neighbour = voxels[d_xID, V.idY, 0];
+                            if (neighbour != null && neighbour.maxDensity != 0)
+                            {
+                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
+                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
+                            }
+                        }
+                        weightIndex++;
+                    }
 
                     if (foodDiffuseRate > 0)
                     {
-                        V.towardsFoodPheromone = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * ant_neighbourSum_towardsFood[i];
-                        if (V.towardsFoodPheromone > 1) V.towardsFoodPheromone = 1;
+                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
+                        if (fVal > 1) fVal = 1;
+                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
+                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
+                        V.towardsFoodPheromone = fVal;
                     }
-
                     if (baseDiffuseRate > 0)
                     {
-                        V.towardsBasePheromone = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * ant_neighbourSum_towardsBase[i];
-                        if (V.towardsBasePheromone > 1) V.towardsBasePheromone = 1;
+                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
+                        if (bVal > 1) bVal = 1;
+                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
+                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
+                        V.towardsBasePheromone = bVal;
                     }
-                }
-                );
+                });
+            }
+            else if (planarXZ)
+            {
+                Parallel.For(0, activeVoxels.Length, i =>
+                {
+                    Voxel V = activeVoxels[i];
+                    double foodSum = 0;
+                    double baseSum = 0;
+                    int weightIndex = 0;
+
+                    for (int x = -diffuseRange_Ant; x <= diffuseRange_Ant; x++)
+                    {
+                        int d_xID = V.idX + x;
+
+                        if (wrapBoundaries)
+                        {
+                            if (d_xID < 0) d_xID += resX;
+                            if (d_xID > resX - 1) d_xID -= resX;
+                        }
+
+                        if (d_xID >= 0 && d_xID < resX)
+                        {
+                            Voxel neighbour = voxels[d_xID, 0, V.idZ];
+                            if (neighbour != null && neighbour.maxDensity != 0)
+                            {
+                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
+                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
+                            }
+                        }
+                        weightIndex++;
+                    }
+
+                    if (foodDiffuseRate > 0)
+                    {
+                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
+                        if (fVal > 1) fVal = 1;
+                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
+                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
+                        V.towardsFoodPheromone = fVal;
+                    }
+                    if (baseDiffuseRate > 0)
+                    {
+                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
+                        if (bVal > 1) bVal = 1;
+                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
+                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
+                        V.towardsBasePheromone = bVal;
+                    }
+                });
             }
         }
 
         void ants_yPass(double[] weights)
         {
+            if (foodDiffuseRate <= 0 && baseDiffuseRate <= 0) return;
 
-            //ant particles
-            //results
-            double[] newTowardsFoodPheromone = new double[activeVoxels.Length];
-            double[] newTowardsBasePheromone = new double[activeVoxels.Length];
-
-            //sums
-            double[] ant_neighbourSum_towardsFood = new double[activeVoxels.Length];
-            double[] ant_neighbourSum_towardsBase = new double[activeVoxels.Length];
-
-            //calculate density for each voxel taking into account whether voxel is active
-            Parallel.For(0, activeVoxels.Length, i =>
+            if (tridimensional)
             {
-                Voxel V = activeVoxels[i];
-
-                //diffuse
-                if (tridimensional)
+                Parallel.For(0, activeVoxels.Length, i =>
                 {
+                    Voxel V = activeVoxels[i];
+                    double foodSum = 0;
+                    double baseSum = 0;
                     int weightIndex = 0;
 
                     for (int y = -diffuseRange_Ant; y <= diffuseRange_Ant; y++)
@@ -1385,173 +2972,145 @@ namespace Nuclei3
 
                         if (d_yID >= 0 && d_yID < resY)
                         {
-                            if (voxels[V.idX, d_yID, V.idZ] != null)
+                            Voxel neighbour = voxels[V.idX, d_yID, V.idZ];
+                            if (neighbour != null && neighbour.maxDensity != 0)
                             {
-                                Voxel neighbour = voxels[V.idX, d_yID, V.idZ];
-
-                                if (neighbour.maxDensity != 0)
-                                {
-                                    if (foodDiffuseRate > 0) ant_neighbourSum_towardsFood[i] += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                    if (baseDiffuseRate > 0) ant_neighbourSum_towardsBase[i] += neighbour.towardsBasePheromone * weights[weightIndex];
-                                }
+                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
+                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
                             }
                         }
                         weightIndex++;
                     }
-                }
-                else //tridimensional == false
-                {
-                    if (planarXY)
-                    {
-                        int weightIndex = 0;
 
-                        for (int y = -diffuseRange_Ant; y <= diffuseRange_Ant; y++)
-                        {
-                            int d_yID = V.idY + y;
-
-                            if (wrapBoundaries)
-                            {
-                                if (d_yID < 0) d_yID += resY;
-                                if (d_yID > resY - 1) d_yID -= resY;
-                            }
-
-                            if (d_yID >= 0 && d_yID < resY)
-                            {
-                                if (voxels[V.idX, d_yID, 0] != null)
-                                {
-                                    Voxel neighbour = voxels[V.idX, d_yID, 0];
-
-                                    if (neighbour.maxDensity != 0)
-                                    {
-                                        if (foodDiffuseRate > 0) ant_neighbourSum_towardsFood[i] += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                        if (baseDiffuseRate > 0) ant_neighbourSum_towardsBase[i] += neighbour.towardsBasePheromone * weights[weightIndex];
-                                    }
-                                }
-                            }
-                            weightIndex++;
-                        }
-                    }
-                    else if (planarYZ)
-                    {
-                        int weightIndex = 0;
-
-                        for (int y = -diffuseRange_Ant; y <= diffuseRange_Ant; y++)
-                        {
-                            int d_yID = V.idY + y;
-
-                            if (wrapBoundaries)
-                            {
-                                if (d_yID < 0) d_yID += resY;
-                                if (d_yID > resY - 1) d_yID -= resY;
-                            }
-
-                            if (d_yID >= 0 && d_yID < resY)
-                            {
-                                if (voxels[0, d_yID, V.idZ] != null)
-                                {
-                                    Voxel neighbour = voxels[0, d_yID, V.idZ];
-
-                                    if (neighbour.maxDensity != 0)
-                                    {
-                                        if (foodDiffuseRate > 0) ant_neighbourSum_towardsFood[i] += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                        if (baseDiffuseRate > 0) ant_neighbourSum_towardsBase[i] += neighbour.towardsBasePheromone * weights[weightIndex];
-                                    }
-                                }
-                            }
-                            weightIndex++;
-                        }
-                    }
-                }
-
-                if (tridimensional || planarXY || planarYZ)
-                {
-                    //calculate new density
                     if (foodDiffuseRate > 0)
                     {
-                        //make sure it's not larger than 1
-                        if (ant_neighbourSum_towardsFood[i] > 1)
-                        {
-                            ant_neighbourSum_towardsFood[i] = 1;
-                        }
-
-                        //override values with staticDensity a.k.a. initial voxel values map
-                        if (V.maxDensity != -1)
-                        {
-                            if (ant_neighbourSum_towardsFood[i] > V.maxDensity) ant_neighbourSum_towardsFood[i] = V.maxDensity;
-                        }
-
-                        if (V.minDensity != -1)
-                        {
-                            if (ant_neighbourSum_towardsFood[i] < V.minDensity) ant_neighbourSum_towardsFood[i] = V.minDensity;
-                        }
+                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
+                        if (fVal > 1) fVal = 1;
+                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
+                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
+                        V.towardsFoodPheromone = fVal;
                     }
-
                     if (baseDiffuseRate > 0)
                     {
-                        //make sure it's not larger than 1
-                        if (ant_neighbourSum_towardsBase[i] > 1)
-                        {
-                            ant_neighbourSum_towardsBase[i] = 1;
-                        }
-
-                        //override values with staticDensity a.k.a. initial voxel values map
-                        if (V.maxDensity != -1)
-                        {
-                            if (ant_neighbourSum_towardsBase[i] > V.maxDensity) ant_neighbourSum_towardsBase[i] = V.maxDensity;
-                        }
-
-                        if (V.minDensity != -1)
-                        {
-                            if (ant_neighbourSum_towardsBase[i] < V.minDensity) ant_neighbourSum_towardsBase[i] = V.minDensity;
-                        }
+                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
+                        if (bVal > 1) bVal = 1;
+                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
+                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
+                        V.towardsBasePheromone = bVal;
                     }
-                }
+                });
             }
-            );
-
-            //assign the temporary stored value (calculated in the previous steps) to voxel density
-            if (foodDiffuseRate > 0 || baseDiffuseRate > 0)
+            else if (planarXY)
             {
                 Parallel.For(0, activeVoxels.Length, i =>
                 {
                     Voxel V = activeVoxels[i];
+                    double foodSum = 0;
+                    double baseSum = 0;
+                    int weightIndex = 0;
+
+                    for (int y = -diffuseRange_Ant; y <= diffuseRange_Ant; y++)
+                    {
+                        int d_yID = V.idY + y;
+
+                        if (wrapBoundaries)
+                        {
+                            if (d_yID < 0) d_yID += resY;
+                            if (d_yID > resY - 1) d_yID -= resY;
+                        }
+
+                        if (d_yID >= 0 && d_yID < resY)
+                        {
+                            Voxel neighbour = voxels[V.idX, d_yID, 0];
+                            if (neighbour != null && neighbour.maxDensity != 0)
+                            {
+                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
+                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
+                            }
+                        }
+                        weightIndex++;
+                    }
 
                     if (foodDiffuseRate > 0)
                     {
-                        V.towardsFoodPheromone = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * ant_neighbourSum_towardsFood[i];
-                        if (V.towardsFoodPheromone > 1) V.towardsFoodPheromone = 1;
+                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
+                        if (fVal > 1) fVal = 1;
+                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
+                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
+                        V.towardsFoodPheromone = fVal;
                     }
-
                     if (baseDiffuseRate > 0)
                     {
-                        V.towardsBasePheromone = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * ant_neighbourSum_towardsBase[i];
-                        if (V.towardsBasePheromone > 1) V.towardsBasePheromone = 1;
+                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
+                        if (bVal > 1) bVal = 1;
+                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
+                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
+                        V.towardsBasePheromone = bVal;
                     }
-                }
-                );
+                });
             }
+            else if (planarYZ)
+            {
+                Parallel.For(0, activeVoxels.Length, i =>
+                {
+                    Voxel V = activeVoxels[i];
+                    double foodSum = 0;
+                    double baseSum = 0;
+                    int weightIndex = 0;
 
+                    for (int y = -diffuseRange_Ant; y <= diffuseRange_Ant; y++)
+                    {
+                        int d_yID = V.idY + y;
+
+                        if (wrapBoundaries)
+                        {
+                            if (d_yID < 0) d_yID += resY;
+                            if (d_yID > resY - 1) d_yID -= resY;
+                        }
+
+                        if (d_yID >= 0 && d_yID < resY)
+                        {
+                            Voxel neighbour = voxels[0, d_yID, V.idZ];
+                            if (neighbour != null && neighbour.maxDensity != 0)
+                            {
+                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
+                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
+                            }
+                        }
+                        weightIndex++;
+                    }
+
+                    if (foodDiffuseRate > 0)
+                    {
+                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
+                        if (fVal > 1) fVal = 1;
+                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
+                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
+                        V.towardsFoodPheromone = fVal;
+                    }
+                    if (baseDiffuseRate > 0)
+                    {
+                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
+                        if (bVal > 1) bVal = 1;
+                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
+                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
+                        V.towardsBasePheromone = bVal;
+                    }
+                });
+            }
         }
 
         void ants_zPass(double[] weights)
         {
+            if (foodDiffuseRate <= 0 && baseDiffuseRate <= 0) return;
 
-            //ant particles
-            //results
-            double[] newTowardsFoodPheromone = new double[activeVoxels.Length];
-            double[] newTowardsBasePheromone = new double[activeVoxels.Length];
-
-            //sums
-            double[] ant_neighbourSum_towardsFood = new double[activeVoxels.Length];
-            double[] ant_neighbourSum_towardsBase = new double[activeVoxels.Length];
-
-            //calculate density for each voxel taking into account whether voxel is active
-            Parallel.For(0, activeVoxels.Length, i =>
+            if (tridimensional)
             {
-                Voxel V = activeVoxels[i];
-                //diffuse
-                if (tridimensional)
+                Parallel.For(0, activeVoxels.Length, i =>
                 {
+                    Voxel V = activeVoxels[i];
+                    double foodSum = 0;
+                    double baseSum = 0;
                     int weightIndex = 0;
 
                     for (int z = -diffuseRange_Ant; z <= diffuseRange_Ant; z++)
@@ -1566,150 +3125,131 @@ namespace Nuclei3
 
                         if (d_zID >= 0 && d_zID < resZ)
                         {
-                            if (voxels[V.idX, V.idY, d_zID] != null)
+                            Voxel neighbour = voxels[V.idX, V.idY, d_zID];
+                            if (neighbour != null && neighbour.maxDensity != 0)
                             {
-                                Voxel neighbour = voxels[V.idX, V.idY, d_zID];
-
-                                if (neighbour.maxDensity != 0)
-                                {
-                                    if (foodDiffuseRate > 0) ant_neighbourSum_towardsFood[i] += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                    if (baseDiffuseRate > 0) ant_neighbourSum_towardsBase[i] += neighbour.towardsBasePheromone * weights[weightIndex];
-                                }
+                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
+                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
                             }
                         }
                         weightIndex++;
                     }
-                }
-                else //tridimensional == false
-                {
-                    if (planarXZ)
-                    {
-                        int weightIndex = 0;
 
-                        for (int z = -diffuseRange_Ant; z <= diffuseRange_Ant; z++)
-                        {
-                            int d_zID = V.idZ + z;
-
-                            if (wrapBoundaries)
-                            {
-                                if (d_zID < 0) d_zID += resZ;
-                                if (d_zID > resZ - 1) d_zID -= resZ;
-                            }
-
-                            if (d_zID >= 0 && d_zID < resZ)
-                            {
-                                if (voxels[V.idX, 0, d_zID] != null)
-                                {
-                                    Voxel neighbour = voxels[V.idX, 0, d_zID];
-
-                                    if (neighbour.maxDensity != 0)
-                                    {
-                                        if (foodDiffuseRate > 0) ant_neighbourSum_towardsFood[i] += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                        if (baseDiffuseRate > 0) ant_neighbourSum_towardsBase[i] += neighbour.towardsBasePheromone * weights[weightIndex];
-                                    }
-                                }
-                            }
-                            weightIndex++;
-                        }
-                    }
-                    else if (planarYZ)
-                    {
-                        int weightIndex = 0;
-
-                        for (int z = -diffuseRange_Ant; z <= diffuseRange_Ant; z++)
-                        {
-                            int d_zID = V.idZ + z;
-
-                            if (wrapBoundaries)
-                            {
-                                if (d_zID < 0) d_zID += resZ;
-                                if (d_zID > resZ - 1) d_zID -= resZ;
-                            }
-
-                            if (d_zID >= 0 && d_zID < resZ)
-                            {
-                                if (voxels[0, V.idY, d_zID] != null)
-                                {
-                                    Voxel neighbour = voxels[0, V.idY, d_zID];
-
-                                    if (neighbour.maxDensity != 0)
-                                    {
-                                        if (foodDiffuseRate > 0) ant_neighbourSum_towardsFood[i] += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                        if (baseDiffuseRate > 0) ant_neighbourSum_towardsBase[i] += neighbour.towardsBasePheromone * weights[weightIndex];
-                                    }
-                                }
-                            }
-                            weightIndex++;
-                        }
-                    }
-                }
-
-                if (tridimensional || planarXZ || planarYZ)
-                {
-                    //calculate new density
                     if (foodDiffuseRate > 0)
                     {
-                        //make sure it's not larger than 1
-                        if (ant_neighbourSum_towardsFood[i] > 1)
-                        {
-                            ant_neighbourSum_towardsFood[i] = 1;
-                        }
-
-                        //override values with staticDensity a.k.a. initial voxel values map
-                        if (V.maxDensity != -1)
-                        {
-                            if (ant_neighbourSum_towardsFood[i] > V.maxDensity) ant_neighbourSum_towardsFood[i] = V.maxDensity;
-                        }
-
-                        if (V.minDensity != -1)
-                        {
-                            if (ant_neighbourSum_towardsFood[i] < V.minDensity) ant_neighbourSum_towardsFood[i] = V.minDensity;
-                        }
+                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
+                        if (fVal > 1) fVal = 1;
+                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
+                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
+                        V.towardsFoodPheromone = fVal;
                     }
-
                     if (baseDiffuseRate > 0)
                     {
-                        //make sure it's not larger than 1
-                        if (ant_neighbourSum_towardsBase[i] > 1)
-                        {
-                            ant_neighbourSum_towardsBase[i] = 1;
-                        }
-
-                        //override values with staticDensity a.k.a. initial voxel values map
-                        if (V.maxDensity != -1)
-                        {
-                            if (ant_neighbourSum_towardsBase[i] > V.maxDensity) ant_neighbourSum_towardsBase[i] = V.maxDensity;
-                        }
-
-                        if (V.minDensity != -1)
-                        {
-                            if (ant_neighbourSum_towardsBase[i] < V.minDensity) ant_neighbourSum_towardsBase[i] = V.minDensity;
-                        }
+                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
+                        if (bVal > 1) bVal = 1;
+                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
+                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
+                        V.towardsBasePheromone = bVal;
                     }
-                }
+                });
             }
-            );
-
-            //assign the temporary stored value (calculated in the previous steps) to voxel density
-            if (foodDiffuseRate > 0 || baseDiffuseRate > 0)
+            else if (planarXZ)
             {
                 Parallel.For(0, activeVoxels.Length, i =>
                 {
                     Voxel V = activeVoxels[i];
+                    double foodSum = 0;
+                    double baseSum = 0;
+                    int weightIndex = 0;
+
+                    for (int z = -diffuseRange_Ant; z <= diffuseRange_Ant; z++)
+                    {
+                        int d_zID = V.idZ + z;
+
+                        if (wrapBoundaries)
+                        {
+                            if (d_zID < 0) d_zID += resZ;
+                            if (d_zID > resZ - 1) d_zID -= resZ;
+                        }
+
+                        if (d_zID >= 0 && d_zID < resZ)
+                        {
+                            Voxel neighbour = voxels[V.idX, 0, d_zID];
+                            if (neighbour != null && neighbour.maxDensity != 0)
+                            {
+                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
+                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
+                            }
+                        }
+                        weightIndex++;
+                    }
 
                     if (foodDiffuseRate > 0)
                     {
-                        V.towardsFoodPheromone = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * ant_neighbourSum_towardsFood[i];
-                        if (V.towardsFoodPheromone > 1) V.towardsFoodPheromone = 1;
+                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
+                        if (fVal > 1) fVal = 1;
+                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
+                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
+                        V.towardsFoodPheromone = fVal;
                     }
-
                     if (baseDiffuseRate > 0)
                     {
-                        V.towardsBasePheromone = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * ant_neighbourSum_towardsBase[i];
-                        if (V.towardsBasePheromone > 1) V.towardsBasePheromone = 1;
+                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
+                        if (bVal > 1) bVal = 1;
+                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
+                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
+                        V.towardsBasePheromone = bVal;
                     }
-                }
-                );
+                });
+            }
+            else if (planarYZ)
+            {
+                Parallel.For(0, activeVoxels.Length, i =>
+                {
+                    Voxel V = activeVoxels[i];
+                    double foodSum = 0;
+                    double baseSum = 0;
+                    int weightIndex = 0;
+
+                    for (int z = -diffuseRange_Ant; z <= diffuseRange_Ant; z++)
+                    {
+                        int d_zID = V.idZ + z;
+
+                        if (wrapBoundaries)
+                        {
+                            if (d_zID < 0) d_zID += resZ;
+                            if (d_zID > resZ - 1) d_zID -= resZ;
+                        }
+
+                        if (d_zID >= 0 && d_zID < resZ)
+                        {
+                            Voxel neighbour = voxels[0, V.idY, d_zID];
+                            if (neighbour != null && neighbour.maxDensity != 0)
+                            {
+                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
+                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
+                            }
+                        }
+                        weightIndex++;
+                    }
+
+                    if (foodDiffuseRate > 0)
+                    {
+                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
+                        if (fVal > 1) fVal = 1;
+                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
+                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
+                        V.towardsFoodPheromone = fVal;
+                    }
+                    if (baseDiffuseRate > 0)
+                    {
+                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
+                        if (bVal > 1) bVal = 1;
+                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
+                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
+                        V.towardsBasePheromone = bVal;
+                    }
+                });
             }
         }
 
@@ -1748,7 +3288,7 @@ namespace Nuclei3
 
                 ParticleGroup inputPG = inputParticleGroups[pg];
 
-                ParticleGroup PG = new ParticleGroup(inputPG.speed, inputPG.sensorDistance, inputPG.sensorAngle, inputPG.rotationAngle, inputPG.depositValue, inputPG.wanderFrequency, inputPG.foodWanderFrequency, inputPG.baseWanderFrequency, inputPG.color);
+                ParticleGroup PG = new ParticleGroup(inputPG.speed, inputPG.sensorDistance, inputPG.sensorAngle, inputPG.rotationAngle, inputPG.depositValue, inputPG.wanderFrequency, inputPG.baseWanderFrequency, inputPG.color);
                 particleGroups.Add(PG);
 
                 for (int i = 0; i < inputPG.particles.Count; i++)
@@ -1757,9 +3297,9 @@ namespace Nuclei3
                     Plane particlePlane = initialP.pPlane;
 
                     //check initialP parent voxel
-                    int xID = System.Convert.ToInt32((initialP.pPlane.Origin.X - Math.Abs(initialP.pPlane.Origin.X % voxelSize)) / voxelSize);
-                    int yID = System.Convert.ToInt32((initialP.pPlane.Origin.Y - Math.Abs(initialP.pPlane.Origin.Y % voxelSize)) / voxelSize);
-                    int zID = System.Convert.ToInt32((initialP.pPlane.Origin.Z - Math.Abs(initialP.pPlane.Origin.Z % voxelSize)) / voxelSize);
+                    int xID = (int)(initialP.pPlane.Origin.X / voxelSize);
+                    int yID = (int)(initialP.pPlane.Origin.Y / voxelSize);
+                    int zID = (int)(initialP.pPlane.Origin.Z / voxelSize);
 
                     if (xID >= 0 && xID < resX && yID >= 0 && yID < resY && zID >= 0 && zID < resZ)
                     {
@@ -1839,6 +3379,7 @@ namespace Nuclei3
                                     //copy input particles
                                     Particle P = new Particle(initialP.pPlane);
                                     P.parentParticleGroup = PG;
+                                    P.parentVoxel = initialP.parentVoxel;
                                     
                                     PG.particles.Add(P);
                                     particles.Add(P);
@@ -1912,6 +3453,7 @@ namespace Nuclei3
 
                                     PG.ant = true;
                                     P.parentParticleGroup = PG;
+                                    P.parentVoxel = initialP.parentVoxel;
 
                                     //ant particles
                                     P.home = P.pPlane;
@@ -1928,7 +3470,6 @@ namespace Nuclei3
                 if(!PG.ant) PG.updateWanderFrequency();
                 if (PG.ant)
                 {
-                    PG.updateFoodWanderFrequency();
                     PG.updateBaseWanderFrequency();
                 }
             }
@@ -1949,14 +3490,12 @@ namespace Nuclei3
                 PG.rotationAngle = inputPG.rotationAngle;
                 PG.depositValue = inputPG.depositValue;
                 PG.wanderFrequency = inputPG.wanderFrequency;
-                PG.foodWanderFrequency = inputPG.wanderFrequency;
                 PG.baseWanderFrequency = inputPG.baseWanderFrequency;
                 PG.color = inputPG.color;
 
                 if (!PG.ant) PG.updateWanderFrequency();
                 if (PG.ant)
                 {
-                    PG.updateFoodWanderFrequency();
                     PG.updateBaseWanderFrequency();
                 };
             }
@@ -1966,224 +3505,123 @@ namespace Nuclei3
 
         void particleCheckParentVoxel()
         {
-            //reset voxel count
-            Parallel.For(0, activeVoxels.Length, i =>
-            {
-                Voxel V = activeVoxels[i];
-                V.particleCount = 0;
-            }
-            );
+            resetParticleCountsForCurrentFrame();
+            ensureParticleCountTouchedCapacity(particles.Count);
+            int particleCount = particles.Count;
 
             //count particles
-            Parallel.For(0, particles.Count, i =>
+            Parallel.For(0, particleCount, i =>
             {
                 Particle P = particles[i];
                 P.age++;
+                particleCountTouchedVoxels[i] = null;
 
-                if (tridimensional)
+                Voxel parentVoxel = P.parentVoxel;
+                if (parentVoxel == null)
                 {
-                    int xID = System.Convert.ToInt32((P.pPlane.Origin.X - Math.Abs(P.pPlane.Origin.X % voxelSize)) / voxelSize);
-                    int yID = System.Convert.ToInt32((P.pPlane.Origin.Y - Math.Abs(P.pPlane.Origin.Y % voxelSize)) / voxelSize);
-                    int zID = System.Convert.ToInt32((P.pPlane.Origin.Z - Math.Abs(P.pPlane.Origin.Z % voxelSize)) / voxelSize);
-
-                    if (xID >= 0 && xID < resX && yID >= 0 && yID < resY && zID >= 0 && zID < resZ)
-                    {
-                        if (voxels[xID, yID, zID] != null)
-                        {
-                            P.parentVoxel = voxels[xID, yID, zID];
-                            P.parentVoxel.particleCount++;
-
-                            //ant particles
-                            if (P.parentParticleGroup.ant)
-                            {
-                                if (iteration > 1)
-                                {
-                                    //found food
-                                    if (P.parentVoxel.food > 0 && P.foundFood == false)
-                                    {
-                                        P.foundFood = true;
-                                        P.age = 0;
-
-                                        if (P.age == 0)
-                                        {
-                                            P.parentVoxel.food -= 1;
-                                            P.age++;
-                                        }
-                                    }
-
-                                    //returned home
-                                    if (P.PPlane.Origin.DistanceTo(P.home.Origin) < retrieveSpeed(P))
-                                    {
-                                        P.foundFood = false;
-                                        P.age = 1;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        P.parentVoxel = null;
-                        P.die = true;
-                    }
-                }
-                else //tridimensional == false
-                {
-                    if (planarXY)
-                    {
-                        int xID = System.Convert.ToInt32((P.pPlane.Origin.X - Math.Abs(P.pPlane.Origin.X % voxelSize)) / voxelSize);
-                        int yID = System.Convert.ToInt32((P.pPlane.Origin.Y - Math.Abs(P.pPlane.Origin.Y % voxelSize)) / voxelSize);
-                        int zID = 0;
-
-                        if (xID >= 0 && xID < resX && yID >= 0 && yID < resY)
-                        {
-                            if (voxels[xID, yID, zID] != null)
-                            {
-                                P.parentVoxel = voxels[xID, yID, zID];
-                                P.parentVoxel.particleCount++;
-
-                                //ant particles
-                                if (P.parentParticleGroup.ant)
-                                {
-                                    if (iteration > 1)
-                                    {
-                                        //found food
-                                        if (P.parentVoxel.food > 0 && P.foundFood == false)
-                                        {
-                                            P.foundFood = true;
-                                            P.age = 0;
-
-                                            if (P.age == 0)
-                                            {
-                                                P.parentVoxel.food -= 1;
-                                                P.age++;
-                                            }
-                                        }
-
-                                        //returned home
-                                        if (P.PPlane.Origin.DistanceTo(P.home.Origin) < retrieveSpeed(P))
-                                        {
-                                            P.foundFood = false;
-                                            P.age = 1;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            P.parentVoxel = null;
-                            P.die = true;
-                        }
-                    }
-                    else if (planarXZ)
-                    {
-                        int xID = System.Convert.ToInt32((P.pPlane.Origin.X - Math.Abs(P.pPlane.Origin.X % voxelSize)) / voxelSize);
-                        int yID = 0;
-                        int zID = System.Convert.ToInt32((P.pPlane.Origin.Z - Math.Abs(P.pPlane.Origin.Z % voxelSize)) / voxelSize);
-
-                        if (xID >= 0 && xID < resX && zID >= 0 && zID < resZ)
-                        {
-                            if (voxels[xID, yID, zID] != null)
-                            {
-                                P.parentVoxel = voxels[xID, yID, zID];
-                                P.parentVoxel.particleCount++;
-
-                                //ant particles
-                                if (P.parentParticleGroup.ant)
-                                {
-                                    if (iteration > 1)
-                                    {
-
-                                        //found food
-                                        if (P.parentVoxel.food > 0 && P.foundFood == false)
-                                        {
-                                            P.foundFood = true;
-                                            P.age = 0;
-
-                                            if (P.age == 0)
-                                            {
-                                                P.parentVoxel.food -= 1;
-                                                P.age++;
-                                            }
-                                        }
-
-                                        //returned home
-                                        if (P.PPlane.Origin.DistanceTo(P.home.Origin) < retrieveSpeed(P))
-                                        {
-                                            P.foundFood = false;
-                                            P.age = 1;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            P.parentVoxel = null;
-                            P.die = true;
-                        }
-                    }
-                    else if (planarYZ)
-                    {
-                        int xID = 0;
-                        int yID = System.Convert.ToInt32((P.pPlane.Origin.Y - Math.Abs(P.pPlane.Origin.Y % voxelSize)) / voxelSize);
-                        int zID = System.Convert.ToInt32((P.pPlane.Origin.Z - Math.Abs(P.pPlane.Origin.Z % voxelSize)) / voxelSize);
-
-                        if (yID >= 0 && yID < resY && zID >= 0 && zID < resZ)
-                        {
-                            if (voxels[xID, yID, zID] != null)
-                            {
-                                P.parentVoxel = voxels[xID, yID, zID];
-                                P.parentVoxel.particleCount++;
-
-                                //ant particles
-                                if (P.parentParticleGroup.ant)
-                                {
-                                    if (iteration > 1)
-                                    {
-
-                                        //found food
-                                        if (P.parentVoxel.food > 0 && P.foundFood == false)
-                                        {
-                                            P.foundFood = true;
-                                            P.age = 0;
-
-                                            if (P.age == 0)
-                                            {
-                                                P.parentVoxel.food -= 1;
-                                                P.age++;
-                                            }
-                                        }
-
-                                        //returned home
-                                        if (P.PPlane.Origin.DistanceTo(P.home.Origin) < retrieveSpeed(P))
-                                        {
-                                            P.foundFood = false;
-                                            P.age = 1;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            P.parentVoxel = null;
-                            P.die = true;
-                        }
-                    }
+                    Point3d origin = P.pPlane.Origin;
+                    parentVoxel = getParentVoxel(origin.X, origin.Y, origin.Z);
                 }
 
-                if (P.parentVoxel != null)
+                if (parentVoxel != null)
                 {
-                    if (P.parentVoxel.maxDensity == 0)
+                    P.parentVoxel = parentVoxel;
+                    particleCountTouchedVoxels[i] = parentVoxel;
+                    System.Threading.Interlocked.Increment(ref parentVoxel.particleCount);
+
+                    //ant particles
+                    if (P.parentParticleGroup.ant && iteration > 1)
+                    {
+                        //found food
+                        if (parentVoxel.food > 0 && P.foundFood == false)
+                        {
+                            P.foundFood = true;
+                            P.age = 0;
+
+                            if (P.age == 0)
+                            {
+                                parentVoxel.food -= 1;
+                                P.age++;
+                            }
+                        }
+
+                        //returned home
+                        if (P.pPlane.Origin.DistanceTo(P.home.Origin) < retrieveSpeed(P))
+                        {
+                            P.foundFood = false;
+                            P.age = 1;
+                        }
+                    }
+
+                    if (parentVoxel.maxDensity == 0)
                     {
                         P.die = true;
-                        P.parentVoxel.density = 0;
+                        parentVoxel.density = 0;
                     }
+                }
+                else
+                {
+                    P.parentVoxel = null;
+                    P.die = true;
                 }
             }
             );
+
+            particleCountTouchedCount = particleCount;
+        }
+
+        void resetParticleCountsForCurrentFrame()
+        {
+            if (particleCountsRequireFullReset)
+            {
+                Parallel.For(0, activeVoxels.Length, i =>
+                {
+                    activeVoxels[i].particleCount = 0;
+                }
+                );
+
+                particleCountsRequireFullReset = false;
+                particleCountTouchedCount = 0;
+                return;
+            }
+
+            for (int i = 0; i < particleCountTouchedCount; i++)
+            {
+                Voxel touchedVoxel = particleCountTouchedVoxels[i];
+                if (touchedVoxel != null)
+                {
+                    touchedVoxel.particleCount = 0;
+                    particleCountTouchedVoxels[i] = null;
+                }
+            }
+
+            particleCountTouchedCount = 0;
+        }
+
+        void ensureParticleCountTouchedCapacity(int count)
+        {
+            if (particleCountTouchedVoxels.Length < count)
+            {
+                Array.Resize(ref particleCountTouchedVoxels, count);
+            }
+        }
+
+        void applyParticleBoundaryStateAfterWrapChange()
+        {
+            if (particles == null) return;
+
+            Parallel.For(0, particles.Count, i =>
+            {
+                Particle P = particles[i];
+                Point3d origin = P.pPlane.Origin;
+                Point3d boundaryOrigin = boundaries(P, origin);
+
+                P.pPlane.Origin = boundaryOrigin;
+                P.parentVoxel = getParentVoxel(boundaryOrigin.X, boundaryOrigin.Y, boundaryOrigin.Z);
+            }
+            );
+
+            particleCountsRequireFullReset = true;
         }
 
         Voxel particleCheckParentVoxel(Particle P)
@@ -2193,14 +3631,8 @@ namespace Nuclei3
 
             P.age++;
 
-            int xID = System.Convert.ToInt32((P.pPlane.Origin.X - Math.Abs(P.pPlane.Origin.X % voxelSize)) / voxelSize);
-            int yID = System.Convert.ToInt32((P.pPlane.Origin.Y - Math.Abs(P.pPlane.Origin.Y % voxelSize)) / voxelSize);
-            int zID = System.Convert.ToInt32((P.pPlane.Origin.Z - Math.Abs(P.pPlane.Origin.Z % voxelSize)) / voxelSize);
-
-            if (xID >= 0 && xID < resX && yID >= 0 && yID < resY && zID >= 0 && zID < resZ)
-            {
-                output = voxels[xID, yID, zID];
-            }
+            Point3d origin = P.pPlane.Origin;
+            output = getParentVoxel(origin.X, origin.Y, origin.Z);
 
             return output;
         }
@@ -2339,254 +3771,318 @@ namespace Nuclei3
         //sense values and vectors
         void particleSenseValuesAndVectors()
         {
+            if (!antParticles)
+            {
+                particleSenseSlimeOnly();
+                return;
+            }
+
             //sense for next iteration
             Parallel.For(0, particles.Count, p =>
             {
                 Particle P = particles[p];
-                if (P.parentVoxel != null)
+                Voxel parentVoxel = P.parentVoxel;
+                if (parentVoxel == null) return;
+
+                ParticleGroup parentGroup = P.parentParticleGroup;
+                bool ant = parentGroup.ant;
+
+                if (parentVoxel.vectorField)
                 {
-                    if (P.parentVoxel.vectorField)
+                    if (parentVoxel.frequency == 1 || iteration % parentVoxel.frequency == p % parentVoxel.frequency)
                     {
-                        if (P.parentVoxel.frequency == 1)
-                        {
-                            P.moveVector += P.parentVoxel.voxelVector;
-                        }
-                        else
-                        {
-                            if (iteration % P.parentVoxel.frequency == p % P.parentVoxel.frequency)
-                            {
-                                P.moveVector += P.parentVoxel.voxelVector;
-                            }
-                        }
+                        P.moveVector += parentVoxel.voxelVector;
                     }
+                }
 
-                    double sensorAngleMultiplier = 1;
-                    if (P.parentVoxel.sensorAngleMultiplier != -1) sensorAngleMultiplier = P.parentVoxel.sensorAngleMultiplier;
+                double sensorAngleMultiplier = parentVoxel.sensorAngleMultiplier == -1 ? 1 : parentVoxel.sensorAngleMultiplier;
+                double sensorDistanceMultiplier = parentVoxel.sensorDistanceMultiplier == -1 ? 1 : parentVoxel.sensorDistanceMultiplier;
+                double sensorDistance = parentGroup.sensorDistance * sensorDistanceMultiplier;
 
-                    double sensorDistanceMultiplier = 1;
-                    if(P.parentVoxel.sensorDistanceMultiplier != -1) sensorDistanceMultiplier = P.parentVoxel.sensorDistanceMultiplier;
+                double sensorAngle = radAngle[parentGroup.sensorAngle] * sensorAngleMultiplier;
+                double sensorCos = Math.Cos(sensorAngle);
+                double sensorSin = Math.Sin(sensorAngle);
+                Point3d origin = P.pPlane.Origin;
+                Vector3d planeX = P.pPlane.XAxis;
+                Vector3d planeY = P.pPlane.YAxis;
 
-                    //create list of potential sensor positions
-                    Point3d[] potentialPos = new Point3d[3];
-                    if (tridimensional) potentialPos = new Point3d[5];
+                double[] previousValues = ant ? threadLocalValues.Value : null;
+                Point3d sensorPos0 = sensorSamplePosition(P, origin + (planeX * sensorCos - planeY * sensorSin) * sensorDistance);
+                Point3d sensorPos1 = sensorSamplePosition(P, origin + planeX * sensorDistance);
+                Point3d sensorPos2 = sensorSamplePosition(P, origin + (planeX * sensorCos + planeY * sensorSin) * sensorDistance);
 
-                    double SA = radAngle[retrieveSensorAngle(P)];
+                double value0 = sampleSensorValue(sensorPos0, parentVoxel, P, ant, ant ? previousValues[0] : -1, p);
+                double value1 = sampleSensorValue(sensorPos1, parentVoxel, P, ant, ant ? previousValues[1] : -1, p);
+                double value2 = sampleSensorValue(sensorPos2, parentVoxel, P, ant, ant ? previousValues[2] : -1, p);
+                double value3 = -1;
+                double value4 = -1;
 
-                    //L
-                    Point3d L = new Point3d(P.pPlane.Origin);
+                if (tridimensional)
+                {
+                    Vector3d vectorU = planeX;
+                    vectorU.Rotate(sensorAngle, P.pPlane.YAxis);
+                    Point3d sensorPos3 = sensorSamplePosition(P, origin + vectorU * sensorDistance);
 
-                    Vector3d vectorL = new Vector3d(P.pPlane.XAxis);
-                    vectorL.Rotate(-SA * sensorAngleMultiplier, P.pPlane.ZAxis);
+                    Vector3d vectorD = planeX;
+                    vectorD.Rotate(-sensorAngle, P.pPlane.YAxis);
+                    Point3d sensorPos4 = sensorSamplePosition(P, origin + vectorD * sensorDistance);
 
-                    L += vectorL * retrieveSensorDistance(P) * sensorDistanceMultiplier;
-                    potentialPos[0] = boundaries(P, L);
+                    value3 = sampleSensorValue(sensorPos3, parentVoxel, P, ant, ant ? previousValues[3] : -1, p);
+                    value4 = sampleSensorValue(sensorPos4, parentVoxel, P, ant, ant ? previousValues[4] : -1, p);
+                }
 
-
-                    //C
-                    Point3d C = new Point3d(P.pPlane.Origin);
-
-                    Vector3d vectorC = new Vector3d(P.pPlane.XAxis);
-
-                    C += vectorC * retrieveSensorDistance(P) * sensorDistanceMultiplier;
-                    potentialPos[1] = boundaries(P, C);
-
-
-                    //R
-                    Point3d R = new Point3d(P.pPlane.Origin);
-
-                    Vector3d vectorR = new Vector3d(P.pPlane.XAxis);
-                    vectorR.Rotate(SA * sensorAngleMultiplier, P.pPlane.ZAxis);
-
-                    R += vectorR * retrieveSensorDistance(P) * sensorDistanceMultiplier;
-                    potentialPos[2] = boundaries(P, R);
-
-
-                    if (tridimensional == true)
+                if (ant)
+                {
+                    previousValues[0] = value0;
+                    previousValues[1] = value1;
+                    previousValues[2] = value2;
+                    if (tridimensional)
                     {
-                        //U
-                        Point3d U = new Point3d(P.pPlane.Origin);
-
-                        Vector3d vectorU = new Vector3d(P.pPlane.XAxis);
-                        vectorU.Rotate(SA * sensorAngleMultiplier, P.pPlane.YAxis);
-
-                        U += vectorU * retrieveSensorDistance(P) * sensorDistanceMultiplier;
-                        potentialPos[3] = boundaries(P, U);
-
-                        //D
-                        Point3d D = new Point3d(P.pPlane.Origin);
-
-                        Vector3d vectorD = new Vector3d(P.pPlane.XAxis);
-                        vectorD.Rotate(-SA * sensorAngleMultiplier, P.pPlane.YAxis);
-
-                        D += vectorD * retrieveSensorDistance(P) * sensorDistanceMultiplier;
-                        potentialPos[4] = boundaries(P, D);
+                        previousValues[3] = value3;
+                        previousValues[4] = value4;
                     }
+                }
 
-                    //-----------------------
+                int bestIndex = chooseBestSensorIndex(value0, value1, value2, value3, value4, tridimensional);
+                applySensorMoveForce(P, parentVoxel, parentGroup, bestIndex, p);
+            }
+            );
+        }
 
-                    //sample voxel values according to sensor positions
-                    double[] voxelValues = new double[3];
-                    if (tridimensional) voxelValues = new double[5];
+        void particleSenseSlimeOnly()
+        {
+            Parallel.For(0, particles.Count, p =>
+            {
+                Particle P = particles[p];
+                Voxel parentVoxel = P.parentVoxel;
+                if (parentVoxel == null) return;
 
-                    for (int i = 0; i < potentialPos.Length; i++)
+                ParticleGroup parentGroup = P.parentParticleGroup;
+
+                if (parentVoxel.vectorField)
+                {
+                    if (parentVoxel.frequency == 1 || iteration % parentVoxel.frequency == p % parentVoxel.frequency)
                     {
-                        Point3d potPos = potentialPos[i];
-                        Voxel potentialVoxel = getParentVoxel(potPos);
-
-                        if (potentialVoxel != null)
-                        {
-                            double voxelValue = -99;
-
-                            if (!P.parentParticleGroup.ant)
-                            {
-                                voxelValue = potentialVoxel.density;
-                                if (potentialVoxel.food > 0) voxelValue = Math.Max(potentialVoxel.density, potentialVoxel.food);
-
-                                if (antParticles)
-                                {
-                                    if (slime_antFood > 0) voxelValue += potentialVoxel.towardsFoodPheromone * slime_antFood;
-                                    if (slime_antBase > 0) voxelValue += potentialVoxel.towardsBasePheromone * slime_antBase;
-                                }
-                            }
-
-                            //ant particles sense pheromones
-                            if (P.parentParticleGroup.ant)
-                            {
-                                if (P.foundFood)
-                                {
-                                    voxelValue = potentialVoxel.towardsBasePheromone;
-                                    if (ant_slime > 0) voxelValue += potentialVoxel.density * ant_slime;
-                                    
-                                }
-                                else
-                                {
-                                    if (P.parentVoxel.food <= 0)
-                                    {
-                                        if (potentialVoxel.towardsFoodPheromone > 0)
-                                        {
-                                            voxelValue = potentialVoxel.towardsFoodPheromone;
-                                            if (ant_slime > 0) voxelValue += potentialVoxel.density * ant_slime;
-                                        }
-                                        else
-                                        {
-                                            //if (P.age <= 100 && (iteration+p) % 5 == 0)
-                                            if ((iteration + p) % 2 == 0)
-                                            {
-                                                voxelValue = potentialVoxel.towardsBasePheromone;
-                                                if (ant_slime > 0) voxelValue += potentialVoxel.density * ant_slime;
-                                            }
-                                        }
-                                    }
-                                    else
-                                    {
-                                        voxelValue = 1;
-                                    }
-                                }
-                            }
-
-                            //avoid the areas with maxDensity = 0
-                            if (voxelValue != -99)
-                            {
-                                voxelValues[i] = voxelValue;
-                            }
-
-                            if (potentialVoxel.maxDensity == 0)
-                            {
-                                voxelValue = -1;
-                                voxelValues[i] = voxelValue;
-                            }
-                        }
-                        else
-                        {
-                            voxelValues[i] = -1;
-                        }
+                        P.moveVector += parentVoxel.voxelVector;
                     }
+                }
 
-                    //-----------------------
+                double sensorAngleMultiplier = parentVoxel.sensorAngleMultiplier == -1 ? 1 : parentVoxel.sensorAngleMultiplier;
+                double sensorDistanceMultiplier = parentVoxel.sensorDistanceMultiplier == -1 ? 1 : parentVoxel.sensorDistanceMultiplier;
+                double sensorDistance = parentGroup.sensorDistance * sensorDistanceMultiplier;
 
-                    //find the largest voxel value
-                    double minValue = 9999;
-                    double maxValue = -1;
-                    double index = -1;
+                double sensorAngle = radAngle[parentGroup.sensorAngle] * sensorAngleMultiplier;
+                double sensorCos = Math.Cos(sensorAngle);
+                double sensorSin = Math.Sin(sensorAngle);
+                Point3d origin = P.pPlane.Origin;
+                Vector3d planeX = P.pPlane.XAxis;
+                Vector3d planeY = P.pPlane.YAxis;
 
-                    for (int i = 0; i < voxelValues.Length; i++)
+                Point3d sensorPos0 = sensorSamplePosition(P, origin + (planeX * sensorCos - planeY * sensorSin) * sensorDistance);
+                Point3d sensorPos1 = sensorSamplePosition(P, origin + planeX * sensorDistance);
+                Point3d sensorPos2 = sensorSamplePosition(P, origin + (planeX * sensorCos + planeY * sensorSin) * sensorDistance);
+
+                double value0 = sampleSlimeSensorValue(sensorPos0);
+                double value1 = sampleSlimeSensorValue(sensorPos1);
+                double value2 = sampleSlimeSensorValue(sensorPos2);
+                double value3 = -1;
+                double value4 = -1;
+
+                if (tridimensional)
+                {
+                    Vector3d vectorU = planeX;
+                    vectorU.Rotate(sensorAngle, P.pPlane.YAxis);
+                    Point3d sensorPos3 = sensorSamplePosition(P, origin + vectorU * sensorDistance);
+
+                    Vector3d vectorD = planeX;
+                    vectorD.Rotate(-sensorAngle, P.pPlane.YAxis);
+                    Point3d sensorPos4 = sensorSamplePosition(P, origin + vectorD * sensorDistance);
+
+                    value3 = sampleSlimeSensorValue(sensorPos3);
+                    value4 = sampleSlimeSensorValue(sensorPos4);
+                }
+
+                int bestIndex = chooseBestSensorIndex(value0, value1, value2, value3, value4, tridimensional);
+                applySensorMoveForce(P, parentVoxel, parentGroup, bestIndex, p);
+            }
+            );
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        double sampleSlimeSensorValue(Point3d potPos)
+        {
+            Voxel potentialVoxel = getParentVoxel(potPos.X, potPos.Y, potPos.Z);
+            if (potentialVoxel == null || potentialVoxel.maxDensity == 0) return -1;
+            if (!wrapBoundaries && potentialVoxel.boundary) return -1;
+
+            double voxelValue = potentialVoxel.density;
+            if (potentialVoxel.food > 0)
+            {
+                voxelValue = Math.Max(voxelValue, potentialVoxel.food);
+            }
+
+            if (slime_antFood > 0)
+            {
+                voxelValue += potentialVoxel.towardsFoodPheromone * slime_antFood;
+            }
+
+            if (slime_antBase > 0)
+            {
+                voxelValue += potentialVoxel.towardsBasePheromone * slime_antBase;
+            }
+
+            return voxelValue;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        double sampleSensorValue(Point3d potPos, Voxel parentVoxel, Particle P, bool ant, double currentValue, int particleIndex)
+        {
+            Voxel potentialVoxel = getParentVoxel(potPos.X, potPos.Y, potPos.Z);
+            if (potentialVoxel == null) return -1;
+            if (!wrapBoundaries && potentialVoxel.boundary) return -1;
+
+            double voxelValue = -99;
+
+            if (!ant)
+            {
+                voxelValue = potentialVoxel.density;
+                if (potentialVoxel.food > 0) voxelValue = Math.Max(potentialVoxel.density, potentialVoxel.food);
+
+                if (antParticles)
+                {
+                    if (slime_antFood > 0) voxelValue += potentialVoxel.towardsFoodPheromone * slime_antFood;
+                    if (slime_antBase > 0) voxelValue += potentialVoxel.towardsBasePheromone * slime_antBase;
+                }
+            }
+            else
+            {
+                if (P.foundFood)
+                {
+                    voxelValue = potentialVoxel.towardsBasePheromone;
+                    if (ant_slime > 0) voxelValue += potentialVoxel.density * ant_slime;
+                }
+                else
+                {
+                    if (parentVoxel.food <= 0)
                     {
-                        double value = voxelValues[i];
-                        if (value > maxValue)
+                        if (potentialVoxel.towardsFoodPheromone > 0)
                         {
-                            maxValue = value;
-                            index = i;
+                            voxelValue = potentialVoxel.towardsFoodPheromone;
+                            if (ant_slime > 0) voxelValue += potentialVoxel.density * ant_slime;
                         }
-                        if (value < minValue)
+                        else if ((iteration + particleIndex) % 3 == 0)
                         {
-                            minValue = value;
+                            voxelValue = potentialVoxel.towardsBasePheromone;
+                            if (ant_slime > 0) voxelValue += potentialVoxel.density * ant_slime;
                         }
-                    }
-
-                    if (minValue == maxValue)
-                    {
-                        index = 1;
-                    }
-
-                    //-----------------------
-
-                    if (index != -1)
-                    {
-                        //continue if the sensing provided any viable solutions
-                        double RA = radAngle[Convert.ToInt32(retrieveRotationAngle(P))];
-
-                        Vector3d valueForce = new Vector3d(P.PPlane.XAxis.X, P.PPlane.XAxis.Y, P.PPlane.XAxis.Z);
-
-                        double rotationAngleMultiplier = 1;
-                        if(P.parentVoxel.rotationAngleMultiplier != -1) rotationAngleMultiplier = P.parentVoxel.rotationAngleMultiplier;
-
-                        if (index == 0)
-                        {
-                            //L
-                            valueForce.Rotate(-RA * rotationAngleMultiplier, P.pPlane.ZAxis);
-                        }
-
-                        if (index == 1)
-                        {
-                            //C
-                            //do nothing
-                        }
-
-                        if (index == 2)
-                        {
-                            //R
-                            valueForce.Rotate(RA * rotationAngleMultiplier, P.pPlane.ZAxis);
-                        }
-
-                        if (index == 3 && tridimensional)
-                        {
-                            //U
-                            valueForce.Rotate(RA * rotationAngleMultiplier, P.pPlane.YAxis);
-                        }
-
-                        if (index == 4 && tridimensional)
-                        {
-                            //D
-                            valueForce.Rotate(-RA * rotationAngleMultiplier, P.pPlane.YAxis);
-                        }
-
-                        valueForce.Unitize();
-                        P.moveVector += valueForce;
                     }
                     else
                     {
-                        if (wrapBoundaries == false)
-                        {
-                            double rotA = retrieveRotationAngle(P) * p;
-                            if (rotA < 0) rotA = 360 - (rotA % 360);
-                            if (rotA > 360) rotA %= 360;
-                            double RA = radAngle[Convert.ToInt32(rotA)];
-                            P.pPlane.Rotate(RA, P.pPlane.ZAxis, P.pPlane.Origin);
-                        }
+                        voxelValue = 1;
                     }
                 }
             }
-            );
+
+            if (voxelValue != -99)
+            {
+                currentValue = voxelValue;
+            }
+
+            if (potentialVoxel.maxDensity == 0)
+            {
+                currentValue = -1;
+            }
+
+            return currentValue;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int chooseBestSensorIndex(double value0, double value1, double value2, double value3, double value4, bool include3d)
+        {
+            double minValue = 9999;
+            double maxValue = -1;
+            int bestIndex = -1;
+
+            updateBestSensor(value0, 0, ref minValue, ref maxValue, ref bestIndex);
+            updateBestSensor(value1, 1, ref minValue, ref maxValue, ref bestIndex);
+            updateBestSensor(value2, 2, ref minValue, ref maxValue, ref bestIndex);
+
+            if (include3d)
+            {
+                updateBestSensor(value3, 3, ref minValue, ref maxValue, ref bestIndex);
+                updateBestSensor(value4, 4, ref minValue, ref maxValue, ref bestIndex);
+            }
+
+            if (minValue == maxValue)
+            {
+                bestIndex = 1;
+            }
+
+            return bestIndex;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void updateBestSensor(double value, int index, ref double minValue, ref double maxValue, ref int bestIndex)
+        {
+            if (value > maxValue)
+            {
+                maxValue = value;
+                bestIndex = index;
+            }
+
+            if (value < minValue)
+            {
+                minValue = value;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void applySensorMoveForce(Particle P, Voxel parentVoxel, ParticleGroup parentGroup, int bestIndex, int particleIndex)
+        {
+            if (bestIndex == -1)
+            {
+                if (!wrapBoundaries)
+                {
+                    double rotA = parentGroup.rotationAngle * particleIndex;
+                    if (rotA < 0) rotA = 360 - (rotA % 360);
+                    if (rotA > 360) rotA %= 360;
+                    double RA = radAngle[Convert.ToInt32(rotA)];
+                    P.pPlane.Rotate(RA, P.pPlane.ZAxis, P.pPlane.Origin);
+                }
+
+                return;
+            }
+
+            Vector3d valueForce = P.pPlane.XAxis;
+            if (bestIndex != 1)
+            {
+                double rotationAngleMultiplier = parentVoxel.rotationAngleMultiplier == -1 ? 1 : parentVoxel.rotationAngleMultiplier;
+                double rotationAngle = radAngle[parentGroup.rotationAngle] * rotationAngleMultiplier;
+
+                if (bestIndex == 0)
+                {
+                    double rotationCos = Math.Cos(rotationAngle);
+                    double rotationSin = Math.Sin(rotationAngle);
+                    valueForce = P.pPlane.XAxis * rotationCos - P.pPlane.YAxis * rotationSin;
+                }
+                else if (bestIndex == 2)
+                {
+                    double rotationCos = Math.Cos(rotationAngle);
+                    double rotationSin = Math.Sin(rotationAngle);
+                    valueForce = P.pPlane.XAxis * rotationCos + P.pPlane.YAxis * rotationSin;
+                }
+                else if (bestIndex == 3 && tridimensional)
+                {
+                    valueForce.Rotate(rotationAngle, P.pPlane.YAxis);
+                }
+                else if (bestIndex == 4 && tridimensional)
+                {
+                    valueForce.Rotate(-rotationAngle, P.pPlane.YAxis);
+                }
+            }
+
+            valueForce.Unitize();
+            P.moveVector += valueForce;
         }
 
         //----------------------------------
@@ -2597,17 +4093,19 @@ namespace Nuclei3
             double maxDist = Math.Max(dimX, dimY);
             maxDist = Math.Max(maxDist, dimZ);
 
-            List<Particle> shuffledParticles = particles.OrderBy(a => Guid.NewGuid()).ToList();
+            shuffleParticlesInPlace(particles);
 
             //sense for next iteration
-            Parallel.For(0, shuffledParticles.Count, p =>
+            Parallel.For(0, particles.Count, p =>
             {
-                Particle P = shuffledParticles[p];
+                Particle P = particles[p];
                 if (P.parentVoxel != null)
                 {
-                    if (P.parentParticleGroup.ant)
+                    ParticleGroup parentGroup = P.parentParticleGroup;
+                    if (parentGroup.ant)
                     {
-                        Vector3d outsideVector = P.PPlane.Origin - P.home.Origin;
+                        double sensorDistance = parentGroup.sensorDistance;
+                        Vector3d outsideVector = P.pPlane.Origin - P.home.Origin;
                         Vector3d towardsHomeVector = -outsideVector;
                         towardsHomeVector.Unitize();
 
@@ -2639,14 +4137,15 @@ namespace Nuclei3
                             }
                         }
 
+                        
                         //wander
-                        if (p % retrieveWanderFoodFrequency(P) == 0)
+                        if (p % 7 == 0)
                         {
                             P.moveVector += wanderVectors[(p + iteration) % wanderVectors.Count];
                         }
 
                         //when it's close to base wonder out
-                        if (P.age < 30 && outsideVector.Length < retrieveSensorDistance(P) * 5)
+                        if (P.age < 30 && outsideVector.Length < sensorDistance * 3)
                         {
                             outsideVector.Unitize();
                             P.moveVector += outsideVector * 10;
@@ -2655,7 +4154,7 @@ namespace Nuclei3
                         //towards home
                         if (P.foundFood)
                         {
-                            if (p % retrieveWanderBaseFrequency(P) == 0)
+                            if (p % (int) parentGroup.baseWanderFrequency == 0)
                             {
                                 P.moveVector += towardsHomeVector;
                             }
@@ -2667,7 +4166,7 @@ namespace Nuclei3
                         }
 
                         //when close to home, visit
-                        if (outsideVector.Length <= retrieveSensorDistance(P)*2 && P.age > 30)
+                        if (outsideVector.Length <= sensorDistance * 2 && P.age > 30)
                         {
                             P.alignToVector(towardsHomeVector);
                             P.moveVector += towardsHomeVector;
@@ -2682,16 +4181,16 @@ namespace Nuclei3
 
         void particleMoveAndDeposit()
         {
-            bool moveToRandomNeighbour = true;
+            shuffleParticlesInPlace(particles);
 
-            List<Particle> shuffledParticles = particles.OrderBy(a => Guid.NewGuid()).ToList();
-
-            Parallel.For(0, shuffledParticles.Count, i =>
+            Parallel.For(0, particles.Count, i =>
             {
-                Particle P = shuffledParticles[i];
+                Particle P = particles[i];
 
-                if (P.parentVoxel != null)
+                Voxel parentVoxel = P.parentVoxel;
+                if (parentVoxel != null)
                 {
+                    ParticleGroup parentGroup = P.parentParticleGroup;
   
                     Vector3d xVector = P.pPlane.XAxis;
                     xVector.Unitize();
@@ -2700,16 +4199,15 @@ namespace Nuclei3
                     moveVector += xVector;
 
                     //slime wander movement
-                    if (!P.parentParticleGroup.ant)
+                    if (!parentGroup.ant)
                     {
-                        int wanderFrequency = retrieveWanderFrequency(P);
+                        int wanderFrequency = (int) parentGroup.wanderFrequency;
 
                         if (i % wanderFrequency == 0)
                         {
                             Vector3d wanderVector = wanderVectors[(i % wanderVectors.Count + iteration % wanderVectors.Count) % wanderVectors.Count];
                             moveVector += 1.5 * wanderVector;
                             moveVector.Unitize();
-                            P.alignToVector(moveVector);
                         }
                     }
 
@@ -2721,10 +4219,21 @@ namespace Nuclei3
                     if (planarYZ) moveVector.X = 0;
 
                     double speedMultiplier = 1;
-                    if (P.parentVoxel.speedMultiplier != -1) speedMultiplier = P.parentVoxel.speedMultiplier;
+                    if (parentVoxel.speedMultiplier != -1) speedMultiplier = parentVoxel.speedMultiplier;
+                    double moveSpeed = parentGroup.speed * speedMultiplier;
 
-                    P.alignToVector(moveVector);
-                    moveVector *= retrieveSpeed(P) * speedMultiplier;
+                    if (discretizeMovement == true)
+                    {
+                        Vector3d discreteMoveVector = discretizeVector(moveVector);
+                        moveVector = discreteMoveVector;
+                    }
+                    else if (!moveVector.Unitize())
+                    {
+                        return;
+                    }
+
+                    alignParticleToUnitMoveVector(P, moveVector);
+                    moveVector *= moveSpeed;
                     Point3d nextLoc = P.pPlane.Origin + moveVector;
 
                     //if 2D, adapt coordinates
@@ -2736,7 +4245,7 @@ namespace Nuclei3
                     nextLoc = boundaries(P, nextLoc);
 
                     //find parent voxel for new location
-                    Voxel nextVoxel = getParentVoxel(nextLoc);
+                    Voxel nextVoxel = getParentVoxel(nextLoc.X, nextLoc.Y, nextLoc.Z);
 
                     //account for maxDensity == 0
                     if (nextVoxel != null)
@@ -2747,9 +4256,10 @@ namespace Nuclei3
                     //move to a random neighbour
                     if (nextVoxel == null || nextVoxel.boundary)
                     {
-                        int idX = P.parentVoxel.idX;
-                        int idY = P.parentVoxel.idY;
-                        int idZ = P.parentVoxel.idZ;
+                        bool moveToRandomNeighbour = true;
+                        int idX = parentVoxel.idX;
+                        int idY = parentVoxel.idY;
+                        int idZ = parentVoxel.idZ;
 
                         // move to random neighbour?
                         if (dynPop == true)
@@ -2767,13 +4277,12 @@ namespace Nuclei3
 
                         if (moveToRandomNeighbour)
                         {
-                            List<Voxel> neighbours = new List<Voxel>();
+                            Voxel[] neighborArray = threadLocalNeighbors.Value;
+                            int neighborCount = 0;
 
                             //create list with all viable neighbours
-                            int range = System.Convert.ToInt32(retrieveSpeed(P) * speedMultiplier / voxelSize);
+                            int range = (int)(moveSpeed / voxelSize);
                             if (range < 1) range = 1;
-
-                            //int range = 1;
 
                             for (int u = idX - range; u <= idX + range; u += range)
                             {
@@ -2783,12 +4292,12 @@ namespace Nuclei3
                                     {
                                         if (u >= 0 && u < resX && v >= 0 && v < resY && w >= 0 && w < resZ)
                                         {
-                                            if (voxels[u, v, w] != null)
+                                            Voxel neighborV = voxels[u, v, w];
+                                            if (neighborV != null && neighborV.maxDensity != 0 && !neighborV.boundary)
                                             {
-                                                if (voxels[u, v, w].maxDensity != 0 && voxels[u, v, w].boundary == false)
+                                                if (neighborCount < 27)
                                                 {
-                                                    Voxel neighbour = voxels[u, v, w];
-                                                    neighbours.Add(neighbour);
+                                                    neighborArray[neighborCount++] = neighborV;
                                                 }
                                             }
                                         }
@@ -2796,13 +4305,12 @@ namespace Nuclei3
                                 }
                             }
 
-                            if (neighbours.Count > 0)
+                            if (neighborCount > 0)
                             {
                                 //pick random one
-                                //System.Random random = new System.Random(iteration);
-                                int randomIndex = random.Next(0, neighbours.Count - 1);
-                                nextLoc = neighbours[randomIndex].loc;
-                                nextVoxel = neighbours[randomIndex];
+                                int randomIndex = threadLocalRandom.Value.Next(neighborCount);
+                                nextVoxel = neighborArray[randomIndex];
+                                nextLoc = nextVoxel.loc;
                             }
                         }
                     }
@@ -2811,12 +4319,13 @@ namespace Nuclei3
                     {
                         //assign new location
                         P.pPlane.Origin = nextLoc;
+                        //P.pPlane.Origin = nextVoxel.loc;
                         P.parentVoxel = nextVoxel;
 
                         //check if the next parent voxel is occupied by other particles
                         if (nextVoxel.particleCount == 0)
                         {
-                            particleDeposit(P, retrieveDepositValue(P));
+                            particleDeposit(P, parentGroup.depositValue);
                             P.highDeposit = true;
                         }
 
@@ -2833,358 +4342,200 @@ namespace Nuclei3
 
         //----------------------------------
 
-        void particleDeposit(Particle P, double _depositValue)
+        void createDiscreteVectors()
         {
-            if (P.parentVoxel != null)
+            Vector3d v1 = new Vector3d(1, 0, 0);
+            Vector3d v2 = new Vector3d(0, 1, 0);
+            Vector3d v3 = new Vector3d(-1, 0, 0);
+            Vector3d v4 = new Vector3d(0, -1, 0);
+
+            Vector3d v5 = new Vector3d(1, 1, 0);
+            Vector3d v6 = new Vector3d(-1, -1, 0);
+            Vector3d v7 = new Vector3d(1, -1, 0);
+            Vector3d v8 = new Vector3d(-1, 1, 0);
+
+            v1.Unitize();
+            v2.Unitize();
+            v3.Unitize();
+            v4.Unitize();
+
+            v5.Unitize();
+            v6.Unitize();
+            v7.Unitize();
+            v8.Unitize();
+
+            discreteVectors = new[] { v1, v2, v3, v4, v5, v6, v7, v8 };
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        Vector3d discretizeVector(Vector3d V)
+        {
+            if (discreteVectors.Length == 0) return new Vector3d(0, 0, 0);
+
+            Vector3d unitV = V;
+            if (!unitV.Unitize())
             {
-                if (P.parentVoxel.maxDensity != 0)
+                return discreteVectors[0];
+            }
+
+            Vector3d resultV = discreteVectors[0];
+            double maxDot = unitV.X * resultV.X + unitV.Y * resultV.Y + unitV.Z * resultV.Z;
+
+            for (int i = 1; i < discreteVectors.Length; i++)
+            {
+                Vector3d discreteV = discreteVectors[i];
+                double dot = unitV.X * discreteV.X + unitV.Y * discreteV.Y + unitV.Z * discreteV.Z;
+
+                if (dot > maxDot)
                 {
-                    if (wrapBoundaries)
-                    {
-                        //ant particles
-                        if (P.parentParticleGroup.ant)
-                        {
-                            if (P.age < maxAge)
-                            {
-                                ageMultiplierBase = multiplierBase[P.age];
-                                ageMultiplierFood = multiplierFood[P.age];
-                            }
-                            else
-                            {
-                                ageMultiplierBase = minBase;
-                                ageMultiplierFood = minFood;
-                            }
-
-                            if (P.foundFood)
-                            {
-                                P.parentVoxel.towardsFoodPheromone += _depositValue * ageMultiplierFood;
-                            }
-                            else
-                            {
-                                if (P.parentVoxel.towardsFoodPheromone > 0)
-                                {
-                                    P.parentVoxel.towardsBasePheromone += 1.2 * _depositValue * ageMultiplierBase;
-                                }
-                                else
-                                {
-                                    P.parentVoxel.towardsBasePheromone += 0.8 * _depositValue * ageMultiplierBase;
-                                }
-                            }
-                        }
-                        else //slime particles
-                        {
-                            if (P.highDeposit)
-                            {
-                                if (slime_antBase == 0 && slime_antFood == 0)
-                                {
-                                    P.parentVoxel.density += _depositValue;
-                                }
-                                else
-                                {
-                                    if (slime_antFood > 0) P.parentVoxel.density += _depositValue * (1 - slime_antFood) + P.parentVoxel.towardsFoodPheromone * slime_antFood;
-                                    if (slime_antBase > 0) P.parentVoxel.density += _depositValue * (1 - slime_antBase) + P.parentVoxel.towardsBasePheromone * slime_antBase;
-                                }
-                            }
-                            else
-                            {
-                                if (slime_antBase == 0 && slime_antFood == 0)
-                                {
-                                    P.parentVoxel.density += _depositValue/4;
-                                }
-                                else
-                                {
-                                    if (slime_antFood > 0) P.parentVoxel.density += _depositValue/4 * (1 - slime_antFood) + P.parentVoxel.towardsFoodPheromone * slime_antFood;
-                                    if (slime_antBase > 0) P.parentVoxel.density += _depositValue/4 * (1 - slime_antBase) + P.parentVoxel.towardsBasePheromone * slime_antBase;
-                                }
-                            }
-                        }
-                    }
-                    else //wrapBoundaries == false 
-                    {
-                            int boundaryRange = 1;
-
-                        if (tridimensional)
-                        {
-                            if (dimX > retrieveSensorDistance(P) * 2 && dimY > retrieveSensorDistance(P) * 2 && dimZ > retrieveSensorDistance(P) * 2)
-                            {
-                                boundaryRange = Convert.ToInt32(retrieveSensorDistance(P));
-                            }
-
-                            if (P.parentVoxel.idX >= boundaryRange && P.parentVoxel.idX < resX - boundaryRange && P.parentVoxel.idY >= boundaryRange && P.parentVoxel.idY < resY - boundaryRange && P.parentVoxel.idZ >= boundaryRange && P.parentVoxel.idZ < resZ - boundaryRange)
-                            {
-
-                                //ant particles
-                                if (P.parentParticleGroup.ant)
-                                {
-                                    if (P.age < maxAge)
-                                    {
-                                        ageMultiplierBase = multiplierBase[P.age];
-                                        ageMultiplierFood = multiplierFood[P.age]; ;
-                                    }
-                                    else
-                                    {
-                                        ageMultiplierBase = minBase;
-                                        ageMultiplierFood = minFood;
-                                    }
-
-                                    if (P.foundFood)
-                                    {
-                                        P.parentVoxel.towardsFoodPheromone += _depositValue * ageMultiplierFood;
-                                    }
-                                    else
-                                    {
-                                        if (P.parentVoxel.towardsFoodPheromone > 0)
-                                        {
-                                            P.parentVoxel.towardsBasePheromone += 1.2 * _depositValue * ageMultiplierBase;
-                                        }
-                                        else
-                                        {
-                                            P.parentVoxel.towardsBasePheromone += 0.8 * _depositValue * ageMultiplierBase;
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    if (P.highDeposit)
-                                    {
-                                        if (slime_antBase == 0 && slime_antFood == 0)
-                                        {
-                                            P.parentVoxel.density += _depositValue;
-                                        }
-                                        else
-                                        {
-                                            if (slime_antFood > 0) P.parentVoxel.density += _depositValue * (1 - slime_antFood) + P.parentVoxel.towardsFoodPheromone * slime_antFood;
-                                            if (slime_antBase > 0) P.parentVoxel.density += _depositValue * (1 - slime_antBase) + P.parentVoxel.towardsBasePheromone * slime_antBase;
-                                        }
-                                    }
-                                    else
-                                    {
-                                        if (slime_antBase == 0 && slime_antFood == 0)
-                                        {
-                                            P.parentVoxel.density += _depositValue/4;
-                                        }
-                                        else
-                                        {
-                                            if (slime_antFood > 0) P.parentVoxel.density += _depositValue/4 * (1 - slime_antFood) + P.parentVoxel.towardsFoodPheromone * slime_antFood;
-                                            if (slime_antBase > 0) P.parentVoxel.density += _depositValue/4 * (1 - slime_antBase) + P.parentVoxel.towardsBasePheromone * slime_antBase;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        else //tridimensional == false
-                        {
-                            if (planarXY)
-                            {
-                                if (dimX > retrieveSensorDistance(P) * 2 && dimY > retrieveSensorDistance(P) * 2)
-                                {
-                                    boundaryRange = Convert.ToInt32(retrieveSensorDistance(P));
-                                }
-
-                                if (P.parentVoxel.idX >= boundaryRange && P.parentVoxel.idX < resX - boundaryRange && P.parentVoxel.idY >= boundaryRange && P.parentVoxel.idY < resY - boundaryRange)
-                                {
-
-                                    //ant particles
-                                    if (P.parentParticleGroup.ant)
-                                    {
-                                        if (P.age < maxAge)
-                                        {
-                                            ageMultiplierBase = multiplierBase[P.age];
-                                            ageMultiplierFood = multiplierFood[P.age]; ;
-                                        }
-                                        else
-                                        {
-                                            ageMultiplierBase = minBase;
-                                            ageMultiplierFood = minFood;
-                                        }
-
-                                        if (P.foundFood)
-                                        {
-                                            P.parentVoxel.towardsFoodPheromone += _depositValue * ageMultiplierFood;
-                                        }
-                                        else
-                                        {
-                                            if (P.parentVoxel.towardsFoodPheromone > 0)
-                                            {
-                                                P.parentVoxel.towardsBasePheromone += 1.2 * _depositValue * ageMultiplierBase;
-                                            }
-                                            else
-                                            {
-                                                P.parentVoxel.towardsBasePheromone += 0.8 * _depositValue * ageMultiplierBase;
-                                            }
-                                        }
-                                    }
-                                    else
-                                    {
-                                        if (P.highDeposit)
-                                        {
-                                            if (slime_antBase == 0 && slime_antFood == 0)
-                                            {
-                                                P.parentVoxel.density += _depositValue;
-                                            }
-                                            else
-                                            {
-                                                if (slime_antFood > 0) P.parentVoxel.density += _depositValue * (1 - slime_antFood) + P.parentVoxel.towardsFoodPheromone * slime_antFood;
-                                                if (slime_antBase > 0) P.parentVoxel.density += _depositValue * (1 - slime_antBase) + P.parentVoxel.towardsBasePheromone * slime_antBase;
-                                            }
-                                        }
-                                        else
-                                        {
-                                            if (slime_antBase == 0 && slime_antFood == 0)
-                                            {
-                                                P.parentVoxel.density += _depositValue/4;
-                                            }
-                                            else
-                                            {
-                                                if (slime_antFood > 0) P.parentVoxel.density += _depositValue/4 * (1 - slime_antFood) + P.parentVoxel.towardsFoodPheromone * slime_antFood;
-                                                if (slime_antBase > 0) P.parentVoxel.density += _depositValue/4 * (1 - slime_antBase) + P.parentVoxel.towardsBasePheromone * slime_antBase;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            else if (planarXZ)
-                            {
-                                if (dimX > retrieveSensorDistance(P) * 2 && dimZ > retrieveSensorDistance(P) * 2)
-                                {
-                                    boundaryRange = Convert.ToInt32(retrieveSensorDistance(P));
-                                }
-
-                                if (P.parentVoxel.idX >= boundaryRange && P.parentVoxel.idX < resX - boundaryRange && P.parentVoxel.idZ >= boundaryRange && P.parentVoxel.idZ < resZ - boundaryRange)
-                                {
-
-                                    //ant particles
-                                    if (P.parentParticleGroup.ant)
-                                    {
-                                        if (P.age < maxAge)
-                                        {
-                                            ageMultiplierBase = multiplierBase[P.age];
-                                            ageMultiplierFood = multiplierFood[P.age]; ;
-                                        }
-                                        else
-                                        {
-                                            ageMultiplierBase = minBase;
-                                            ageMultiplierFood = minFood;
-                                        }
-
-                                        if (P.foundFood)
-                                        {
-                                            P.parentVoxel.towardsFoodPheromone += _depositValue * ageMultiplierFood;
-                                        }
-                                        else
-                                        {
-                                            if (P.parentVoxel.towardsFoodPheromone > 0)
-                                            {
-                                                P.parentVoxel.towardsBasePheromone += 1.2 * _depositValue * ageMultiplierBase;
-                                            }
-                                            else
-                                            {
-                                                P.parentVoxel.towardsBasePheromone += 0.8 * _depositValue * ageMultiplierBase;
-                                            }
-                                        }
-
-                                    }
-                                    else
-                                    {
-                                        if (P.highDeposit)
-                                        {
-                                            if (slime_antBase == 0 && slime_antFood == 0)
-                                            {
-                                                P.parentVoxel.density += _depositValue;
-                                            }
-                                            else
-                                            {
-                                                if (slime_antFood > 0) P.parentVoxel.density += _depositValue * (1 - slime_antFood) + P.parentVoxel.towardsFoodPheromone * slime_antFood;
-                                                if (slime_antBase > 0) P.parentVoxel.density += _depositValue * (1 - slime_antBase) + P.parentVoxel.towardsBasePheromone * slime_antBase;
-                                            }
-                                        }
-                                        else
-                                        {
-                                            if (slime_antBase == 0 && slime_antFood == 0)
-                                            {
-                                                P.parentVoxel.density += _depositValue/4;
-                                            }
-                                            else
-                                            {
-                                                if (slime_antFood > 0) P.parentVoxel.density += _depositValue/4 * (1 - slime_antFood) + P.parentVoxel.towardsFoodPheromone * slime_antFood;
-                                                if (slime_antBase > 0) P.parentVoxel.density += _depositValue/4 * (1 - slime_antBase) + P.parentVoxel.towardsBasePheromone * slime_antBase;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            else if (planarYZ)
-                            {
-                                if (dimY > retrieveSensorDistance(P) * 2 && dimZ > retrieveSensorDistance(P) * 2)
-                                {
-                                    boundaryRange = Convert.ToInt32(retrieveSensorDistance(P));
-                                }
-
-                                if (P.parentVoxel.idY >= boundaryRange && P.parentVoxel.idY < resY - boundaryRange && P.parentVoxel.idZ >= boundaryRange && P.parentVoxel.idZ < resZ - boundaryRange)
-                                {
-
-                                    //ant particles
-                                    if (P.parentParticleGroup.ant)
-                                    {
-                                        if (P.age < maxAge)
-                                        {
-                                            ageMultiplierBase = multiplierBase[P.age];
-                                            ageMultiplierFood = multiplierFood[P.age]; ;
-                                        }
-                                        else
-                                        {
-                                            ageMultiplierBase = minBase;
-                                            ageMultiplierFood = minFood;
-                                        }
-
-                                        if (P.foundFood)
-                                        {
-                                            P.parentVoxel.towardsFoodPheromone += _depositValue * ageMultiplierFood;
-                                        }
-                                        else
-                                        {
-                                            if (P.parentVoxel.towardsFoodPheromone > 0)
-                                            {
-                                                P.parentVoxel.towardsBasePheromone += 1.2 * _depositValue * ageMultiplierBase;
-                                            }
-                                            else
-                                            {
-                                                P.parentVoxel.towardsBasePheromone += 0.8 * _depositValue * ageMultiplierBase;
-                                            }
-                                        }
-
-                                    }
-                                    else
-                                    {
-                                        if (P.highDeposit)
-                                        {
-                                            if (slime_antBase == 0 && slime_antFood == 0)
-                                            {
-                                                P.parentVoxel.density += _depositValue;
-                                            }
-                                            else
-                                            {
-                                                if (slime_antFood > 0) P.parentVoxel.density += _depositValue * (1 - slime_antFood) + P.parentVoxel.towardsFoodPheromone * slime_antFood;
-                                                if (slime_antBase > 0) P.parentVoxel.density += _depositValue * (1 - slime_antBase) + P.parentVoxel.towardsBasePheromone * slime_antBase;
-                                            }
-                                        } else
-                                        {
-                                            if (slime_antBase == 0 && slime_antFood == 0)
-                                            {
-                                                P.parentVoxel.density += _depositValue/4;
-                                            }
-                                            else
-                                            {
-                                                if (slime_antFood > 0) P.parentVoxel.density += _depositValue/4 * (1 - slime_antFood) + P.parentVoxel.towardsFoodPheromone * slime_antFood;
-                                                if (slime_antBase > 0) P.parentVoxel.density += _depositValue/4 * (1 - slime_antBase) + P.parentVoxel.towardsBasePheromone * slime_antBase;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    maxDot = dot;
+                    resultV = discreteV;
                 }
+            }
+
+            return resultV;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void alignParticleToUnitMoveVector(Particle P, Vector3d unitMoveVector)
+        {
+            const double planeTolerance = 1e-9;
+
+            if (planarXY && Math.Abs(unitMoveVector.Z) < planeTolerance)
+            {
+                P.alignToUnitVectorPlanarXY(unitMoveVector);
+                return;
+            }
+
+            if (planarXZ && Math.Abs(unitMoveVector.Y) < planeTolerance)
+            {
+                P.alignToUnitVectorPlanarXZ(unitMoveVector);
+                return;
+            }
+
+            if (planarYZ && Math.Abs(unitMoveVector.X) < planeTolerance)
+            {
+                P.alignToUnitVectorPlanarYZ(unitMoveVector);
+                return;
+            }
+
+            P.alignToUnitVector(unitMoveVector);
+        }
+
+        //----------------------------------
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void particleDeposit(Particle P, double depositValue)
+        {
+            Voxel parentVoxel = P.parentVoxel;
+            if (parentVoxel == null || parentVoxel.maxDensity == 0) return;
+
+            ParticleGroup parentGroup = P.parentParticleGroup;
+            if (!wrapBoundaries && !canDepositAtVoxel(parentVoxel, parentGroup.sensorDistance)) return;
+
+            depositAtVoxel(P, parentVoxel, parentGroup, depositValue);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool canDepositAtVoxel(Voxel parentVoxel, double sensorDistance)
+        {
+            int boundaryRange = 1;
+            double sensorDiameter = sensorDistance * 2;
+
+            if (tridimensional)
+            {
+                if (dimX > sensorDiameter && dimY > sensorDiameter && dimZ > sensorDiameter)
+                {
+                    boundaryRange = Convert.ToInt32(sensorDistance);
+                }
+
+                return parentVoxel.idX >= boundaryRange && parentVoxel.idX < resX - boundaryRange &&
+                       parentVoxel.idY >= boundaryRange && parentVoxel.idY < resY - boundaryRange &&
+                       parentVoxel.idZ >= boundaryRange && parentVoxel.idZ < resZ - boundaryRange;
+            }
+
+            if (planarXY)
+            {
+                if (dimX > sensorDiameter && dimY > sensorDiameter)
+                {
+                    boundaryRange = Convert.ToInt32(sensorDistance);
+                }
+
+                return parentVoxel.idX >= boundaryRange && parentVoxel.idX < resX - boundaryRange &&
+                       parentVoxel.idY >= boundaryRange && parentVoxel.idY < resY - boundaryRange;
+            }
+
+            if (planarXZ)
+            {
+                if (dimX > sensorDiameter && dimZ > sensorDiameter)
+                {
+                    boundaryRange = Convert.ToInt32(sensorDistance);
+                }
+
+                return parentVoxel.idX >= boundaryRange && parentVoxel.idX < resX - boundaryRange &&
+                       parentVoxel.idZ >= boundaryRange && parentVoxel.idZ < resZ - boundaryRange;
+            }
+
+            if (planarYZ)
+            {
+                if (dimY > sensorDiameter && dimZ > sensorDiameter)
+                {
+                    boundaryRange = Convert.ToInt32(sensorDistance);
+                }
+
+                return parentVoxel.idY >= boundaryRange && parentVoxel.idY < resY - boundaryRange &&
+                       parentVoxel.idZ >= boundaryRange && parentVoxel.idZ < resZ - boundaryRange;
+            }
+
+            return false;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void depositAtVoxel(Particle P, Voxel parentVoxel, ParticleGroup parentGroup, double depositValue)
+        {
+            if (parentGroup.ant)
+            {
+                double baseMultiplier;
+                double foodMultiplier;
+
+                if (P.age < maxAge)
+                {
+                    baseMultiplier = multiplierBase[P.age];
+                    foodMultiplier = multiplierFood[P.age];
+                }
+                else
+                {
+                    baseMultiplier = minBase;
+                    foodMultiplier = minFood;
+                }
+
+                if (P.foundFood)
+                {
+                    parentVoxel.towardsFoodPheromone += depositValue * foodMultiplier;
+                }
+                else
+                {
+                    parentVoxel.towardsBasePheromone += (parentVoxel.towardsFoodPheromone > 0 ? 1.1 : 0.9) * depositValue * baseMultiplier;
+                }
+
+                return;
+            }
+
+            double slimeDeposit = P.highDeposit ? depositValue : depositValue / 4;
+            if (slime_antBase == 0 && slime_antFood == 0)
+            {
+                parentVoxel.density += slimeDeposit;
+                return;
+            }
+
+            if (slime_antFood > 0)
+            {
+                parentVoxel.density += slimeDeposit * (1 - slime_antFood) + parentVoxel.towardsFoodPheromone * slime_antFood;
+            }
+
+            if (slime_antBase > 0)
+            {
+                parentVoxel.density += slimeDeposit * (1 - slime_antBase) + parentVoxel.towardsBasePheromone * slime_antBase;
             }
         }
 
@@ -3214,35 +4565,49 @@ namespace Nuclei3
         {
             if (particles != null)
             {
+                bool sampleTrail = iteration % trailFreq == 0;
+
                 Parallel.For(0, particles.Count, i =>
                 {
                     Particle P = particles[i];
+                    List<Point3d> trails = P.trails;
+
                     if (P.parentVoxel != null)
                     {
                         if (trailSize > 1)
                         {
-                            if (iteration % trailFreq == 0)
+                            if (trails.Capacity < trailSize)
                             {
-                                if (P.trails.Count > 0)
-                                {
-                                    P.trails.Insert(0, P.pPlane.Origin);
-                                }
-                                else P.trails.Add(P.pPlane.Origin);
+                                trails.Capacity = trailSize;
+                            }
 
-                                if (P.trails.Count > trailSize)
+                            Point3d origin = P.pPlane.Origin;
+
+                            if (sampleTrail)
+                            {
+                                if (trails.Count > 0)
                                 {
-                                    P.trails.RemoveAt(P.trails.Count - 1);
+                                    trails.Insert(0, origin);
+                                }
+                                else trails.Add(origin);
+
+                                if (trails.Count > trailSize)
+                                {
+                                    trails.RemoveAt(trails.Count - 1);
                                 }
                             }
                             else
                             {
-                                P.trails.Insert(0, P.pPlane.Origin);
-                                if (P.trails.Count > 1) P.trails.RemoveAt(1);
+                                if (trails.Count > 0)
+                                {
+                                    trails[0] = origin;
+                                }
+                                else trails.Add(origin);
                             }
                         }
                         else
                         {
-                            P.trails.Clear();
+                            if (trails.Count > 0) trails.Clear();
                         }
                     }
                 }
@@ -3252,91 +4617,99 @@ namespace Nuclei3
 
         //-------------------------------------------------------------------
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         Voxel getParentVoxel(Point3d p)
         {
-            Voxel p_parent = null;
+            return getParentVoxel(p.X, p.Y, p.Z);
+        }
 
-            if (tridimensional)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        Voxel getParentVoxel(double x, double y, double z)
+        {
+            int p_xID = planarYZ ? 0 : (int)(x * voxelSizeInverse);
+            int p_yID = planarXZ ? 0 : (int)(y * voxelSizeInverse);
+            int p_zID = planarXY ? 0 : (int)(z * voxelSizeInverse);
+
+            if (p_xID < 0 || p_xID >= resX || p_yID < 0 || p_yID >= resY || p_zID < 0 || p_zID >= resZ)
             {
-                int p_xID = System.Convert.ToInt32((p.X - Math.Abs(p.X % voxelSize)) / voxelSize);
-                int p_yID = System.Convert.ToInt32((p.Y - Math.Abs(p.Y % voxelSize)) / voxelSize);
-                int p_zID = System.Convert.ToInt32((p.Z - Math.Abs(p.Z % voxelSize)) / voxelSize);
-
-                if (p_xID >= 0 && p_xID < resX && p_yID >= 0 && p_yID < resY && p_zID >= 0 && p_zID < resZ)
-                {
-                    if (voxels[p_xID, p_yID, p_zID] != null)
-                    {
-                        p_parent = voxels[p_xID, p_yID, p_zID];
-                    }
-                }
-                else
-                {
-                    p_parent = null;
-                }
-            }
-            else //tridimensional == false
-            {
-                if (planarXY)
-                {
-                    int p_xID = System.Convert.ToInt32((p.X - Math.Abs(p.X % voxelSize)) / voxelSize);
-                    int p_yID = System.Convert.ToInt32((p.Y - Math.Abs(p.Y % voxelSize)) / voxelSize);
-                    int p_zID = 0;
-
-                    if (p_xID >= 0 && p_xID < resX && p_yID >= 0 && p_yID < resY)
-                    {
-                        if (voxels[p_xID, p_yID, p_zID] != null)
-                        {
-                            p_parent = voxels[p_xID, p_yID, p_zID];
-                        }
-                    }
-                    else
-                    {
-                        p_parent = null;
-                    }
-                }
-                else if (planarXZ)
-                {
-                    int p_xID = System.Convert.ToInt32((p.X - Math.Abs(p.X % voxelSize)) / voxelSize);
-                    int p_yID = 0;
-                    int p_zID = System.Convert.ToInt32((p.Z - Math.Abs(p.Z % voxelSize)) / voxelSize);
-
-                    if (p_xID >= 0 && p_xID < resX && p_zID >= 0 && p_zID < resZ)
-                    {
-                        if (voxels[p_xID, p_yID, p_zID] != null)
-                        {
-                            p_parent = voxels[p_xID, p_yID, p_zID];
-                        }
-                    }
-                    else
-                    {
-                        p_parent = null;
-                    }
-                }
-                else if (planarYZ)
-                {
-                    int p_xID = 0;
-                    int p_yID = System.Convert.ToInt32((p.Y - Math.Abs(p.Y % voxelSize)) / voxelSize);
-                    int p_zID = System.Convert.ToInt32((p.Z - Math.Abs(p.Z % voxelSize)) / voxelSize);
-
-                    if (p_yID >= 0 && p_yID < resY && p_zID >= 0 && p_zID < resZ)
-                    {
-                        if (voxels[p_xID, p_yID, p_zID] != null)
-                        {
-                            p_parent = voxels[p_xID, p_yID, p_zID];
-                        }
-                    }
-                    else
-                    {
-                        p_parent = null;
-                    }
-                }
+                return null;
             }
 
-            return p_parent;
+            return voxelFlat[p_xID * voxelStrideX + p_yID * voxelStrideY + p_zID];
         }
 
         //----------------------------------
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        Point3d sensorSamplePosition(Particle P, Point3d p)
+        {
+            if (wrapBoundaries)
+            {
+                return sensorBoundaries(p);
+            }
+
+            return boundaries(P, p);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        Point3d sensorBoundaries(Point3d p)
+        {
+            double x = p.X;
+            double y = p.Y;
+            double z = p.Z;
+
+            if (!wrapBoundaries)
+            {
+                double boundaryDistance = voxelSize;
+
+                if (!planarYZ)
+                {
+                    if (x <= boundaryDistance) x = boundaryDistance;
+                    else if (x >= dimX - boundaryDistance) x = dimX - boundaryDistance;
+                }
+
+                if (!planarXZ)
+                {
+                    if (y <= boundaryDistance) y = boundaryDistance;
+                    else if (y >= dimY - boundaryDistance) y = dimY - boundaryDistance;
+                }
+
+                if (!planarXY)
+                {
+                    if (z <= boundaryDistance) z = boundaryDistance;
+                    else if (z >= dimZ - boundaryDistance) z = dimZ - boundaryDistance;
+                }
+            }
+            else
+            {
+                const double wrapDistance = 0.01;
+
+                if (!planarYZ)
+                {
+                    if (x < wrapDistance) x = dimX - 0.1;
+                    else if (x > dimX - wrapDistance) x = 0.1;
+                }
+
+                if (!planarXZ)
+                {
+                    if (y < wrapDistance) y = dimY - 0.1;
+                    else if (y > dimY - wrapDistance) y = 0.1;
+                }
+
+                if (!planarXY)
+                {
+                    if (z < wrapDistance) z = dimZ - 0.1;
+                    else if (z > dimZ - wrapDistance) z = 0.1;
+                }
+            }
+
+            if (x == p.X && y == p.Y && z == p.Z) return p;
+            return new Point3d(x, y, z);
+        }
+
+        //----------------------------------
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         Point3d boundaries(Particle P, Point3d p)
         {
             Point3d nextLoc = p;
@@ -3344,6 +4717,12 @@ namespace Nuclei3
             if (wrapBoundaries == false)
             {
                 double boundaryDistance = voxelSize;
+                if ((planarYZ || (nextLoc.X > boundaryDistance && nextLoc.X < dimX - boundaryDistance)) &&
+                    (planarXZ || (nextLoc.Y > boundaryDistance && nextLoc.Y < dimY - boundaryDistance)) &&
+                    (planarXY || (nextLoc.Z > boundaryDistance && nextLoc.Z < dimZ - boundaryDistance)))
+                {
+                    return nextLoc;
+                }
 
                 if (planarYZ == false)
                 {
@@ -3436,6 +4815,14 @@ namespace Nuclei3
 
             if (wrapBoundaries == true)
             {
+                const double wrapDistance = 0.01;
+                if ((planarYZ || (nextLoc.X >= wrapDistance && nextLoc.X <= dimX - wrapDistance)) &&
+                    (planarXZ || (nextLoc.Y >= wrapDistance && nextLoc.Y <= dimY - wrapDistance)) &&
+                    (planarXY || (nextLoc.Z >= wrapDistance && nextLoc.Z <= dimZ - wrapDistance)))
+                {
+                    return nextLoc;
+                }
+
                 if (tridimensional == true)
                 {
                     double newX = nextLoc.X;
@@ -3592,7 +4979,7 @@ namespace Nuclei3
             if (iteration % dieFreq == 0)
             {
                 //shuffle particles
-                particles = particles.OrderBy(a => Guid.NewGuid()).ToList();
+                shuffleParticlesInPlace(particles);
 
                 int counter = 0;
 
@@ -3668,7 +5055,7 @@ namespace Nuclei3
                     );
 
                     //shuffle particles
-                    List<Particle> shuffledParticles = particles.OrderBy(a => Guid.NewGuid()).ToList();
+                    List<Particle> shuffledParticles = createShuffledParticleList(particles);
 
                     //add particles
                     List<Particle> newParticles = shuffledParticles;
@@ -3715,9 +5102,9 @@ namespace Nuclei3
                                     {
                                         emptyNeighbourV = emptyNeighbours[0];
                                     }
-                                    else
+                                    if (emptyNeighbours.Count > 0)
                                     {
-                                        int randomIndex = (int)Math.Floor(random.NextDouble() * (emptyNeighbours.Count - 1));
+                                        int randomIndex = random.Next(emptyNeighbours.Count);
                                         emptyNeighbourV = emptyNeighbours[randomIndex];
                                     }
                                 }
@@ -3753,7 +5140,7 @@ namespace Nuclei3
                                         }
                                         else
                                         {
-                                            int randomIndex = (int) Math.Floor(random.NextDouble() * (emptyNeighbours.Count - 1));
+                                            int randomIndex = random.Next(emptyNeighbours.Count);
                                             emptyNeighbourV = emptyNeighbours[randomIndex];
                                         }
                                     }
@@ -3787,7 +5174,7 @@ namespace Nuclei3
                                         }
                                         else
                                         {
-                                            int randomIndex = (int) Math.Floor(random.NextDouble() * (emptyNeighbours.Count - 1));
+                                            int randomIndex = random.Next(emptyNeighbours.Count);
                                             emptyNeighbourV = emptyNeighbours[randomIndex];
                                         }
                                     }
@@ -3821,7 +5208,7 @@ namespace Nuclei3
                                         }
                                         else
                                         {
-                                            int randomIndex = (int) Math.Floor(random.NextDouble() * (emptyNeighbours.Count - 1));
+                                            int randomIndex = random.Next(emptyNeighbours.Count);
                                             emptyNeighbourV = emptyNeighbours[randomIndex];
                                         }
                                     }
@@ -3934,7 +5321,7 @@ namespace Nuclei3
                     );
 
                     //shuffle particles
-                    List<Particle> shuffledParticles = particles.OrderBy(a => Guid.NewGuid()).ToList();
+                    List<Particle> shuffledParticles = createShuffledParticleList(particles);
 
                     //add particles
                     List<Particle> newParticles = shuffledParticles;
@@ -3951,17 +5338,17 @@ namespace Nuclei3
 
                             Particle newP = new Particle(newPlane);
 
-                            Vector3d newP_Vector = P.PPlane.XAxis + P.moveVector;
+                            Vector3d newP_Vector = P.pPlane.XAxis + P.moveVector;
                             newP_Vector.Unitize();
 
                             Vector3d newP_Vector_R = new Vector3d(newP_Vector.X, newP_Vector.Y, newP_Vector.Z);
                             Vector3d newP_Vector_L = new Vector3d(newP_Vector.X, newP_Vector.Y, newP_Vector.Z);
 
-                            newP_Vector_R.Rotate(retrieveRotationAngle(P) / 4, P.PPlane.ZAxis);
-                            newP_Vector_L.Rotate(-retrieveRotationAngle(P) / 4, P.PPlane.ZAxis);
+                            newP_Vector_R.Rotate(retrieveRotationAngle(P) / 4, P.pPlane.ZAxis);
+                            newP_Vector_L.Rotate(-retrieveRotationAngle(P) / 4, P.pPlane.ZAxis);
 
-                            P.alignToVector(P.PPlane.XAxis - newP_Vector_R);
-                            newP.alignToVector(P.PPlane.XAxis - newP_Vector_L);
+                            P.alignToVector(P.pPlane.XAxis - newP_Vector_R);
+                            newP.alignToVector(P.pPlane.XAxis - newP_Vector_L);
 
                             newP.parentParticleGroup = P.parentParticleGroup;
 
@@ -4038,6 +5425,9 @@ namespace Nuclei3
             slime_antFood = 0;
             ant_slime = 0;
 
+            //reset discretize
+            discretizeMovement = false;
+
             //read particle settings
             bool speciesInteractionSettingsExist = false;
 
@@ -4108,6 +5498,36 @@ namespace Nuclei3
                         if (trailFreq < 1) trailFreq = 1;
                         break;
 
+                    case "DiscreteVectors":
+
+                        List<Vector3d> inputDiscreteVectors = new List<Vector3d>();
+
+                        for (int s = 1; s < inputSettings_components.Length; s++)
+                        {
+                            string[] coordinates = inputSettings_components[s].Split(',');
+                            double x = Convert.ToDouble(coordinates[0]);
+                            double y = Convert.ToDouble(coordinates[1]);
+                            double z = Convert.ToDouble(coordinates[2]);
+
+                            Vector3d discreteVector = new Vector3d(x, y, z);
+                            if (discreteVector.Unitize())
+                            {
+                                inputDiscreteVectors.Add(discreteVector);
+                            }
+                        }
+
+                        discreteVectors = inputDiscreteVectors.ToArray();
+
+                        if (discreteVectors.Length > 1)
+                        {
+                            discretizeMovement = true;
+                        } else
+                        {
+                            discretizeMovement = false;
+                        }
+
+                        break;
+
                     case "SolverSettings":
                         maxIterations = Convert.ToInt32(inputSettings_components[1]);
                         break;
@@ -4162,11 +5582,6 @@ namespace Nuclei3
         int retrieveWanderFrequency(Particle P)
         {
             return (int) P.parentParticleGroup.wanderFrequency;
-        }
-
-        int retrieveWanderFoodFrequency(Particle P)
-        {
-            return (int) P.parentParticleGroup.foodWanderFrequency;
         }
 
         int retrieveWanderBaseFrequency(Particle P)
@@ -4243,6 +5658,24 @@ namespace Nuclei3
         double reMapValue(double s, double a1, double a2, double b1, double b2)
         {
             return b1 + (s - a1) * (b2 - b1) / (a2 - a1);
+        }
+
+        List<Particle> createShuffledParticleList(List<Particle> source)
+        {
+            List<Particle> shuffledParticles = new List<Particle>(source);
+            shuffleParticlesInPlace(shuffledParticles);
+            return shuffledParticles;
+        }
+
+        void shuffleParticlesInPlace(List<Particle> list)
+        {
+            for (int i = list.Count - 1; i > 0; i--)
+            {
+                int j = random.Next(i + 1);
+                Particle temp = list[i];
+                list[i] = list[j];
+                list[j] = temp;
+            }
         }
 
         //-------------------------------------------------------------------
