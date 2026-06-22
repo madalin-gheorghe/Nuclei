@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -35,6 +36,7 @@ namespace Nuclei3
     {
         const float DepositScale = 1024.0f;
         const int PreviewReadbackBufferCount = 3;
+        const string SharedDensityPreviewStatusPath = @"C:\Nuclei\BenchmarkSuite1\NucleiGpuDensityFieldSource.txt";
 
         ID3D11Device device;
         ID3D11DeviceContext context;
@@ -44,6 +46,7 @@ namespace Nuclei3
         ID3D11ComputeShader countParticlesShader;
         ID3D11ComputeShader diffusionShader;
         ID3D11ComputeShader decayShader;
+        ID3D11ComputeShader densityPreviewShader;
 
         ID3D11Buffer densityA;
         ID3D11Buffer densityB;
@@ -62,6 +65,7 @@ namespace Nuclei3
         ID3D11Buffer voxelFlagsBuffer;
         ID3D11Buffer parameterBuffer;
         ID3D11Buffer weightsBuffer;
+        ID3D11Texture2D densityPreviewTexture;
 
         ID3D11UnorderedAccessView densityAView;
         ID3D11UnorderedAccessView densityBView;
@@ -74,6 +78,7 @@ namespace Nuclei3
         ID3D11ShaderResourceView groupData1View;
         ID3D11ShaderResourceView voxelFlagsView;
         ID3D11ShaderResourceView weightsView;
+        ID3D11UnorderedAccessView densityPreviewTextureView;
 
         readonly int resX;
         readonly int resY;
@@ -82,6 +87,7 @@ namespace Nuclei3
         readonly int particleCount;
         readonly int groupCount;
         readonly float voxelSize;
+        readonly bool enableSharedDensityPreview;
         readonly float dimX;
         readonly float dimY;
         readonly float dimZ;
@@ -98,8 +104,14 @@ namespace Nuclei3
         int previewReadbackNextIndex = 0;
         int previewReadbackSequenceCounter = 0;
         int previewReadbackCompletedSequence = 0;
+        IntPtr densityPreviewSharedHandle = IntPtr.Zero;
+        int densityPreviewWidth;
+        int densityPreviewHeight;
+        int densityPreviewAxisMode;
+        int densityPreviewSlice;
+        long densityPreviewVersion = 0;
 
-        public GpuFullSlimeSolverEngine(SolverGpuInputSnapshot snapshot)
+        public GpuFullSlimeSolverEngine(SolverGpuInputSnapshot snapshot, bool enableSharedDensityPreview)
         {
             if (snapshot == null)
             {
@@ -113,6 +125,7 @@ namespace Nuclei3
             particleCount = Math.Max(0, snapshot.ParticleCount);
             groupCount = Math.Max(0, snapshot.GroupCount);
             voxelSize = snapshot.VoxelSize > 0 ? snapshot.VoxelSize : 1.0f;
+            this.enableSharedDensityPreview = enableSharedDensityPreview;
             dimX = resX * voxelSize;
             dimY = resY * voxelSize;
             dimZ = resZ * voxelSize;
@@ -131,10 +144,14 @@ namespace Nuclei3
             CreateDevice(out device, out context);
             CompileShaders();
             CreateDensityBuffers(snapshot.VoxelDensity);
+            CreateParameterBuffer();
+            if (enableSharedDensityPreview)
+            {
+                CreateDensityPreviewTexture(SolverGpuDimensionMode.FromResolution(resX, resY, resZ));
+            }
             CreateVoxelFlagBuffer(snapshot.VoxelFlags);
             CreateParticleBuffers(snapshot);
             CreateGroupBuffers(snapshot);
-            CreateParameterBuffer();
 
             DispatchClearParticleCounts(0);
             DispatchCountParticles(0);
@@ -202,6 +219,10 @@ namespace Nuclei3
             DispatchDecayPass(settings, dimensionMode, iteration);
             SwapDensityBuffers();
             passCount++;
+            if (enableSharedDensityPreview)
+            {
+                DispatchDensityPreviewPass(settings, dimensionMode, iteration);
+            }
             stage.Stop();
             double diffusionMs = stage.Elapsed.TotalMilliseconds;
 
@@ -341,6 +362,34 @@ namespace Nuclei3
             UnbindComputeResources();
         }
 
+        void DispatchDensityPreviewPass(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
+        {
+            if (densityPreviewShader == null || densityPreviewTextureView == null || parameterBuffer == null)
+            {
+                WriteSharedDensityPreviewStatus("dispatch_skip missing_resource shader="
+                    + (densityPreviewShader != null)
+                    + " texture_uav=" + (densityPreviewTextureView != null)
+                    + " parameters=" + (parameterBuffer != null));
+                return;
+            }
+
+            WriteSharedDensityPreviewStatus("dispatch_begin width=" + densityPreviewWidth + " height=" + densityPreviewHeight);
+            UpdateParameters(CreateParameters(0, settings, dimensionMode, iteration));
+            WriteSharedDensityPreviewStatus("dispatch_parameters_ok");
+
+            context.CSSetShader(densityPreviewShader);
+            context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+            context.CSSetUnorderedAccessView(0, CurrentDensityView(), -1);
+            context.CSSetUnorderedAccessView(7, densityPreviewTextureView, -1);
+            WriteSharedDensityPreviewStatus("dispatch_bind_ok");
+            context.Dispatch((densityPreviewWidth + 15) / 16, (densityPreviewHeight + 15) / 16, 1);
+            WriteSharedDensityPreviewStatus("dispatch_call_ok");
+            UnbindComputeResources();
+            context.Flush();
+            WriteSharedDensityPreviewStatus("dispatch_flush_ok");
+            densityPreviewVersion++;
+        }
+
         FullSolverParameters CreateParameters(int axis, SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
         {
             FullSolverParameters parameters = new FullSolverParameters();
@@ -368,12 +417,38 @@ namespace Nuclei3
             parameters.Diffuse = (float)settings.Diffuse;
             parameters.Decay = (float)settings.Decay;
             parameters.DepositScale = DepositScale;
+            parameters.PreviewWidth = densityPreviewWidth;
+            parameters.PreviewHeight = densityPreviewHeight;
+            parameters.PreviewAxisMode = densityPreviewAxisMode;
+            parameters.PreviewSlice = densityPreviewSlice;
             return parameters;
         }
 
         void UpdateParameters(FullSolverParameters parameters)
         {
             context.UpdateSubresourceSafe(ref parameters, parameterBuffer, 0, 0, 0, 0, false);
+        }
+
+        public bool UpdateGroupSettings(float[] groupData0, float[] groupData1)
+        {
+            if (groupCount <= 0)
+            {
+                return true;
+            }
+
+            if (groupData0 == null || groupData1 == null || groupData0.Length != groupCount * 4 || groupData1.Length != groupCount * 4)
+            {
+                return false;
+            }
+
+            if (groupData0Buffer == null || groupData1Buffer == null)
+            {
+                return false;
+            }
+
+            context.UpdateSubresourceSafe(groupData0, groupData0Buffer, 0, 0, 0, 0, false);
+            context.UpdateSubresourceSafe(groupData1, groupData1Buffer, 0, 0, 0, 0, false);
+            return true;
         }
 
         ID3D11UnorderedAccessView CurrentDensityView()
@@ -389,6 +464,33 @@ namespace Nuclei3
         ID3D11Buffer CurrentDensityBuffer()
         {
             return densityInA ? densityA : densityB;
+        }
+
+        public GpuDensityFieldPreviewFrame CreateDensityFieldPreviewFrame()
+        {
+            if (!enableSharedDensityPreview)
+            {
+                return null;
+            }
+
+            if (densityPreviewSharedHandle == IntPtr.Zero || densityPreviewTexture == null || densityPreviewWidth <= 0 || densityPreviewHeight <= 0)
+            {
+                return null;
+            }
+
+            return new GpuDensityFieldPreviewFrame
+            {
+                SharedHandle = densityPreviewSharedHandle,
+                Width = densityPreviewWidth,
+                Height = densityPreviewHeight,
+                ResX = resX,
+                ResY = resY,
+                ResZ = resZ,
+                AxisMode = densityPreviewAxisMode,
+                Slice = densityPreviewSlice,
+                VoxelSize = voxelSize,
+                Version = densityPreviewVersion
+            };
         }
 
         void ReadBackDensity()
@@ -914,6 +1016,90 @@ namespace Nuclei3
                 new UnorderedAccessViewDescription(densityB, Format.Unknown, 0, voxelCount, BufferUnorderedAccessViewFlags.None));
         }
 
+        void CreateDensityPreviewTexture(SolverGpuDimensionMode dimensionMode)
+        {
+            ResolveDensityPreviewLayout(dimensionMode, out densityPreviewWidth, out densityPreviewHeight, out densityPreviewAxisMode, out densityPreviewSlice);
+            if (densityPreviewWidth <= 0 || densityPreviewHeight <= 0)
+            {
+                WriteSharedDensityPreviewStatus("skip invalid_layout");
+                return;
+            }
+
+            WriteSharedDensityPreviewStatus(
+                "create_texture_begin width=" + densityPreviewWidth
+                + " height=" + densityPreviewHeight
+                + " axis=" + densityPreviewAxisMode
+                + " slice=" + densityPreviewSlice
+                + " res=" + resX + "x" + resY + "x" + resZ);
+
+            Texture2DDescription description = new Texture2DDescription(
+                Format.R32_Float,
+                densityPreviewWidth,
+                densityPreviewHeight,
+                1,
+                1,
+                BindFlags.UnorderedAccess | BindFlags.ShaderResource,
+                ResourceUsage.Default,
+                CpuAccessFlags.None,
+                1,
+                0,
+                ResourceOptionFlags.Shared);
+
+            densityPreviewTexture = device.CreateTexture2D(description, null);
+            WriteSharedDensityPreviewStatus("create_texture_ok");
+
+            densityPreviewTextureView = device.CreateUnorderedAccessView(
+                densityPreviewTexture,
+                new UnorderedAccessViewDescription(
+                    densityPreviewTexture,
+                    UnorderedAccessViewDimension.Texture2D,
+                    Format.R32_Float,
+                    0,
+                    0,
+                    0));
+            WriteSharedDensityPreviewStatus("create_uav_ok");
+
+            using (IDXGIResource resource = densityPreviewTexture.QueryInterface<IDXGIResource>())
+            {
+                densityPreviewSharedHandle = resource.SharedHandle;
+            }
+
+            WriteSharedDensityPreviewStatus("shared_handle=0x" + densityPreviewSharedHandle.ToInt64().ToString("X"));
+            DispatchDensityPreviewPass(new SolverGpuSettings(), dimensionMode, 0);
+            WriteSharedDensityPreviewStatus("initial_dispatch_ok");
+        }
+
+        void ResolveDensityPreviewLayout(
+            SolverGpuDimensionMode dimensionMode,
+            out int width,
+            out int height,
+            out int axisMode,
+            out int slice)
+        {
+            if (dimensionMode.PlanarXZ)
+            {
+                width = Math.Max(1, resX);
+                height = Math.Max(1, resZ);
+                axisMode = 1;
+                slice = 0;
+                return;
+            }
+
+            if (dimensionMode.PlanarYZ)
+            {
+                width = Math.Max(1, resY);
+                height = Math.Max(1, resZ);
+                axisMode = 2;
+                slice = 0;
+                return;
+            }
+
+            width = Math.Max(1, resX);
+            height = Math.Max(1, resY);
+            axisMode = 0;
+            slice = dimensionMode.Tridimensional ? Math.Max(0, resZ / 2) : 0;
+        }
+
         void CreateParticleBuffers(SolverGpuInputSnapshot snapshot)
         {
             if (particleCount <= 0)
@@ -1068,6 +1254,7 @@ namespace Nuclei3
             using (Blob countParticlesBytecode = CompileShader(FullSolverShaderSource, "CountParticles"))
             using (Blob diffusionBytecode = CompileShader(FullSolverShaderSource, "DiffuseAxis"))
             using (Blob decayBytecode = CompileShader(FullSolverShaderSource, "ApplyDecay"))
+            using (Blob densityPreviewBytecode = CompileShader(FullSolverShaderSource, "BuildDensityPreview"))
             {
                 moveShader = device.CreateComputeShader(moveBytecode, null);
                 applyDepositsShader = device.CreateComputeShader(applyDepositsBytecode, null);
@@ -1075,6 +1262,7 @@ namespace Nuclei3
                 countParticlesShader = device.CreateComputeShader(countParticlesBytecode, null);
                 diffusionShader = device.CreateComputeShader(diffusionBytecode, null);
                 decayShader = device.CreateComputeShader(decayBytecode, null);
+                densityPreviewShader = device.CreateComputeShader(densityPreviewBytecode, null);
             }
         }
 
@@ -1144,7 +1332,7 @@ namespace Nuclei3
 
         void UnbindComputeResources()
         {
-            for (int i = 0; i <= 6; i++)
+            for (int i = 0; i <= 7; i++)
             {
                 context.CSSetUnorderedAccessView(i, null, -1);
             }
@@ -1194,6 +1382,7 @@ namespace Nuclei3
         public void Dispose()
         {
             DisposeWeights();
+            if (densityPreviewTextureView != null) densityPreviewTextureView.Dispose();
             if (densityAView != null) densityAView.Dispose();
             if (densityBView != null) densityBView.Dispose();
             if (particlePositionView != null) particlePositionView.Dispose();
@@ -1206,6 +1395,7 @@ namespace Nuclei3
             if (voxelFlagsView != null) voxelFlagsView.Dispose();
             if (densityA != null) densityA.Dispose();
             if (densityB != null) densityB.Dispose();
+            if (densityPreviewTexture != null) densityPreviewTexture.Dispose();
             if (densityReadbackBuffer != null) densityReadbackBuffer.Dispose();
             if (particlePositionBuffer != null) particlePositionBuffer.Dispose();
             if (particleDirectionBuffer != null) particleDirectionBuffer.Dispose();
@@ -1233,6 +1423,7 @@ namespace Nuclei3
             if (countParticlesShader != null) countParticlesShader.Dispose();
             if (diffusionShader != null) diffusionShader.Dispose();
             if (decayShader != null) decayShader.Dispose();
+            if (densityPreviewShader != null) densityPreviewShader.Dispose();
             if (context != null) context.Dispose();
             if (device != null) device.Dispose();
         }
@@ -1249,6 +1440,25 @@ namespace Nuclei3
             {
                 weightsBuffer.Dispose();
                 weightsBuffer = null;
+            }
+        }
+
+        static void WriteSharedDensityPreviewStatus(string message)
+        {
+            try
+            {
+                string directory = Path.GetDirectoryName(SharedDensityPreviewStatusPath);
+                if (!string.IsNullOrEmpty(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                File.AppendAllText(
+                    SharedDensityPreviewStatusPath,
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + " " + message + Environment.NewLine);
+            }
+            catch
+            {
             }
         }
 
@@ -1279,6 +1489,10 @@ namespace Nuclei3
             public float Diffuse;
             public float Decay;
             public float DepositScale;
+            public int PreviewWidth;
+            public int PreviewHeight;
+            public int PreviewAxisMode;
+            public int PreviewSlice;
         }
 
         const string FullSolverShaderSource = @"
@@ -1308,6 +1522,10 @@ cbuffer Params : register(b0)
     float Diffuse;
     float Decay;
     float DepositScale;
+    int PreviewWidth;
+    int PreviewHeight;
+    int PreviewAxisMode;
+    int PreviewSlice;
 }
 
 RWStructuredBuffer<float> Source : register(u0);
@@ -1317,6 +1535,7 @@ RWStructuredBuffer<float4> ParticleDirection : register(u3);
 RWStructuredBuffer<float4> ParticleYAxis : register(u4);
 RWStructuredBuffer<uint> ParticleCounts : register(u5);
 RWStructuredBuffer<uint> DepositFixed : register(u6);
+RWTexture2D<float> DensityPreview : register(u7);
 
 StructuredBuffer<float> Weights : register(t0);
 StructuredBuffer<float4> GroupData0 : register(t1);
@@ -1854,6 +2073,37 @@ void ApplyDecay(uint3 id : SV_DispatchThreadID)
 
     float value = Source[index] - Decay;
     Destination[index] = value > 0.0 ? value : 0.0;
+}
+
+[numthreads(16, 16, 1)]
+void BuildDensityPreview(uint3 id : SV_DispatchThreadID)
+{
+    int u = id.x;
+    int v = id.y;
+    if (u >= PreviewWidth || v >= PreviewHeight) return;
+
+    int x = u;
+    int y = v;
+    int z = PreviewSlice;
+
+    if (PreviewAxisMode == 1)
+    {
+        x = u;
+        y = 0;
+        z = v;
+    }
+    else if (PreviewAxisMode == 2)
+    {
+        x = 0;
+        y = u;
+        z = v;
+    }
+
+    x = clamp(x, 0, ResX - 1);
+    y = clamp(y, 0, ResY - 1);
+    z = clamp(z, 0, ResZ - 1);
+
+    DensityPreview[int2(u, v)] = Source[FlatIndex(x, y, z)];
 }";
     }
 }

@@ -15,6 +15,8 @@ namespace Nuclei3
         public bool DynamicPopulation = false;
         public bool Division = false;
         public bool Death = false;
+        public bool GpuDensityFieldPreview = false;
+        public string GpuPreviewMode = "off";
 
         public static SolverGpuSettings FromStrings(IList<string> settings)
         {
@@ -32,7 +34,7 @@ namespace Nuclei3
                     continue;
                 }
 
-                string[] parts = inputSettings.Split(' ');
+                string[] parts = inputSettings.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 0)
                 {
                     continue;
@@ -70,12 +72,41 @@ namespace Nuclei3
                     case "DeathSettings":
                         if (parts.Length > 1) parsed.Death = Convert.ToBoolean(parts[1]);
                         break;
+
+                    case "GpuPreviewSettings":
+                        bool enabled = false;
+                        if (parts.Length > 1) enabled = Convert.ToBoolean(parts[1]);
+                        string mode = parts.Length > 2 ? parts[2] : "SharedDensity";
+                        parsed.GpuPreviewMode = NormalizeGpuPreviewMode(enabled, mode);
+                        parsed.GpuDensityFieldPreview = parsed.GpuPreviewMode == "shared_density";
+                        break;
                 }
             }
 
             parsed.DynamicPopulation = parsed.Division || parsed.Death;
 
             return parsed;
+        }
+
+        static string NormalizeGpuPreviewMode(bool enabled, string mode)
+        {
+            if (!enabled)
+            {
+                return "off";
+            }
+
+            if (string.IsNullOrWhiteSpace(mode))
+            {
+                return "shared_density";
+            }
+
+            string normalized = mode.Trim().Replace("-", "_").Replace(" ", "_").ToLowerInvariant();
+            if (normalized == "density" || normalized == "field" || normalized == "density_field" || normalized == "shareddensity" || normalized == "shared_density")
+            {
+                return "shared_density";
+            }
+
+            return "off";
         }
     }
 

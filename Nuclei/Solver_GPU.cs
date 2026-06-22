@@ -88,7 +88,11 @@ namespace Nuclei3
             stageStart = Stopwatch.GetTimestamp();
             SolverGpuSettings solverSettings = SolverGpuSettings.FromStrings(settings);
             settingsTicks = Stopwatch.GetTimestamp() - stageStart;
-            bool shouldResetState = reset || voxels == null || particles == null || !StateMatches(inputVoxels, inputParticleGroups);
+            bool shouldResetState = reset
+                || voxels == null
+                || particles == null
+                || gpuPreviewMode != solverSettings.GpuPreviewMode
+                || !StateMatches(inputVoxels, inputParticleGroups);
             bool stateResetFailed = false;
 
             if (shouldResetState)
@@ -96,7 +100,7 @@ namespace Nuclei3
                 try
                 {
                     stageStart = Stopwatch.GetTimestamp();
-                    ResetState(inputVoxels, inputParticleGroups);
+                    ResetState(inputVoxels, inputParticleGroups, solverSettings);
                     if (buildParticlePreviewCache)
                     {
                         BuildPreviewCacheFromCurrentParticles();
@@ -122,6 +126,27 @@ namespace Nuclei3
             else if (unsupportedGpuReason == "Dynamic population is not supported by Solver GPU yet.")
             {
                 unsupportedGpuReason = "";
+            }
+
+            if (settingsSupported && !stateResetFailed && fullSolverEngine != null)
+            {
+                try
+                {
+                    stageStart = Stopwatch.GetTimestamp();
+                    if (!UpdateLiveParticleGroupSettings(inputParticleGroups))
+                    {
+                        settingsSupported = false;
+                        AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, unsupportedGpuReason);
+                    }
+                    inputsTicks += Stopwatch.GetTimestamp() - stageStart;
+                }
+                catch (Exception ex)
+                {
+                    DisposeGpuEngines();
+                    stateResetFailed = true;
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "GPU particle settings update failed: " + ex.Message);
+                    Message = "GPU settings error";
+                }
             }
 
             GpuFullSolverStepResult solverResult = null;
@@ -163,6 +188,8 @@ namespace Nuclei3
 
             string status = CreateStatus(solverSettings, solverResult);
             DA.SetData(2, status);
+            latestTimingContext = createTimingContext(solverSettings);
+            UpdateFieldPreviewRegistration();
 
             if (!reset)
             {
@@ -192,7 +219,7 @@ namespace Nuclei3
             }
         }
 
-        void ResetState(Voxel[,,] inputVoxels, List<ParticleGroup> inputParticleGroups)
+        void ResetState(Voxel[,,] inputVoxels, List<ParticleGroup> inputParticleGroups, SolverGpuSettings settings)
         {
             SolverGpuInputSnapshot snapshot = SolverGpuInputSnapshot.Capture(inputVoxels, inputParticleGroups);
             voxels = snapshot.Voxels;
@@ -202,6 +229,9 @@ namespace Nuclei3
             resZ = snapshot.ResZ;
             activeVoxelCount = snapshot.ActiveVoxelCount;
             particleCount = snapshot.ParticleCount;
+            particleGroupCount = snapshot.GroupCount;
+            particleGroupParticleCounts = CaptureInputParticleGroupCounts(inputParticleGroups);
+            gpuPreviewMode = settings != null ? settings.GpuPreviewMode : "off";
             unsupportedGpuReason = "";
             iteration = 0;
             lastPreviewReadbackQueuedIteration = -1;
@@ -218,7 +248,8 @@ namespace Nuclei3
 
             if (gpuStatus != null && gpuStatus.Available && snapshot.VoxelDensity != null && snapshot.VoxelDensity.Length > 0)
             {
-                fullSolverEngine = new GpuFullSlimeSolverEngine(snapshot);
+                bool enableDensityFieldPreview = settings != null && settings.GpuDensityFieldPreview;
+                fullSolverEngine = new GpuFullSlimeSolverEngine(snapshot, enableDensityFieldPreview);
             }
         }
 
@@ -232,7 +263,60 @@ namespace Nuclei3
             return inputVoxels.GetLength(0) == resX
                 && inputVoxels.GetLength(1) == resY
                 && inputVoxels.GetLength(2) == resZ
+                && !HasAntParticleGroups(inputParticleGroups)
+                && InputParticleGroupCountsMatch(inputParticleGroups)
                 && CountInputParticles(inputParticleGroups) == particleCount;
+        }
+
+        bool InputParticleGroupCountsMatch(List<ParticleGroup> inputParticleGroups)
+        {
+            int[] counts = CaptureInputParticleGroupCounts(inputParticleGroups);
+            if (counts.Length != particleGroupCount || particleGroupParticleCounts == null || counts.Length != particleGroupParticleCounts.Length)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < counts.Length; i++)
+            {
+                if (counts[i] != particleGroupParticleCounts[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        int[] CaptureInputParticleGroupCounts(List<ParticleGroup> inputParticleGroups)
+        {
+            int count = inputParticleGroups != null ? inputParticleGroups.Count : 0;
+            int[] counts = new int[count];
+            for (int i = 0; i < count; i++)
+            {
+                ParticleGroup group = inputParticleGroups[i];
+                counts[i] = group != null && group.particles != null ? group.particles.Count : 0;
+            }
+
+            return counts;
+        }
+
+        bool HasAntParticleGroups(List<ParticleGroup> inputParticleGroups)
+        {
+            if (inputParticleGroups == null)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < inputParticleGroups.Count; i++)
+            {
+                ParticleGroup group = inputParticleGroups[i];
+                if (group != null && group.ant)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         int CountInputParticles(List<ParticleGroup> inputParticleGroups)
@@ -259,6 +343,89 @@ namespace Nuclei3
         {
             SolverGpuDimensionMode dimensionMode = SolverGpuDimensionMode.FromResolution(resX, resY, resZ);
             return fullSolverEngine.Step(voxels, particles, settings, dimensionMode, iteration, syncVoxels, syncParticles, buildPreviewCache);
+        }
+
+        bool UpdateLiveParticleGroupSettings(List<ParticleGroup> inputParticleGroups)
+        {
+            float[] groupData0;
+            float[] groupData1;
+            bool hasAntParticles;
+            SolverGpuInputSnapshot.CaptureGroupSettings(inputParticleGroups, out groupData0, out groupData1, out hasAntParticles);
+
+            if (hasAntParticles)
+            {
+                unsupportedGpuReason = "Ant particle groups are not supported by Solver GPU yet.";
+                return false;
+            }
+
+            ApplyLiveParticleGroupMetadata(inputParticleGroups);
+
+            if (fullSolverEngine == null)
+            {
+                return true;
+            }
+
+            if (!fullSolverEngine.UpdateGroupSettings(groupData0, groupData1))
+            {
+                unsupportedGpuReason = "GPU particle settings changed in a way that requires reset.";
+                return false;
+            }
+
+            return true;
+        }
+
+        void ApplyLiveParticleGroupMetadata(List<ParticleGroup> inputParticleGroups)
+        {
+            if (particles == null || inputParticleGroups == null)
+            {
+                return;
+            }
+
+            HashSet<ParticleGroup> updatedGroups = new HashSet<ParticleGroup>();
+            int particleOffset = 0;
+            for (int groupIndex = 0; groupIndex < inputParticleGroups.Count; groupIndex++)
+            {
+                ParticleGroup inputGroup = inputParticleGroups[groupIndex];
+                int groupParticleCount = inputGroup != null && inputGroup.particles != null ? inputGroup.particles.Count : 0;
+
+                for (int localIndex = 0; localIndex < groupParticleCount && particleOffset + localIndex < particles.Count; localIndex++)
+                {
+                    Particle particle = particles[particleOffset + localIndex];
+                    if (particle == null || inputGroup == null)
+                    {
+                        continue;
+                    }
+
+                    if (particle.parentParticleGroup == null)
+                    {
+                        particle.parentParticleGroup = inputGroup;
+                    }
+                    else if (updatedGroups.Add(particle.parentParticleGroup))
+                    {
+                        CopyParticleGroupSettings(inputGroup, particle.parentParticleGroup);
+                    }
+                }
+
+                particleOffset += groupParticleCount;
+            }
+        }
+
+        void CopyParticleGroupSettings(ParticleGroup source, ParticleGroup target)
+        {
+            if (source == null || target == null)
+            {
+                return;
+            }
+
+            target.speed = source.speed;
+            target.sensorDistance = source.sensorDistance;
+            target.sensorAngle = source.sensorAngle;
+            target.rotationAngle = source.rotationAngle;
+            target.depositValue = source.depositValue;
+            target.wanderFrequency = source.wanderFrequency;
+            target.baseWanderFrequency = source.baseWanderFrequency;
+            target.color = source.color;
+            target.ant = source.ant;
         }
 
         void ConfigurePreviewCacheRefresh()
@@ -359,6 +526,7 @@ namespace Nuclei3
                 + " | particles: " + (particles != null ? particles.Count : 0)
                 + " | active voxels: " + activeVoxelCount
                 + " | mode: " + SolverGpuDimensionMode.FromResolution(resX, resY, resZ).Name
+                + " | gpu preview: " + settings.GpuPreviewMode
                 + " | wrap: " + settings.WrapBoundaries
                 + " | range: " + settings.DiffuseRange;
 
@@ -498,6 +666,37 @@ namespace Nuclei3
             return null;
         }
 
+        internal GpuDensityFieldPreviewFrame GetDensityFieldPreviewFrame()
+        {
+            if (Hidden || Locked || fullSolverEngine == null)
+            {
+                return null;
+            }
+
+            return fullSolverEngine.CreateDensityFieldPreviewFrame();
+        }
+
+        internal void RecordDensityFieldPreviewDrawTiming(long drawTicks)
+        {
+            recordGpuFieldPreviewDrawTiming(drawTicks);
+        }
+
+        void UpdateFieldPreviewRegistration()
+        {
+            GpuDensityFieldPreviewFrame frame = !Hidden && !Locked && fullSolverEngine != null
+                ? fullSolverEngine.CreateDensityFieldPreviewFrame()
+                : null;
+
+            if (frame != null && frame.IsValid)
+            {
+                SolverGpuFieldPreviewDisplayConduit.Register(this);
+            }
+            else
+            {
+                SolverGpuFieldPreviewDisplayConduit.Unregister(InstanceGuid);
+            }
+        }
+
         bool WantsSolverOwnedPreview(bool hasVisibleParticlePreviewRecipient)
         {
             return false;
@@ -569,6 +768,12 @@ namespace Nuclei3
         {
             get
             {
+                GpuDensityFieldPreviewFrame fieldFrame = fullSolverEngine != null ? fullSolverEngine.CreateDensityFieldPreviewFrame() : null;
+                if (!Hidden && fieldFrame != null && fieldFrame.IsValid)
+                {
+                    return fieldFrame.ClippingBox;
+                }
+
                 ParticlePreviewCache cache = particles != null ? particles.PreviewCache : null;
                 if (solverOwnsPreviewCache && cache != null && cache.IsValid && cache.HasPoint)
                 {
@@ -583,6 +788,8 @@ namespace Nuclei3
         {
             writeGpuTimingAverages();
             writeSolverPreviewDrawAverages();
+            writeGpuFieldPreviewDrawAverages();
+            SolverGpuFieldPreviewDisplayConduit.Unregister(InstanceGuid);
             DisposeGpuEngines();
             base.RemovedFromDocument(document);
         }
@@ -600,6 +807,7 @@ namespace Nuclei3
         {
             writeGpuTimingAverages();
             writeSolverPreviewDrawAverages();
+            writeGpuFieldPreviewDrawAverages();
             clearTimingCounters();
         }
 
@@ -616,6 +824,10 @@ namespace Nuclei3
             timingOutputsTicks = 0;
             timingSetParticlesTicks = 0;
             timingSetVoxelsTicks = 0;
+            fieldPreviewDrawCallCount = 0;
+            fieldPreviewDrawSampleCount = 0;
+            fieldPreviewTotalTicks = 0;
+            fieldPreviewDrawTicks = 0;
             timingContext = new TimingReporter.SolverContext();
             timingContextKey = "";
         }
@@ -652,6 +864,38 @@ namespace Nuclei3
             previewTotalTicks = 0;
             previewRebuildTicks = 0;
             previewDrawTicks = 0;
+        }
+
+        void recordGpuFieldPreviewDrawTiming(long drawTicks)
+        {
+            fieldPreviewDrawCallCount++;
+            fieldPreviewDrawSampleCount++;
+            fieldPreviewTotalTicks += drawTicks;
+            fieldPreviewDrawTicks += drawTicks;
+
+            if (fieldPreviewDrawSampleCount < TimingReporter.ReportFrequency) return;
+
+            writeGpuFieldPreviewDrawAverages();
+        }
+
+        void writeGpuFieldPreviewDrawAverages()
+        {
+            if (fieldPreviewDrawSampleCount <= 0) return;
+
+            double totalMs = TimingReporter.TicksToMilliseconds(fieldPreviewTotalTicks, fieldPreviewDrawSampleCount);
+            double drawMs = TimingReporter.TicksToMilliseconds(fieldPreviewDrawTicks, fieldPreviewDrawSampleCount);
+            TimingReporter.WriteGpuDensityFieldPreviewAverages(
+                fieldPreviewDrawCallCount,
+                fieldPreviewDrawSampleCount,
+                particles != null ? particles.Count : particleCount,
+                activeVoxelCount,
+                latestTimingContext,
+                totalMs,
+                drawMs);
+
+            fieldPreviewDrawSampleCount = 0;
+            fieldPreviewTotalTicks = 0;
+            fieldPreviewDrawTicks = 0;
         }
 
         void recordGpuTimingAverages(
@@ -743,6 +987,8 @@ namespace Nuclei3
             context.Division = settings.Division;
             context.Death = settings.Death;
             context.MaxIterations = settings.MaxIterations;
+            context.GpuPreviewMode = settings.GpuPreviewMode;
+            context.GpuDensityFieldPreview = settings.GpuDensityFieldPreview;
             return context;
         }
 
@@ -758,7 +1004,9 @@ namespace Nuclei3
                 + "|" + context.Diffuse
                 + "|" + context.DiffuseRange
                 + "|" + context.Decay
-                + "|" + context.MaxIterations;
+                + "|" + context.MaxIterations
+                + "|" + context.GpuPreviewMode
+                + "|" + (context.GpuDensityFieldPreview ? "1" : "0");
         }
 
         GpuComputeSmokeTestResult gpuStatus;
@@ -770,6 +1018,8 @@ namespace Nuclei3
         int resZ;
         int activeVoxelCount;
         int particleCount;
+        int particleGroupCount;
+        int[] particleGroupParticleCounts = new int[0];
         int iteration = 0;
         int lastPreviewReadbackQueuedIteration = -1;
         string unsupportedGpuReason = "";
@@ -790,8 +1040,14 @@ namespace Nuclei3
         long previewTotalTicks = 0;
         long previewRebuildTicks = 0;
         long previewDrawTicks = 0;
+        int fieldPreviewDrawCallCount = 0;
+        int fieldPreviewDrawSampleCount = 0;
+        long fieldPreviewTotalTicks = 0;
+        long fieldPreviewDrawTicks = 0;
         TimingReporter.SolverContext timingContext;
+        TimingReporter.SolverContext latestTimingContext;
         string timingContextKey = "";
+        string gpuPreviewMode = "off";
 
         protected override System.Drawing.Bitmap Icon
         {

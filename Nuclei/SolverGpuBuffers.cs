@@ -183,9 +183,20 @@ namespace Nuclei3
 
         void CaptureParticleGroups(IList<ParticleGroup> particleGroups)
         {
+            CaptureGroupSettings(particleGroups, out GroupData0, out GroupData1, out HasAntParticles);
             GroupCount = particleGroups != null ? particleGroups.Count : 0;
-            GroupData0 = new float[GroupCount * 4];
-            GroupData1 = new float[GroupCount * 4];
+        }
+
+        public static void CaptureGroupSettings(
+            IList<ParticleGroup> particleGroups,
+            out float[] groupData0,
+            out float[] groupData1,
+            out bool hasAntParticles)
+        {
+            int groupCount = particleGroups != null ? particleGroups.Count : 0;
+            groupData0 = new float[groupCount * 4];
+            groupData1 = new float[groupCount * 4];
+            hasAntParticles = false;
 
             if (particleGroups == null)
             {
@@ -202,7 +213,7 @@ namespace Nuclei3
 
                 if (group.ant)
                 {
-                    HasAntParticles = true;
+                    hasAntParticles = true;
                 }
 
                 double sensorAngle = Math.PI * group.sensorAngle / 180.0;
@@ -213,15 +224,15 @@ namespace Nuclei3
                     : ComputeSlimeWanderFrequency(group.wanderFrequency, particleCount);
 
                 int offset = groupIndex * 4;
-                GroupData0[offset] = (float)group.speed;
-                GroupData0[offset + 1] = (float)group.sensorDistance;
-                GroupData0[offset + 2] = (float)Math.Cos(sensorAngle);
-                GroupData0[offset + 3] = (float)Math.Sin(sensorAngle);
+                groupData0[offset] = (float)group.speed;
+                groupData0[offset + 1] = (float)group.sensorDistance;
+                groupData0[offset + 2] = (float)Math.Cos(sensorAngle);
+                groupData0[offset + 3] = (float)Math.Sin(sensorAngle);
 
-                GroupData1[offset] = (float)Math.Cos(rotationAngle);
-                GroupData1[offset + 1] = (float)Math.Sin(rotationAngle);
-                GroupData1[offset + 2] = (float)group.depositValue;
-                GroupData1[offset + 3] = wanderFrequency;
+                groupData1[offset] = (float)Math.Cos(rotationAngle);
+                groupData1[offset + 1] = (float)Math.Sin(rotationAngle);
+                groupData1[offset + 2] = (float)group.depositValue;
+                groupData1[offset + 3] = wanderFrequency;
             }
         }
 

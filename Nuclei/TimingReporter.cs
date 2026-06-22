@@ -29,6 +29,8 @@ namespace Nuclei3
             public bool Division;
             public bool Death;
             public int MaxIterations;
+            public string GpuPreviewMode;
+            public bool GpuDensityFieldPreview;
         }
 
         static readonly object fileLock = new object();
@@ -38,7 +40,7 @@ namespace Nuclei3
         static bool disabled = false;
         static bool headerWritten = false;
         static string runId = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-        static readonly string headerLine = "timestamp,run_id,component,iteration_or_call,samples,particles,voxels,preview_step,wrap_boundaries,res_x,res_y,res_z,active_voxels,dense_voxel_grid,dimension_mode,diffuse,diffuse_range,decay,ant_particles,ant_diffuse_range,trail_size,trail_freq,dyn_pop,division,death,max_iterations,total_ms,settings_ms,inputs_ms,sense_ms,move_ms,trail_ms,diffuse_ms,parent_ms,population_ms,outputs_ms,density_sync_ms,set_particles_ms,set_voxels_ms,rebuild_ms,draw_ms,sense_prepare_ms,sense_particles_ms,sense_ant_ms,move_shuffle_ms,move_particles_ms";
+        static readonly string headerLine = "timestamp,run_id,component,iteration_or_call,samples,particles,voxels,preview_step,gpu_preview_mode,gpu_field_preview,wrap_boundaries,res_x,res_y,res_z,active_voxels,dense_voxel_grid,dimension_mode,diffuse,diffuse_range,decay,ant_particles,ant_diffuse_range,trail_size,trail_freq,dyn_pop,division,death,max_iterations,total_ms,settings_ms,inputs_ms,sense_ms,move_ms,trail_ms,diffuse_ms,parent_ms,population_ms,outputs_ms,density_sync_ms,set_particles_ms,set_voxels_ms,rebuild_ms,draw_ms,sense_prepare_ms,sense_particles_ms,sense_ant_ms,move_shuffle_ms,move_particles_ms";
 
         public static void StartRun()
         {
@@ -116,6 +118,18 @@ namespace Nuclei3
             WriteRawLine(CreateLine("preview_solver_gpu", call, samples, particleCount, 0, 1, new SolverContext(), totalMs, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, rebuildMs, drawMs, 0, 0, 0, 0, 0));
         }
 
+        public static void WriteGpuDensityFieldPreviewAverages(
+            int call,
+            int samples,
+            int particleCount,
+            int voxelCount,
+            SolverContext context,
+            double totalMs,
+            double drawMs)
+        {
+            WriteRawLine(CreateLine("preview_gpu_field", call, samples, particleCount, voxelCount, 1, context, totalMs, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, drawMs, 0, 0, 0, 0, 0));
+        }
+
         public static double TicksToMilliseconds(long ticks, int samples)
         {
             if (samples <= 0) return 0;
@@ -162,6 +176,8 @@ namespace Nuclei3
                 particleCount.ToString(CultureInfo.InvariantCulture),
                 voxelCount.ToString(CultureInfo.InvariantCulture),
                 previewStep.ToString(CultureInfo.InvariantCulture),
+                context.GpuPreviewMode ?? "",
+                Bool(context.GpuDensityFieldPreview),
                 Bool(context.WrapBoundaries),
                 context.ResX.ToString(CultureInfo.InvariantCulture),
                 context.ResY.ToString(CultureInfo.InvariantCulture),
