@@ -64,9 +64,20 @@ namespace Nuclei3
 
             if (previewStep < 1) previewStep = 1;
 
-            long rebuildStart = Stopwatch.GetTimestamp();
-            rebuildPointClouds();
-            long rebuildTicks = Stopwatch.GetTimestamp() - rebuildStart;
+            if (Hidden)
+            {
+                clearPointClouds();
+                recordPreviewTiming(Stopwatch.GetTimestamp() - solveStart, 0);
+                return;
+            }
+
+            long rebuildTicks = 0;
+            if (!tryUseCachedPointClouds())
+            {
+                long rebuildStart = Stopwatch.GetTimestamp();
+                rebuildPointClouds();
+                rebuildTicks = Stopwatch.GetTimestamp() - rebuildStart;
+            }
 
             recordPreviewTiming(Stopwatch.GetTimestamp() - solveStart, rebuildTicks);
         }
@@ -104,12 +115,22 @@ namespace Nuclei3
             get { return clippingBox; }
         }
 
-        void rebuildPointClouds()
+        internal bool WantsSolverPreviewCache
+        {
+            get { return !Hidden && !Locked && previewStep == 1; }
+        }
+
+        void clearPointClouds()
         {
             slimePointCloud = new PointCloud();
             antPointCloud1 = new PointCloud();
             antPointCloud2 = new PointCloud();
             clippingBox = BoundingBox.Empty;
+        }
+
+        void rebuildPointClouds()
+        {
+            clearPointClouds();
 
             if (particles == null) return;
 
@@ -156,6 +177,21 @@ namespace Nuclei3
             {
                 clippingBox.Inflate(Math.Max(Globals.voxelSize, 1.0));
             }
+        }
+
+        bool tryUseCachedPointClouds()
+        {
+            if (previewStep != 1) return false;
+
+            ParticleList particleList = particles as ParticleList;
+            ParticlePreviewCache cache = particleList != null ? particleList.PreviewCache : null;
+            if (cache == null || !cache.IsValid) return false;
+
+            slimePointCloud = cache.SlimePointCloud ?? new PointCloud();
+            antPointCloud1 = cache.AntPointCloud1 ?? new PointCloud();
+            antPointCloud2 = cache.AntPointCloud2 ?? new PointCloud();
+            clippingBox = cache.HasPoint ? cache.ClippingBox : BoundingBox.Empty;
+            return true;
         }
 
         void includePointInClippingBox(Point3d point, ref bool hasPoint)

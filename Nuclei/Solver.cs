@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 using Grasshopper;
 using Grasshopper.Kernel;
+using Grasshopper.Kernel.Attributes;
 using Grasshopper.Kernel.Types;
 
 
@@ -114,7 +115,7 @@ public class Solver : GH_Component
                 DA.GetType();
                 DA.GetDataList(2, inputParticleGroups);
 
-                particles = new List<Particle>();
+                particles = new ParticleList();
 
                 inheritParticleGroups();
                 particleCheckParentVoxel();
@@ -144,6 +145,14 @@ public class Solver : GH_Component
                 long parentTicks = 0;
                 long populationTicks = 0;
                 long outputsTicks = 0;
+                long densitySyncTicks = 0;
+                long setParticlesTicks = 0;
+                long setVoxelsTicks = 0;
+                long sensePrepareTicks = 0;
+                long senseParticlesTicks = 0;
+                long senseAntTicks = 0;
+                long moveShuffleTicks = 0;
+                long moveParticlesTicks = 0;
                 long stageStart = Stopwatch.GetTimestamp();
 
                 //read solver settings
@@ -172,12 +181,17 @@ public class Solver : GH_Component
                     if (iteration > 1)
                     {
                         stageStart = Stopwatch.GetTimestamp();
-                        particleSenseValuesAndVectors();
-                        if (antParticles) particleSense_Ant();
+                        particleSenseValuesAndVectors(out sensePrepareTicks, out senseParticlesTicks);
+                        if (antParticles)
+                        {
+                            long antSenseStart = Stopwatch.GetTimestamp();
+                            particleSense_Ant();
+                            senseAntTicks = Stopwatch.GetTimestamp() - antSenseStart;
+                        }
                         senseTicks = Stopwatch.GetTimestamp() - stageStart;
 
                         stageStart = Stopwatch.GetTimestamp();
-                        particleMoveAndDeposit();
+                        particleMoveAndDeposit(out moveShuffleTicks, out moveParticlesTicks);
                         moveTicks = Stopwatch.GetTimestamp() - stageStart;
                     }
 
@@ -212,8 +226,15 @@ public class Solver : GH_Component
 
                 //set outputs
                 stageStart = Stopwatch.GetTimestamp();
+                long outputStageStart = Stopwatch.GetTimestamp();
+                syncScalarDensityToVoxelsIfNeeded();
+                densitySyncTicks = Stopwatch.GetTimestamp() - outputStageStart;
+                outputStageStart = Stopwatch.GetTimestamp();
                 DA.SetData(0, particles);
+                setParticlesTicks = Stopwatch.GetTimestamp() - outputStageStart;
+                outputStageStart = Stopwatch.GetTimestamp();
                 DA.SetData(1, voxels);
+                setVoxelsTicks = Stopwatch.GetTimestamp() - outputStageStart;
                 outputsTicks = Stopwatch.GetTimestamp() - stageStart;
 
                 recordTimingAverages(
@@ -226,6 +247,14 @@ public class Solver : GH_Component
                     parentTicks,
                     populationTicks,
                     outputsTicks,
+                    densitySyncTicks,
+                    setParticlesTicks,
+                    setVoxelsTicks,
+                    sensePrepareTicks,
+                    senseParticlesTicks,
+                    senseAntTicks,
+                    moveShuffleTicks,
+                    moveParticlesTicks,
                     Stopwatch.GetTimestamp() - solveStart);
 
                 this.Message = "Iteration: " + iteration;
@@ -245,6 +274,12 @@ public class Solver : GH_Component
         Voxel[,,] voxels;
         Voxel[] voxelFlat;
         Voxel[] activeVoxels;
+        double[] scalarVoxelDensity;
+        double[] scalarVoxelScratch;
+        VoxelDensityStore scalarDensityStore;
+        bool scalarVoxelDensityAuthoritative;
+        bool scalarVoxelDensityDirtyForOutput;
+        bool voxelHasPositiveFood;
         Voxel[] particleCountTouchedVoxels = Array.Empty<Voxel>();
         int particleCountTouchedCount = 0;
         bool particleCountsRequireFullReset = true;
@@ -355,6 +390,8 @@ public class Solver : GH_Component
         //reusable arrays for diffusion logic
         double[] reusableWeights;
         double[] reusableAntWeights;
+        int reusableWeightsRange = int.MinValue;
+        int reusableAntWeightsRange = int.MinValue;
 
         /////////////////////////////////////////////
 
@@ -378,6 +415,14 @@ public class Solver : GH_Component
         long timingParentTicks = 0;
         long timingPopulationTicks = 0;
         long timingOutputsTicks = 0;
+        long timingDensitySyncTicks = 0;
+        long timingSetParticlesTicks = 0;
+        long timingSetVoxelsTicks = 0;
+        long timingSensePrepareTicks = 0;
+        long timingSenseParticlesTicks = 0;
+        long timingSenseAntTicks = 0;
+        long timingMoveShuffleTicks = 0;
+        long timingMoveParticlesTicks = 0;
         TimingReporter.SolverContext timingContext;
         string timingContextKey = "";
 
@@ -404,6 +449,14 @@ public class Solver : GH_Component
             timingParentTicks = 0;
             timingPopulationTicks = 0;
             timingOutputsTicks = 0;
+            timingDensitySyncTicks = 0;
+            timingSetParticlesTicks = 0;
+            timingSetVoxelsTicks = 0;
+            timingSensePrepareTicks = 0;
+            timingSenseParticlesTicks = 0;
+            timingSenseAntTicks = 0;
+            timingMoveShuffleTicks = 0;
+            timingMoveParticlesTicks = 0;
             timingContext = new TimingReporter.SolverContext();
             timingContextKey = "";
         }
@@ -418,6 +471,14 @@ public class Solver : GH_Component
             long parentTicks,
             long populationTicks,
             long outputsTicks,
+            long densitySyncTicks,
+            long setParticlesTicks,
+            long setVoxelsTicks,
+            long sensePrepareTicks,
+            long senseParticlesTicks,
+            long senseAntTicks,
+            long moveShuffleTicks,
+            long moveParticlesTicks,
             long totalTicks)
         {
             TimingReporter.SolverContext currentContext = createTimingContext();
@@ -446,6 +507,14 @@ public class Solver : GH_Component
             timingParentTicks += parentTicks;
             timingPopulationTicks += populationTicks;
             timingOutputsTicks += outputsTicks;
+            timingDensitySyncTicks += densitySyncTicks;
+            timingSetParticlesTicks += setParticlesTicks;
+            timingSetVoxelsTicks += setVoxelsTicks;
+            timingSensePrepareTicks += sensePrepareTicks;
+            timingSenseParticlesTicks += senseParticlesTicks;
+            timingSenseAntTicks += senseAntTicks;
+            timingMoveShuffleTicks += moveShuffleTicks;
+            timingMoveParticlesTicks += moveParticlesTicks;
 
             if (timingSampleCount < TimingReporter.ReportFrequency) return;
 
@@ -475,7 +544,15 @@ public class Solver : GH_Component
                 TimingReporter.TicksToMilliseconds(timingDiffuseTicks, timingSampleCount),
                 TimingReporter.TicksToMilliseconds(timingParentTicks, timingSampleCount),
                 TimingReporter.TicksToMilliseconds(timingPopulationTicks, timingSampleCount),
-                TimingReporter.TicksToMilliseconds(timingOutputsTicks, timingSampleCount));
+                TimingReporter.TicksToMilliseconds(timingOutputsTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingDensitySyncTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingSetParticlesTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingSetVoxelsTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingSensePrepareTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingSenseParticlesTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingSenseAntTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingMoveShuffleTicks, timingSampleCount),
+                TimingReporter.TicksToMilliseconds(timingMoveParticlesTicks, timingSampleCount));
         }
 
         TimingReporter.SolverContext createTimingContext()
@@ -596,9 +673,16 @@ public class Solver : GH_Component
             voxels = new Voxel[resX, resY, resZ];
             voxelStrideY = resZ;
             voxelStrideX = resY * voxelStrideY;
-            voxelFlat = new Voxel[resX * resY * resZ];
+            int voxelCount = resX * resY * resZ;
+            voxelFlat = new Voxel[voxelCount];
+            scalarVoxelDensity = new double[voxelCount];
+            scalarVoxelScratch = new double[voxelCount];
+            scalarDensityStore = new VoxelDensityStore(scalarVoxelDensity);
+            scalarVoxelDensityAuthoritative = true;
+            scalarVoxelDensityDirtyForOutput = false;
+            voxelHasPositiveFood = false;
 
-            Voxel[] tempActiveVoxels = new Voxel[resX * resY * resZ];
+            Voxel[] tempActiveVoxels = new Voxel[voxelCount];
             int activeVoxelCount = 0;
 
             Parallel.For(0, resX, i =>
@@ -613,6 +697,8 @@ public class Solver : GH_Component
 
                             int flatIndex = i * voxelStrideX + j * voxelStrideY + k;
                             Voxel V = new Voxel(voxelSize, i, j, k);
+                            V.flatIndex = flatIndex;
+                            V.densityStore = scalarDensityStore;
                             voxels[i, j, k] = V;
                             voxelFlat[flatIndex] = V;
 
@@ -628,6 +714,10 @@ public class Solver : GH_Component
                             V.rotationAngleMultiplier = initialV.rotationAngleMultiplier;
 
                             V.food = initialV.food;
+                            if (V.food > 0)
+                            {
+                                voxelHasPositiveFood = true;
+                            }
 
                             V.voxelVector = initialV.voxelVector;
 
@@ -653,6 +743,7 @@ public class Solver : GH_Component
                             }
 
                             V.frequency = initialV.frequency;
+                            scalarVoxelDensity[flatIndex] = V.density;
 
                             //list of all active voxels
                             int idx = System.Threading.Interlocked.Increment(ref activeVoxelCount) - 1;
@@ -673,10 +764,14 @@ public class Solver : GH_Component
                         for (int k = 0; k < resZ; k++)
                         {
                             int flatIndex = i * voxelStrideX + j * voxelStrideY + k;
-                            voxels[i, j, k] = new Voxel(voxelSize, i, j, k);
-                            voxelFlat[flatIndex] = voxels[i, j, k];
+                            Voxel V = new Voxel(voxelSize, i, j, k);
+                            V.flatIndex = flatIndex;
+                            V.densityStore = scalarDensityStore;
+                            voxels[i, j, k] = V;
+                            voxelFlat[flatIndex] = V;
+                            scalarVoxelDensity[flatIndex] = V.density;
                             int idx = System.Threading.Interlocked.Increment(ref activeVoxelCount) - 1;
-                            tempActiveVoxels[idx] = voxels[i, j, k];
+                            tempActiveVoxels[idx] = V;
                         }
                     }
                 }
@@ -697,13 +792,9 @@ public class Solver : GH_Component
 
             refreshVoxelBoundaryDensityLimits();
             
-            // to avoid re-computing weights dynamically, we precompute with current settings
-            reusableWeights = precomputeWeights(diffuseRange);
-            
-            if (antParticles)
-            {
-                reusableAntWeights = precomputeWeights(diffuseRange_Ant);
-            }
+            reusableWeightsRange = int.MinValue;
+            reusableAntWeightsRange = int.MinValue;
+            ensureReusableDiffusionWeights();
         }
 
         void refreshVoxelBoundaryDensityLimitsIfNeeded()
@@ -796,10 +887,62 @@ public class Solver : GH_Component
             boundaryLimitsWrapState = wrap;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool useScalarDensityPath()
+        {
+            return denseVoxelGrid &&
+                   !antParticles &&
+                   !voxelHasPositiveFood &&
+                   scalarVoxelDensity != null &&
+                   scalarVoxelScratch != null &&
+                   (densityLimitsDisabled || densityLimitsOnlyBoundaryVoxels);
+        }
+
+        void syncScalarDensityToVoxelsIfNeeded()
+        {
+            if (!scalarVoxelDensityDirtyForOutput || scalarVoxelDensity == null) return;
+            if (scalarDensityStore != null) scalarDensityStore.Values = scalarVoxelDensity;
+            scalarVoxelDensityDirtyForOutput = false;
+        }
+
+        void ensureScalarDensityAuthoritative()
+        {
+            if (scalarVoxelDensityAuthoritative || scalarVoxelDensity == null || activeVoxels == null) return;
+
+            double[] density = scalarVoxelDensity;
+            Voxel[] active = activeVoxels;
+
+            Parallel.For(0, active.Length, i =>
+            {
+                Voxel V = active[i];
+                density[V.flatIndex] = V.density;
+            });
+
+            scalarVoxelDensityAuthoritative = true;
+            scalarVoxelDensityDirtyForOutput = false;
+        }
+
         //-------------------------------------------------------------------
 
         void diffuseVoxels()
         {
+            ensureReusableDiffusionWeights();
+
+            if (useScalarDensityPath())
+            {
+                ensureScalarDensityAuthoritative();
+
+                if (diffuse > 0)
+                {
+                    diffuseScalarVoxels();
+                }
+
+                applyBoundaryAndDecayScalar();
+                return;
+            }
+
+            scalarVoxelDensityAuthoritative = false;
+
             if (diffuse > 0)
             {
                 if (!planarYZ)
@@ -995,6 +1138,656 @@ public class Solver : GH_Component
                     if (V.density < 0) V.density = 0;
                 });
             }
+        }
+
+        void diffuseScalarVoxels()
+        {
+            double[] weights = reusableWeights;
+            double keep = 1 - diffuse;
+            double diffuseAmount = diffuse;
+
+            if (!planarYZ)
+            {
+                diffuseScalarXPass(weights, keep, diffuseAmount);
+                swapScalarDensityBuffers();
+            }
+
+            if (!planarXZ)
+            {
+                diffuseScalarYPass(weights, keep, diffuseAmount);
+                swapScalarDensityBuffers();
+            }
+
+            if (!planarXY)
+            {
+                diffuseScalarZPass(weights, keep, diffuseAmount);
+                swapScalarDensityBuffers();
+            }
+
+            scalarVoxelDensityDirtyForOutput = true;
+        }
+
+        void swapScalarDensityBuffers()
+        {
+            double[] temp = scalarVoxelDensity;
+            scalarVoxelDensity = scalarVoxelScratch;
+            scalarVoxelScratch = temp;
+            if (scalarDensityStore != null) scalarDensityStore.Values = scalarVoxelDensity;
+        }
+
+        sealed class ScalarPrefixDiffusionBuffers
+        {
+            public double[] Sum = Array.Empty<double>();
+            public double[] Cos = Array.Empty<double>();
+            public double[] Sin = Array.Empty<double>();
+
+            public void EnsureCapacity(int length)
+            {
+                if (Sum.Length < length) Sum = new double[length];
+                if (Cos.Length < length) Cos = new double[length];
+                if (Sin.Length < length) Sin = new double[length];
+            }
+        }
+
+        void applyBoundaryAndDecayScalar()
+        {
+            double[] density = scalarVoxelDensity;
+            double densityDecay = decay;
+
+            if (wrapBoundaries)
+            {
+                Parallel.For(0, density.Length, i =>
+                {
+                    double value = density[i] - densityDecay;
+                    density[i] = value > 0 ? value : 0;
+                });
+            }
+            else if (planarYZ)
+            {
+                int maxY = resY - 1;
+                int maxZ = resZ - 1;
+                Parallel.For(0, resY, y =>
+                {
+                    bool boundaryY = y == 0 || y == maxY;
+                    int baseIndex = y * voxelStrideY;
+                    for (int z = 0; z < resZ; z++)
+                    {
+                        int index = baseIndex + z;
+                        if (boundaryY || z == 0 || z == maxZ)
+                        {
+                            density[index] = 0;
+                        }
+                        else
+                        {
+                            double value = density[index] - densityDecay;
+                            density[index] = value > 0 ? value : 0;
+                        }
+                    }
+                });
+            }
+            else
+            {
+                int maxX = resX - 1;
+                int maxY = resY - 1;
+                int maxZ = resZ - 1;
+                bool is3d = tridimensional;
+                bool isXY = planarXY;
+                bool isXZ = planarXZ;
+
+                Parallel.For(0, resX, x =>
+                {
+                    bool boundaryX = x == 0 || x == maxX;
+                    int xBase = x * voxelStrideX;
+
+                    for (int y = 0; y < resY; y++)
+                    {
+                        bool boundaryY = y == 0 || y == maxY;
+                        int baseIndex = xBase + y * voxelStrideY;
+
+                        for (int z = 0; z < resZ; z++)
+                        {
+                            bool boundary = is3d
+                                ? boundaryX || boundaryY || z == 0 || z == maxZ
+                                : isXY
+                                    ? boundaryX || boundaryY
+                                    : isXZ
+                                        ? boundaryX || z == 0 || z == maxZ
+                                        : boundaryY || z == 0 || z == maxZ;
+
+                            int index = baseIndex + z;
+                            if (boundary)
+                            {
+                                density[index] = 0;
+                            }
+                            else
+                            {
+                                double value = density[index] - densityDecay;
+                                density[index] = value > 0 ? value : 0;
+                            }
+                        }
+                    }
+                });
+            }
+
+            scalarVoxelDensityDirtyForOutput = true;
+        }
+
+        void diffuseScalarXPass(double[] weights, double keep, double diffuseAmount)
+        {
+            double[] source = scalarVoxelDensity;
+            double[] destination = scalarVoxelScratch;
+            int xCount = resX;
+            int strideX = voxelStrideX;
+            int strideY = voxelStrideY;
+            bool wrap = wrapBoundaries;
+            int range = diffuseRange;
+
+            if (range != 1)
+            {
+                diffuseScalarXPassPrefix(source, destination, weights, range, keep, diffuseAmount, xCount, strideX, strideY, wrap);
+                return;
+            }
+
+            if (tridimensional)
+            {
+                int lineCount = resY * resZ;
+                Parallel.For(0, lineCount, line =>
+                {
+                    int y = line / resZ;
+                    int z = line % resZ;
+                    diffuseScalarXLine(source, destination, weights, y, z, xCount, strideX, strideY, wrap, keep, diffuseAmount);
+                });
+            }
+            else if (planarXY)
+            {
+                Parallel.For(0, resY, y =>
+                {
+                    diffuseScalarXLine(source, destination, weights, y, 0, xCount, strideX, strideY, wrap, keep, diffuseAmount);
+                });
+            }
+            else if (planarXZ)
+            {
+                Parallel.For(0, resZ, z =>
+                {
+                    diffuseScalarXLine(source, destination, weights, 0, z, xCount, strideX, strideY, wrap, keep, diffuseAmount);
+                });
+            }
+        }
+
+        void diffuseScalarYPass(double[] weights, double keep, double diffuseAmount)
+        {
+            double[] source = scalarVoxelDensity;
+            double[] destination = scalarVoxelScratch;
+            int yCount = resY;
+            int strideX = voxelStrideX;
+            int strideY = voxelStrideY;
+            bool wrap = wrapBoundaries;
+            int range = diffuseRange;
+
+            if (range != 1)
+            {
+                diffuseScalarYPassPrefix(source, destination, weights, range, keep, diffuseAmount, yCount, strideX, strideY, wrap);
+                return;
+            }
+
+            if (tridimensional)
+            {
+                int lineCount = resX * resZ;
+                Parallel.For(0, lineCount, line =>
+                {
+                    int x = line / resZ;
+                    int z = line % resZ;
+                    diffuseScalarYLine(source, destination, weights, x, z, yCount, strideX, strideY, wrap, keep, diffuseAmount);
+                });
+            }
+            else if (planarXY)
+            {
+                Parallel.For(0, resX, x =>
+                {
+                    diffuseScalarYLine(source, destination, weights, x, 0, yCount, strideX, strideY, wrap, keep, diffuseAmount);
+                });
+            }
+            else if (planarYZ)
+            {
+                Parallel.For(0, resZ, z =>
+                {
+                    diffuseScalarYLine(source, destination, weights, 0, z, yCount, strideX, strideY, wrap, keep, diffuseAmount);
+                });
+            }
+        }
+
+        void diffuseScalarZPass(double[] weights, double keep, double diffuseAmount)
+        {
+            double[] source = scalarVoxelDensity;
+            double[] destination = scalarVoxelScratch;
+            int zCount = resZ;
+            int strideX = voxelStrideX;
+            int strideY = voxelStrideY;
+            bool wrap = wrapBoundaries;
+            int range = diffuseRange;
+
+            if (range != 1)
+            {
+                diffuseScalarZPassPrefix(source, destination, weights, range, keep, diffuseAmount, zCount, strideX, strideY, wrap);
+                return;
+            }
+
+            if (tridimensional)
+            {
+                int lineCount = resX * resY;
+                Parallel.For(0, lineCount, line =>
+                {
+                    int x = line / resY;
+                    int y = line % resY;
+                    diffuseScalarZLine(source, destination, weights, x, y, zCount, strideX, strideY, wrap, keep, diffuseAmount);
+                });
+            }
+            else if (planarXZ)
+            {
+                Parallel.For(0, resX, x =>
+                {
+                    diffuseScalarZLine(source, destination, weights, x, 0, zCount, strideX, strideY, wrap, keep, diffuseAmount);
+                });
+            }
+            else if (planarYZ)
+            {
+                Parallel.For(0, resY, y =>
+                {
+                    diffuseScalarZLine(source, destination, weights, 0, y, zCount, strideX, strideY, wrap, keep, diffuseAmount);
+                });
+            }
+        }
+
+        void diffuseScalarXPassPrefix(double[] source, double[] destination, double[] weights, int range, double keep, double diffuseAmount, int xCount, int strideX, int strideY, bool wrap)
+        {
+            createCosinePrefixTables(xCount, range, wrap, out double[] cosTable, out double[] sinTable);
+            double weightScale = diffusionWeightScale(weights, range);
+
+            if (tridimensional)
+            {
+                int lineCount = resY * resZ;
+                Parallel.For(0, lineCount, () => new ScalarPrefixDiffusionBuffers(), (line, loopState, buffers) =>
+                {
+                    int y = line / resZ;
+                    int z = line % resZ;
+                    diffuseScalarXLinePrefix(source, destination, buffers, cosTable, sinTable, y, z, xCount, strideX, strideY, wrap, range, weightScale, keep, diffuseAmount);
+                    return buffers;
+                }, buffers => { });
+            }
+            else if (planarXY)
+            {
+                Parallel.For(0, resY, () => new ScalarPrefixDiffusionBuffers(), (y, loopState, buffers) =>
+                {
+                    diffuseScalarXLinePrefix(source, destination, buffers, cosTable, sinTable, y, 0, xCount, strideX, strideY, wrap, range, weightScale, keep, diffuseAmount);
+                    return buffers;
+                }, buffers => { });
+            }
+            else if (planarXZ)
+            {
+                Parallel.For(0, resZ, () => new ScalarPrefixDiffusionBuffers(), (z, loopState, buffers) =>
+                {
+                    diffuseScalarXLinePrefix(source, destination, buffers, cosTable, sinTable, 0, z, xCount, strideX, strideY, wrap, range, weightScale, keep, diffuseAmount);
+                    return buffers;
+                }, buffers => { });
+            }
+        }
+
+        void diffuseScalarYPassPrefix(double[] source, double[] destination, double[] weights, int range, double keep, double diffuseAmount, int yCount, int strideX, int strideY, bool wrap)
+        {
+            createCosinePrefixTables(yCount, range, wrap, out double[] cosTable, out double[] sinTable);
+            double weightScale = diffusionWeightScale(weights, range);
+
+            if (tridimensional)
+            {
+                int lineCount = resX * resZ;
+                Parallel.For(0, lineCount, () => new ScalarPrefixDiffusionBuffers(), (line, loopState, buffers) =>
+                {
+                    int x = line / resZ;
+                    int z = line % resZ;
+                    diffuseScalarYLinePrefix(source, destination, buffers, cosTable, sinTable, x, z, yCount, strideX, strideY, wrap, range, weightScale, keep, diffuseAmount);
+                    return buffers;
+                }, buffers => { });
+            }
+            else if (planarXY)
+            {
+                Parallel.For(0, resX, () => new ScalarPrefixDiffusionBuffers(), (x, loopState, buffers) =>
+                {
+                    diffuseScalarYLinePrefix(source, destination, buffers, cosTable, sinTable, x, 0, yCount, strideX, strideY, wrap, range, weightScale, keep, diffuseAmount);
+                    return buffers;
+                }, buffers => { });
+            }
+            else if (planarYZ)
+            {
+                Parallel.For(0, resZ, () => new ScalarPrefixDiffusionBuffers(), (z, loopState, buffers) =>
+                {
+                    diffuseScalarYLinePrefix(source, destination, buffers, cosTable, sinTable, 0, z, yCount, strideX, strideY, wrap, range, weightScale, keep, diffuseAmount);
+                    return buffers;
+                }, buffers => { });
+            }
+        }
+
+        void diffuseScalarZPassPrefix(double[] source, double[] destination, double[] weights, int range, double keep, double diffuseAmount, int zCount, int strideX, int strideY, bool wrap)
+        {
+            createCosinePrefixTables(zCount, range, wrap, out double[] cosTable, out double[] sinTable);
+            double weightScale = diffusionWeightScale(weights, range);
+
+            if (tridimensional)
+            {
+                int lineCount = resX * resY;
+                Parallel.For(0, lineCount, () => new ScalarPrefixDiffusionBuffers(), (line, loopState, buffers) =>
+                {
+                    int x = line / resY;
+                    int y = line % resY;
+                    diffuseScalarZLinePrefix(source, destination, buffers, cosTable, sinTable, x, y, zCount, strideX, strideY, wrap, range, weightScale, keep, diffuseAmount);
+                    return buffers;
+                }, buffers => { });
+            }
+            else if (planarXZ)
+            {
+                Parallel.For(0, resX, () => new ScalarPrefixDiffusionBuffers(), (x, loopState, buffers) =>
+                {
+                    diffuseScalarZLinePrefix(source, destination, buffers, cosTable, sinTable, x, 0, zCount, strideX, strideY, wrap, range, weightScale, keep, diffuseAmount);
+                    return buffers;
+                }, buffers => { });
+            }
+            else if (planarYZ)
+            {
+                Parallel.For(0, resY, () => new ScalarPrefixDiffusionBuffers(), (y, loopState, buffers) =>
+                {
+                    diffuseScalarZLinePrefix(source, destination, buffers, cosTable, sinTable, 0, y, zCount, strideX, strideY, wrap, range, weightScale, keep, diffuseAmount);
+                    return buffers;
+                }, buffers => { });
+            }
+        }
+
+        void createCosinePrefixTables(int count, int range, bool wrap, out double[] cosTable, out double[] sinTable)
+        {
+            int tableLength = wrap ? count + range * 2 : count;
+            cosTable = new double[tableLength];
+            sinTable = new double[tableLength];
+
+            double theta = Math.PI / (range + 1);
+            int coordinateStart = wrap ? -range : 0;
+
+            for (int i = 0; i < tableLength; i++)
+            {
+                double angle = theta * (coordinateStart + i);
+                cosTable[i] = Math.Cos(angle);
+                sinTable[i] = Math.Sin(angle);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        double diffusionWeightScale(double[] weights, int range)
+        {
+            return weights[range] * 0.5;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int wrapLineIndex(int index, int count)
+        {
+            if (index >= 0 && index < count) return index;
+            index %= count;
+            return index < 0 ? index + count : index;
+        }
+
+        void diffuseScalarXLinePrefix(double[] source, double[] destination, ScalarPrefixDiffusionBuffers buffers, double[] cosTable, double[] sinTable, int y, int z, int xCount, int strideX, int strideY, bool wrap, int range, double weightScale, double keep, double diffuseAmount)
+        {
+            int prefixLength = wrap ? xCount + range * 2 : xCount;
+            buffers.EnsureCapacity(prefixLength + 1);
+
+            double[] sumPrefix = buffers.Sum;
+            double[] cosPrefix = buffers.Cos;
+            double[] sinPrefix = buffers.Sin;
+            int baseIndex = y * strideY + z;
+            int coordinateStart = wrap ? -range : 0;
+
+            sumPrefix[0] = 0;
+            cosPrefix[0] = 0;
+            sinPrefix[0] = 0;
+
+            for (int i = 0; i < prefixLength; i++)
+            {
+                int x = wrap ? wrapLineIndex(coordinateStart + i, xCount) : i;
+                double density = source[baseIndex + x * strideX];
+                int next = i + 1;
+                sumPrefix[next] = sumPrefix[i] + density;
+                cosPrefix[next] = cosPrefix[i] + density * cosTable[i];
+                sinPrefix[next] = sinPrefix[i] + density * sinTable[i];
+            }
+
+            int centerTableOffset = wrap ? range : 0;
+            for (int x = 0; x < xCount; x++)
+            {
+                int start = wrap ? x : Math.Max(0, x - range);
+                int endExclusive = wrap ? x + range * 2 + 1 : Math.Min(xCount - 1, x + range) + 1;
+                int centerTableIndex = x + centerTableOffset;
+
+                double sum = sumPrefix[endExclusive] - sumPrefix[start];
+                double cosSum = cosPrefix[endExclusive] - cosPrefix[start];
+                double sinSum = sinPrefix[endExclusive] - sinPrefix[start];
+                double weightedSum = weightScale * (sum + cosTable[centerTableIndex] * cosSum + sinTable[centerTableIndex] * sinSum);
+
+                int index = baseIndex + x * strideX;
+                double value = source[index] * keep + diffuseAmount * weightedSum;
+                destination[index] = clampScalarDensity(value, x, y, z);
+            }
+        }
+
+        void diffuseScalarYLinePrefix(double[] source, double[] destination, ScalarPrefixDiffusionBuffers buffers, double[] cosTable, double[] sinTable, int x, int z, int yCount, int strideX, int strideY, bool wrap, int range, double weightScale, double keep, double diffuseAmount)
+        {
+            int prefixLength = wrap ? yCount + range * 2 : yCount;
+            buffers.EnsureCapacity(prefixLength + 1);
+
+            double[] sumPrefix = buffers.Sum;
+            double[] cosPrefix = buffers.Cos;
+            double[] sinPrefix = buffers.Sin;
+            int baseIndex = x * strideX + z;
+            int coordinateStart = wrap ? -range : 0;
+
+            sumPrefix[0] = 0;
+            cosPrefix[0] = 0;
+            sinPrefix[0] = 0;
+
+            for (int i = 0; i < prefixLength; i++)
+            {
+                int y = wrap ? wrapLineIndex(coordinateStart + i, yCount) : i;
+                double density = source[baseIndex + y * strideY];
+                int next = i + 1;
+                sumPrefix[next] = sumPrefix[i] + density;
+                cosPrefix[next] = cosPrefix[i] + density * cosTable[i];
+                sinPrefix[next] = sinPrefix[i] + density * sinTable[i];
+            }
+
+            int centerTableOffset = wrap ? range : 0;
+            for (int y = 0; y < yCount; y++)
+            {
+                int start = wrap ? y : Math.Max(0, y - range);
+                int endExclusive = wrap ? y + range * 2 + 1 : Math.Min(yCount - 1, y + range) + 1;
+                int centerTableIndex = y + centerTableOffset;
+
+                double sum = sumPrefix[endExclusive] - sumPrefix[start];
+                double cosSum = cosPrefix[endExclusive] - cosPrefix[start];
+                double sinSum = sinPrefix[endExclusive] - sinPrefix[start];
+                double weightedSum = weightScale * (sum + cosTable[centerTableIndex] * cosSum + sinTable[centerTableIndex] * sinSum);
+
+                int index = baseIndex + y * strideY;
+                double value = source[index] * keep + diffuseAmount * weightedSum;
+                destination[index] = clampScalarDensity(value, x, y, z);
+            }
+        }
+
+        void diffuseScalarZLinePrefix(double[] source, double[] destination, ScalarPrefixDiffusionBuffers buffers, double[] cosTable, double[] sinTable, int x, int y, int zCount, int strideX, int strideY, bool wrap, int range, double weightScale, double keep, double diffuseAmount)
+        {
+            int prefixLength = wrap ? zCount + range * 2 : zCount;
+            buffers.EnsureCapacity(prefixLength + 1);
+
+            double[] sumPrefix = buffers.Sum;
+            double[] cosPrefix = buffers.Cos;
+            double[] sinPrefix = buffers.Sin;
+            int baseIndex = x * strideX + y * strideY;
+            int coordinateStart = wrap ? -range : 0;
+
+            sumPrefix[0] = 0;
+            cosPrefix[0] = 0;
+            sinPrefix[0] = 0;
+
+            for (int i = 0; i < prefixLength; i++)
+            {
+                int z = wrap ? wrapLineIndex(coordinateStart + i, zCount) : i;
+                double density = source[baseIndex + z];
+                int next = i + 1;
+                sumPrefix[next] = sumPrefix[i] + density;
+                cosPrefix[next] = cosPrefix[i] + density * cosTable[i];
+                sinPrefix[next] = sinPrefix[i] + density * sinTable[i];
+            }
+
+            int centerTableOffset = wrap ? range : 0;
+            for (int z = 0; z < zCount; z++)
+            {
+                int start = wrap ? z : Math.Max(0, z - range);
+                int endExclusive = wrap ? z + range * 2 + 1 : Math.Min(zCount - 1, z + range) + 1;
+                int centerTableIndex = z + centerTableOffset;
+
+                double sum = sumPrefix[endExclusive] - sumPrefix[start];
+                double cosSum = cosPrefix[endExclusive] - cosPrefix[start];
+                double sinSum = sinPrefix[endExclusive] - sinPrefix[start];
+                double weightedSum = weightScale * (sum + cosTable[centerTableIndex] * cosSum + sinTable[centerTableIndex] * sinSum);
+
+                int index = baseIndex + z;
+                double value = source[index] * keep + diffuseAmount * weightedSum;
+                destination[index] = clampScalarDensity(value, x, y, z);
+            }
+        }
+
+        void diffuseScalarXLine(double[] source, double[] destination, double[] weights, int y, int z, int xCount, int strideX, int strideY, bool wrap, double keep, double diffuseAmount)
+        {
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+            int baseIndex = y * strideY + z;
+            int lastX = xCount - 1;
+
+            for (int x = 0; x < xCount; x++)
+            {
+                int index = baseIndex + x * strideX;
+                double centerDensity = source[index];
+                double sum;
+
+                if (wrap)
+                {
+                    int leftIndex = x == 0 ? baseIndex + lastX * strideX : index - strideX;
+                    int rightIndex = x == lastX ? baseIndex : index + strideX;
+                    sum = source[leftIndex] * leftWeight + centerDensity * centerWeight + source[rightIndex] * rightWeight;
+                }
+                else
+                {
+                    sum = centerDensity * centerWeight;
+                    if (x > 0) sum += source[index - strideX] * leftWeight;
+                    if (x < lastX) sum += source[index + strideX] * rightWeight;
+                }
+
+                double value = centerDensity * keep + diffuseAmount * sum;
+                destination[index] = clampScalarDensity(value, x, y, z);
+            }
+        }
+
+        void diffuseScalarYLine(double[] source, double[] destination, double[] weights, int x, int z, int yCount, int strideX, int strideY, bool wrap, double keep, double diffuseAmount)
+        {
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+            int baseIndex = x * strideX + z;
+            int lastY = yCount - 1;
+
+            for (int y = 0; y < yCount; y++)
+            {
+                int index = baseIndex + y * strideY;
+                double centerDensity = source[index];
+                double sum;
+
+                if (wrap)
+                {
+                    int leftIndex = y == 0 ? baseIndex + lastY * strideY : index - strideY;
+                    int rightIndex = y == lastY ? baseIndex : index + strideY;
+                    sum = source[leftIndex] * leftWeight + centerDensity * centerWeight + source[rightIndex] * rightWeight;
+                }
+                else
+                {
+                    sum = centerDensity * centerWeight;
+                    if (y > 0) sum += source[index - strideY] * leftWeight;
+                    if (y < lastY) sum += source[index + strideY] * rightWeight;
+                }
+
+                double value = centerDensity * keep + diffuseAmount * sum;
+                destination[index] = clampScalarDensity(value, x, y, z);
+            }
+        }
+
+        void diffuseScalarZLine(double[] source, double[] destination, double[] weights, int x, int y, int zCount, int strideX, int strideY, bool wrap, double keep, double diffuseAmount)
+        {
+            double leftWeight = weights[0];
+            double centerWeight = weights[1];
+            double rightWeight = weights[2];
+            int baseIndex = x * strideX + y * strideY;
+            int lastZ = zCount - 1;
+
+            for (int z = 0; z < zCount; z++)
+            {
+                int index = baseIndex + z;
+                double centerDensity = source[index];
+                double sum;
+
+                if (wrap)
+                {
+                    int leftIndex = z == 0 ? baseIndex + lastZ : index - 1;
+                    int rightIndex = z == lastZ ? baseIndex : index + 1;
+                    sum = source[leftIndex] * leftWeight + centerDensity * centerWeight + source[rightIndex] * rightWeight;
+                }
+                else
+                {
+                    sum = centerDensity * centerWeight;
+                    if (z > 0) sum += source[index - 1] * leftWeight;
+                    if (z < lastZ) sum += source[index + 1] * rightWeight;
+                }
+
+                double value = centerDensity * keep + diffuseAmount * sum;
+                destination[index] = clampScalarDensity(value, x, y, z);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        double clampScalarDensity(double value, int x, int y, int z)
+        {
+            if (value > 1) value = 1;
+
+            if (!wrapBoundaries && isBoundaryIndex(x, y, z) && value > 0.01)
+            {
+                value = 0.01;
+            }
+
+            return value;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool isBoundaryIndex(int x, int y, int z)
+        {
+            if (tridimensional)
+            {
+                return x == 0 || x == resX - 1 || y == 0 || y == resY - 1 || z == 0 || z == resZ - 1;
+            }
+
+            if (planarXY)
+            {
+                return x == 0 || x == resX - 1 || y == 0 || y == resY - 1;
+            }
+
+            if (planarXZ)
+            {
+                return x == 0 || x == resX - 1 || z == 0 || z == resZ - 1;
+            }
+
+            return y == 0 || y == resY - 1 || z == 0 || z == resZ - 1;
         }
 
         //-------------
@@ -2779,6 +3572,21 @@ public class Solver : GH_Component
             return weightsWithoutEnds;
         }
 
+        void ensureReusableDiffusionWeights()
+        {
+            if (reusableWeights == null || reusableWeightsRange != diffuseRange)
+            {
+                reusableWeights = precomputeWeights(diffuseRange);
+                reusableWeightsRange = diffuseRange;
+            }
+
+            if (antParticles && (reusableAntWeights == null || reusableAntWeightsRange != diffuseRange_Ant))
+            {
+                reusableAntWeights = precomputeWeights(diffuseRange_Ant);
+                reusableAntWeightsRange = diffuseRange_Ant;
+            }
+        }
+
         //-------------
 
         void assignPassDensityToVoxel(double[] newDensity)
@@ -3508,66 +4316,144 @@ public class Solver : GH_Component
             resetParticleCountsForCurrentFrame();
             ensureParticleCountTouchedCapacity(particles.Count);
             int particleCount = particles.Count;
+            ParticlePreviewCache previewCache = (particles as ParticleList)?.PreviewCache;
+            if (previewCache != null && !shouldBuildParticlePreviewCache())
+            {
+                previewCache.Invalidate(particleCount);
+                previewCache = null;
+            }
+
+            object previewCacheLock = previewCache != null ? previewCache.SyncRoot : null;
+            int previewCacheInitialCapacity = previewCache != null ? Math.Max(128, particleCount / Math.Max(System.Environment.ProcessorCount * 4, 1)) : 0;
+            if (previewCache != null)
+            {
+                previewCache.BeginBuild(particleCount);
+            }
 
             //count particles
-            Parallel.For(0, particleCount, i =>
-            {
-                Particle P = particles[i];
-                P.age++;
-                particleCountTouchedVoxels[i] = null;
-
-                Voxel parentVoxel = P.parentVoxel;
-                if (parentVoxel == null)
+            Parallel.For(0, particleCount,
+                () => previewCache != null ? new ParticlePreviewBuildCache(previewCacheInitialCapacity) : null,
+                (i, loopState, localPreviewCache) =>
                 {
-                    Point3d origin = P.pPlane.Origin;
-                    parentVoxel = getParentVoxel(origin.X, origin.Y, origin.Z);
-                }
+                    Particle P = particles[i];
+                    P.age++;
+                    particleCountTouchedVoxels[i] = null;
 
-                if (parentVoxel != null)
-                {
-                    P.parentVoxel = parentVoxel;
-                    particleCountTouchedVoxels[i] = parentVoxel;
-                    System.Threading.Interlocked.Increment(ref parentVoxel.particleCount);
-
-                    //ant particles
-                    if (P.parentParticleGroup.ant && iteration > 1)
+                    Voxel parentVoxel = P.parentVoxel;
+                    if (parentVoxel == null)
                     {
-                        //found food
-                        if (parentVoxel.food > 0 && P.foundFood == false)
-                        {
-                            P.foundFood = true;
-                            P.age = 0;
+                        Point3d origin = P.pPlane.Origin;
+                        parentVoxel = getParentVoxel(origin.X, origin.Y, origin.Z);
+                    }
 
-                            if (P.age == 0)
+                    if (parentVoxel != null)
+                    {
+                        P.parentVoxel = parentVoxel;
+                        particleCountTouchedVoxels[i] = parentVoxel;
+                        System.Threading.Interlocked.Increment(ref parentVoxel.particleCount);
+
+                        //ant particles
+                        if (P.parentParticleGroup.ant && iteration > 1)
+                        {
+                            //found food
+                            if (parentVoxel.food > 0 && P.foundFood == false)
                             {
-                                parentVoxel.food -= 1;
-                                P.age++;
+                                P.foundFood = true;
+                                P.age = 0;
+
+                                if (P.age == 0)
+                                {
+                                    parentVoxel.food -= 1;
+                                    P.age++;
+                                }
+                            }
+
+                            //returned home
+                            if (P.pPlane.Origin.DistanceTo(P.home.Origin) < retrieveSpeed(P))
+                            {
+                                P.foundFood = false;
+                                P.age = 1;
                             }
                         }
 
-                        //returned home
-                        if (P.pPlane.Origin.DistanceTo(P.home.Origin) < retrieveSpeed(P))
+                        if (parentVoxel.maxDensity == 0)
                         {
-                            P.foundFood = false;
-                            P.age = 1;
+                            P.die = true;
+                            setWorkingDensity(parentVoxel, 0);
                         }
                     }
-
-                    if (parentVoxel.maxDensity == 0)
+                    else
                     {
+                        P.parentVoxel = null;
                         P.die = true;
-                        parentVoxel.density = 0;
                     }
-                }
-                else
+
+                    if (localPreviewCache != null)
+                    {
+                        localPreviewCache.AddParticle(P);
+                    }
+
+                    return localPreviewCache;
+                },
+                localPreviewCache =>
                 {
-                    P.parentVoxel = null;
-                    P.die = true;
-                }
+                    if (localPreviewCache == null || !localPreviewCache.HasPoint) return;
+                    lock (previewCacheLock)
+                    {
+                        previewCache.Merge(localPreviewCache);
+                    }
+                });
+
+            if (previewCache != null)
+            {
+                previewCache.CompleteBuild();
             }
-            );
 
             particleCountTouchedCount = particleCount;
+        }
+
+        bool shouldBuildParticlePreviewCache()
+        {
+            if (Params == null || Params.Output == null || Params.Output.Count == 0) return false;
+
+            return hasVisibleParticlePreviewRecipient(Params.Output[0], new HashSet<IGH_Param>());
+        }
+
+        bool hasVisibleParticlePreviewRecipient(IGH_Param sourceParam, HashSet<IGH_Param> visited)
+        {
+            if (sourceParam == null || sourceParam.Recipients == null) return false;
+
+            foreach (IGH_Param recipient in sourceParam.Recipients)
+            {
+                if (recipient == null || !visited.Add(recipient)) continue;
+
+                Preview_Particle preview = getOwnerComponent(recipient) as Preview_Particle;
+                if (preview != null)
+                {
+                    if (preview.WantsSolverPreviewCache) return true;
+                    continue;
+                }
+
+                if (hasVisibleParticlePreviewRecipient(recipient, visited))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        GH_Component getOwnerComponent(IGH_Param param)
+        {
+            if (param == null || param.Attributes == null) return null;
+
+            GH_LinkedParamAttributes linkedAttributes = param.Attributes as GH_LinkedParamAttributes;
+            if (linkedAttributes != null && linkedAttributes.Parent != null)
+            {
+                return linkedAttributes.Parent.DocObject as GH_Component;
+            }
+
+            return param.Attributes.DocObject as GH_Component;
         }
 
         void resetParticleCountsForCurrentFrame()
@@ -3769,13 +4655,18 @@ public class Solver : GH_Component
         //-------------------------------------------------------------------
 
         //sense values and vectors
-        void particleSenseValuesAndVectors()
+        void particleSenseValuesAndVectors(out long prepareTicks, out long particlesTicks)
         {
+            prepareTicks = 0;
+            particlesTicks = 0;
+
             if (!antParticles)
             {
-                particleSenseSlimeOnly();
+                particleSenseSlimeOnly(out prepareTicks, out particlesTicks);
                 return;
             }
+
+            long particlesStart = Stopwatch.GetTimestamp();
 
             //sense for next iteration
             Parallel.For(0, particles.Count, p =>
@@ -3847,10 +4738,25 @@ public class Solver : GH_Component
                 applySensorMoveForce(P, parentVoxel, parentGroup, bestIndex, p);
             }
             );
+
+            particlesTicks = Stopwatch.GetTimestamp() - particlesStart;
         }
 
-        void particleSenseSlimeOnly()
+        void particleSenseSlimeOnly(out long prepareTicks, out long particlesTicks)
         {
+            prepareTicks = 0;
+            particlesTicks = 0;
+
+            bool useScalarSensors = useScalarDensityPath();
+            if (useScalarSensors)
+            {
+                long prepareStart = Stopwatch.GetTimestamp();
+                ensureScalarDensityAuthoritative();
+                prepareTicks = Stopwatch.GetTimestamp() - prepareStart;
+            }
+
+            long particlesStart = Stopwatch.GetTimestamp();
+
             Parallel.For(0, particles.Count, p =>
             {
                 Particle P = particles[p];
@@ -3882,9 +4788,9 @@ public class Solver : GH_Component
                 Point3d sensorPos1 = sensorSamplePosition(P, origin + planeX * sensorDistance);
                 Point3d sensorPos2 = sensorSamplePosition(P, origin + (planeX * sensorCos + planeY * sensorSin) * sensorDistance);
 
-                double value0 = sampleSlimeSensorValue(sensorPos0);
-                double value1 = sampleSlimeSensorValue(sensorPos1);
-                double value2 = sampleSlimeSensorValue(sensorPos2);
+                double value0 = useScalarSensors ? sampleSlimeSensorValueScalar(sensorPos0) : sampleSlimeSensorValue(sensorPos0);
+                double value1 = useScalarSensors ? sampleSlimeSensorValueScalar(sensorPos1) : sampleSlimeSensorValue(sensorPos1);
+                double value2 = useScalarSensors ? sampleSlimeSensorValueScalar(sensorPos2) : sampleSlimeSensorValue(sensorPos2);
                 double value3 = -1;
                 double value4 = -1;
 
@@ -3898,14 +4804,36 @@ public class Solver : GH_Component
                     vectorD.Rotate(-sensorAngle, P.pPlane.YAxis);
                     Point3d sensorPos4 = sensorSamplePosition(P, origin + vectorD * sensorDistance);
 
-                    value3 = sampleSlimeSensorValue(sensorPos3);
-                    value4 = sampleSlimeSensorValue(sensorPos4);
+                    value3 = useScalarSensors ? sampleSlimeSensorValueScalar(sensorPos3) : sampleSlimeSensorValue(sensorPos3);
+                    value4 = useScalarSensors ? sampleSlimeSensorValueScalar(sensorPos4) : sampleSlimeSensorValue(sensorPos4);
                 }
 
                 int bestIndex = chooseBestSensorIndex(value0, value1, value2, value3, value4, tridimensional);
                 applySensorMoveForce(P, parentVoxel, parentGroup, bestIndex, p);
             }
             );
+
+            particlesTicks = Stopwatch.GetTimestamp() - particlesStart;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        double sampleSlimeSensorValueScalar(Point3d potPos)
+        {
+            int p_xID = planarYZ ? 0 : (int)(potPos.X * voxelSizeInverse);
+            int p_yID = planarXZ ? 0 : (int)(potPos.Y * voxelSizeInverse);
+            int p_zID = planarXY ? 0 : (int)(potPos.Z * voxelSizeInverse);
+
+            if (p_xID < 0 || p_xID >= resX || p_yID < 0 || p_yID >= resY || p_zID < 0 || p_zID >= resZ)
+            {
+                return -1;
+            }
+
+            if (!wrapBoundaries && isBoundaryIndex(p_xID, p_yID, p_zID))
+            {
+                return -1;
+            }
+
+            return scalarVoxelDensity[p_xID * voxelStrideX + p_yID * voxelStrideY + p_zID];
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -4179,10 +5107,21 @@ public class Solver : GH_Component
 
         //----------------------------------
 
-        void particleMoveAndDeposit()
+        void particleMoveAndDeposit(out long shuffleTicks, out long particlesTicks)
         {
-            shuffleParticlesInPlace(particles);
+            bool shuffleMovementParticles = antParticles || dynPop;
+            long stageStart = Stopwatch.GetTimestamp();
+            if (shuffleMovementParticles)
+            {
+                shuffleParticlesInPlace(particles);
+            }
+            shuffleTicks = Stopwatch.GetTimestamp() - stageStart;
 
+            int currentIteration = iteration;
+            uint movementIterationSeed = unchecked((uint)currentIteration * 747796405u);
+            int wanderVectorCount = wanderVectors != null ? wanderVectors.Count : 0;
+
+            stageStart = Stopwatch.GetTimestamp();
             Parallel.For(0, particles.Count, i =>
             {
                 Particle P = particles[i];
@@ -4203,11 +5142,35 @@ public class Solver : GH_Component
                     {
                         int wanderFrequency = (int) parentGroup.wanderFrequency;
 
-                        if (i % wanderFrequency == 0)
+                        if (wanderFrequency > 0 && wanderVectorCount > 0)
                         {
-                            Vector3d wanderVector = wanderVectors[(i % wanderVectors.Count + iteration % wanderVectors.Count) % wanderVectors.Count];
-                            moveVector += 1.5 * wanderVector;
-                            moveVector.Unitize();
+                            bool addWander = false;
+                            int wanderIndex = 0;
+
+                            if (shuffleMovementParticles)
+                            {
+                                addWander = i % wanderFrequency == 0;
+                                if (addWander)
+                                {
+                                    wanderIndex = (i % wanderVectorCount + currentIteration % wanderVectorCount) % wanderVectorCount;
+                                }
+                            }
+                            else
+                            {
+                                uint movementKey = movementParticleKey(i, movementIterationSeed);
+                                addWander = movementKey % (uint)wanderFrequency == 0;
+                                if (addWander)
+                                {
+                                    wanderIndex = (int)(movementKey % (uint)wanderVectorCount);
+                                }
+                            }
+
+                            if (addWander)
+                            {
+                                Vector3d wanderVector = wanderVectors[wanderIndex];
+                                moveVector += 1.5 * wanderVector;
+                                moveVector.Unitize();
+                            }
                         }
                     }
 
@@ -4338,6 +5301,21 @@ public class Solver : GH_Component
                 }
             }
             );
+
+            particlesTicks = Stopwatch.GetTimestamp() - stageStart;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        uint movementParticleKey(int particleIndex, uint iterationSeed)
+        {
+            unchecked
+            {
+                uint value = (uint)particleIndex + iterationSeed;
+                value ^= value << 13;
+                value ^= value >> 17;
+                value ^= value << 5;
+                return value;
+            }
         }
 
         //----------------------------------
@@ -4437,6 +5415,34 @@ public class Solver : GH_Component
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void setWorkingDensity(Voxel V, double value)
+        {
+            if (useScalarDensityPath())
+            {
+                scalarVoxelDensity[V.flatIndex] = value;
+                scalarVoxelDensityDirtyForOutput = true;
+                return;
+            }
+
+            V.density = value;
+            scalarVoxelDensityAuthoritative = false;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void addWorkingDensity(Voxel V, double value)
+        {
+            if (useScalarDensityPath())
+            {
+                scalarVoxelDensity[V.flatIndex] += value;
+                scalarVoxelDensityDirtyForOutput = true;
+                return;
+            }
+
+            V.density += value;
+            scalarVoxelDensityAuthoritative = false;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool canDepositAtVoxel(Voxel parentVoxel, double sensorDistance)
         {
             int boundaryRange = 1;
@@ -4524,18 +5530,18 @@ public class Solver : GH_Component
             double slimeDeposit = P.highDeposit ? depositValue : depositValue / 4;
             if (slime_antBase == 0 && slime_antFood == 0)
             {
-                parentVoxel.density += slimeDeposit;
+                addWorkingDensity(parentVoxel, slimeDeposit);
                 return;
             }
 
             if (slime_antFood > 0)
             {
-                parentVoxel.density += slimeDeposit * (1 - slime_antFood) + parentVoxel.towardsFoodPheromone * slime_antFood;
+                addWorkingDensity(parentVoxel, slimeDeposit * (1 - slime_antFood) + parentVoxel.towardsFoodPheromone * slime_antFood);
             }
 
             if (slime_antBase > 0)
             {
-                parentVoxel.density += slimeDeposit * (1 - slime_antBase) + parentVoxel.towardsBasePheromone * slime_antBase;
+                addWorkingDensity(parentVoxel, slimeDeposit * (1 - slime_antBase) + parentVoxel.towardsBasePheromone * slime_antBase);
             }
         }
 
@@ -5276,7 +6282,7 @@ public class Solver : GH_Component
                     }
 
                     particles.Clear();
-                    particles = newParticles;
+                    particles = new ParticleList(newParticles);
 
                     particleCheckNeighbourCount();
                 }
@@ -5372,7 +6378,7 @@ public class Solver : GH_Component
                     }
 
                     particles.Clear();
-                    particles = newParticles;
+                    particles = new ParticleList(newParticles);
 
                     particleCheckNeighbourCount();
                 }
@@ -5445,6 +6451,7 @@ public class Solver : GH_Component
                     case "VoxelSettingsSlime":
                         diffuse = Convert.ToDouble(inputSettings_components[1]);
                         diffuseRange = Convert.ToInt32(inputSettings_components[2]);
+                        if (diffuseRange < 0) diffuseRange = 0;
                         decay = Convert.ToDouble(inputSettings_components[3]);
                         break;
 
@@ -5454,6 +6461,7 @@ public class Solver : GH_Component
                         baseDiffuseRate = Convert.ToDouble(inputSettings_components[3]);
                         baseDecayRate = Convert.ToDouble(inputSettings_components[4]);
                         diffuseRange_Ant = Convert.ToInt32(inputSettings_components[5]);
+                        if (diffuseRange_Ant < 0) diffuseRange_Ant = 0;
                         break;
 
                     case "WrapSettings":

@@ -10,9 +10,197 @@ using Rhino.Geometry;
 using Grasshopper;
 using Rhino;
 using System.Diagnostics.Eventing.Reader;
+using System.Drawing;
 
 namespace Nuclei3
 {
+    public class ParticlePreviewCache
+    {
+        public PointCloud SlimePointCloud = new PointCloud();
+        public PointCloud AntPointCloud1 = new PointCloud();
+        public PointCloud AntPointCloud2 = new PointCloud();
+        public BoundingBox ClippingBox = BoundingBox.Empty;
+        public int ParticleCount = 0;
+        public bool HasPoint = false;
+        public bool IsValid = false;
+
+        internal readonly object SyncRoot = new object();
+
+        public void BeginBuild(int particleCount)
+        {
+            SlimePointCloud = new PointCloud();
+            AntPointCloud1 = new PointCloud();
+            AntPointCloud2 = new PointCloud();
+            ClippingBox = BoundingBox.Empty;
+            ParticleCount = particleCount;
+            HasPoint = false;
+            IsValid = false;
+        }
+
+        public void Invalidate(int particleCount)
+        {
+            SlimePointCloud = new PointCloud();
+            AntPointCloud1 = new PointCloud();
+            AntPointCloud2 = new PointCloud();
+            ClippingBox = BoundingBox.Empty;
+            ParticleCount = particleCount;
+            HasPoint = false;
+            IsValid = false;
+        }
+
+        internal void Merge(ParticlePreviewBuildCache local)
+        {
+            if (local == null || !local.HasPoint) return;
+
+            local.AppendTo(SlimePointCloud, AntPointCloud1, AntPointCloud2);
+
+            if (!HasPoint)
+            {
+                ClippingBox = local.ClippingBox;
+                HasPoint = true;
+            }
+            else
+            {
+                ClippingBox.Union(local.ClippingBox);
+            }
+        }
+
+        public void CompleteBuild()
+        {
+            if (HasPoint)
+            {
+                ClippingBox.Inflate(Math.Max(Globals.voxelSize, 1.0));
+            }
+
+            IsValid = true;
+        }
+    }
+
+    internal sealed class ParticlePreviewBuildCache
+    {
+        readonly List<Point3d> slimePoints;
+        readonly List<Color> slimeColors;
+        readonly List<Point3d> antPoints1;
+        readonly List<Color> antColors1;
+        readonly List<Point3d> antPoints2;
+        readonly List<Color> antColors2;
+        Dictionary<ParticleGroup, Color> foundFoodColors;
+
+        public BoundingBox ClippingBox = BoundingBox.Empty;
+        public bool HasPoint = false;
+
+        public ParticlePreviewBuildCache(int initialCapacity)
+        {
+            slimePoints = new List<Point3d>(initialCapacity);
+            slimeColors = new List<Color>(initialCapacity);
+            antPoints1 = new List<Point3d>();
+            antColors1 = new List<Color>();
+            antPoints2 = new List<Point3d>();
+            antColors2 = new List<Color>();
+        }
+
+        public void AddParticle(Particle particle)
+        {
+            ParticleGroup group = particle.parentParticleGroup;
+            Point3d point = particle.pPlane.Origin;
+            IncludePoint(point);
+
+            if (group == null || !group.ant)
+            {
+                slimePoints.Add(point);
+                slimeColors.Add(group != null ? group.color : Color.White);
+                return;
+            }
+
+            if (!particle.foundFood)
+            {
+                antPoints1.Add(point);
+                antColors1.Add(group.color);
+                return;
+            }
+
+            antPoints2.Add(point);
+            antColors2.Add(GetFoundFoodColor(group));
+        }
+
+        public void AppendTo(PointCloud slimePointCloud, PointCloud antPointCloud1, PointCloud antPointCloud2)
+        {
+            AppendPointsWithColors(slimePointCloud, slimePoints, slimeColors);
+            AppendPointsWithColors(antPointCloud1, antPoints1, antColors1);
+            AppendPointsWithColors(antPointCloud2, antPoints2, antColors2);
+        }
+
+        static void AppendPointsWithColors(PointCloud pointCloud, List<Point3d> points, List<Color> colors)
+        {
+            if (points.Count == 0) return;
+
+            int startIndex = pointCloud.Count;
+            pointCloud.AddRange(points);
+
+            for (int i = 0; i < colors.Count; i++)
+            {
+                pointCloud[startIndex + i].Color = colors[i];
+            }
+        }
+
+        void IncludePoint(Point3d point)
+        {
+            if (!HasPoint)
+            {
+                ClippingBox = new BoundingBox(point, point);
+                HasPoint = true;
+                return;
+            }
+
+            ClippingBox.Union(point);
+        }
+
+        Color GetFoundFoodColor(ParticleGroup group)
+        {
+            if (foundFoodColors == null)
+            {
+                foundFoodColors = new Dictionary<ParticleGroup, Color>();
+            }
+
+            Color color;
+            if (!foundFoodColors.TryGetValue(group, out color))
+            {
+                color = BrightFoundFoodColor(group.color);
+                foundFoodColors[group] = color;
+            }
+
+            return color;
+        }
+
+        static Color BrightFoundFoodColor(Color color)
+        {
+            int r = (int)(color.R * 1.75);
+            if (r > 255) r = 255;
+
+            int g = (int)(color.G * 1.75);
+            if (g > 255) g = 255;
+
+            int b = (int)(color.B * 1.75);
+            if (b > 255) b = 255;
+
+            return Color.FromArgb(175, r, g, b);
+        }
+    }
+
+    public class ParticleList : List<Particle>
+    {
+        public ParticlePreviewCache PreviewCache = new ParticlePreviewCache();
+
+        public ParticleList()
+        {
+        }
+
+        public ParticleList(IEnumerable<Particle> particles)
+            : base(particles)
+        {
+        }
+    }
+
     public class Particle
     {
         #region fields

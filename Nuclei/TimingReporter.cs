@@ -38,11 +38,12 @@ namespace Nuclei3
         static bool disabled = false;
         static bool headerWritten = false;
         static string runId = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        static readonly string headerLine = "timestamp,run_id,component,iteration_or_call,samples,particles,voxels,preview_step,wrap_boundaries,res_x,res_y,res_z,active_voxels,dense_voxel_grid,dimension_mode,diffuse,diffuse_range,decay,ant_particles,ant_diffuse_range,trail_size,trail_freq,dyn_pop,division,death,max_iterations,total_ms,settings_ms,inputs_ms,sense_ms,move_ms,trail_ms,diffuse_ms,parent_ms,population_ms,outputs_ms,density_sync_ms,set_particles_ms,set_voxels_ms,rebuild_ms,draw_ms,sense_prepare_ms,sense_particles_ms,sense_ant_ms,move_shuffle_ms,move_particles_ms";
 
         public static void StartRun()
         {
             runId = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-            WriteRawLine(CreateLine("run_start", 0, 0, 0, 0, 0, new SolverContext(), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+            WriteRawLine(CreateLine("run_start", 0, 0, 0, 0, 0, new SolverContext(), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
         }
 
         public static void WriteSolverAverages(
@@ -60,9 +61,17 @@ namespace Nuclei3
             double diffuseMs,
             double parentMs,
             double populationMs,
-            double outputsMs)
+            double outputsMs,
+            double densitySyncMs,
+            double setParticlesMs,
+            double setVoxelsMs,
+            double sensePrepareMs,
+            double senseParticlesMs,
+            double senseAntMs,
+            double moveShuffleMs,
+            double moveParticlesMs)
         {
-            WriteRawLine(CreateLine("solver", iteration, samples, particleCount, voxelCount, 0, context, totalMs, settingsMs, inputsMs, senseMs, moveMs, trailMs, diffuseMs, parentMs, populationMs, outputsMs, 0, 0));
+            WriteRawLine(CreateLine("solver", iteration, samples, particleCount, voxelCount, 0, context, totalMs, settingsMs, inputsMs, senseMs, moveMs, trailMs, diffuseMs, parentMs, populationMs, outputsMs, densitySyncMs, setParticlesMs, setVoxelsMs, 0, 0, sensePrepareMs, senseParticlesMs, senseAntMs, moveShuffleMs, moveParticlesMs));
         }
 
         public static void WritePreviewAverages(
@@ -74,7 +83,7 @@ namespace Nuclei3
             double rebuildMs,
             double drawMs)
         {
-            WriteRawLine(CreateLine("preview_particle", call, samples, particleCount, 0, previewStep, new SolverContext(), totalMs, 0, 0, 0, 0, 0, 0, 0, 0, 0, rebuildMs, drawMs));
+            WriteRawLine(CreateLine("preview_particle", call, samples, particleCount, 0, previewStep, new SolverContext(), totalMs, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, rebuildMs, drawMs, 0, 0, 0, 0, 0));
         }
 
         public static double TicksToMilliseconds(long ticks, int samples)
@@ -101,8 +110,16 @@ namespace Nuclei3
             double parentMs,
             double populationMs,
             double outputsMs,
+            double densitySyncMs,
+            double setParticlesMs,
+            double setVoxelsMs,
             double rebuildMs,
-            double drawMs)
+            double drawMs,
+            double sensePrepareMs,
+            double senseParticlesMs,
+            double senseAntMs,
+            double moveShuffleMs,
+            double moveParticlesMs)
         {
             string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
 
@@ -143,8 +160,16 @@ namespace Nuclei3
                 Format(parentMs),
                 Format(populationMs),
                 Format(outputsMs),
+                Format(densitySyncMs),
+                Format(setParticlesMs),
+                Format(setVoxelsMs),
                 Format(rebuildMs),
-                Format(drawMs));
+                Format(drawMs),
+                Format(sensePrepareMs),
+                Format(senseParticlesMs),
+                Format(senseAntMs),
+                Format(moveShuffleMs),
+                Format(moveParticlesMs));
         }
 
         static string Format(double value)
@@ -169,11 +194,7 @@ namespace Nuclei3
 
                     if (!headerWritten)
                     {
-                        if (!File.Exists(outputPath) || new FileInfo(outputPath).Length == 0)
-                        {
-                            File.AppendAllText(outputPath, "timestamp,run_id,component,iteration_or_call,samples,particles,voxels,preview_step,wrap_boundaries,res_x,res_y,res_z,active_voxels,dense_voxel_grid,dimension_mode,diffuse,diffuse_range,decay,ant_particles,ant_diffuse_range,trail_size,trail_freq,dyn_pop,division,death,max_iterations,total_ms,settings_ms,inputs_ms,sense_ms,move_ms,trail_ms,diffuse_ms,parent_ms,population_ms,outputs_ms,rebuild_ms,draw_ms" + Environment.NewLine);
-                        }
-
+                        EnsureHeader();
                         headerWritten = true;
                     }
 
@@ -184,6 +205,27 @@ namespace Nuclei3
             {
                 disabled = true;
             }
+        }
+
+        static void EnsureHeader()
+        {
+            if (!File.Exists(outputPath) || new FileInfo(outputPath).Length == 0)
+            {
+                File.AppendAllText(outputPath, headerLine + Environment.NewLine);
+                return;
+            }
+
+            string[] lines = File.ReadAllLines(outputPath);
+            if (lines.Length == 0)
+            {
+                File.WriteAllText(outputPath, headerLine + Environment.NewLine);
+                return;
+            }
+
+            if (lines[0] == headerLine) return;
+
+            lines[0] = headerLine;
+            File.WriteAllLines(outputPath, lines);
         }
     }
 }

@@ -10,12 +10,23 @@ using Grasshopper;
 
 namespace Nuclei3
 {
+    internal sealed class VoxelDensityStore
+    {
+        public double[] Values;
+
+        public VoxelDensityStore(double[] values)
+        {
+            Values = values;
+        }
+    }
+
     public class Voxel
     {
         public Point3d loc;
         public int idX;
         public int idY;
         public int idZ;
+        public int flatIndex;
         public double voxelSize = 1;
 
         public double minDensity = -1;
@@ -23,7 +34,35 @@ namespace Nuclei3
         public double inputMinDensity = -1;
         public double inputMaxDensity = -1;
 
-        public double density = 0;
+        double densityValue = 0;
+        internal VoxelDensityStore densityStore;
+
+        public double density
+        {
+            get
+            {
+                VoxelDensityStore store = densityStore;
+                double[] values = store != null ? store.Values : null;
+                if (values != null && flatIndex >= 0 && flatIndex < values.Length)
+                {
+                    return values[flatIndex];
+                }
+
+                return densityValue;
+            }
+
+            set
+            {
+                densityValue = value;
+
+                VoxelDensityStore store = densityStore;
+                double[] values = store != null ? store.Values : null;
+                if (values != null && flatIndex >= 0 && flatIndex < values.Length)
+                {
+                    values[flatIndex] = value;
+                }
+            }
+        }
 
         public double towardsFoodPheromone = 0;
         public double towardsBasePheromone = 0;
