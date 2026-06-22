@@ -25,6 +25,8 @@ namespace Nuclei3
         public bool IsValid = false;
 
         internal readonly object SyncRoot = new object();
+        internal Func<bool> TryCompleteAsyncUpdate;
+        internal Func<bool> QueueAsyncUpdate;
 
         public void BeginBuild(int particleCount)
         {
@@ -74,6 +76,23 @@ namespace Nuclei3
 
             IsValid = true;
         }
+
+        internal bool TryRefreshAsync()
+        {
+            bool updated = false;
+
+            if (TryCompleteAsyncUpdate != null)
+            {
+                updated = TryCompleteAsyncUpdate();
+            }
+
+            if (QueueAsyncUpdate != null)
+            {
+                QueueAsyncUpdate();
+            }
+
+            return updated;
+        }
     }
 
     internal sealed class ParticlePreviewBuildCache
@@ -102,7 +121,12 @@ namespace Nuclei3
         public void AddParticle(Particle particle)
         {
             ParticleGroup group = particle.parentParticleGroup;
-            Point3d point = particle.pPlane.Origin;
+            AddParticlePoint(particle, particle.pPlane.Origin);
+        }
+
+        public void AddParticlePoint(Particle particle, Point3d point)
+        {
+            ParticleGroup group = particle.parentParticleGroup;
             IncludePoint(point);
 
             if (group == null || !group.ant)
@@ -114,8 +138,8 @@ namespace Nuclei3
 
             if (!particle.foundFood)
             {
-                antPoints1.Add(point);
-                antColors1.Add(group.color);
+                slimePoints.Add(point);
+                slimeColors.Add(group.color);
                 return;
             }
 

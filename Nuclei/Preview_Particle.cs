@@ -29,9 +29,6 @@ namespace Nuclei3
 
             pManager.AddNumberParameter("Point Size", "size", "Point Display Size", GH_ParamAccess.item, 2);
             pManager[1].Optional = true;
-
-            pManager.AddIntegerParameter("Preview Step", "step", "Draws every nth particle. 1 draws all particles.", GH_ParamAccess.item, 1);
-            pManager[2].Optional = true;
         }
 
         /// <summary>
@@ -60,23 +57,30 @@ namespace Nuclei3
 
             DA.GetData(0, ref particles);
             DA.GetData("Point Size", ref size);
-            DA.GetData("Preview Step", ref previewStep);
-
-            if (previewStep < 1) previewStep = 1;
 
             if (Hidden)
             {
                 clearPointClouds();
+                ParticlePreviewDisplayConduit.Unregister(InstanceGuid);
                 recordPreviewTiming(Stopwatch.GetTimestamp() - solveStart, 0);
                 return;
             }
 
             long rebuildTicks = 0;
-            if (!tryUseCachedPointClouds())
+            if (!tryUseCachedPointClouds(false))
             {
                 long rebuildStart = Stopwatch.GetTimestamp();
                 rebuildPointClouds();
                 rebuildTicks = Stopwatch.GetTimestamp() - rebuildStart;
+            }
+
+            if (particles == null)
+            {
+                ParticlePreviewDisplayConduit.Unregister(InstanceGuid);
+            }
+            else
+            {
+                ParticlePreviewDisplayConduit.Register(this);
             }
 
             recordPreviewTiming(Stopwatch.GetTimestamp() - solveStart, rebuildTicks);
@@ -84,30 +88,6 @@ namespace Nuclei3
 
         public override void DrawViewportMeshes(IGH_PreviewArgs args)
         {
-            long drawStart = Stopwatch.GetTimestamp();
-
-            try
-            {
-                if (!this.Hidden && particles != null)
-                {
-                    base.DrawViewportWires(args);
-
-                    //draw background polygon
-                    if (!Globals.tridimensional)
-                    {
-                        args.Display.DrawPolygon(Globals.bgPolygon, Color.Black, true);
-                    }
-
-                    if (slimePointCloud.Count > 0) args.Display.DrawPointCloud(slimePointCloud, (float)size);
-                    if (antPointCloud1.Count > 0) args.Display.DrawPointCloud(antPointCloud1, (float)size);
-                    if (antPointCloud2.Count > 0) args.Display.DrawPointCloud(antPointCloud2, (float)(size * 1.5));
-                }
-            }
-            finally
-            {
-                recordPreviewDrawTiming(Stopwatch.GetTimestamp() - drawStart);
-            }
-
         }
 
         public override BoundingBox ClippingBox
@@ -117,7 +97,33 @@ namespace Nuclei3
 
         internal bool WantsSolverPreviewCache
         {
-            get { return !Hidden && !Locked && previewStep == 1; }
+            get { return !Hidden && !Locked; }
+        }
+
+        internal ParticlePreviewDisplayFrame GetDisplayFrame(bool refreshAsync)
+        {
+            if (Hidden || Locked || particles == null) return null;
+
+            tryUseCachedPointClouds(refreshAsync);
+            if (slimePointCloud.Count == 0 && antPointCloud1.Count == 0 && antPointCloud2.Count == 0)
+            {
+                return null;
+            }
+
+            return new ParticlePreviewDisplayFrame
+            {
+                SlimePointCloud = slimePointCloud,
+                AntPointCloud1 = antPointCloud1,
+                AntPointCloud2 = antPointCloud2,
+                ClippingBox = clippingBox,
+                PointSize = size,
+                HasPoint = clippingBox.IsValid
+            };
+        }
+
+        internal void RecordConduitDrawTiming(long drawTicks)
+        {
+            recordPreviewDrawTiming(drawTicks);
         }
 
         void clearPointClouds()
@@ -137,7 +143,7 @@ namespace Nuclei3
             Dictionary<ParticleGroup, Color> foundFoodColors = new Dictionary<ParticleGroup, Color>();
             bool hasPoint = false;
 
-            for (int i = 0; i < particles.Count; i += previewStep)
+            for (int i = 0; i < particles.Count; i++)
             {
                 Particle P = particles[i];
                 ParticleGroup group = P.parentParticleGroup;
@@ -150,7 +156,7 @@ namespace Nuclei3
                 }
                 else if (!P.foundFood)
                 {
-                    antPointCloud1.Add(P_loc, group.color);
+                    slimePointCloud.Add(P_loc, group.color);
                 }
                 else
                 {
@@ -179,13 +185,16 @@ namespace Nuclei3
             }
         }
 
-        bool tryUseCachedPointClouds()
+        bool tryUseCachedPointClouds(bool refreshAsync)
         {
-            if (previewStep != 1) return false;
-
             ParticleList particleList = particles as ParticleList;
             ParticlePreviewCache cache = particleList != null ? particleList.PreviewCache : null;
-            if (cache == null || !cache.IsValid) return false;
+            if (cache == null) return false;
+            if (refreshAsync)
+            {
+                cache.TryRefreshAsync();
+            }
+            if (!cache.IsValid) return false;
 
             slimePointCloud = cache.SlimePointCloud ?? new PointCloud();
             antPointCloud1 = cache.AntPointCloud1 ?? new PointCloud();
@@ -220,7 +229,7 @@ namespace Nuclei3
             double drawMs = TimingReporter.TicksToMilliseconds(timingDrawTicks, timingDrawSampleCount);
             int particleCount = particles != null ? particles.Count : 0;
 
-            TimingReporter.WritePreviewAverages(timingCallCount, timingSampleCount, particleCount, previewStep, totalMs, rebuildMs, drawMs);
+            TimingReporter.WritePreviewAverages(timingCallCount, timingSampleCount, particleCount, 1, totalMs, rebuildMs, drawMs);
 
             timingSampleCount = 0;
             timingTotalTicks = 0;
@@ -235,6 +244,12 @@ namespace Nuclei3
             timingDrawTicks += drawTicks;
         }
 
+        public override void RemovedFromDocument(GH_Document document)
+        {
+            ParticlePreviewDisplayConduit.Unregister(InstanceGuid);
+            base.RemovedFromDocument(document);
+        }
+
         //-------------------------------------------------------------------
 
         //inputs
@@ -246,7 +261,6 @@ namespace Nuclei3
         //bool display;
         Color colour;
         double size;
-        int previewStep = 1;
 
         //timing
         int timingCallCount = 0;

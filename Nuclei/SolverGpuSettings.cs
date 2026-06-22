@@ -10,6 +10,11 @@ namespace Nuclei3
         public double Decay = 0.03;
         public bool WrapBoundaries = false;
         public int MaxIterations = 100000;
+        public int TrailSize = 0;
+        public int TrailFreq = 1;
+        public bool DynamicPopulation = false;
+        public bool Division = false;
+        public bool Death = false;
 
         public static SolverGpuSettings FromStrings(IList<string> settings)
         {
@@ -50,8 +55,25 @@ namespace Nuclei3
                         if (parts.Length > 1) parsed.MaxIterations = Convert.ToInt32(parts[1]);
                         if (parsed.MaxIterations < 0) parsed.MaxIterations = 0;
                         break;
+
+                    case "TrailSettings":
+                        if (parts.Length > 1) parsed.TrailSize = Convert.ToInt32(parts[1]);
+                        if (parts.Length > 2) parsed.TrailFreq = Convert.ToInt32(parts[2]);
+                        if (parsed.TrailSize < 0) parsed.TrailSize = 0;
+                        if (parsed.TrailFreq < 1) parsed.TrailFreq = 1;
+                        break;
+
+                    case "DivisionSettings":
+                        if (parts.Length > 1) parsed.Division = Convert.ToBoolean(parts[1]);
+                        break;
+
+                    case "DeathSettings":
+                        if (parts.Length > 1) parsed.Death = Convert.ToBoolean(parts[1]);
+                        break;
                 }
             }
+
+            parsed.DynamicPopulation = parsed.Division || parsed.Death;
 
             return parsed;
         }

@@ -74,6 +74,25 @@ namespace Nuclei3
             WriteRawLine(CreateLine("solver", iteration, samples, particleCount, voxelCount, 0, context, totalMs, settingsMs, inputsMs, senseMs, moveMs, trailMs, diffuseMs, parentMs, populationMs, outputsMs, densitySyncMs, setParticlesMs, setVoxelsMs, 0, 0, sensePrepareMs, senseParticlesMs, senseAntMs, moveShuffleMs, moveParticlesMs));
         }
 
+        public static void WriteGpuSolverAverages(
+            int iteration,
+            int samples,
+            int particleCount,
+            int voxelCount,
+            SolverContext context,
+            double totalMs,
+            double settingsMs,
+            double inputsMs,
+            double moveMs,
+            double diffuseMs,
+            double densitySyncMs,
+            double outputsMs,
+            double setParticlesMs,
+            double setVoxelsMs)
+        {
+            WriteRawLine(CreateLine("solver_gpu", iteration, samples, particleCount, voxelCount, 0, context, totalMs, settingsMs, inputsMs, 0, moveMs, 0, diffuseMs, 0, 0, outputsMs, densitySyncMs, setParticlesMs, setVoxelsMs, 0, 0, 0, 0, 0, 0, moveMs));
+        }
+
         public static void WritePreviewAverages(
             int call,
             int samples,
@@ -84,6 +103,17 @@ namespace Nuclei3
             double drawMs)
         {
             WriteRawLine(CreateLine("preview_particle", call, samples, particleCount, 0, previewStep, new SolverContext(), totalMs, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, rebuildMs, drawMs, 0, 0, 0, 0, 0));
+        }
+
+        public static void WriteSolverGpuPreviewAverages(
+            int call,
+            int samples,
+            int particleCount,
+            double totalMs,
+            double rebuildMs,
+            double drawMs)
+        {
+            WriteRawLine(CreateLine("preview_solver_gpu", call, samples, particleCount, 0, 1, new SolverContext(), totalMs, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, rebuildMs, drawMs, 0, 0, 0, 0, 0));
         }
 
         public static double TicksToMilliseconds(long ticks, int samples)

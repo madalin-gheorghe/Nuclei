@@ -63,10 +63,7 @@ namespace Nuclei3
                 DA.GetData("Voxels", ref voxel);
             } else
             {
-                voxel = null;
-                voxelPoints = null;
-                voxelValues = null;
-                clippingBox = BoundingBox.Empty;
+                clearPreviewCache();
             }
 
             //add value list
@@ -170,8 +167,7 @@ namespace Nuclei3
                     tridimensional = false;
                 }
 
-                ConcurrentBag<Point3d> voxePointConcurrent = new ConcurrentBag<Point3d>();
-                ConcurrentBag<double> voxelValuesConcurrent = new ConcurrentBag<double>();
+                ConcurrentBag<VoxelPreviewSample> voxelSamplesConcurrent = new ConcurrentBag<VoxelPreviewSample>();
 
                 maxExistingVoxelValue = 1;
 
@@ -192,13 +188,7 @@ namespace Nuclei3
                                     {
                                         if (min <= V.minDensity && V.minDensity <= max)
                                         {
-                                            voxelValuesConcurrent.Add(V.minDensity);
-
-                                            Point3d loc = V.loc;
-                                            if (planarXY) loc.Z = voxelSize / 12;
-                                            if (planarXZ) loc.Y = voxelSize / 12;
-                                            if (planarYZ) loc.X = voxelSize / 12;
-                                            voxePointConcurrent.Add(loc);
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.minDensity, voxelSize / 12);
                                         }
                                     }
                                 }
@@ -209,13 +199,7 @@ namespace Nuclei3
                                     {
                                         if (min <= V.maxDensity && V.maxDensity <= max)
                                         {
-                                            voxelValuesConcurrent.Add(V.maxDensity);
-
-                                            Point3d loc = V.loc;
-                                            if (planarXY) loc.Z = voxelSize / 11;
-                                            if (planarXZ) loc.Y = voxelSize / 11;
-                                            if (planarYZ) loc.X = voxelSize / 11;
-                                            voxePointConcurrent.Add(loc);
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.maxDensity, voxelSize / 11);
                                         }
                                     }
                                 }
@@ -224,17 +208,9 @@ namespace Nuclei3
                                 {
                                     if (V.speedMultiplier > 0.01)
                                     {
-                                        if (maxExistingVoxelValue < V.speedMultiplier) maxExistingVoxelValue = V.speedMultiplier;
-
                                         if (min <= V.speedMultiplier && V.speedMultiplier <= max)
                                         {
-                                            voxelValuesConcurrent.Add(V.speedMultiplier);
-
-                                            Point3d loc = V.loc;
-                                            if (planarXY) loc.Z = voxelSize / 10;
-                                            if (planarXZ) loc.Y = voxelSize / 10;
-                                            if (planarYZ) loc.X = voxelSize / 10;
-                                            voxePointConcurrent.Add(loc);
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.speedMultiplier, voxelSize / 10);
                                         }
                                     }
                                 }
@@ -243,17 +219,9 @@ namespace Nuclei3
                                 {
                                     if (V.sensorDistanceMultiplier > 0.01)
                                     {
-                                        if (maxExistingVoxelValue < V.sensorDistanceMultiplier) maxExistingVoxelValue = V.sensorDistanceMultiplier;
-
                                         if (min <= V.sensorDistanceMultiplier && V.sensorDistanceMultiplier <= max)
                                         {
-                                            voxelValuesConcurrent.Add(V.sensorDistanceMultiplier);
-
-                                            Point3d loc = V.loc;
-                                            if (planarXY) loc.Z = voxelSize / 9;
-                                            if (planarXZ) loc.Y = voxelSize / 9;
-                                            if (planarYZ) loc.X = voxelSize / 9;
-                                            voxePointConcurrent.Add(loc);
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.sensorDistanceMultiplier, voxelSize / 9);
                                         }
                                     }
                                 }
@@ -262,17 +230,9 @@ namespace Nuclei3
                                 {
                                     if (V.sensorAngleMultiplier > 0.01)
                                     {
-                                        if (maxExistingVoxelValue < V.sensorAngleMultiplier) maxExistingVoxelValue = V.sensorAngleMultiplier;
-
                                         if (min <= V.sensorAngleMultiplier && V.sensorAngleMultiplier <= max)
                                         {
-                                            voxelValuesConcurrent.Add(V.sensorAngleMultiplier);
-
-                                            Point3d loc = V.loc;
-                                            if (planarXY) loc.Z = voxelSize / 8;
-                                            if (planarXZ) loc.Y = voxelSize / 8;
-                                            if (planarYZ) loc.X = voxelSize / 8;
-                                            voxePointConcurrent.Add(loc);
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.sensorAngleMultiplier, voxelSize / 8);
                                         }
                                     }
                                 }
@@ -281,17 +241,9 @@ namespace Nuclei3
                                 {
                                     if (V.rotationAngleMultiplier > 0.01)
                                     {
-                                        if (maxExistingVoxelValue < V.rotationAngleMultiplier) maxExistingVoxelValue = V.rotationAngleMultiplier;
-
                                         if (min <= V.rotationAngleMultiplier && V.rotationAngleMultiplier <= max)
                                         {
-                                            voxelValuesConcurrent.Add(V.rotationAngleMultiplier);
-
-                                            Point3d loc = V.loc;
-                                            if (planarXY) loc.Z = voxelSize / 7;
-                                            if (planarXZ) loc.Y = voxelSize / 7;
-                                            if (planarYZ) loc.X = voxelSize / 7;
-                                            voxePointConcurrent.Add(loc);
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.rotationAngleMultiplier, voxelSize / 7);
                                         }
                                     }
                                 }
@@ -300,17 +252,9 @@ namespace Nuclei3
                                 {
                                     if (V.food > 0.01)
                                     {
-                                        if(maxExistingVoxelValue < V.food) maxExistingVoxelValue = V.food;
-
                                         if (min <= V.food && V.food <= max)
                                         {
-                                            voxelValuesConcurrent.Add(V.food);
-
-                                            Point3d loc = V.loc;
-                                            if (planarXY) loc.Z = voxelSize / 2.5;
-                                            if (planarXZ) loc.Y = voxelSize / 2.5;
-                                            if (planarYZ) loc.X = voxelSize / 2.5;
-                                            voxePointConcurrent.Add(loc);
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.food, voxelSize / 2.5);
                                         }
                                     }
                                 }
@@ -321,13 +265,7 @@ namespace Nuclei3
                                     {
                                         if (min <= V.density && V.density <= max)
                                         {
-                                            voxelValuesConcurrent.Add(V.density);
-
-                                            Point3d loc = V.loc;
-                                            if (planarXY) loc.Z = voxelSize / 4;
-                                            if (planarXZ) loc.Y = voxelSize / 4;
-                                            if (planarYZ) loc.X = voxelSize / 4;
-                                            voxePointConcurrent.Add(loc);
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.density, voxelSize / 4);
                                         }
                                     }
                                 }
@@ -338,13 +276,7 @@ namespace Nuclei3
                                     {
                                         if (min <= V.towardsFoodPheromone && V.towardsFoodPheromone <= max)
                                         {
-                                            voxelValuesConcurrent.Add(V.towardsFoodPheromone);
-
-                                            Point3d loc = V.loc;
-                                            if (planarXY) loc.Z = voxelSize / 3;
-                                            if (planarXZ) loc.Y = voxelSize / 3;
-                                            if (planarYZ) loc.X = voxelSize / 3;
-                                            voxePointConcurrent.Add(loc);
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.towardsFoodPheromone, voxelSize / 3);
                                         }
                                     }
                                 }
@@ -355,13 +287,7 @@ namespace Nuclei3
                                     {
                                         if (min <= V.towardsBasePheromone && V.towardsBasePheromone <= max)
                                         {
-                                            voxelValuesConcurrent.Add(V.towardsBasePheromone);
-
-                                            Point3d loc = V.loc;
-                                            if (planarXY) loc.Z = voxelSize / 5;
-                                            if (planarXZ) loc.Y = voxelSize / 5;
-                                            if (planarYZ) loc.X = voxelSize / 5;
-                                            voxePointConcurrent.Add(loc);
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.towardsBasePheromone, voxelSize / 5);
                                         }
                                     }
                                 }
@@ -371,15 +297,20 @@ namespace Nuclei3
                 }
                 );
 
-                voxelPoints = voxePointConcurrent.ToList();
-                voxelValues = voxelValuesConcurrent.ToList();
+                buildCachedPointCloud(voxelSamplesConcurrent);
                 updateClippingBox();
+            }
+            else
+            {
+                clearPreviewCache();
             }
         }
 
         public override void DrawViewportMeshes(IGH_PreviewArgs args)
         {
-            base.DrawViewportWires(args);
+            base.DrawViewportMeshes(args);
+
+            if (Hidden || Locked || voxelPointCloud == null || voxelPointCloud.Count == 0) return;
 
             //draw background polygon
             if (!Globals.tridimensional)
@@ -387,27 +318,17 @@ namespace Nuclei3
                 args.Display.DrawPolygon(Globals.bgPolygon, Color.Black, true);
             }
 
-            //voxels
-            voxelPointCloud = new PointCloud();
-
-            if (voxelPoints != null)
-            {
-
-                for (int i = 0; i < voxelPoints.Count; i++)
-                {
-                    Point3d p = voxelPoints[i];
-                    double value = voxelValues[i];
-
-                    voxelPointCloud.Add(p, retrieveVoxelColor(value));
-                }
-
-                if (voxelPointCloud.Count > 0) args.Display.DrawPointCloud(voxelPointCloud, (int) 3);
-            }
+            args.Display.DrawPointCloud(voxelPointCloud, 3);
         }
 
         public override BoundingBox ClippingBox
         {
             get { return clippingBox; }
+        }
+
+        internal bool WantsSolverVoxelOutput
+        {
+            get { return !Hidden && !Locked; }
         }
 
         void updateClippingBox()
@@ -417,6 +338,46 @@ namespace Nuclei3
 
             clippingBox = new BoundingBox(voxelPoints);
             clippingBox.Inflate(Math.Max(Globals.voxelSize, 1.0));
+        }
+
+        void clearPreviewCache()
+        {
+            voxel = null;
+            voxelPoints = null;
+            voxelValues = null;
+            voxelPointCloud = null;
+            clippingBox = BoundingBox.Empty;
+        }
+
+        void addPreviewSample(ConcurrentBag<VoxelPreviewSample> samples, Voxel V, double value, double planarOffset)
+        {
+            Point3d loc = V.loc;
+            if (planarXY) loc.Z = planarOffset;
+            if (planarXZ) loc.Y = planarOffset;
+            if (planarYZ) loc.X = planarOffset;
+            samples.Add(new VoxelPreviewSample(loc, value));
+        }
+
+        void buildCachedPointCloud(ConcurrentBag<VoxelPreviewSample> samples)
+        {
+            voxelPoints = new List<Point3d>(samples.Count);
+            voxelValues = new List<double>(samples.Count);
+            voxelPointCloud = new PointCloud();
+
+            if (2 <= valueIndex && valueIndex <= 6)
+            {
+                foreach (VoxelPreviewSample sample in samples)
+                {
+                    if (maxExistingVoxelValue < sample.Value) maxExistingVoxelValue = sample.Value;
+                }
+            }
+
+            foreach (VoxelPreviewSample sample in samples)
+            {
+                voxelPoints.Add(sample.Point);
+                voxelValues.Add(sample.Value);
+                voxelPointCloud.Add(sample.Point, retrieveVoxelColor(sample.Value));
+            }
         }
 
 
@@ -448,6 +409,18 @@ namespace Nuclei3
         PointCloud voxelPointCloud;
         BoundingBox clippingBox = BoundingBox.Empty;
 
+        struct VoxelPreviewSample
+        {
+            public VoxelPreviewSample(Point3d point, double value)
+            {
+                Point = point;
+                Value = value;
+            }
+
+            public Point3d Point;
+            public double Value;
+        }
+
         //-------------------------------------------------------------------
 
         void initializeCustomColour()
@@ -471,6 +444,8 @@ namespace Nuclei3
             Color voxelColor = Color.Black;
 
             int index = (int)Math.Floor(d / maxExistingVoxelValue * 255);
+            if (index < 0) index = 0;
+            if (index > 255) index = 255;
 
             if (colour.R == 0 && colour.G == 0 && colour.B == 0)
             {
