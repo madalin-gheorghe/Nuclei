@@ -142,6 +142,11 @@ namespace Nuclei3
                         settingsSupported = false;
                         AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, unsupportedGpuReason);
                     }
+                    else if (!UpdateLiveVoxelBehaviorFields(inputVoxels, inputParticleGroups))
+                    {
+                        settingsSupported = false;
+                        AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, unsupportedGpuReason);
+                    }
                     inputsTicks += Stopwatch.GetTimestamp() - stageStart;
                 }
                 catch (Exception ex)
@@ -234,6 +239,7 @@ namespace Nuclei3
         {
             SolverGpuInputSnapshot snapshot = SolverGpuInputSnapshot.Capture(inputVoxels, inputParticleGroups);
             voxels = snapshot.Voxels;
+            inputVoxelReference = inputVoxels;
             particles = snapshot.Particles;
             resX = snapshot.ResX;
             resY = snapshot.ResY;
@@ -316,6 +322,32 @@ namespace Nuclei3
                 && !HasAntParticleGroups(inputParticleGroups)
                 && InputParticleGroupCountsMatch(inputParticleGroups)
                 && CountInputParticles(inputParticleGroups) == particleCount;
+        }
+
+        bool UpdateLiveVoxelBehaviorFields(Voxel[,,] inputVoxels, List<ParticleGroup> inputParticleGroups)
+        {
+            if (fullSolverEngine == null || ReferenceEquals(inputVoxels, inputVoxelReference))
+            {
+                return true;
+            }
+
+            SolverGpuInputSnapshot snapshot = SolverGpuInputSnapshot.Capture(inputVoxels, inputParticleGroups);
+            if (snapshot.ResX != resX || snapshot.ResY != resY || snapshot.ResZ != resZ)
+            {
+                unsupportedGpuReason = "GPU voxel behavior map update failed because voxel resolution changed.";
+                return false;
+            }
+
+            if (!fullSolverEngine.UpdateVoxelBehaviorFields(snapshot))
+            {
+                unsupportedGpuReason = "GPU voxel behavior map update failed.";
+                return false;
+            }
+
+            voxels = snapshot.Voxels;
+            activeVoxelCount = snapshot.ActiveVoxelCount;
+            inputVoxelReference = inputVoxels;
+            return true;
         }
 
         bool InputParticleGroupCountsMatch(List<ParticleGroup> inputParticleGroups)
@@ -1092,6 +1124,7 @@ namespace Nuclei3
         GpuComputeSmokeTestResult gpuStatus;
         GpuFullSlimeSolverEngine fullSolverEngine;
         Voxel[,,] voxels;
+        Voxel[,,] inputVoxelReference;
         ParticleList particles;
         int resX;
         int resY;
