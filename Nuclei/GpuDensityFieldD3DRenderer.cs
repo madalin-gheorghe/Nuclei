@@ -17,8 +17,9 @@ namespace Nuclei3
 {
     internal sealed class GpuDensityFieldD3DRenderer
     {
-        const int ConstantBufferFloatCount = 36;
+        const int ConstantBufferFloatCount = 64;
         const int ConstantBufferBytes = ConstantBufferFloatCount * sizeof(float);
+        const int FullscreenVertexCount = 3;
         const string StatusPath = @"C:\Nuclei\BenchmarkSuite1\NucleiGpuDensityFieldRenderer.txt";
 
         static readonly GpuDensityFieldD3DRenderer instance = new GpuDensityFieldD3DRenderer();
@@ -82,13 +83,16 @@ namespace Nuclei3
                     return false;
                 }
 
-                UpdateConstants(e.Viewport, frame);
+                if (!UpdateConstants(e.Viewport, frame))
+                {
+                    return false;
+                }
 
                 D3DStateSnapshot snapshot = D3DStateSnapshot.Capture(context);
                 try
                 {
                     context.IASetInputLayout(null);
-                    context.IASetPrimitiveTopology(PrimitiveTopology.TriangleStrip);
+                    context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
 
                     context.VSSetShader(vertexShader);
                     context.GSSetShader(null);
@@ -101,7 +105,7 @@ namespace Nuclei3
                     context.OMSetDepthStencilState(depthDisabledState, 0);
                     context.RSSetState(rasterizerState);
 
-                    context.Draw(4, 0);
+                    context.Draw(FullscreenVertexCount, 0);
                     context.PSSetShaderResource(0, null);
                 }
                 finally
@@ -185,27 +189,79 @@ namespace Nuclei3
             }
         }
 
-        void UpdateConstants(RhinoViewport viewport, GpuDensityFieldPreviewFrame frame)
+        bool UpdateConstants(RhinoViewport viewport, GpuDensityFieldPreviewFrame frame)
         {
-            Transform worldToScreen = viewport.GetTransform(CoordinateSystem.World, CoordinateSystem.Screen);
-            Point3d origin = frame.Origin;
-            Vector3d axisU = frame.AxisU;
-            Vector3d axisV = frame.AxisV;
+            bool volumeMode = frame.VolumeMode;
+            double[] screenToUv = new double[8];
+            if (!volumeMode)
+            {
+                Transform worldToScreen = viewport.GetTransform(CoordinateSystem.World, CoordinateSystem.Screen);
+                Point3d origin = frame.Origin;
+                Vector3d axisU = frame.AxisU;
+                Vector3d axisV = frame.AxisV;
+                if (!TryCreateScreenToUv(
+                    worldToScreen,
+                    origin,
+                    origin + axisU,
+                    origin + axisV,
+                    origin + axisU + axisV,
+                    out screenToUv))
+                {
+                    return false;
+                }
+            }
+
+            Transform screenToWorld = viewport.GetTransform(CoordinateSystem.Screen, CoordinateSystem.World);
+            int maxResolution = Math.Max(frame.ResX, Math.Max(frame.ResY, frame.ResZ));
+            int automaticVolumeSteps = Math.Min(112, Math.Max(32, maxResolution / 2));
+            int volumeSteps = volumeMode
+                ? (frame.VolumeSampleCount > 0 ? ClampInt(frame.VolumeSampleCount, 8, 160) : automaticVolumeSteps)
+                : 0;
+            float volumeOpacity = ClampFloat(frame.VolumeOpacity, 0.0f, 12.0f);
+            float volumeContrast = frame.VolumeContrast > 0
+                ? ClampFloat(frame.VolumeContrast, 0.01f, 12.0f)
+                : (frame.PreviewScale > 0 ? ClampFloat(frame.PreviewScale, 0.01f, 12.0f) : 1.0f);
+            float planarBackground = !volumeMode && (frame.ResX == 1 || frame.ResY == 1 || frame.ResZ == 1) ? 1.0f : 0.0f;
 
             float[] constants =
             {
-                (float)worldToScreen.M00, (float)worldToScreen.M01, (float)worldToScreen.M02, (float)worldToScreen.M03,
-                (float)worldToScreen.M10, (float)worldToScreen.M11, (float)worldToScreen.M12, (float)worldToScreen.M13,
-                (float)worldToScreen.M20, (float)worldToScreen.M21, (float)worldToScreen.M22, (float)worldToScreen.M23,
-                (float)worldToScreen.M30, (float)worldToScreen.M31, (float)worldToScreen.M32, (float)worldToScreen.M33,
+                (float)screenToUv[0], (float)screenToUv[1], (float)screenToUv[2], 0.0f,
+                (float)screenToUv[3], (float)screenToUv[4], (float)screenToUv[5], 0.0f,
+                (float)screenToUv[6], (float)screenToUv[7], 1.0f, 0.0f,
+                0.0f, 0.0f, 0.0f, 0.0f,
                 Math.Max(1.0f, viewport.Size.Width),
                 Math.Max(1.0f, viewport.Size.Height),
                 Math.Max(1.0f, frame.Width),
                 Math.Max(1.0f, frame.Height),
-                (float)origin.X, (float)origin.Y, (float)origin.Z, 0.0f,
-                (float)axisU.X, (float)axisU.Y, (float)axisU.Z, 0.0f,
-                (float)axisV.X, (float)axisV.Y, (float)axisV.Z, 0.0f,
-                0.92f, 1.35f, 0.0f, 0.0f
+                frame.MinimumThreshold,
+                frame.MaximumThreshold,
+                frame.UseCustomColor ? 1.0f : 0.0f,
+                frame.ValueIndex,
+                frame.ColorR,
+                frame.ColorG,
+                frame.ColorB,
+                frame.ColorA,
+                0.0f, 0.0f, 0.0f, 0.0f,
+                0.92f,
+                volumeContrast,
+                planarBackground,
+                0.0f,
+                (float)screenToWorld.M00, (float)screenToWorld.M01, (float)screenToWorld.M02, (float)screenToWorld.M03,
+                (float)screenToWorld.M10, (float)screenToWorld.M11, (float)screenToWorld.M12, (float)screenToWorld.M13,
+                (float)screenToWorld.M20, (float)screenToWorld.M21, (float)screenToWorld.M22, (float)screenToWorld.M23,
+                (float)screenToWorld.M30, (float)screenToWorld.M31, (float)screenToWorld.M32, (float)screenToWorld.M33,
+                frame.ResX * frame.VoxelSize,
+                frame.ResY * frame.VoxelSize,
+                frame.ResZ * frame.VoxelSize,
+                volumeMode ? 1.0f : 0.0f,
+                frame.ResX,
+                frame.ResY,
+                frame.ResZ,
+                Math.Max(1, frame.AtlasColumns),
+                Math.Max(1, frame.AtlasRows),
+                volumeSteps,
+                volumeOpacity,
+                frame.VolumeRenderMode
             };
 
             MappedSubresource mapped = context.Map(constantBuffer, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
@@ -217,6 +273,148 @@ namespace Nuclei3
             {
                 context.Unmap(constantBuffer);
             }
+
+            return true;
+        }
+
+        static bool TryCreateScreenToUv(
+            Transform worldToScreen,
+            Point3d uv00,
+            Point3d uv10,
+            Point3d uv01,
+            Point3d uv11,
+            out double[] homography)
+        {
+            homography = null;
+
+            double x00, y00, x10, y10, x01, y01, x11, y11;
+            if (!TryProject(worldToScreen, uv00, out x00, out y00)) return false;
+            if (!TryProject(worldToScreen, uv10, out x10, out y10)) return false;
+            if (!TryProject(worldToScreen, uv01, out x01, out y01)) return false;
+            if (!TryProject(worldToScreen, uv11, out x11, out y11)) return false;
+
+            double[,] matrix = new double[8, 9];
+            AddHomographyRows(matrix, 0, x00, y00, 0.0, 0.0);
+            AddHomographyRows(matrix, 2, x10, y10, 1.0, 0.0);
+            AddHomographyRows(matrix, 4, x01, y01, 0.0, 1.0);
+            AddHomographyRows(matrix, 6, x11, y11, 1.0, 1.0);
+
+            double[] solved;
+            if (!SolveLinearSystem(matrix, 8, out solved)) return false;
+
+            homography = solved;
+            return true;
+        }
+
+        static bool TryProject(Transform transform, Point3d point, out double x, out double y)
+        {
+            double sx = transform.M00 * point.X + transform.M01 * point.Y + transform.M02 * point.Z + transform.M03;
+            double sy = transform.M10 * point.X + transform.M11 * point.Y + transform.M12 * point.Z + transform.M13;
+            double sw = transform.M30 * point.X + transform.M31 * point.Y + transform.M32 * point.Z + transform.M33;
+
+            x = 0;
+            y = 0;
+            if (Math.Abs(sw) < 1e-9) return false;
+
+            x = sx / sw;
+            y = sy / sw;
+            return IsFinite(x) && IsFinite(y);
+        }
+
+        static void AddHomographyRows(double[,] matrix, int row, double x, double y, double u, double v)
+        {
+            matrix[row, 0] = x;
+            matrix[row, 1] = y;
+            matrix[row, 2] = 1.0;
+            matrix[row, 6] = -u * x;
+            matrix[row, 7] = -u * y;
+            matrix[row, 8] = u;
+
+            matrix[row + 1, 3] = x;
+            matrix[row + 1, 4] = y;
+            matrix[row + 1, 5] = 1.0;
+            matrix[row + 1, 6] = -v * x;
+            matrix[row + 1, 7] = -v * y;
+            matrix[row + 1, 8] = v;
+        }
+
+        static bool SolveLinearSystem(double[,] matrix, int size, out double[] solution)
+        {
+            solution = new double[size];
+
+            for (int pivot = 0; pivot < size; pivot++)
+            {
+                int bestRow = pivot;
+                double best = Math.Abs(matrix[pivot, pivot]);
+                for (int row = pivot + 1; row < size; row++)
+                {
+                    double candidate = Math.Abs(matrix[row, pivot]);
+                    if (candidate > best)
+                    {
+                        best = candidate;
+                        bestRow = row;
+                    }
+                }
+
+                if (best < 1e-9) return false;
+
+                if (bestRow != pivot)
+                {
+                    for (int column = pivot; column <= size; column++)
+                    {
+                        double tmp = matrix[pivot, column];
+                        matrix[pivot, column] = matrix[bestRow, column];
+                        matrix[bestRow, column] = tmp;
+                    }
+                }
+
+                double divisor = matrix[pivot, pivot];
+                for (int column = pivot; column <= size; column++)
+                {
+                    matrix[pivot, column] /= divisor;
+                }
+
+                for (int row = 0; row < size; row++)
+                {
+                    if (row == pivot) continue;
+
+                    double factor = matrix[row, pivot];
+                    if (Math.Abs(factor) < 1e-12) continue;
+
+                    for (int column = pivot; column <= size; column++)
+                    {
+                        matrix[row, column] -= factor * matrix[pivot, column];
+                    }
+                }
+            }
+
+            for (int row = 0; row < size; row++)
+            {
+                solution[row] = matrix[row, size];
+                if (!IsFinite(solution[row])) return false;
+            }
+
+            return true;
+        }
+
+        static bool IsFinite(double value)
+        {
+            return !double.IsNaN(value) && !double.IsInfinity(value);
+        }
+
+        static int ClampInt(int value, int minimum, int maximum)
+        {
+            if (value < minimum) return minimum;
+            if (value > maximum) return maximum;
+            return value;
+        }
+
+        static float ClampFloat(float value, float minimum, float maximum)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value)) return minimum;
+            if (value < minimum) return minimum;
+            if (value > maximum) return maximum;
+            return value;
         }
 
         SharedTextureView GetSharedTextureView(Guid solverId)
@@ -423,12 +621,19 @@ namespace Nuclei3
         const string ShaderSource = @"
 cbuffer FieldConstants : register(b0)
 {
-    row_major float4x4 WorldToScreen;
+    float4 ScreenToUv0;
+    float4 ScreenToUv1;
+    float4 ScreenToUv2;
+    float4 UnusedTransform;
     float4 ViewportAndTexture;
-    float4 Origin;
-    float4 AxisU;
-    float4 AxisV;
+    float4 Thresholds;
+    float4 CustomColor;
+    float4 Unused2;
     float4 Style;
+    row_major float4x4 ScreenToWorld;
+    float4 VolumeBox;
+    float4 VolumeGrid;
+    float4 VolumeAtlas;
 };
 
 Texture2D<float> DensityTexture : register(t0);
@@ -436,55 +641,302 @@ Texture2D<float> DensityTexture : register(t0);
 struct VSOutput
 {
     float4 Position : SV_POSITION;
-    float2 UV : TEXCOORD0;
 };
-
-float2 VertexUv(uint vertexId)
-{
-    if (vertexId == 0) return float2(0.0, 0.0);
-    if (vertexId == 1) return float2(0.0, 1.0);
-    if (vertexId == 2) return float2(1.0, 0.0);
-    return float2(1.0, 1.0);
-}
 
 VSOutput VSMain(uint vertexId : SV_VertexID)
 {
     VSOutput output;
-    float2 uv = VertexUv(vertexId);
-    float3 worldPosition = Origin.xyz + AxisU.xyz * uv.x + AxisV.xyz * uv.y;
-    float4 screenPosition = mul(WorldToScreen, float4(worldPosition, 1.0));
-
-    if (abs(screenPosition.w) <= 0.000001)
+    if (vertexId == 0)
     {
-        output.Position = float4(10.0, 10.0, 0.5, 1.0);
-        output.UV = uv;
-        return output;
+        output.Position = float4(-1.0, -1.0, 0.52, 1.0);
+    }
+    else if (vertexId == 1)
+    {
+        output.Position = float4(-1.0, 3.0, 0.52, 1.0);
+    }
+    else
+    {
+        output.Position = float4(3.0, -1.0, 0.52, 1.0);
     }
 
-    float2 viewportSize = max(ViewportAndTexture.xy, float2(1.0, 1.0));
-    float2 clientPosition = screenPosition.xy / screenPosition.w;
-    float2 clipPosition = float2((clientPosition.x / viewportSize.x) * 2.0 - 1.0, 1.0 - (clientPosition.y / viewportSize.y) * 2.0);
-
-    output.Position = float4(clipPosition, 0.52, 1.0);
-    output.UV = uv;
     return output;
 }
 
-float4 PSMain(VSOutput input) : SV_Target
+float2 ScreenToUv(float2 screen)
 {
-    float2 textureSize = max(ViewportAndTexture.zw, float2(1.0, 1.0));
-    int2 texel = clamp((int2)floor(saturate(input.UV) * textureSize), int2(0, 0), (int2)textureSize - int2(1, 1));
-    float value = DensityTexture.Load(int3(texel, 0));
-    float n = saturate(value * Style.y);
+    float denom = dot(ScreenToUv2.xyz, float3(screen, 1.0));
+    if (abs(denom) <= 0.000001)
+    {
+        return float2(-10.0, -10.0);
+    }
 
-    clip(n - 0.001);
+    float u = dot(ScreenToUv0.xyz, float3(screen, 1.0)) / denom;
+    float v = dot(ScreenToUv1.xyz, float3(screen, 1.0)) / denom;
+    return float2(u, v);
+}
 
+bool InPreviewRange(float value)
+{
+    bool allowZero = Thresholds.w > 0.5 && Thresholds.w < 1.5;
+    return (allowZero || value > 0.001) && value >= Thresholds.x && value <= Thresholds.y;
+}
+
+float3 PreviewColor(float value, float n)
+{
     float glow = smoothstep(0.08, 0.95, n);
     float hot = smoothstep(0.55, 1.0, n);
     float3 baseColor = lerp(float3(0.01, 0.025, 0.035), float3(0.10, 0.92, 0.72), glow);
     float3 color = lerp(baseColor, float3(1.0, 0.78, 0.28), hot);
-    float alpha = saturate(0.12 + n * Style.x);
+    if (Thresholds.z > 0.5)
+    {
+        return CustomColor.rgb;
+    }
+
+    if (Thresholds.w < 6.5)
+    {
+        return float3(n, n, n);
+    }
+
+    return color;
+}
+
+float4 RenderPlane(VSOutput input)
+{
+    float2 uv = ScreenToUv(input.Position.xy);
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0)
+    {
+        clip(-1.0);
+    }
+
+    float2 textureSize = max(ViewportAndTexture.zw, float2(1.0, 1.0));
+    int2 texel = clamp((int2)floor(saturate(uv) * textureSize), int2(0, 0), (int2)textureSize - int2(1, 1));
+    float value = DensityTexture.Load(int3(texel, 0));
+    bool inRange = InPreviewRange(value);
+    float n = saturate(value * Style.y);
+
+    if (Style.z <= 0.5)
+    {
+        if (!inRange)
+        {
+            clip(-1.0);
+        }
+    }
+
+    float3 color = PreviewColor(value, n);
+    if (Thresholds.z > 0.5)
+    {
+        color = CustomColor.rgb * n;
+    }
+    else if (Thresholds.w > 0.5 && Thresholds.w < 1.5 && value < 0.01)
+    {
+        color = float3(0.070588, 0.047059, 0.129412);
+    }
+
+    if (Style.z > 0.5 && !inRange)
+    {
+        color = float3(0.0, 0.0, 0.0);
+    }
+    float alpha = Style.z > 0.5 ? 1.0 : saturate(0.12 + n * Style.x);
     return float4(color, alpha);
+}
+
+float3 ScreenToWorldPoint(float2 screen, float depth)
+{
+    float4 world = mul(ScreenToWorld, float4(screen.x, screen.y, depth, 1.0));
+    if (abs(world.w) <= 0.000001)
+    {
+        return world.xyz;
+    }
+
+    return world.xyz / world.w;
+}
+
+bool IntersectVolumeBox(float3 origin, float3 direction, out float enterT, out float exitT)
+{
+    float3 safeDirection = direction;
+    safeDirection.x = abs(safeDirection.x) < 0.000001 ? (safeDirection.x < 0.0 ? -0.000001 : 0.000001) : safeDirection.x;
+    safeDirection.y = abs(safeDirection.y) < 0.000001 ? (safeDirection.y < 0.0 ? -0.000001 : 0.000001) : safeDirection.y;
+    safeDirection.z = abs(safeDirection.z) < 0.000001 ? (safeDirection.z < 0.0 ? -0.000001 : 0.000001) : safeDirection.z;
+
+    float3 boxMin = float3(0.0, 0.0, 0.0);
+    float3 boxMax = max(VolumeBox.xyz, float3(0.0001, 0.0001, 0.0001));
+    float3 invDirection = 1.0 / safeDirection;
+    float3 t0 = (boxMin - origin) * invDirection;
+    float3 t1 = (boxMax - origin) * invDirection;
+    float3 tNear = min(t0, t1);
+    float3 tFar = max(t0, t1);
+    enterT = max(max(tNear.x, tNear.y), tNear.z);
+    exitT = min(min(tFar.x, tFar.y), tFar.z);
+    return exitT > max(enterT, 0.0);
+}
+
+float LoadVolumeAtlasVoxel(int x, int y, int z)
+{
+    int resX = max((int)VolumeGrid.x, 1);
+    int resY = max((int)VolumeGrid.y, 1);
+    int resZ = max((int)VolumeGrid.z, 1);
+    int columns = max((int)VolumeGrid.w, 1);
+    int rows = max((int)VolumeAtlas.x, 1);
+
+    x = clamp(x, 0, resX - 1);
+    y = clamp(y, 0, resY - 1);
+    z = clamp(z, 0, resZ - 1);
+
+    int column = z % columns;
+    int row = z / columns;
+    if (row >= rows)
+    {
+        return 0.0;
+    }
+
+    return DensityTexture.Load(int3(column * resX + x, row * resY + y, 0));
+}
+
+float SampleVolumeAtlasNearest(float3 worldPosition)
+{
+    int resX = max((int)VolumeGrid.x, 1);
+    int resY = max((int)VolumeGrid.y, 1);
+    int resZ = max((int)VolumeGrid.z, 1);
+
+    float3 normalized = saturate(worldPosition / max(VolumeBox.xyz, float3(0.0001, 0.0001, 0.0001)));
+    int x = clamp((int)floor(normalized.x * (float)resX), 0, resX - 1);
+    int y = clamp((int)floor(normalized.y * (float)resY), 0, resY - 1);
+    int z = clamp((int)floor(normalized.z * (float)resZ), 0, resZ - 1);
+    return LoadVolumeAtlasVoxel(x, y, z);
+}
+
+float SampleVolumeAtlasTrilinear(float3 worldPosition)
+{
+    int resX = max((int)VolumeGrid.x, 1);
+    int resY = max((int)VolumeGrid.y, 1);
+    int resZ = max((int)VolumeGrid.z, 1);
+
+    float3 normalized = saturate(worldPosition / max(VolumeBox.xyz, float3(0.0001, 0.0001, 0.0001)));
+    float3 coord = normalized * float3((float)max(resX - 1, 0), (float)max(resY - 1, 0), (float)max(resZ - 1, 0));
+    int x0 = clamp((int)floor(coord.x), 0, resX - 1);
+    int y0 = clamp((int)floor(coord.y), 0, resY - 1);
+    int z0 = clamp((int)floor(coord.z), 0, resZ - 1);
+    int x1 = min(x0 + 1, resX - 1);
+    int y1 = min(y0 + 1, resY - 1);
+    int z1 = min(z0 + 1, resZ - 1);
+    float3 f = frac(coord);
+
+    float c000 = LoadVolumeAtlasVoxel(x0, y0, z0);
+    float c100 = LoadVolumeAtlasVoxel(x1, y0, z0);
+    float c010 = LoadVolumeAtlasVoxel(x0, y1, z0);
+    float c110 = LoadVolumeAtlasVoxel(x1, y1, z0);
+    float c001 = LoadVolumeAtlasVoxel(x0, y0, z1);
+    float c101 = LoadVolumeAtlasVoxel(x1, y0, z1);
+    float c011 = LoadVolumeAtlasVoxel(x0, y1, z1);
+    float c111 = LoadVolumeAtlasVoxel(x1, y1, z1);
+
+    float c00 = lerp(c000, c100, f.x);
+    float c10 = lerp(c010, c110, f.x);
+    float c01 = lerp(c001, c101, f.x);
+    float c11 = lerp(c011, c111, f.x);
+    float c0 = lerp(c00, c10, f.y);
+    float c1 = lerp(c01, c11, f.y);
+    return lerp(c0, c1, f.z);
+}
+
+float4 RenderVolume(VSOutput input)
+{
+    float3 nearWorld = ScreenToWorldPoint(input.Position.xy, 0.0);
+    float3 farWorld = ScreenToWorldPoint(input.Position.xy, 1.0);
+    float3 direction = normalize(farWorld - nearWorld);
+
+    float enterT;
+    float exitT;
+    if (!IntersectVolumeBox(nearWorld, direction, enterT, exitT))
+    {
+        clip(-1.0);
+    }
+
+    int steps = clamp((int)VolumeAtlas.y, 8, 160);
+    float startT = max(enterT, 0.0);
+    float travel = max(exitT - startT, 0.0001);
+    float stepLength = travel / (float)steps;
+    float t = startT + stepLength * 0.5;
+    bool maximumIntensityMode = VolumeAtlas.w > 0.5;
+
+    if (maximumIntensityMode)
+    {
+        float maximumValue = 0.0;
+
+        [loop]
+        for (int i = 0; i < 160; i++)
+        {
+            if (i >= steps)
+            {
+                break;
+            }
+
+            float3 p = nearWorld + direction * t;
+            float value = SampleVolumeAtlasTrilinear(p);
+            if (InPreviewRange(value))
+            {
+                maximumValue = max(maximumValue, value);
+            }
+
+            t += stepLength;
+        }
+
+        if (maximumValue <= 0.002)
+        {
+            clip(-1.0);
+        }
+
+        float n = saturate(maximumValue * Style.y);
+        float3 color = PreviewColor(maximumValue, n);
+        if (Thresholds.z > 0.5)
+        {
+            color = CustomColor.rgb * n;
+        }
+
+        float alpha = saturate((0.08 + n * 0.92) * VolumeAtlas.z);
+        return float4(color, alpha);
+    }
+
+    float4 accumulated = float4(0.0, 0.0, 0.0, 0.0);
+
+    [loop]
+    for (int i = 0; i < 160; i++)
+    {
+        if (i >= steps || accumulated.a > 0.96)
+        {
+            break;
+        }
+
+        float3 p = nearWorld + direction * t;
+        float value = SampleVolumeAtlasNearest(p);
+        if (InPreviewRange(value))
+        {
+            float n = saturate(value * Style.y);
+            float sampleAlpha = saturate(n * (2.35 / max((float)steps, 1.0)) * VolumeAtlas.z);
+            float3 color = PreviewColor(value, n);
+            accumulated.rgb += (1.0 - accumulated.a) * sampleAlpha * color;
+            accumulated.a += (1.0 - accumulated.a) * sampleAlpha;
+        }
+
+        t += stepLength;
+    }
+
+    if (accumulated.a <= 0.002)
+    {
+        clip(-1.0);
+    }
+
+    return float4(accumulated.rgb / max(accumulated.a, 0.001), accumulated.a);
+}
+
+float4 PSMain(VSOutput input) : SV_Target
+{
+    if (VolumeBox.w > 0.5)
+    {
+        return RenderVolume(input);
+    }
+
+    return RenderPlane(input);
 }";
     }
 }

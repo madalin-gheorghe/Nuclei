@@ -125,6 +125,7 @@ namespace Nuclei3
         int densityPreviewHeight;
         int densityPreviewAxisMode;
         int densityPreviewSlice;
+        int densityPreviewScale = 1;
         long densityPreviewVersion = 0;
         readonly IntPtr[] staticFieldPreviewSharedHandles = new IntPtr[VoxelPreviewField.StaticFieldCount];
         readonly int[] staticFieldPreviewWidths = new int[VoxelPreviewField.StaticFieldCount];
@@ -141,7 +142,7 @@ namespace Nuclei3
         int particlePreviewHeight;
         long particlePreviewVersion = 0;
 
-        public GpuFullSlimeSolverEngine(SolverGpuInputSnapshot snapshot, bool enableSharedDensityPreview, bool enableSharedParticlePreview)
+        public GpuFullSlimeSolverEngine(SolverGpuInputSnapshot snapshot, bool enableSharedDensityPreview, bool enableSharedParticlePreview, int densityPreviewScale)
         {
             if (snapshot == null)
             {
@@ -155,6 +156,7 @@ namespace Nuclei3
             particleCount = Math.Max(0, snapshot.ParticleCount);
             groupCount = Math.Max(0, snapshot.GroupCount);
             voxelSize = snapshot.VoxelSize > 0 ? snapshot.VoxelSize : 1.0f;
+            this.densityPreviewScale = NormalizeDensityPreviewScale(densityPreviewScale);
             this.enableSharedDensityPreview = enableSharedDensityPreview;
             this.enableSharedParticlePreview = enableSharedParticlePreview;
             dimX = resX * voxelSize;
@@ -203,8 +205,15 @@ namespace Nuclei3
             return resX == x && resY == y && resZ == z && particleCount == particles;
         }
 
-        public void SetSharedDensityPreviewEnabled(bool enabled, SolverGpuDimensionMode dimensionMode)
+        public void SetSharedDensityPreviewEnabled(bool enabled, SolverGpuDimensionMode dimensionMode, int previewScale)
         {
+            int normalizedScale = NormalizeDensityPreviewScale(previewScale);
+            if (densityPreviewScale != normalizedScale)
+            {
+                densityPreviewScale = normalizedScale;
+                DisposeDensityPreviewTexture();
+            }
+
             enableSharedDensityPreview = enabled;
             if (!enabled || densityPreviewTexture != null)
             {
@@ -212,6 +221,11 @@ namespace Nuclei3
             }
 
             CreateDensityPreviewTexture(dimensionMode);
+        }
+
+        static int NormalizeDensityPreviewScale(int scale)
+        {
+            return scale >= 10 ? 10 : 1;
         }
 
         public void SetSharedParticlePreviewEnabled(bool enabled)
@@ -586,7 +600,7 @@ namespace Nuclei3
             context.UpdateSubresourceSafe(snapshot.VoxelBehaviorData, voxelBehaviorBuffer, 0, 0, 0, 0, false);
             context.UpdateSubresourceSafe(snapshot.VoxelVectorData, voxelVectorBuffer, 0, 0, 0, 0, false);
             context.UpdateSubresourceSafe(snapshot.VoxelDensityLimits, voxelDensityLimitsBuffer, 0, 0, 0, 0, false);
-            InvalidateStaticFieldPreviewScales();
+            InvalidateStaticFieldPreviews();
             return true;
         }
 
@@ -634,10 +648,16 @@ namespace Nuclei3
             };
         }
 
-        public GpuDensityFieldPreviewFrame CreateVoxelFieldPreviewFrame(int valueIndex, SolverGpuDimensionMode dimensionMode, float minimumThreshold, float maximumThreshold)
+        public GpuDensityFieldPreviewFrame CreateVoxelFieldPreviewFrame(int valueIndex, SolverGpuDimensionMode dimensionMode, float minimumThreshold, float maximumThreshold, int previewScale)
         {
             if (VoxelPreviewField.IsDynamicDensity(valueIndex))
             {
+                int normalizedScale = NormalizeDensityPreviewScale(previewScale);
+                if (densityPreviewScale != normalizedScale)
+                {
+                    SetSharedDensityPreviewEnabled(true, dimensionMode, normalizedScale);
+                }
+
                 return CreateDensityFieldPreviewFrame();
             }
 
@@ -1382,6 +1402,16 @@ namespace Nuclei3
             }
         }
 
+        void InvalidateStaticFieldPreviews()
+        {
+            for (int i = 0; i < staticFieldPreviewTextures.Length; i++)
+            {
+                DisposeStaticFieldPreviewTexture(i);
+            }
+
+            InvalidateStaticFieldPreviewScales();
+        }
+
         float MaxVisibleStaticFieldValue(int fieldIndex, float minimumThreshold, float maximumThreshold)
         {
             if (staticPreviewVoxels == null)
@@ -1486,9 +1516,32 @@ namespace Nuclei3
             staticFieldPreviewScaleValid[fieldIndex] = false;
         }
 
+        void DisposeDensityPreviewTexture()
+        {
+            if (densityPreviewTextureView != null)
+            {
+                densityPreviewTextureView.Dispose();
+                densityPreviewTextureView = null;
+            }
+
+            if (densityPreviewTexture != null)
+            {
+                densityPreviewTexture.Dispose();
+                densityPreviewTexture = null;
+            }
+
+            densityPreviewSharedHandle = IntPtr.Zero;
+            densityPreviewWidth = 0;
+            densityPreviewHeight = 0;
+            densityPreviewAxisMode = 0;
+            densityPreviewSlice = 0;
+            densityPreviewVersion++;
+        }
+
         void CreateDensityPreviewTexture(SolverGpuDimensionMode dimensionMode)
         {
             ResolveDensityPreviewLayout(dimensionMode, out densityPreviewWidth, out densityPreviewHeight, out densityPreviewAxisMode, out densityPreviewSlice);
+            ApplyDensityPreviewScale(ref densityPreviewWidth, ref densityPreviewHeight);
             if (densityPreviewWidth <= 0 || densityPreviewHeight <= 0)
             {
                 WriteSharedDensityPreviewStatus("skip invalid_layout");
@@ -1498,6 +1551,7 @@ namespace Nuclei3
             WriteSharedDensityPreviewStatus(
                 "create_texture_begin width=" + densityPreviewWidth
                 + " height=" + densityPreviewHeight
+                + " scale=" + densityPreviewScale
                 + " axis=" + densityPreviewAxisMode
                 + " slice=" + densityPreviewSlice
                 + " res=" + resX + "x" + resY + "x" + resZ);
@@ -1537,6 +1591,18 @@ namespace Nuclei3
             WriteSharedDensityPreviewStatus("shared_handle=0x" + densityPreviewSharedHandle.ToInt64().ToString("X"));
             DispatchDensityPreviewPass(new SolverGpuSettings(), dimensionMode, 0);
             WriteSharedDensityPreviewStatus("initial_dispatch_ok");
+        }
+
+        void ApplyDensityPreviewScale(ref int width, ref int height)
+        {
+            int scale = Math.Max(1, densityPreviewScale);
+            if (scale == 1)
+            {
+                return;
+            }
+
+            width = Math.Min(MaxSharedPreviewTextureDimension, Math.Max(1, width * scale));
+            height = Math.Min(MaxSharedPreviewTextureDimension, Math.Max(1, height * scale));
         }
 
         void CreateParticlePreviewTexture()
@@ -2324,7 +2390,14 @@ float SampleDensity(float3 p)
     Coordinates(index, x, y, z);
     if (Wrap == 0 && IsBoundary(x, y, z)) return -1.0;
 
-    return Source[index];
+    float value = Source[index];
+    float food = VoxelDensityLimits[index].z;
+    if (food > value && food > 0.0)
+    {
+        value = food;
+    }
+
+    return value;
 }
 
 void UpdateBest(float value, int index, inout float minValue, inout float maxValue, inout int bestIndex)
@@ -2766,28 +2839,68 @@ void BuildDensityPreview(uint3 id : SV_DispatchThreadID)
     int v = id.y;
     if (u >= PreviewWidth || v >= PreviewHeight) return;
 
-    int x = u;
-    int y = v;
-    int z = PreviewSlice;
+    int sourceWidth = PreviewAxisMode == 2 ? ResY : ResX;
+    int sourceHeight = PreviewAxisMode == 0 ? ResY : ResZ;
+    sourceWidth = max(sourceWidth, 1);
+    sourceHeight = max(sourceHeight, 1);
+
+    float sourceU = PreviewWidth <= 1 ? 0.0 : ((float)u / (float)(PreviewWidth - 1)) * (float)(sourceWidth - 1);
+    float sourceV = PreviewHeight <= 1 ? 0.0 : ((float)v / (float)(PreviewHeight - 1)) * (float)(sourceHeight - 1);
+    int u0 = clamp((int)floor(sourceU), 0, sourceWidth - 1);
+    int v0 = clamp((int)floor(sourceV), 0, sourceHeight - 1);
+    int u1 = min(u0 + 1, sourceWidth - 1);
+    int v1 = min(v0 + 1, sourceHeight - 1);
+    float fu = frac(sourceU);
+    float fv = frac(sourceV);
+
+    int x00 = u0;
+    int y00 = v0;
+    int z00 = PreviewSlice;
+    int x10 = u1;
+    int y10 = v0;
+    int z10 = PreviewSlice;
+    int x01 = u0;
+    int y01 = v1;
+    int z01 = PreviewSlice;
+    int x11 = u1;
+    int y11 = v1;
+    int z11 = PreviewSlice;
 
     if (PreviewAxisMode == 1)
     {
-        x = u;
-        y = 0;
-        z = v;
+        y00 = y10 = y01 = y11 = PreviewSlice;
+        z00 = z10 = v0;
+        z01 = z11 = v1;
     }
     else if (PreviewAxisMode == 2)
     {
-        x = 0;
-        y = u;
-        z = v;
+        x00 = x10 = x01 = x11 = PreviewSlice;
+        y00 = y01 = u0;
+        y10 = y11 = u1;
+        z00 = z10 = v0;
+        z01 = z11 = v1;
     }
 
-    x = clamp(x, 0, ResX - 1);
-    y = clamp(y, 0, ResY - 1);
-    z = clamp(z, 0, ResZ - 1);
+    x00 = clamp(x00, 0, ResX - 1);
+    x10 = clamp(x10, 0, ResX - 1);
+    x01 = clamp(x01, 0, ResX - 1);
+    x11 = clamp(x11, 0, ResX - 1);
+    y00 = clamp(y00, 0, ResY - 1);
+    y10 = clamp(y10, 0, ResY - 1);
+    y01 = clamp(y01, 0, ResY - 1);
+    y11 = clamp(y11, 0, ResY - 1);
+    z00 = clamp(z00, 0, ResZ - 1);
+    z10 = clamp(z10, 0, ResZ - 1);
+    z01 = clamp(z01, 0, ResZ - 1);
+    z11 = clamp(z11, 0, ResZ - 1);
 
-    DensityPreview[int2(u, v)] = Source[FlatIndex(x, y, z)];
+    float d00 = Source[FlatIndex(x00, y00, z00)];
+    float d10 = Source[FlatIndex(x10, y10, z10)];
+    float d01 = Source[FlatIndex(x01, y01, z01)];
+    float d11 = Source[FlatIndex(x11, y11, z11)];
+    float dx0 = lerp(d00, d10, fu);
+    float dx1 = lerp(d01, d11, fu);
+    DensityPreview[int2(u, v)] = lerp(dx0, dx1, fv);
 }
 
 [numthreads(256, 1, 1)]

@@ -7,6 +7,8 @@ using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Drawing;
+using System.Windows.Forms;
+using GH_IO.Serialization;
 using static Rhino.UI.Fonts;
 
 namespace Nuclei3
@@ -17,9 +19,12 @@ namespace Nuclei3
         /// Initializes a new instance of the Voxel_Preview class.
         /// </summary>
         public Preview_Voxel()
-          : base("Preview Voxel Density", "Preview Voxel Density",
-              "Faster Preview For Voxel Density",
-              "Nuclei3", "Preview")
+          : this("Preview Voxel Density", "Preview Voxel Density", "Faster Preview For Voxel Density")
+        {
+        }
+
+        protected Preview_Voxel(string name, string nickname, string description)
+          : base(name, nickname, description, "Nuclei3", "Preview")
         {
         }
 
@@ -50,9 +55,39 @@ namespace Nuclei3
         
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
-            pManager.AddIntervalParameter("Preview Domain", "domain", "Input domain used for preview colour remapping", GH_ParamAccess.item);
-            pManager.AddIntervalParameter("Data Domain", "data", "Detected domain of the voxel values currently included in the preview", GH_ParamAccess.item);
         }
+
+        #region menu items
+
+        public override bool Write(GH_IWriter writer)
+        {
+            writer.SetBoolean("HighResolutionDisplay", highResolutionDisplay);
+            return base.Write(writer);
+        }
+
+        public override bool Read(GH_IReader reader)
+        {
+            highResolutionDisplay = true;
+            reader.TryGetBoolean("HighResolutionDisplay", ref highResolutionDisplay);
+            return base.Read(reader);
+        }
+
+        protected override void AppendAdditionalComponentMenuItems(ToolStripDropDown menu)
+        {
+            base.AppendAdditionalComponentMenuItems(menu);
+
+            var highResToggle = Menu_AppendItem(menu, "High Res Display", highResolutionDisplayHandler, true, highResolutionDisplay);
+            highResToggle.ToolTipText = "Display Slime Chemoattractants with a 10x interpolated GPU texture.";
+        }
+
+        void highResolutionDisplayHandler(object sender, EventArgs e)
+        {
+            highResolutionDisplay = !highResolutionDisplay;
+            disableGpuDensityPreview();
+            ExpireSolution(true);
+        }
+
+        #endregion
        
         /// <summary>
         /// This is the method that actually does the work.
@@ -114,8 +149,11 @@ namespace Nuclei3
             DA.GetData("Type", ref valueIndex);
             DA.GetData("Minimum Treshold", ref min);
             DA.GetData("Maximum Treshold", ref max);
-            if (Params.Input[2].SourceCount == 0) min = 0;
-            if (Params.Input[3].SourceCount == 0) max = 1;
+            bool hasMinimumInput = Params.Input[2].SourceCount != 0;
+            bool hasMaximumInput = Params.Input[3].SourceCount != 0;
+            automaticPreviewDomain = !hasMinimumInput && !hasMaximumInput;
+            if (!hasMinimumInput) min = 0;
+            if (!hasMaximumInput) max = 1;
             normalizeInputDomain();
 
             colour = Color.Black;
@@ -127,7 +165,6 @@ namespace Nuclei3
 
             if (tryUseGpuDensityPreview())
             {
-                setPreviewDomainOutput(DA);
                 return;
             }
 
@@ -320,8 +357,6 @@ namespace Nuclei3
             {
                 clearPreviewCache();
             }
-
-            setPreviewDomainOutput(DA);
         }
 
         public override void DrawViewportMeshes(IGH_PreviewArgs args)
@@ -370,6 +405,11 @@ namespace Nuclei3
             get { return Rhino.RhinoApp.ExeVersion >= 9 && !Hidden && !Locked && VoxelPreviewField.IsDynamicDensity(CurrentValueIndex()); }
         }
 
+        internal int GpuDensityPreviewScale
+        {
+            get { return highResolutionDisplay ? 10 : 1; }
+        }
+
         internal bool WantsGpuVoxelPreview
         {
             get { return Rhino.RhinoApp.ExeVersion >= 9 && !Hidden && !Locked && VoxelPreviewField.IsGpuSupported(CurrentValueIndex()); }
@@ -391,7 +431,7 @@ namespace Nuclei3
             }
 
             int currentValueIndex = CurrentValueIndex();
-            GpuDensityFieldPreviewFrame frame = solver.GetDensityFieldPreviewFrame(currentValueIndex, ValidFloat(min, 0), ValidFloat(max, float.MaxValue));
+            GpuDensityFieldPreviewFrame frame = solver.GetDensityFieldPreviewFrame(currentValueIndex, ValidFloat(min, 0), ValidFloat(max, float.MaxValue), GpuDensityPreviewScale);
             if (frame == null || !frame.IsValid)
             {
                 return null;
@@ -422,7 +462,7 @@ namespace Nuclei3
             }
 
             int currentValueIndex = CurrentValueIndex();
-            GpuDensityFieldPreviewFrame frame = solver.GetDensityFieldPreviewFrame(currentValueIndex, ValidFloat(min, 0), ValidFloat(max, float.MaxValue));
+            GpuDensityFieldPreviewFrame frame = solver.GetDensityFieldPreviewFrame(currentValueIndex, ValidFloat(min, 0), ValidFloat(max, float.MaxValue), GpuDensityPreviewScale);
             if (frame == null || !frame.IsValid)
             {
                 return false;
@@ -457,6 +497,31 @@ namespace Nuclei3
             frame.ColorG = colour.G / 255.0f;
             frame.ColorB = colour.B / 255.0f;
             frame.ColorA = colour.A > 0 ? colour.A / 255.0f : 1.0f;
+            frame.VolumeOpacity = PreviewVolumeOpacity;
+            frame.VolumeContrast = PreviewVolumeContrast;
+            frame.VolumeSampleCount = PreviewVolumeSampleCount;
+            frame.VolumeRenderMode = PreviewVolumeRenderMode;
+            frame.PreviewScale = frame.VolumeContrast;
+        }
+
+        protected virtual float PreviewVolumeOpacity
+        {
+            get { return 1.5f; }
+        }
+
+        protected virtual float PreviewVolumeContrast
+        {
+            get { return 1.5f; }
+        }
+
+        protected virtual int PreviewVolumeSampleCount
+        {
+            get { return 0; }
+        }
+
+        protected virtual int PreviewVolumeRenderMode
+        {
+            get { return 0; }
         }
 
         static float ValidFloat(double value, float fallback)
@@ -560,11 +625,23 @@ namespace Nuclei3
 
             if (double.IsPositiveInfinity(minExistingVoxelValue) || double.IsNegativeInfinity(maxExistingVoxelValue))
             {
-                minExistingVoxelValue = min;
-                maxExistingVoxelValue = max;
+                if (automaticPreviewDomain)
+                {
+                    minExistingVoxelValue = 0;
+                    maxExistingVoxelValue = 1;
+                }
+                else
+                {
+                    minExistingVoxelValue = min;
+                    maxExistingVoxelValue = max;
+                }
             }
 
-            currentDataDomain = new Interval(minExistingVoxelValue, maxExistingVoxelValue);
+            if (automaticPreviewDomain)
+            {
+                currentPreviewDomain = new Interval(minExistingVoxelValue, maxExistingVoxelValue);
+            }
+
             updatePreviewDomainMessage();
 
             foreach (VoxelPreviewSample sample in samples)
@@ -594,8 +671,8 @@ namespace Nuclei3
 
         Color colour;
 
+        bool automaticPreviewDomain = true;
         Interval currentPreviewDomain = new Interval(0, 1);
-        Interval currentDataDomain = new Interval(0, 1);
         double minExistingVoxelValue = 0;
         double maxExistingVoxelValue = 1;
 
@@ -609,6 +686,7 @@ namespace Nuclei3
         bool gpuDensityPreviewActive = false;
         SolverGPU gpuDensitySolver;
         BoundingBox gpuDensityClippingBox = BoundingBox.Empty;
+        bool highResolutionDisplay = true;
 
         struct VoxelPreviewSample
         {
@@ -687,6 +765,15 @@ namespace Nuclei3
 
         void normalizeInputDomain()
         {
+            if (automaticPreviewDomain)
+            {
+                min = double.NegativeInfinity;
+                max = double.PositiveInfinity;
+                currentPreviewDomain = new Interval(0, 1);
+                updatePreviewDomainMessage();
+                return;
+            }
+
             if (double.IsNaN(min) || double.IsInfinity(min)) min = 0;
             if (double.IsNaN(max) || double.IsInfinity(max)) max = 1;
 
@@ -698,23 +785,12 @@ namespace Nuclei3
             }
 
             currentPreviewDomain = new Interval(min, max);
-            currentDataDomain = currentPreviewDomain;
             updatePreviewDomainMessage();
-        }
-
-        void setPreviewDomainOutput(IGH_DataAccess DA)
-        {
-            DA.SetData(0, currentPreviewDomain);
-            if (Params.Output.Count > 1)
-            {
-                DA.SetData(1, currentDataDomain);
-            }
         }
 
         void updatePreviewDomainMessage()
         {
-            Message = "P " + formatDomainValue(currentPreviewDomain.T0) + " to " + formatDomainValue(currentPreviewDomain.T1)
-                + " | D " + formatDomainValue(currentDataDomain.T0) + " to " + formatDomainValue(currentDataDomain.T1);
+            Message = formatDomainValue(currentPreviewDomain.T0) + " to " + formatDomainValue(currentPreviewDomain.T1);
         }
 
         static string formatDomainValue(double value)
@@ -764,6 +840,29 @@ namespace Nuclei3
         public override Guid ComponentGuid
         {
             get { return new Guid("a95d5adc-0c7c-40c2-893f-6a9732ffdfa5"); }
+        }
+    }
+
+    public class Preview_Voxel_Fancy : Preview_Voxel
+    {
+        public Preview_Voxel_Fancy()
+          : base("Fancy Preview", "Fancy Preview", "Experimental GPU voxel preview using maximum intensity projection and interpolated sampling")
+        {
+        }
+
+        protected override int PreviewVolumeRenderMode
+        {
+            get { return 1; }
+        }
+
+        public override GH_Exposure Exposure
+        {
+            get { return GH_Exposure.secondary; }
+        }
+
+        public override Guid ComponentGuid
+        {
+            get { return new Guid("9a7dfb59-5092-4196-93be-a3d8fa1054ef"); }
         }
     }
 }
