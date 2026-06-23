@@ -1,5 +1,6 @@
 ﻿using Grasshopper.Kernel;
 using Rhino.Geometry;
+using Grasshopper.Kernel.Types;
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -35,7 +36,7 @@ namespace Nuclei3
             pManager.AddNumberParameter("Minimum Treshold", "min", "Minimum Voxel Value for Preview", GH_ParamAccess.item, 0);
             pManager[2].Optional = true;
             //3
-            pManager.AddNumberParameter("Maximum Treshold", "max", "Maximum Voxel Value for Preview", GH_ParamAccess.item, 100);
+            pManager.AddNumberParameter("Maximum Treshold", "max", "Maximum Voxel Value for Preview", GH_ParamAccess.item, 1);
             pManager[3].Optional = true;
             //4
             pManager.AddColourParameter("Colour", "colour", "The Display Colour of Voxel Values", GH_ParamAccess.item, Color.FromArgb(0,0,0,0));
@@ -49,7 +50,8 @@ namespace Nuclei3
         
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
-            //pManager.AddTextParameter("Voxel Preview", "voxelPreview", "Settings Controlling Voxel Preview. Connects to Solver's Display Input", GH_ParamAccess.list);
+            pManager.AddIntervalParameter("Preview Domain", "domain", "Input domain used for preview colour remapping", GH_ParamAccess.item);
+            pManager.AddIntervalParameter("Data Domain", "data", "Detected domain of the voxel values currently included in the preview", GH_ParamAccess.item);
         }
        
         /// <summary>
@@ -63,6 +65,7 @@ namespace Nuclei3
                 DA.GetData("Voxels", ref voxel);
             } else
             {
+                voxel = null;
                 clearPreviewCache();
             }
 
@@ -106,9 +109,14 @@ namespace Nuclei3
             }
 
             //DA.GetData("Display", ref display);
+            min = 0;
+            max = 1;
             DA.GetData("Type", ref valueIndex);
             DA.GetData("Minimum Treshold", ref min);
             DA.GetData("Maximum Treshold", ref max);
+            if (Params.Input[2].SourceCount == 0) min = 0;
+            if (Params.Input[3].SourceCount == 0) max = 1;
+            normalizeInputDomain();
 
             colour = Color.Black;
 
@@ -116,6 +124,14 @@ namespace Nuclei3
 
             initializeGlobalVoxelColors();
             initializeCustomColour();
+
+            if (tryUseGpuDensityPreview())
+            {
+                setPreviewDomainOutput(DA);
+                return;
+            }
+
+            disableGpuDensityPreview();
 
             if (voxel != null && !this.Hidden)
             {
@@ -184,7 +200,7 @@ namespace Nuclei3
 
                                 if (valueIndex == 0)
                                 {
-                                    if (V.minDensity >= 0.01)
+                                    if (V.minDensity >= 0)
                                     {
                                         if (min <= V.minDensity && V.minDensity <= max)
                                         {
@@ -195,7 +211,7 @@ namespace Nuclei3
 
                                 if (valueIndex == 1)
                                 {
-                                    if (V.maxDensity ==0 || V.maxDensity>=0.01)
+                                    if (V.maxDensity >= 0)
                                     {
                                         if (min <= V.maxDensity && V.maxDensity <= max)
                                         {
@@ -206,7 +222,7 @@ namespace Nuclei3
 
                                 if (valueIndex == 2)
                                 {
-                                    if (V.speedMultiplier > 0.01)
+                                    if (V.speedMultiplier >= 0)
                                     {
                                         if (min <= V.speedMultiplier && V.speedMultiplier <= max)
                                         {
@@ -217,7 +233,7 @@ namespace Nuclei3
 
                                 if (valueIndex == 3)
                                 {
-                                    if (V.sensorDistanceMultiplier > 0.01)
+                                    if (V.sensorDistanceMultiplier >= 0)
                                     {
                                         if (min <= V.sensorDistanceMultiplier && V.sensorDistanceMultiplier <= max)
                                         {
@@ -228,7 +244,7 @@ namespace Nuclei3
 
                                 if (valueIndex == 4)
                                 {
-                                    if (V.sensorAngleMultiplier > 0.01)
+                                    if (V.sensorAngleMultiplier >= 0)
                                     {
                                         if (min <= V.sensorAngleMultiplier && V.sensorAngleMultiplier <= max)
                                         {
@@ -239,7 +255,7 @@ namespace Nuclei3
 
                                 if (valueIndex == 5)
                                 {
-                                    if (V.rotationAngleMultiplier > 0.01)
+                                    if (V.rotationAngleMultiplier >= 0)
                                     {
                                         if (min <= V.rotationAngleMultiplier && V.rotationAngleMultiplier <= max)
                                         {
@@ -250,7 +266,7 @@ namespace Nuclei3
 
                                 if (valueIndex == 6)
                                 {
-                                    if (V.food > 0.01)
+                                    if (V.food >= 0)
                                     {
                                         if (min <= V.food && V.food <= max)
                                         {
@@ -304,11 +320,15 @@ namespace Nuclei3
             {
                 clearPreviewCache();
             }
+
+            setPreviewDomainOutput(DA);
         }
 
         public override void DrawViewportMeshes(IGH_PreviewArgs args)
         {
             base.DrawViewportMeshes(args);
+
+            if (gpuDensityPreviewActive) return;
 
             if (Hidden || Locked || voxelPointCloud == null || voxelPointCloud.Count == 0) return;
 
@@ -323,12 +343,171 @@ namespace Nuclei3
 
         public override BoundingBox ClippingBox
         {
-            get { return clippingBox; }
+            get
+            {
+                if (gpuDensityPreviewActive && gpuDensityClippingBox.IsValid)
+                {
+                    return gpuDensityClippingBox;
+                }
+
+                return clippingBox;
+            }
+        }
+
+        public override void RemovedFromDocument(GH_Document document)
+        {
+            NucleiGpuDisplayManager.DisableVoxelDensityPreview(InstanceGuid);
+            base.RemovedFromDocument(document);
+        }
+
+        internal bool WantsGpuDensityPreview
+        {
+            get { return WantsGpuDynamicDensityPreview; }
+        }
+
+        internal bool WantsGpuDynamicDensityPreview
+        {
+            get { return Rhino.RhinoApp.ExeVersion >= 9 && !Hidden && !Locked && VoxelPreviewField.IsDynamicDensity(CurrentValueIndex()); }
+        }
+
+        internal bool WantsGpuVoxelPreview
+        {
+            get { return Rhino.RhinoApp.ExeVersion >= 9 && !Hidden && !Locked && VoxelPreviewField.IsGpuSupported(CurrentValueIndex()); }
         }
 
         internal bool WantsSolverVoxelOutput
         {
-            get { return !Hidden && !Locked; }
+            get { return !Hidden && !Locked && !WantsGpuVoxelPreview; }
+        }
+
+        internal GpuDensityFieldPreviewFrame GetGpuDensityFieldPreviewFrame()
+        {
+            if (!gpuDensityPreviewActive || !WantsGpuVoxelPreview) return null;
+
+            SolverGPU solver = gpuDensitySolver;
+            if (solver == null && !NucleiGpuDisplayManager.TryGetSolverForVoxels(voxel, out solver))
+            {
+                return null;
+            }
+
+            int currentValueIndex = CurrentValueIndex();
+            GpuDensityFieldPreviewFrame frame = solver.GetDensityFieldPreviewFrame(currentValueIndex, ValidFloat(min, 0), ValidFloat(max, float.MaxValue));
+            if (frame == null || !frame.IsValid)
+            {
+                return null;
+            }
+
+            applyGpuPreviewStyle(frame, currentValueIndex);
+            gpuDensitySolver = solver;
+            gpuDensityClippingBox = frame.ClippingBox;
+            return frame;
+        }
+
+        internal void RecordGpuDensityFieldPreviewDrawTiming(long drawTicks)
+        {
+            if (gpuDensitySolver != null)
+            {
+                gpuDensitySolver.RecordDensityFieldPreviewDrawTiming(drawTicks);
+            }
+        }
+
+        bool tryUseGpuDensityPreview()
+        {
+            if (voxel == null || !WantsGpuVoxelPreview) return false;
+
+            SolverGPU solver;
+            if (!NucleiGpuDisplayManager.TryGetSolverForVoxels(voxel, out solver))
+            {
+                return false;
+            }
+
+            int currentValueIndex = CurrentValueIndex();
+            GpuDensityFieldPreviewFrame frame = solver.GetDensityFieldPreviewFrame(currentValueIndex, ValidFloat(min, 0), ValidFloat(max, float.MaxValue));
+            if (frame == null || !frame.IsValid)
+            {
+                return false;
+            }
+
+            applyGpuPreviewStyle(frame, currentValueIndex);
+            clearPointCloudPreview();
+            gpuDensitySolver = solver;
+            gpuDensityPreviewActive = true;
+            gpuDensityClippingBox = frame.ClippingBox;
+            NucleiGpuDisplayManager.SetVoxelDensityPreview(this);
+            return true;
+        }
+
+        void applyGpuPreviewStyle(GpuDensityFieldPreviewFrame frame, int currentValueIndex)
+        {
+            if (frame == null) return;
+
+            frame.ValueIndex = currentValueIndex;
+            frame.MinimumThreshold = ValidFloat(min, 0);
+            frame.MaximumThreshold = ValidFloat(max, float.MaxValue);
+            if (frame.MaximumThreshold < frame.MinimumThreshold)
+            {
+                float temp = frame.MinimumThreshold;
+                frame.MinimumThreshold = frame.MaximumThreshold;
+                frame.MaximumThreshold = temp;
+            }
+
+            bool useCustomColor = colour.R != 0 || colour.G != 0 || colour.B != 0;
+            frame.UseCustomColor = useCustomColor;
+            frame.ColorR = colour.R / 255.0f;
+            frame.ColorG = colour.G / 255.0f;
+            frame.ColorB = colour.B / 255.0f;
+            frame.ColorA = colour.A > 0 ? colour.A / 255.0f : 1.0f;
+        }
+
+        static float ValidFloat(double value, float fallback)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value)) return fallback;
+            if (value > float.MaxValue) return float.MaxValue;
+            if (value < -float.MaxValue) return -float.MaxValue;
+            return (float)value;
+        }
+
+        void disableGpuDensityPreview()
+        {
+            if (gpuDensityPreviewActive)
+            {
+                NucleiGpuDisplayManager.DisableVoxelDensityPreview(InstanceGuid);
+            }
+
+            gpuDensityPreviewActive = false;
+            gpuDensitySolver = null;
+            gpuDensityClippingBox = BoundingBox.Empty;
+        }
+
+        int CurrentValueIndex()
+        {
+            try
+            {
+                if (Params != null && Params.Input != null && Params.Input.Count > 1 && Params.Input[1].VolatileData != null)
+                {
+                    foreach (object item in Params.Input[1].VolatileData.AllData(true))
+                    {
+                        GH_Integer integer = item as GH_Integer;
+                        if (integer != null)
+                        {
+                            return integer.Value;
+                        }
+
+                        int parsed;
+                        if (item != null && int.TryParse(item.ToString(), out parsed))
+                        {
+                            return parsed;
+                        }
+
+                        break;
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return valueIndex;
         }
 
         void updateClippingBox()
@@ -343,6 +522,12 @@ namespace Nuclei3
         void clearPreviewCache()
         {
             voxel = null;
+            clearPointCloudPreview();
+            disableGpuDensityPreview();
+        }
+
+        void clearPointCloudPreview()
+        {
             voxelPoints = null;
             voxelValues = null;
             voxelPointCloud = null;
@@ -363,14 +548,24 @@ namespace Nuclei3
             voxelPoints = new List<Point3d>(samples.Count);
             voxelValues = new List<double>(samples.Count);
             voxelPointCloud = new PointCloud();
+            minExistingVoxelValue = double.PositiveInfinity;
+            maxExistingVoxelValue = double.NegativeInfinity;
 
-            if (2 <= valueIndex && valueIndex <= 6)
+            foreach (VoxelPreviewSample sample in samples)
             {
-                foreach (VoxelPreviewSample sample in samples)
-                {
-                    if (maxExistingVoxelValue < sample.Value) maxExistingVoxelValue = sample.Value;
-                }
+                if (double.IsNaN(sample.Value) || double.IsInfinity(sample.Value)) continue;
+                if (sample.Value < minExistingVoxelValue) minExistingVoxelValue = sample.Value;
+                if (sample.Value > maxExistingVoxelValue) maxExistingVoxelValue = sample.Value;
             }
+
+            if (double.IsPositiveInfinity(minExistingVoxelValue) || double.IsNegativeInfinity(maxExistingVoxelValue))
+            {
+                minExistingVoxelValue = min;
+                maxExistingVoxelValue = max;
+            }
+
+            currentDataDomain = new Interval(minExistingVoxelValue, maxExistingVoxelValue);
+            updatePreviewDomainMessage();
 
             foreach (VoxelPreviewSample sample in samples)
             {
@@ -399,6 +594,9 @@ namespace Nuclei3
 
         Color colour;
 
+        Interval currentPreviewDomain = new Interval(0, 1);
+        Interval currentDataDomain = new Interval(0, 1);
+        double minExistingVoxelValue = 0;
         double maxExistingVoxelValue = 1;
 
         List<Color> voxelColorList;
@@ -408,6 +606,9 @@ namespace Nuclei3
 
         PointCloud voxelPointCloud;
         BoundingBox clippingBox = BoundingBox.Empty;
+        bool gpuDensityPreviewActive = false;
+        SolverGPU gpuDensitySolver;
+        BoundingBox gpuDensityClippingBox = BoundingBox.Empty;
 
         struct VoxelPreviewSample
         {
@@ -427,13 +628,7 @@ namespace Nuclei3
         {
             if (colour.R != 0 || colour.G != 0 || colour.B != 0)
             {
-                voxelColorList = new List<Color>();
-
-                for (int i = 0; i <= 255; i++)
-                {
-                    Color customColour = Color.FromArgb((int)Math.Floor(i * 0.5), colour.R, colour.G, colour.B);
-                    voxelColorList.Add(customColour);
-                }
+                voxelColorList = VoxelPreviewPalette.CreateValuePalette(colour);
             }
         }
 
@@ -443,9 +638,7 @@ namespace Nuclei3
         {
             Color voxelColor = Color.Black;
 
-            int index = (int)Math.Floor(d / maxExistingVoxelValue * 255);
-            if (index < 0) index = 0;
-            if (index > 255) index = 255;
+            int index = previewValueToColorIndex(d);
 
             if (colour.R == 0 && colour.G == 0 && colour.B == 0)
             {
@@ -489,33 +682,65 @@ namespace Nuclei3
 
         void initializeGlobalVoxelColors()
         {
-            if (Globals.voxelColorList_White == null)
+            VoxelPreviewPalette.EnsureInitialized();
+        }
+
+        void normalizeInputDomain()
+        {
+            if (double.IsNaN(min) || double.IsInfinity(min)) min = 0;
+            if (double.IsNaN(max) || double.IsInfinity(max)) max = 1;
+
+            if (min > max)
             {
-                Color valuesWhiteColor = System.Drawing.Color.FromArgb(255, 255, 255, 255);
-                Color chemoAttractantsColor = System.Drawing.Color.FromArgb(255, 223, 255, 123);
-                Color antFoodPheromonesColor = System.Drawing.Color.FromArgb(255, 57, 255, 170);
-                Color antBasePheromonesColor = System.Drawing.Color.FromArgb(255, 255, 0, 100);
-
-                Globals.voxelColorList_White = new List<Color>();
-                Globals.voxelColorList_chemoAttractants = new List<Color>();
-                Globals.voxelColorList_antFoodPheromones = new List<Color>();
-                Globals.voxelColorList_antBasePheromones = new List<Color>();
-
-                for (int i = 0; i <= 255; i++)
-                {
-                    Color color_white = System.Drawing.Color.FromArgb((int)Math.Floor(i * 0.5), valuesWhiteColor.R, valuesWhiteColor.G, valuesWhiteColor.B);
-                    Globals.voxelColorList_White.Add(color_white);
-
-                    Color color_chemoAttractants = System.Drawing.Color.FromArgb((int)Math.Floor(i * 0.5), chemoAttractantsColor.R, chemoAttractantsColor.G, chemoAttractantsColor.B);
-                    Globals.voxelColorList_chemoAttractants.Add(color_chemoAttractants);
-
-                    Color color_antFoodPheromones = System.Drawing.Color.FromArgb((int)Math.Floor(i * 0.5), antFoodPheromonesColor.R, antFoodPheromonesColor.G, antFoodPheromonesColor.B);
-                    Globals.voxelColorList_antFoodPheromones.Add(color_antFoodPheromones);
-
-                    Color color_antBasePheromones = System.Drawing.Color.FromArgb((int)Math.Floor(i * 0.5), antBasePheromonesColor.R, antBasePheromonesColor.G, antBasePheromonesColor.B);
-                    Globals.voxelColorList_antBasePheromones.Add(color_antBasePheromones);
-                }
+                double temp = min;
+                min = max;
+                max = temp;
             }
+
+            currentPreviewDomain = new Interval(min, max);
+            currentDataDomain = currentPreviewDomain;
+            updatePreviewDomainMessage();
+        }
+
+        void setPreviewDomainOutput(IGH_DataAccess DA)
+        {
+            DA.SetData(0, currentPreviewDomain);
+            if (Params.Output.Count > 1)
+            {
+                DA.SetData(1, currentDataDomain);
+            }
+        }
+
+        void updatePreviewDomainMessage()
+        {
+            Message = "P " + formatDomainValue(currentPreviewDomain.T0) + " to " + formatDomainValue(currentPreviewDomain.T1)
+                + " | D " + formatDomainValue(currentDataDomain.T0) + " to " + formatDomainValue(currentDataDomain.T1);
+        }
+
+        static string formatDomainValue(double value)
+        {
+            if (Math.Abs(value) < 1e-12) value = 0;
+            return value.ToString("0.###");
+        }
+
+        int previewValueToColorIndex(double value)
+        {
+            double range = currentPreviewDomain.T1 - currentPreviewDomain.T0;
+            double normalized;
+
+            if (range > 1e-12)
+            {
+                normalized = (value - currentPreviewDomain.T0) / range;
+            }
+            else
+            {
+                normalized = value > 0 ? 1.0 : 0.0;
+            }
+
+            int index = (int)Math.Round(normalized * 255);
+            if (index < 0) return 0;
+            if (index > 255) return 255;
+            return index;
         }
 
         //-------------------------------------------------------------------
