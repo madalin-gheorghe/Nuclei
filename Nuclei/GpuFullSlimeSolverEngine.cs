@@ -67,6 +67,9 @@ namespace Nuclei3
         ID3D11Buffer groupData1Buffer;
         ID3D11Buffer groupColorDataBuffer;
         ID3D11Buffer voxelFlagsBuffer;
+        ID3D11Buffer voxelBehaviorBuffer;
+        ID3D11Buffer voxelVectorBuffer;
+        ID3D11Buffer voxelDensityLimitsBuffer;
         ID3D11Buffer parameterBuffer;
         ID3D11Buffer weightsBuffer;
         ID3D11Texture2D densityPreviewTexture;
@@ -84,6 +87,9 @@ namespace Nuclei3
         ID3D11ShaderResourceView groupData1View;
         ID3D11ShaderResourceView groupColorDataView;
         ID3D11ShaderResourceView voxelFlagsView;
+        ID3D11ShaderResourceView voxelBehaviorView;
+        ID3D11ShaderResourceView voxelVectorView;
+        ID3D11ShaderResourceView voxelDensityLimitsView;
         ID3D11ShaderResourceView weightsView;
         ID3D11UnorderedAccessView densityPreviewTextureView;
         ID3D11UnorderedAccessView particlePreviewTextureView;
@@ -105,7 +111,7 @@ namespace Nuclei3
         readonly float[] particleDirectionReadback;
         readonly float[] particleYAxisReadback;
         readonly float[] particlePositionPreviewReadback;
-        readonly Voxel[,,] staticPreviewVoxels;
+        Voxel[,,] staticPreviewVoxels;
         readonly bool[] previewReadbackPending = new bool[PreviewReadbackBufferCount];
         readonly int[] previewReadbackSequences = new int[PreviewReadbackBufferCount];
 
@@ -180,6 +186,7 @@ namespace Nuclei3
                 CreateParticlePreviewTexture();
             }
             CreateVoxelFlagBuffer(snapshot.VoxelFlags);
+            CreateVoxelBehaviorBuffers(snapshot);
             CreateParticleBuffers(snapshot);
             CreateGroupBuffers(snapshot);
 
@@ -341,7 +348,7 @@ namespace Nuclei3
 
             context.CSSetShader(moveShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
-            context.CSSetShaderResources(1, new ID3D11ShaderResourceView[] { groupData0View, groupData1View, voxelFlagsView });
+            context.CSSetShaderResources(1, new ID3D11ShaderResourceView[] { groupData0View, groupData1View, voxelFlagsView, null, voxelBehaviorView, voxelVectorView, voxelDensityLimitsView });
             context.CSSetUnorderedAccessView(0, CurrentDensityView(), -1);
             context.CSSetUnorderedAccessView(2, particlePositionView, -1);
             context.CSSetUnorderedAccessView(3, particleDirectionView, -1);
@@ -358,6 +365,8 @@ namespace Nuclei3
 
             context.CSSetShader(applyDepositsShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+            context.CSSetShaderResource(3, voxelFlagsView);
+            context.CSSetShaderResource(7, voxelDensityLimitsView);
             context.CSSetUnorderedAccessView(0, CurrentDensityView(), -1);
             context.CSSetUnorderedAccessView(6, depositView, -1);
             context.Dispatch(DispatchGroupCount(voxelCount), 1, 1);
@@ -404,6 +413,8 @@ namespace Nuclei3
             context.CSSetShader(diffusionShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetShaderResources(0, new ID3D11ShaderResourceView[] { weightsView });
+            context.CSSetShaderResource(3, voxelFlagsView);
+            context.CSSetShaderResource(7, voxelDensityLimitsView);
             context.CSSetUnorderedAccessView(0, CurrentDensityView(), -1);
             context.CSSetUnorderedAccessView(1, NextDensityView(), -1);
             context.Dispatch(DispatchGroupCount(voxelCount), 1, 1);
@@ -416,6 +427,8 @@ namespace Nuclei3
 
             context.CSSetShader(decayShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+            context.CSSetShaderResource(3, voxelFlagsView);
+            context.CSSetShaderResource(7, voxelDensityLimitsView);
             context.CSSetUnorderedAccessView(0, CurrentDensityView(), -1);
             context.CSSetUnorderedAccessView(1, NextDensityView(), -1);
             context.Dispatch(DispatchGroupCount(voxelCount), 1, 1);
@@ -542,6 +555,38 @@ namespace Nuclei3
             context.UpdateSubresourceSafe(groupData0, groupData0Buffer, 0, 0, 0, 0, false);
             context.UpdateSubresourceSafe(groupData1, groupData1Buffer, 0, 0, 0, 0, false);
             context.UpdateSubresourceSafe(groupColorData, groupColorDataBuffer, 0, 0, 0, 0, false);
+            return true;
+        }
+
+        public bool UpdateVoxelBehaviorFields(SolverGpuInputSnapshot snapshot)
+        {
+            if (snapshot == null
+                || snapshot.VoxelFlags == null
+                || snapshot.VoxelBehaviorData == null
+                || snapshot.VoxelVectorData == null
+                || snapshot.VoxelDensityLimits == null
+                || snapshot.VoxelFlags.Length != voxelCount
+                || snapshot.VoxelBehaviorData.Length != voxelCount * 4
+                || snapshot.VoxelVectorData.Length != voxelCount * 4
+                || snapshot.VoxelDensityLimits.Length != voxelCount * 4)
+            {
+                return false;
+            }
+
+            if (voxelFlagsBuffer == null
+                || voxelBehaviorBuffer == null
+                || voxelVectorBuffer == null
+                || voxelDensityLimitsBuffer == null)
+            {
+                return false;
+            }
+
+            staticPreviewVoxels = snapshot.Voxels;
+            context.UpdateSubresourceSafe(snapshot.VoxelFlags, voxelFlagsBuffer, 0, 0, 0, 0, false);
+            context.UpdateSubresourceSafe(snapshot.VoxelBehaviorData, voxelBehaviorBuffer, 0, 0, 0, 0, false);
+            context.UpdateSubresourceSafe(snapshot.VoxelVectorData, voxelVectorBuffer, 0, 0, 0, 0, false);
+            context.UpdateSubresourceSafe(snapshot.VoxelDensityLimits, voxelDensityLimitsBuffer, 0, 0, 0, 0, false);
+            InvalidateStaticFieldPreviewScales();
             return true;
         }
 
@@ -1329,6 +1374,14 @@ namespace Nuclei3
             return scale;
         }
 
+        void InvalidateStaticFieldPreviewScales()
+        {
+            for (int i = 0; i < staticFieldPreviewScaleValid.Length; i++)
+            {
+                staticFieldPreviewScaleValid[i] = false;
+            }
+        }
+
         float MaxVisibleStaticFieldValue(int fieldIndex, float minimumThreshold, float maximumThreshold)
         {
             if (staticPreviewVoxels == null)
@@ -1681,6 +1734,54 @@ namespace Nuclei3
             depositView = CreateUav(depositBuffer, voxelCount);
         }
 
+        void CreateVoxelBehaviorBuffers(SolverGpuInputSnapshot snapshot)
+        {
+            float[] behavior = snapshot.VoxelBehaviorData != null && snapshot.VoxelBehaviorData.Length == voxelCount * 4
+                ? snapshot.VoxelBehaviorData
+                : DefaultVoxelBehaviorData();
+            float[] vectors = snapshot.VoxelVectorData != null && snapshot.VoxelVectorData.Length == voxelCount * 4
+                ? snapshot.VoxelVectorData
+                : new float[voxelCount * 4];
+            float[] limits = snapshot.VoxelDensityLimits != null && snapshot.VoxelDensityLimits.Length == voxelCount * 4
+                ? snapshot.VoxelDensityLimits
+                : DefaultVoxelDensityLimits();
+
+            voxelBehaviorBuffer = CreateFloat4Buffer(behavior, BindFlags.ShaderResource);
+            voxelVectorBuffer = CreateFloat4Buffer(vectors, BindFlags.ShaderResource);
+            voxelDensityLimitsBuffer = CreateFloat4Buffer(limits, BindFlags.ShaderResource);
+            voxelBehaviorView = CreateSrv(voxelBehaviorBuffer, voxelCount);
+            voxelVectorView = CreateSrv(voxelVectorBuffer, voxelCount);
+            voxelDensityLimitsView = CreateSrv(voxelDensityLimitsBuffer, voxelCount);
+        }
+
+        float[] DefaultVoxelBehaviorData()
+        {
+            float[] data = new float[voxelCount * 4];
+            for (int i = 0; i < voxelCount; i++)
+            {
+                int offset = i * 4;
+                data[offset] = 1;
+                data[offset + 1] = 1;
+                data[offset + 2] = 1;
+                data[offset + 3] = 1;
+            }
+
+            return data;
+        }
+
+        float[] DefaultVoxelDensityLimits()
+        {
+            float[] data = new float[voxelCount * 4];
+            for (int i = 0; i < voxelCount; i++)
+            {
+                int offset = i * 4;
+                data[offset] = -1;
+                data[offset + 1] = -1;
+            }
+
+            return data;
+        }
+
         ID3D11Buffer CreateFloat4Buffer(float[] values, BindFlags bindFlags)
         {
             int elementCount = values.Length / 4;
@@ -1823,7 +1924,7 @@ namespace Nuclei3
                 context.CSSetUnorderedAccessView(i, null, -1);
             }
 
-            for (int i = 0; i <= 4; i++)
+            for (int i = 0; i <= 7; i++)
             {
                 context.CSSetShaderResource(i, null);
             }
@@ -1885,6 +1986,9 @@ namespace Nuclei3
             if (groupData1View != null) groupData1View.Dispose();
             if (groupColorDataView != null) groupColorDataView.Dispose();
             if (voxelFlagsView != null) voxelFlagsView.Dispose();
+            if (voxelBehaviorView != null) voxelBehaviorView.Dispose();
+            if (voxelVectorView != null) voxelVectorView.Dispose();
+            if (voxelDensityLimitsView != null) voxelDensityLimitsView.Dispose();
             if (densityA != null) densityA.Dispose();
             if (densityB != null) densityB.Dispose();
             if (densityPreviewTexture != null) densityPreviewTexture.Dispose();
@@ -1910,6 +2014,9 @@ namespace Nuclei3
             if (groupData1Buffer != null) groupData1Buffer.Dispose();
             if (groupColorDataBuffer != null) groupColorDataBuffer.Dispose();
             if (voxelFlagsBuffer != null) voxelFlagsBuffer.Dispose();
+            if (voxelBehaviorBuffer != null) voxelBehaviorBuffer.Dispose();
+            if (voxelVectorBuffer != null) voxelVectorBuffer.Dispose();
+            if (voxelDensityLimitsBuffer != null) voxelDensityLimitsBuffer.Dispose();
             if (parameterBuffer != null) parameterBuffer.Dispose();
             if (moveShader != null) moveShader.Dispose();
             if (applyDepositsShader != null) applyDepositsShader.Dispose();
@@ -2057,6 +2164,9 @@ StructuredBuffer<float4> GroupData0 : register(t1);
 StructuredBuffer<float4> GroupData1 : register(t2);
 StructuredBuffer<uint> VoxelFlags : register(t3);
 StructuredBuffer<float4> GroupColorData : register(t4);
+StructuredBuffer<float4> VoxelBehavior : register(t5);
+StructuredBuffer<float4> VoxelVectors : register(t6);
+StructuredBuffer<float4> VoxelDensityLimits : register(t7);
 
 int FlatIndex(int x, int y, int z)
 {
@@ -2102,6 +2212,19 @@ bool IsBoundary(int x, int y, int z)
 bool IsValidVoxelIndex(int index)
 {
     return index >= 0 && index < VoxelCount && (VoxelFlags[index] & 1) != 0;
+}
+
+float ClampDensityLimits(float value, int index)
+{
+    if (index < 0 || index >= VoxelCount) return value;
+
+    float4 limits = VoxelDensityLimits[index];
+    float minDensity = limits.x;
+    float maxDensity = limits.y;
+
+    if (maxDensity >= 0.0 && value > maxDensity) value = maxDensity;
+    if (minDensity >= 0.0 && value > 0.0 && value < minDensity) value = minDensity;
+    return value;
 }
 
 int VoxelIndexFromPosition(float3 position)
@@ -2395,12 +2518,30 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
     float4 group0 = GroupData0[groupIndex];
     float4 group1 = GroupData1[groupIndex];
 
-    float speed = group0.x;
-    float sensorDistance = group0.y;
-    float sensorCos = group0.z;
-    float sensorSin = group0.w;
-    float rotationCos = group1.x;
-    float rotationSin = group1.y;
+    int currentParentIndex = (int)round(dirParent.w);
+    if (!IsValidVoxelIndex(currentParentIndex))
+    {
+        currentParentIndex = VoxelIndexFromPosition(position);
+    }
+
+    float4 behavior = float4(1.0, 1.0, 1.0, 1.0);
+    float4 vectorField = float4(0.0, 0.0, 0.0, 0.0);
+    if (IsValidVoxelIndex(currentParentIndex))
+    {
+        behavior = VoxelBehavior[currentParentIndex];
+        vectorField = VoxelVectors[currentParentIndex];
+    }
+
+    float speed = group0.x * behavior.x;
+    float sensorDistance = group0.y * behavior.y;
+    float sensorAngle = group0.z * behavior.z;
+    float sensorSin;
+    float sensorCos;
+    sincos(sensorAngle, sensorSin, sensorCos);
+    float rotationAngle = group1.x * behavior.w;
+    float rotationSin;
+    float rotationCos;
+    sincos(rotationAngle, rotationSin, rotationCos);
     float depositValue = group1.z;
     uint wanderFrequency = max(1u, (uint)round(group1.w));
 
@@ -2431,6 +2572,15 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
     else
     {
         force = RotateForce(bestIndex, x, y, rotationCos, rotationSin);
+    }
+
+    if (vectorField.w >= 1.0)
+    {
+        uint vectorFrequency = max(1u, (uint)round(vectorField.w));
+        if (vectorFrequency == 1u || ((uint)Iteration % vectorFrequency) == ((uint)particleIndex % vectorFrequency))
+        {
+            force += ApplyPlanarMode(vectorField.xyz);
+        }
     }
 
     float3 moveDirection = NormalizeOr(force + x, x);
@@ -2484,8 +2634,13 @@ void ApplyDeposits(uint3 id : SV_DispatchThreadID)
 
     uint fixedDeposit = DepositFixed[index];
     if (fixedDeposit == 0u) return;
+    if (!IsValidVoxelIndex(index))
+    {
+        DepositFixed[index] = 0u;
+        return;
+    }
 
-    Source[index] += fixedDeposit / DepositScale;
+    Source[index] = ClampDensityLimits(Source[index] + fixedDeposit / DepositScale, index);
     DepositFixed[index] = 0u;
 }
 
@@ -2510,9 +2665,11 @@ void CountParticles(uint3 id : SV_DispatchThreadID)
     }
 }
 
-float ClampPassDensity(float value, int x, int y, int z)
+float ClampPassDensity(float value, int index, int x, int y, int z)
 {
+    if (!IsValidVoxelIndex(index)) return 0.0;
     if (value > 1.0) value = 1.0;
+    value = ClampDensityLimits(value, index);
 
     if (Wrap == 0 && IsBoundary(x, y, z) && value > 0.01)
     {
@@ -2562,12 +2719,16 @@ void DiffuseAxis(uint3 id : SV_DispatchThreadID)
 
         if (include)
         {
-            weighted += Source[FlatIndex(sx, sy, sz)] * Weights[offset + Range];
+            int sampleIndex = FlatIndex(sx, sy, sz);
+            if (IsValidVoxelIndex(sampleIndex))
+            {
+                weighted += Source[sampleIndex] * Weights[offset + Range];
+            }
         }
     }
 
     float value = Source[index] * Keep + Diffuse * weighted;
-    Destination[index] = ClampPassDensity(value, x, y, z);
+    Destination[index] = ClampPassDensity(value, index, x, y, z);
 }
 
 [numthreads(256, 1, 1)]
@@ -2587,7 +2748,14 @@ void ApplyDecay(uint3 id : SV_DispatchThreadID)
         return;
     }
 
+    if (!IsValidVoxelIndex(index))
+    {
+        Destination[index] = 0.0;
+        return;
+    }
+
     float value = Source[index] - Decay;
+    value = ClampDensityLimits(value, index);
     Destination[index] = value > 0.0 ? value : 0.0;
 }
 

@@ -21,6 +21,9 @@ namespace Nuclei3
         public int[] ParticleGroupIndices;
         public int[] ParticleParentIndices;
         public float[] VoxelDensity;
+        public float[] VoxelBehaviorData;
+        public float[] VoxelVectorData;
+        public float[] VoxelDensityLimits;
         public float[][] StaticVoxelFields;
         public float[] StaticVoxelFieldMaximums;
         public float[] VoxelVectorsXyz;
@@ -47,6 +50,9 @@ namespace Nuclei3
             {
                 Voxels = new Voxel[0, 0, 0];
                 VoxelDensity = new float[0];
+                VoxelBehaviorData = new float[0];
+                VoxelVectorData = new float[0];
+                VoxelDensityLimits = new float[0];
                 StaticVoxelFields = null;
                 StaticVoxelFieldMaximums = null;
                 VoxelVectorsXyz = new float[0];
@@ -66,6 +72,9 @@ namespace Nuclei3
 
             Voxels = new Voxel[ResX, ResY, ResZ];
             VoxelDensity = new float[voxelCount];
+            VoxelBehaviorData = new float[voxelCount * 4];
+            VoxelVectorData = new float[voxelCount * 4];
+            VoxelDensityLimits = new float[voxelCount * 4];
             StaticVoxelFields = null;
             StaticVoxelFieldMaximums = null;
             VoxelVectorsXyz = new float[voxelCount * 3];
@@ -89,6 +98,7 @@ namespace Nuclei3
                         Voxels[x, y, z] = voxel;
 
                         VoxelDensity[flatIndex] = (float)voxel.density;
+                        CaptureVoxelBehaviorFields(voxel, flatIndex);
                         VoxelVectorsXyz[flatIndex * 3] = (float)voxel.voxelVector.X;
                         VoxelVectorsXyz[flatIndex * 3 + 1] = (float)voxel.voxelVector.Y;
                         VoxelVectorsXyz[flatIndex * 3 + 2] = (float)voxel.voxelVector.Z;
@@ -101,6 +111,41 @@ namespace Nuclei3
                     }
                 }
             }
+        }
+
+        void CaptureVoxelBehaviorFields(Voxel voxel, int flatIndex)
+        {
+            int offset = flatIndex * 4;
+
+            VoxelBehaviorData[offset] = MultiplierOrDefault(voxel.speedMultiplier);
+            VoxelBehaviorData[offset + 1] = MultiplierOrDefault(voxel.sensorDistanceMultiplier);
+            VoxelBehaviorData[offset + 2] = MultiplierOrDefault(voxel.sensorAngleMultiplier);
+            VoxelBehaviorData[offset + 3] = MultiplierOrDefault(voxel.rotationAngleMultiplier);
+
+            Vector3d vector = voxel.vectorField && voxel.voxelVector.Length > 0
+                ? voxel.voxelVector
+                : Vector3d.Zero;
+            VoxelVectorData[offset] = (float)vector.X;
+            VoxelVectorData[offset + 1] = (float)vector.Y;
+            VoxelVectorData[offset + 2] = (float)vector.Z;
+            VoxelVectorData[offset + 3] = vector.Length > 0 ? Math.Max(1, voxel.frequency) : 0;
+
+            VoxelDensityLimits[offset] = DensityLimitOrUnset(voxel.minDensity);
+            VoxelDensityLimits[offset + 1] = DensityLimitOrUnset(voxel.maxDensity);
+            VoxelDensityLimits[offset + 2] = 0;
+            VoxelDensityLimits[offset + 3] = 0;
+        }
+
+        static float MultiplierOrDefault(double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value) || value < 0) return 1.0f;
+            return (float)value;
+        }
+
+        static float DensityLimitOrUnset(double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value) || value < 0) return -1.0f;
+            return (float)value;
         }
 
         static float[][] CreateStaticVoxelFieldArrays(int voxelCount)
@@ -302,11 +347,11 @@ namespace Nuclei3
                 int offset = groupIndex * 4;
                 groupData0[offset] = (float)group.speed;
                 groupData0[offset + 1] = (float)group.sensorDistance;
-                groupData0[offset + 2] = (float)Math.Cos(sensorAngle);
-                groupData0[offset + 3] = (float)Math.Sin(sensorAngle);
+                groupData0[offset + 2] = (float)sensorAngle;
+                groupData0[offset + 3] = 0;
 
-                groupData1[offset] = (float)Math.Cos(rotationAngle);
-                groupData1[offset + 1] = (float)Math.Sin(rotationAngle);
+                groupData1[offset] = (float)rotationAngle;
+                groupData1[offset + 1] = 0;
                 groupData1[offset + 2] = (float)group.depositValue;
                 groupData1[offset + 3] = wanderFrequency;
             }
