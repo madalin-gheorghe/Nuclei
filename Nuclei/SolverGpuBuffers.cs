@@ -21,11 +21,14 @@ namespace Nuclei3
         public int[] ParticleGroupIndices;
         public int[] ParticleParentIndices;
         public float[] VoxelDensity;
+        public float[][] StaticVoxelFields;
+        public float[] StaticVoxelFieldMaximums;
         public float[] VoxelVectorsXyz;
         public uint[] VoxelFlags;
         public int GroupCount;
         public float[] GroupData0;
         public float[] GroupData1;
+        public float[] GroupColorData;
         public bool HasAntParticles;
 
         public static SolverGpuInputSnapshot Capture(Voxel[,,] inputVoxels, IList<ParticleGroup> particleGroups)
@@ -44,6 +47,8 @@ namespace Nuclei3
             {
                 Voxels = new Voxel[0, 0, 0];
                 VoxelDensity = new float[0];
+                StaticVoxelFields = null;
+                StaticVoxelFieldMaximums = null;
                 VoxelVectorsXyz = new float[0];
                 VoxelFlags = new uint[0];
                 VoxelSize = 1;
@@ -61,6 +66,8 @@ namespace Nuclei3
 
             Voxels = new Voxel[ResX, ResY, ResZ];
             VoxelDensity = new float[voxelCount];
+            StaticVoxelFields = null;
+            StaticVoxelFieldMaximums = null;
             VoxelVectorsXyz = new float[voxelCount * 3];
             VoxelFlags = new uint[voxelCount];
 
@@ -94,6 +101,49 @@ namespace Nuclei3
                     }
                 }
             }
+        }
+
+        static float[][] CreateStaticVoxelFieldArrays(int voxelCount)
+        {
+            float[][] fields = new float[VoxelPreviewField.StaticFieldCount][];
+            for (int i = 0; i < fields.Length; i++)
+            {
+                fields[i] = new float[voxelCount];
+            }
+
+            return fields;
+        }
+
+        void CaptureStaticVoxelFields(Voxel voxel, int flatIndex)
+        {
+            if (StaticVoxelFields == null || voxel == null) return;
+
+            SetStaticVoxelField(VoxelPreviewField.MinimumDensity, flatIndex, PreviewValue(voxel.minDensity, false));
+            SetStaticVoxelField(VoxelPreviewField.MaximumDensity, flatIndex, PreviewValue(voxel.maxDensity, true));
+            SetStaticVoxelField(VoxelPreviewField.Speed, flatIndex, PreviewValue(voxel.speedMultiplier, false));
+            SetStaticVoxelField(VoxelPreviewField.SensorDistance, flatIndex, PreviewValue(voxel.sensorDistanceMultiplier, false));
+            SetStaticVoxelField(VoxelPreviewField.SensorAngle, flatIndex, PreviewValue(voxel.sensorAngleMultiplier, false));
+            SetStaticVoxelField(VoxelPreviewField.RotationAngle, flatIndex, PreviewValue(voxel.rotationAngleMultiplier, false));
+            SetStaticVoxelField(VoxelPreviewField.Food, flatIndex, PreviewValue(voxel.food, false));
+        }
+
+        void SetStaticVoxelField(int fieldIndex, int flatIndex, float value)
+        {
+            if (fieldIndex < 0 || fieldIndex >= VoxelPreviewField.StaticFieldCount) return;
+
+            StaticVoxelFields[fieldIndex][flatIndex] = value;
+            if (StaticVoxelFieldMaximums != null && value > StaticVoxelFieldMaximums[fieldIndex])
+            {
+                StaticVoxelFieldMaximums[fieldIndex] = value;
+            }
+        }
+
+        static float PreviewValue(double value, bool keepZero)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value)) return 0;
+            if (value < 0) return 0;
+            if (!keepZero && value <= 0.01) return 0;
+            return (float)value;
         }
 
         void CaptureParticles(IList<ParticleGroup> particleGroups)
@@ -184,7 +234,33 @@ namespace Nuclei3
         void CaptureParticleGroups(IList<ParticleGroup> particleGroups)
         {
             CaptureGroupSettings(particleGroups, out GroupData0, out GroupData1, out HasAntParticles);
+            GroupColorData = CaptureGroupColors(particleGroups);
             GroupCount = particleGroups != null ? particleGroups.Count : 0;
+        }
+
+        public static float[] CaptureGroupColors(IList<ParticleGroup> particleGroups)
+        {
+            int groupCount = particleGroups != null ? particleGroups.Count : 0;
+            float[] groupColors = new float[groupCount * 4];
+
+            if (particleGroups == null)
+            {
+                return groupColors;
+            }
+
+            for (int groupIndex = 0; groupIndex < particleGroups.Count; groupIndex++)
+            {
+                ParticleGroup group = particleGroups[groupIndex];
+                int offset = groupIndex * 4;
+                System.Drawing.Color color = group != null ? group.color : System.Drawing.Color.White;
+                int alpha = color.A == 0 ? 255 : color.A;
+                groupColors[offset] = color.R / 255.0f;
+                groupColors[offset + 1] = color.G / 255.0f;
+                groupColors[offset + 2] = color.B / 255.0f;
+                groupColors[offset + 3] = alpha / 255.0f;
+            }
+
+            return groupColors;
         }
 
         public static void CaptureGroupSettings(

@@ -36,7 +36,9 @@ namespace Nuclei3
     {
         const float DepositScale = 1024.0f;
         const int PreviewReadbackBufferCount = 3;
+        const int MaxSharedPreviewTextureDimension = 16384;
         const string SharedDensityPreviewStatusPath = @"C:\Nuclei\BenchmarkSuite1\NucleiGpuDensityFieldSource.txt";
+        const string SharedParticlePreviewStatusPath = @"C:\Nuclei\BenchmarkSuite1\NucleiGpuParticlePreviewSource.txt";
 
         ID3D11Device device;
         ID3D11DeviceContext context;
@@ -47,6 +49,7 @@ namespace Nuclei3
         ID3D11ComputeShader diffusionShader;
         ID3D11ComputeShader decayShader;
         ID3D11ComputeShader densityPreviewShader;
+        ID3D11ComputeShader particlePreviewShader;
 
         ID3D11Buffer densityA;
         ID3D11Buffer densityB;
@@ -62,10 +65,13 @@ namespace Nuclei3
         ID3D11Buffer depositBuffer;
         ID3D11Buffer groupData0Buffer;
         ID3D11Buffer groupData1Buffer;
+        ID3D11Buffer groupColorDataBuffer;
         ID3D11Buffer voxelFlagsBuffer;
         ID3D11Buffer parameterBuffer;
         ID3D11Buffer weightsBuffer;
         ID3D11Texture2D densityPreviewTexture;
+        readonly ID3D11Texture2D[] staticFieldPreviewTextures = new ID3D11Texture2D[VoxelPreviewField.StaticFieldCount];
+        ID3D11Texture2D particlePreviewTexture;
 
         ID3D11UnorderedAccessView densityAView;
         ID3D11UnorderedAccessView densityBView;
@@ -76,9 +82,11 @@ namespace Nuclei3
         ID3D11UnorderedAccessView depositView;
         ID3D11ShaderResourceView groupData0View;
         ID3D11ShaderResourceView groupData1View;
+        ID3D11ShaderResourceView groupColorDataView;
         ID3D11ShaderResourceView voxelFlagsView;
         ID3D11ShaderResourceView weightsView;
         ID3D11UnorderedAccessView densityPreviewTextureView;
+        ID3D11UnorderedAccessView particlePreviewTextureView;
 
         readonly int resX;
         readonly int resY;
@@ -87,7 +95,8 @@ namespace Nuclei3
         readonly int particleCount;
         readonly int groupCount;
         readonly float voxelSize;
-        readonly bool enableSharedDensityPreview;
+        bool enableSharedDensityPreview;
+        bool enableSharedParticlePreview;
         readonly float dimX;
         readonly float dimY;
         readonly float dimZ;
@@ -96,6 +105,7 @@ namespace Nuclei3
         readonly float[] particleDirectionReadback;
         readonly float[] particleYAxisReadback;
         readonly float[] particlePositionPreviewReadback;
+        readonly Voxel[,,] staticPreviewVoxels;
         readonly bool[] previewReadbackPending = new bool[PreviewReadbackBufferCount];
         readonly int[] previewReadbackSequences = new int[PreviewReadbackBufferCount];
 
@@ -110,8 +120,22 @@ namespace Nuclei3
         int densityPreviewAxisMode;
         int densityPreviewSlice;
         long densityPreviewVersion = 0;
+        readonly IntPtr[] staticFieldPreviewSharedHandles = new IntPtr[VoxelPreviewField.StaticFieldCount];
+        readonly int[] staticFieldPreviewWidths = new int[VoxelPreviewField.StaticFieldCount];
+        readonly int[] staticFieldPreviewHeights = new int[VoxelPreviewField.StaticFieldCount];
+        readonly int[] staticFieldPreviewAxisModes = new int[VoxelPreviewField.StaticFieldCount];
+        readonly int[] staticFieldPreviewSlices = new int[VoxelPreviewField.StaticFieldCount];
+        readonly long[] staticFieldPreviewVersions = new long[VoxelPreviewField.StaticFieldCount];
+        readonly float[] staticFieldPreviewScaleMinimums = new float[VoxelPreviewField.StaticFieldCount];
+        readonly float[] staticFieldPreviewScaleMaximums = new float[VoxelPreviewField.StaticFieldCount];
+        readonly float[] staticFieldPreviewScales = new float[VoxelPreviewField.StaticFieldCount];
+        readonly bool[] staticFieldPreviewScaleValid = new bool[VoxelPreviewField.StaticFieldCount];
+        IntPtr particlePreviewSharedHandle = IntPtr.Zero;
+        int particlePreviewWidth;
+        int particlePreviewHeight;
+        long particlePreviewVersion = 0;
 
-        public GpuFullSlimeSolverEngine(SolverGpuInputSnapshot snapshot, bool enableSharedDensityPreview)
+        public GpuFullSlimeSolverEngine(SolverGpuInputSnapshot snapshot, bool enableSharedDensityPreview, bool enableSharedParticlePreview)
         {
             if (snapshot == null)
             {
@@ -126,6 +150,7 @@ namespace Nuclei3
             groupCount = Math.Max(0, snapshot.GroupCount);
             voxelSize = snapshot.VoxelSize > 0 ? snapshot.VoxelSize : 1.0f;
             this.enableSharedDensityPreview = enableSharedDensityPreview;
+            this.enableSharedParticlePreview = enableSharedParticlePreview;
             dimX = resX * voxelSize;
             dimY = resY * voxelSize;
             dimZ = resZ * voxelSize;
@@ -140,6 +165,7 @@ namespace Nuclei3
             particleDirectionReadback = new float[particleCount * 4];
             particleYAxisReadback = new float[particleCount * 4];
             particlePositionPreviewReadback = new float[particleCount * 4];
+            staticPreviewVoxels = snapshot.Voxels;
 
             CreateDevice(out device, out context);
             CompileShaders();
@@ -149,17 +175,47 @@ namespace Nuclei3
             {
                 CreateDensityPreviewTexture(SolverGpuDimensionMode.FromResolution(resX, resY, resZ));
             }
+            if (enableSharedParticlePreview)
+            {
+                CreateParticlePreviewTexture();
+            }
             CreateVoxelFlagBuffer(snapshot.VoxelFlags);
             CreateParticleBuffers(snapshot);
             CreateGroupBuffers(snapshot);
 
             DispatchClearParticleCounts(0);
             DispatchCountParticles(0);
+            if (enableSharedParticlePreview)
+            {
+                DispatchParticlePreviewPass(new SolverGpuSettings(), SolverGpuDimensionMode.FromResolution(resX, resY, resZ), 0);
+            }
         }
 
         public bool Matches(int x, int y, int z, int particles)
         {
             return resX == x && resY == y && resZ == z && particleCount == particles;
+        }
+
+        public void SetSharedDensityPreviewEnabled(bool enabled, SolverGpuDimensionMode dimensionMode)
+        {
+            enableSharedDensityPreview = enabled;
+            if (!enabled || densityPreviewTexture != null)
+            {
+                return;
+            }
+
+            CreateDensityPreviewTexture(dimensionMode);
+        }
+
+        public void SetSharedParticlePreviewEnabled(bool enabled)
+        {
+            enableSharedParticlePreview = enabled;
+            if (!enabled || particlePreviewTexture != null)
+            {
+                return;
+            }
+
+            CreateParticlePreviewTexture();
         }
 
         public GpuFullSolverStepResult Step(
@@ -222,6 +278,10 @@ namespace Nuclei3
             if (enableSharedDensityPreview)
             {
                 DispatchDensityPreviewPass(settings, dimensionMode, iteration);
+            }
+            if (enableSharedParticlePreview)
+            {
+                DispatchParticlePreviewPass(settings, dimensionMode, iteration);
             }
             stage.Stop();
             double diffusionMs = stage.Elapsed.TotalMilliseconds;
@@ -390,6 +450,34 @@ namespace Nuclei3
             densityPreviewVersion++;
         }
 
+        void DispatchParticlePreviewPass(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
+        {
+            if (particleCount <= 0 || particlePreviewShader == null || particlePreviewTextureView == null || parameterBuffer == null || groupColorDataView == null)
+            {
+                WriteSharedParticlePreviewStatus("dispatch_skip particle_count=" + particleCount
+                    + " shader=" + (particlePreviewShader != null)
+                    + " texture_uav=" + (particlePreviewTextureView != null)
+                    + " parameters=" + (parameterBuffer != null)
+                    + " colors=" + (groupColorDataView != null));
+                return;
+            }
+
+            FullSolverParameters parameters = CreateParameters(0, settings, dimensionMode, iteration);
+            parameters.PreviewWidth = particlePreviewWidth;
+            parameters.PreviewHeight = particlePreviewHeight;
+            UpdateParameters(parameters);
+
+            context.CSSetShader(particlePreviewShader);
+            context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+            context.CSSetShaderResource(4, groupColorDataView);
+            context.CSSetUnorderedAccessView(2, particlePositionView, -1);
+            context.CSSetUnorderedAccessView(7, particlePreviewTextureView, -1);
+            context.Dispatch(DispatchGroupCount(particleCount), 1, 1);
+            UnbindComputeResources();
+            context.Flush();
+            particlePreviewVersion++;
+        }
+
         FullSolverParameters CreateParameters(int axis, SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
         {
             FullSolverParameters parameters = new FullSolverParameters();
@@ -429,25 +517,31 @@ namespace Nuclei3
             context.UpdateSubresourceSafe(ref parameters, parameterBuffer, 0, 0, 0, 0, false);
         }
 
-        public bool UpdateGroupSettings(float[] groupData0, float[] groupData1)
+        public bool UpdateGroupSettings(float[] groupData0, float[] groupData1, float[] groupColorData)
         {
             if (groupCount <= 0)
             {
                 return true;
             }
 
-            if (groupData0 == null || groupData1 == null || groupData0.Length != groupCount * 4 || groupData1.Length != groupCount * 4)
+            if (groupData0 == null
+                || groupData1 == null
+                || groupColorData == null
+                || groupData0.Length != groupCount * 4
+                || groupData1.Length != groupCount * 4
+                || groupColorData.Length != groupCount * 4)
             {
                 return false;
             }
 
-            if (groupData0Buffer == null || groupData1Buffer == null)
+            if (groupData0Buffer == null || groupData1Buffer == null || groupColorDataBuffer == null)
             {
                 return false;
             }
 
             context.UpdateSubresourceSafe(groupData0, groupData0Buffer, 0, 0, 0, 0, false);
             context.UpdateSubresourceSafe(groupData1, groupData1Buffer, 0, 0, 0, 0, false);
+            context.UpdateSubresourceSafe(groupColorData, groupColorDataBuffer, 0, 0, 0, 0, false);
             return true;
         }
 
@@ -489,7 +583,69 @@ namespace Nuclei3
                 AxisMode = densityPreviewAxisMode,
                 Slice = densityPreviewSlice,
                 VoxelSize = voxelSize,
-                Version = densityPreviewVersion
+                Version = densityPreviewVersion,
+                ValueIndex = VoxelPreviewField.SlimeChemoattractants,
+                PreviewScale = 1.35f
+            };
+        }
+
+        public GpuDensityFieldPreviewFrame CreateVoxelFieldPreviewFrame(int valueIndex, SolverGpuDimensionMode dimensionMode, float minimumThreshold, float maximumThreshold)
+        {
+            if (VoxelPreviewField.IsDynamicDensity(valueIndex))
+            {
+                return CreateDensityFieldPreviewFrame();
+            }
+
+            if (!VoxelPreviewField.IsStatic(valueIndex))
+            {
+                return null;
+            }
+
+            if (!EnsureStaticFieldPreviewTexture(valueIndex, dimensionMode))
+            {
+                return null;
+            }
+
+            return new GpuDensityFieldPreviewFrame
+            {
+                SharedHandle = staticFieldPreviewSharedHandles[valueIndex],
+                Width = staticFieldPreviewWidths[valueIndex],
+                Height = staticFieldPreviewHeights[valueIndex],
+                ResX = resX,
+                ResY = resY,
+                ResZ = resZ,
+                AxisMode = staticFieldPreviewAxisModes[valueIndex],
+                Slice = staticFieldPreviewSlices[valueIndex],
+                VoxelSize = voxelSize,
+                Version = staticFieldPreviewVersions[valueIndex],
+                ValueIndex = valueIndex,
+                PreviewScale = StaticFieldPreviewScale(valueIndex, minimumThreshold, maximumThreshold)
+            };
+        }
+
+        public GpuParticlePreviewFrame CreateParticlePreviewFrame()
+        {
+            if (!enableSharedParticlePreview)
+            {
+                return null;
+            }
+
+            if (particlePreviewSharedHandle == IntPtr.Zero || particlePreviewTexture == null || particlePreviewWidth <= 0 || particlePreviewHeight <= 1)
+            {
+                return null;
+            }
+
+            return new GpuParticlePreviewFrame
+            {
+                SharedHandle = particlePreviewSharedHandle,
+                TextureWidth = particlePreviewWidth,
+                TextureHeight = particlePreviewHeight,
+                ParticleCount = particleCount,
+                ResX = resX,
+                ResY = resY,
+                ResZ = resZ,
+                VoxelSize = voxelSize,
+                Version = particlePreviewVersion
             };
         }
 
@@ -904,6 +1060,11 @@ namespace Nuclei3
             return voxels[x, y, z];
         }
 
+        int FlatIndex(int x, int y, int z)
+        {
+            return x * resY * resZ + y * resZ + z;
+        }
+
         static Vector3d OrthonormalYAxis(Vector3d xAxis, Vector3d yAxis)
         {
             if (!yAxis.Unitize())
@@ -1016,6 +1177,262 @@ namespace Nuclei3
                 new UnorderedAccessViewDescription(densityB, Format.Unknown, 0, voxelCount, BufferUnorderedAccessViewFlags.None));
         }
 
+        bool EnsureStaticFieldPreviewTexture(int fieldIndex, SolverGpuDimensionMode dimensionMode)
+        {
+            if (!VoxelPreviewField.IsStatic(fieldIndex))
+            {
+                return false;
+            }
+
+            if (staticPreviewVoxels == null)
+            {
+                return false;
+            }
+
+            int width;
+            int height;
+            int axisMode;
+            int slice;
+            ResolveDensityPreviewLayout(dimensionMode, out width, out height, out axisMode, out slice);
+            if (width <= 0 || height <= 0)
+            {
+                return false;
+            }
+
+            if (staticFieldPreviewTextures[fieldIndex] != null
+                && staticFieldPreviewWidths[fieldIndex] == width
+                && staticFieldPreviewHeights[fieldIndex] == height
+                && staticFieldPreviewAxisModes[fieldIndex] == axisMode
+                && staticFieldPreviewSlices[fieldIndex] == slice)
+            {
+                return true;
+            }
+
+            DisposeStaticFieldPreviewTexture(fieldIndex);
+
+            WriteSharedDensityPreviewStatus(
+                "static_field_texture_begin field=" + fieldIndex
+                + " width=" + width
+                + " height=" + height
+                + " axis=" + axisMode
+                + " slice=" + slice);
+
+            float[] previewValues = BuildStaticFieldPreviewValues(fieldIndex, width, height, axisMode, slice);
+
+            Texture2DDescription description = new Texture2DDescription(
+                Format.R32_Float,
+                width,
+                height,
+                1,
+                1,
+                BindFlags.ShaderResource,
+                ResourceUsage.Default,
+                CpuAccessFlags.None,
+                1,
+                0,
+                ResourceOptionFlags.Shared);
+
+            ID3D11Texture2D texture = device.CreateTexture2D(description, null);
+            context.UpdateSubresourceSafe(previewValues, texture, 0, 0, 0, 0, false);
+            context.Flush();
+
+            staticFieldPreviewTextures[fieldIndex] = texture;
+            staticFieldPreviewWidths[fieldIndex] = width;
+            staticFieldPreviewHeights[fieldIndex] = height;
+            staticFieldPreviewAxisModes[fieldIndex] = axisMode;
+            staticFieldPreviewSlices[fieldIndex] = slice;
+            staticFieldPreviewVersions[fieldIndex]++;
+
+            using (IDXGIResource resource = texture.QueryInterface<IDXGIResource>())
+            {
+                staticFieldPreviewSharedHandles[fieldIndex] = resource.SharedHandle;
+            }
+
+            WriteSharedDensityPreviewStatus(
+                "static_field_texture field=" + fieldIndex
+                + " width=" + width
+                + " height=" + height
+                + " handle=0x" + staticFieldPreviewSharedHandles[fieldIndex].ToInt64().ToString("X"));
+
+            return staticFieldPreviewSharedHandles[fieldIndex] != IntPtr.Zero;
+        }
+
+        float[] BuildStaticFieldPreviewValues(int fieldIndex, int width, int height, int axisMode, int slice)
+        {
+            float[] previewValues = new float[width * height];
+
+            for (int v = 0; v < height; v++)
+            {
+                for (int u = 0; u < width; u++)
+                {
+                    int x = u;
+                    int y = v;
+                    int z = slice;
+
+                    if (axisMode == 1)
+                    {
+                        x = u;
+                        y = 0;
+                        z = v;
+                    }
+                    else if (axisMode == 2)
+                    {
+                        x = 0;
+                        y = u;
+                        z = v;
+                    }
+
+                    x = ClampIndex(x, resX);
+                    y = ClampIndex(y, resY);
+                    z = ClampIndex(z, resZ);
+
+                    Voxel voxel = staticPreviewVoxels[x, y, z];
+                    previewValues[v * width + u] = StaticVoxelFieldValue(voxel, fieldIndex);
+                }
+            }
+
+            return previewValues;
+        }
+
+        float StaticFieldPreviewScale(int fieldIndex, float minimumThreshold, float maximumThreshold)
+        {
+            if (fieldIndex < 0 || fieldIndex >= VoxelPreviewField.StaticFieldCount)
+            {
+                return 1.0f;
+            }
+
+            if (maximumThreshold < minimumThreshold)
+            {
+                float temp = minimumThreshold;
+                minimumThreshold = maximumThreshold;
+                maximumThreshold = temp;
+            }
+
+            if (staticFieldPreviewScaleValid[fieldIndex]
+                && staticFieldPreviewScaleMinimums[fieldIndex] == minimumThreshold
+                && staticFieldPreviewScaleMaximums[fieldIndex] == maximumThreshold)
+            {
+                return staticFieldPreviewScales[fieldIndex];
+            }
+
+            float maximum = 1.0f;
+            if (fieldIndex >= VoxelPreviewField.Speed && fieldIndex <= VoxelPreviewField.Food)
+            {
+                maximum = MaxVisibleStaticFieldValue(fieldIndex, minimumThreshold, maximumThreshold);
+            }
+
+            float scale = maximum > 0.0001f ? 1.0f / maximum : 1.0f;
+            staticFieldPreviewScaleMinimums[fieldIndex] = minimumThreshold;
+            staticFieldPreviewScaleMaximums[fieldIndex] = maximumThreshold;
+            staticFieldPreviewScales[fieldIndex] = scale;
+            staticFieldPreviewScaleValid[fieldIndex] = true;
+            return scale;
+        }
+
+        float MaxVisibleStaticFieldValue(int fieldIndex, float minimumThreshold, float maximumThreshold)
+        {
+            if (staticPreviewVoxels == null)
+            {
+                return 1.0f;
+            }
+
+            int width = staticFieldPreviewWidths[fieldIndex];
+            int height = staticFieldPreviewHeights[fieldIndex];
+            int axisMode = staticFieldPreviewAxisModes[fieldIndex];
+            int slice = staticFieldPreviewSlices[fieldIndex];
+            float maximum = 0;
+
+            for (int v = 0; v < height; v++)
+            {
+                for (int u = 0; u < width; u++)
+                {
+                    int x;
+                    int y;
+                    int z;
+                    StaticPreviewCoordinates(u, v, axisMode, slice, out x, out y, out z);
+
+                    Voxel voxel = staticPreviewVoxels[x, y, z];
+                    float value = StaticVoxelFieldValue(voxel, fieldIndex);
+                    if (value > 0.01f && value >= minimumThreshold && value <= maximumThreshold && value > maximum)
+                    {
+                        maximum = value;
+                    }
+                }
+            }
+
+            return maximum > 0.0001f ? maximum : 1.0f;
+        }
+
+        static float StaticVoxelFieldValue(Voxel voxel, int fieldIndex)
+        {
+            if (voxel == null) return 0;
+
+            double value = 0;
+            if (fieldIndex == VoxelPreviewField.MinimumDensity) value = voxel.minDensity;
+            else if (fieldIndex == VoxelPreviewField.MaximumDensity) value = voxel.maxDensity;
+            else if (fieldIndex == VoxelPreviewField.Speed) value = voxel.speedMultiplier;
+            else if (fieldIndex == VoxelPreviewField.SensorDistance) value = voxel.sensorDistanceMultiplier;
+            else if (fieldIndex == VoxelPreviewField.SensorAngle) value = voxel.sensorAngleMultiplier;
+            else if (fieldIndex == VoxelPreviewField.RotationAngle) value = voxel.rotationAngleMultiplier;
+            else if (fieldIndex == VoxelPreviewField.Food) value = voxel.food;
+
+            if (double.IsNaN(value) || double.IsInfinity(value) || value < 0) return 0;
+            return (float)value;
+        }
+
+        void StaticPreviewCoordinates(int u, int v, int axisMode, int slice, out int x, out int y, out int z)
+        {
+            x = u;
+            y = v;
+            z = slice;
+
+            if (axisMode == 1)
+            {
+                x = u;
+                y = 0;
+                z = v;
+            }
+            else if (axisMode == 2)
+            {
+                x = 0;
+                y = u;
+                z = v;
+            }
+
+            x = ClampIndex(x, resX);
+            y = ClampIndex(y, resY);
+            z = ClampIndex(z, resZ);
+        }
+
+        static int ClampIndex(int value, int dimension)
+        {
+            if (dimension <= 1) return 0;
+            if (value < 0) return 0;
+            if (value >= dimension) return dimension - 1;
+            return value;
+        }
+
+        void DisposeStaticFieldPreviewTexture(int fieldIndex)
+        {
+            if (fieldIndex < 0 || fieldIndex >= staticFieldPreviewTextures.Length)
+            {
+                return;
+            }
+
+            if (staticFieldPreviewTextures[fieldIndex] != null)
+            {
+                staticFieldPreviewTextures[fieldIndex].Dispose();
+                staticFieldPreviewTextures[fieldIndex] = null;
+            }
+
+            staticFieldPreviewSharedHandles[fieldIndex] = IntPtr.Zero;
+            staticFieldPreviewWidths[fieldIndex] = 0;
+            staticFieldPreviewHeights[fieldIndex] = 0;
+            staticFieldPreviewAxisModes[fieldIndex] = 0;
+            staticFieldPreviewSlices[fieldIndex] = 0;
+            staticFieldPreviewScaleValid[fieldIndex] = false;
+        }
+
         void CreateDensityPreviewTexture(SolverGpuDimensionMode dimensionMode)
         {
             ResolveDensityPreviewLayout(dimensionMode, out densityPreviewWidth, out densityPreviewHeight, out densityPreviewAxisMode, out densityPreviewSlice);
@@ -1067,6 +1484,71 @@ namespace Nuclei3
             WriteSharedDensityPreviewStatus("shared_handle=0x" + densityPreviewSharedHandle.ToInt64().ToString("X"));
             DispatchDensityPreviewPass(new SolverGpuSettings(), dimensionMode, 0);
             WriteSharedDensityPreviewStatus("initial_dispatch_ok");
+        }
+
+        void CreateParticlePreviewTexture()
+        {
+            if (particleCount <= 0)
+            {
+                return;
+            }
+
+            ResolveParticlePreviewLayout(out particlePreviewWidth, out particlePreviewHeight);
+            WriteSharedParticlePreviewStatus(
+                "create_texture_begin width=" + particlePreviewWidth
+                + " height=" + particlePreviewHeight
+                + " particles=" + particleCount);
+
+            Texture2DDescription description = new Texture2DDescription(
+                Format.R32G32B32A32_Float,
+                particlePreviewWidth,
+                particlePreviewHeight,
+                1,
+                1,
+                BindFlags.UnorderedAccess | BindFlags.ShaderResource,
+                ResourceUsage.Default,
+                CpuAccessFlags.None,
+                1,
+                0,
+                ResourceOptionFlags.Shared);
+
+            particlePreviewTexture = device.CreateTexture2D(description, null);
+            particlePreviewTextureView = device.CreateUnorderedAccessView(
+                particlePreviewTexture,
+                new UnorderedAccessViewDescription(
+                    particlePreviewTexture,
+                    UnorderedAccessViewDimension.Texture2D,
+                    Format.R32G32B32A32_Float,
+                    0,
+                    0,
+                    0));
+
+            using (IDXGIResource resource = particlePreviewTexture.QueryInterface<IDXGIResource>())
+            {
+                particlePreviewSharedHandle = resource.SharedHandle;
+            }
+
+            WriteSharedParticlePreviewStatus("shared_handle=0x" + particlePreviewSharedHandle.ToInt64().ToString("X"));
+        }
+
+        void ResolveParticlePreviewLayout(out int width, out int height)
+        {
+            int maxRows = MaxSharedPreviewTextureDimension / 2;
+            width = Math.Min(4096, Math.Max(1, particleCount));
+            int rows = (particleCount + width - 1) / width;
+
+            if (rows > maxRows)
+            {
+                width = (particleCount + maxRows - 1) / maxRows;
+                if (width > MaxSharedPreviewTextureDimension)
+                {
+                    throw new InvalidOperationException("Particle preview texture would exceed Direct3D texture limits.");
+                }
+
+                rows = (particleCount + width - 1) / width;
+            }
+
+            height = Math.Max(2, rows * 2);
         }
 
         void ResolveDensityPreviewLayout(
@@ -1156,8 +1638,10 @@ namespace Nuclei3
 
             groupData0Buffer = CreateFloat4Buffer(snapshot.GroupData0, BindFlags.ShaderResource);
             groupData1Buffer = CreateFloat4Buffer(snapshot.GroupData1, BindFlags.ShaderResource);
+            groupColorDataBuffer = CreateFloat4Buffer(snapshot.GroupColorData, BindFlags.ShaderResource);
             groupData0View = CreateSrv(groupData0Buffer, groupCount);
             groupData1View = CreateSrv(groupData1Buffer, groupCount);
+            groupColorDataView = CreateSrv(groupColorDataBuffer, groupCount);
         }
 
         void CreateVoxelFlagBuffer(uint[] flags)
@@ -1255,6 +1739,7 @@ namespace Nuclei3
             using (Blob diffusionBytecode = CompileShader(FullSolverShaderSource, "DiffuseAxis"))
             using (Blob decayBytecode = CompileShader(FullSolverShaderSource, "ApplyDecay"))
             using (Blob densityPreviewBytecode = CompileShader(FullSolverShaderSource, "BuildDensityPreview"))
+            using (Blob particlePreviewBytecode = CompileShader(FullSolverShaderSource, "BuildParticlePreview"))
             {
                 moveShader = device.CreateComputeShader(moveBytecode, null);
                 applyDepositsShader = device.CreateComputeShader(applyDepositsBytecode, null);
@@ -1263,6 +1748,7 @@ namespace Nuclei3
                 diffusionShader = device.CreateComputeShader(diffusionBytecode, null);
                 decayShader = device.CreateComputeShader(decayBytecode, null);
                 densityPreviewShader = device.CreateComputeShader(densityPreviewBytecode, null);
+                particlePreviewShader = device.CreateComputeShader(particlePreviewBytecode, null);
             }
         }
 
@@ -1337,7 +1823,7 @@ namespace Nuclei3
                 context.CSSetUnorderedAccessView(i, null, -1);
             }
 
-            for (int i = 0; i <= 3; i++)
+            for (int i = 0; i <= 4; i++)
             {
                 context.CSSetShaderResource(i, null);
             }
@@ -1382,7 +1868,12 @@ namespace Nuclei3
         public void Dispose()
         {
             DisposeWeights();
+            for (int i = 0; i < staticFieldPreviewTextures.Length; i++)
+            {
+                DisposeStaticFieldPreviewTexture(i);
+            }
             if (densityPreviewTextureView != null) densityPreviewTextureView.Dispose();
+            if (particlePreviewTextureView != null) particlePreviewTextureView.Dispose();
             if (densityAView != null) densityAView.Dispose();
             if (densityBView != null) densityBView.Dispose();
             if (particlePositionView != null) particlePositionView.Dispose();
@@ -1392,10 +1883,12 @@ namespace Nuclei3
             if (depositView != null) depositView.Dispose();
             if (groupData0View != null) groupData0View.Dispose();
             if (groupData1View != null) groupData1View.Dispose();
+            if (groupColorDataView != null) groupColorDataView.Dispose();
             if (voxelFlagsView != null) voxelFlagsView.Dispose();
             if (densityA != null) densityA.Dispose();
             if (densityB != null) densityB.Dispose();
             if (densityPreviewTexture != null) densityPreviewTexture.Dispose();
+            if (particlePreviewTexture != null) particlePreviewTexture.Dispose();
             if (densityReadbackBuffer != null) densityReadbackBuffer.Dispose();
             if (particlePositionBuffer != null) particlePositionBuffer.Dispose();
             if (particleDirectionBuffer != null) particleDirectionBuffer.Dispose();
@@ -1415,6 +1908,7 @@ namespace Nuclei3
             if (depositBuffer != null) depositBuffer.Dispose();
             if (groupData0Buffer != null) groupData0Buffer.Dispose();
             if (groupData1Buffer != null) groupData1Buffer.Dispose();
+            if (groupColorDataBuffer != null) groupColorDataBuffer.Dispose();
             if (voxelFlagsBuffer != null) voxelFlagsBuffer.Dispose();
             if (parameterBuffer != null) parameterBuffer.Dispose();
             if (moveShader != null) moveShader.Dispose();
@@ -1424,6 +1918,7 @@ namespace Nuclei3
             if (diffusionShader != null) diffusionShader.Dispose();
             if (decayShader != null) decayShader.Dispose();
             if (densityPreviewShader != null) densityPreviewShader.Dispose();
+            if (particlePreviewShader != null) particlePreviewShader.Dispose();
             if (context != null) context.Dispose();
             if (device != null) device.Dispose();
         }
@@ -1455,6 +1950,25 @@ namespace Nuclei3
 
                 File.AppendAllText(
                     SharedDensityPreviewStatusPath,
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + " " + message + Environment.NewLine);
+            }
+            catch
+            {
+            }
+        }
+
+        static void WriteSharedParticlePreviewStatus(string message)
+        {
+            try
+            {
+                string directory = Path.GetDirectoryName(SharedParticlePreviewStatusPath);
+                if (!string.IsNullOrEmpty(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                File.AppendAllText(
+                    SharedParticlePreviewStatusPath,
                     DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + " " + message + Environment.NewLine);
             }
             catch
@@ -1536,11 +2050,13 @@ RWStructuredBuffer<float4> ParticleYAxis : register(u4);
 RWStructuredBuffer<uint> ParticleCounts : register(u5);
 RWStructuredBuffer<uint> DepositFixed : register(u6);
 RWTexture2D<float> DensityPreview : register(u7);
+RWTexture2D<float4> ParticlePreview : register(u7);
 
 StructuredBuffer<float> Weights : register(t0);
 StructuredBuffer<float4> GroupData0 : register(t1);
 StructuredBuffer<float4> GroupData1 : register(t2);
 StructuredBuffer<uint> VoxelFlags : register(t3);
+StructuredBuffer<float4> GroupColorData : register(t4);
 
 int FlatIndex(int x, int y, int z)
 {
@@ -2104,6 +2620,30 @@ void BuildDensityPreview(uint3 id : SV_DispatchThreadID)
     z = clamp(z, 0, ResZ - 1);
 
     DensityPreview[int2(u, v)] = Source[FlatIndex(x, y, z)];
+}
+
+[numthreads(256, 1, 1)]
+void BuildParticlePreview(uint3 id : SV_DispatchThreadID)
+{
+    int particleIndex = id.x;
+    if (particleIndex >= ParticleCount) return;
+
+    int texX = particleIndex % PreviewWidth;
+    int row = particleIndex / PreviewWidth;
+    int posY = row * 2;
+    if (posY + 1 >= PreviewHeight) return;
+
+    float4 positionGroup = ParticlePosition[particleIndex];
+    int groupIndex = (int)round(positionGroup.w);
+    groupIndex = clamp(groupIndex, 0, max(GroupCount - 1, 0));
+    float4 color = float4(1.0, 1.0, 1.0, 1.0);
+    if (GroupCount > 0)
+    {
+        color = GroupColorData[groupIndex];
+    }
+
+    ParticlePreview[int2(texX, posY)] = positionGroup;
+    ParticlePreview[int2(texX, posY + 1)] = color;
 }";
     }
 }
