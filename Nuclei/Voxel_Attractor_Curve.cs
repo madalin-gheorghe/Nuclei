@@ -220,17 +220,6 @@ namespace Nuclei3
             double theRealMax = Math.Max(minR, maxR);
             int maxRange = Convert.ToInt32(Math.Ceiling(theRealMax / voxelSize));
 
-            for(int i=0; i<resX; i++)
-            {
-                for(int j=0; j<resY; j++)
-                {
-                    for(int k=0; k<resZ; k++)
-                    {
-                        Voxel V = new Voxel(voxelSize, i, j, k);
-                    }
-                }
-            }
-
             //create voxels around dummy voxels
             voxels = new Voxel[resX, resY, resZ];
 

@@ -60,7 +60,11 @@ namespace Nuclei3
             DA.GetDataTree(0, out points);
             DA.GetData(1, ref inputVoxels);
 
-            inheritVoxels();
+            voxelData = VoxelGridRegistry.GetOrCapture(inputVoxels, Globals.voxelSize);
+            resX = voxelData.ResX;
+            resY = voxelData.ResY;
+            resZ = voxelData.ResZ;
+            voxelSize = voxelData.VoxelSize;
 
             outputVoxelIndices = new DataTree<int>();
 
@@ -75,24 +79,6 @@ namespace Nuclei3
                 }
             }
 
-            List<GH_Point> gH_PointList = points.Branches[0];
-            GH_Point pt = gH_PointList[0];
-
-            int result = -1;
-
-            int xID = System.Convert.ToInt32((pt.Value.X - Math.Abs(pt.Value.X % voxelSize)) / voxelSize);
-            int yID = System.Convert.ToInt32((pt.Value.Y - Math.Abs(pt.Value.Y % voxelSize)) / voxelSize);
-            int zID = System.Convert.ToInt32((pt.Value.Z - Math.Abs(pt.Value.Z % voxelSize)) / voxelSize);
-
-            if (xID >= 0 && xID < resX && yID >= 0 && yID < resY && zID >= 0 && zID < resZ)
-            {
-                if (inputVoxels[xID, yID, zID] != null)
-                {
-                    Voxel parentVoxel = inputVoxels[xID, yID, zID];
-                    result = voxelIndices[xID, yID, zID];
-                }
-            }
-
             DA.SetDataTree(0, outputVoxelIndices);
         }
 
@@ -102,6 +88,7 @@ namespace Nuclei3
         Voxel[,,] inputVoxels;
         Voxel[,,] voxels;
         int[,,] voxelIndices;
+        VoxelGridData voxelData;
 
         GH_Structure<GH_Point> points;
 
@@ -230,14 +217,7 @@ namespace Nuclei3
 
             if (xID >= 0 && xID < resX && yID >= 0 && yID < resY && zID >= 0 && zID < resZ)
             {
-                if (voxels[xID, yID, zID] != null)
-                {
-                    Voxel parentVoxel = inputVoxels[xID, yID, zID];
-                    result = voxelIndices[xID, yID, zID];
-                } else
-                {
-                    result = -1;
-                }
+                result = voxelData.ActiveOrdinalFromFlatIndex(voxelData.FlatIndex(xID, yID, zID));
             }
             
 

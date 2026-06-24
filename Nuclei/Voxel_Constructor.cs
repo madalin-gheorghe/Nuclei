@@ -93,6 +93,7 @@ namespace Nuclei3
             //createVoxels();
 
             voxel = new Voxel[resX, resY, resZ];
+            VoxelGridRegistry.Set(voxel, VoxelGridData.CreateFullDomain(resX, resY, resZ, voxelSize));
             DA.SetData(0, voxel);
 
             initializeBGPolygon();

@@ -611,13 +611,15 @@ public class Solver : GH_Component
 
         void inheritVoxels()
         {
+            VoxelGridData inputData = VoxelGridRegistry.GetOrCapture(inputVoxels, Globals.voxelSize);
+
             //determine voxel settings
-            resX = inputVoxels.GetLength(0);
-            resY = inputVoxels.GetLength(1);
-            resZ = inputVoxels.GetLength(2);
+            resX = inputData.ResX;
+            resY = inputData.ResY;
+            resZ = inputData.ResZ;
 
             //determine voxelSize
-            voxelSize = Globals.voxelSize;
+            voxelSize = inputData.VoxelSize;
             voxelSizeInverse = 1.0 / voxelSize;
 
             //determine voxel space dimensions
@@ -688,119 +690,70 @@ public class Solver : GH_Component
             scalarVoxelDensityDirtyForOutput = false;
             voxelHasPositiveFood = false;
 
-            Voxel[] tempActiveVoxels = new Voxel[voxelCount];
-            int activeVoxelCount = 0;
+            int activeVoxelCount = inputData.ActiveCount;
+            Voxel[] tempActiveVoxels = new Voxel[activeVoxelCount];
 
-            Parallel.For(0, resX, i =>
+            if (inputData.AllVoxelsActive)
             {
-                for (int j = 0; j < resY; j++)
+                Parallel.For(0, voxelCount, flatIndex =>
                 {
-                    for (int k = 0; k < resZ; k++)
-                    {
-                        if (inputVoxels[i, j, k] != null)
-                        {
-                            Voxel initialV = inputVoxels[i, j, k];
-
-                            int flatIndex = i * voxelStrideX + j * voxelStrideY + k;
-                            Voxel V = new Voxel(voxelSize, i, j, k);
-                            V.flatIndex = flatIndex;
-                            V.densityStore = scalarDensityStore;
-                            voxels[i, j, k] = V;
-                            voxelFlat[flatIndex] = V;
-
-                            //assign the voxel values from the initial voxels
-                            V.minDensity = initialV.minDensity;
-                            V.maxDensity = initialV.maxDensity;
-                            V.inputMinDensity = initialV.minDensity;
-                            V.inputMaxDensity = initialV.maxDensity;
-
-                            V.speedMultiplier = initialV.speedMultiplier;
-                            V.sensorAngleMultiplier = initialV.sensorAngleMultiplier;
-                            V.sensorDistanceMultiplier = initialV.sensorDistanceMultiplier;
-                            V.rotationAngleMultiplier = initialV.rotationAngleMultiplier;
-
-                            V.food = initialV.food;
-                            if (V.food > 0)
-                            {
-                                voxelHasPositiveFood = true;
-                            }
-
-                            V.voxelVector = initialV.voxelVector;
-
-                            if (V.voxelVector.Length > 0)
-                            {
-                                V.vectorField = true;
-
-                                if (planarXY)
-                                {
-                                    V.voxelVector = new Vector3d(V.voxelVector.X, V.voxelVector.Y, 0);
-                                }
-                                else if (planarXZ)
-                                {
-                                    V.voxelVector = new Vector3d(V.voxelVector.X, 0, V.voxelVector.Z);
-                                }
-                                else if (planarYZ)
-                                {
-                                    V.voxelVector = new Vector3d(0, V.voxelVector.Y, V.voxelVector.Z);
-                                }
-                            } else
-                            {
-                                V.vectorField = false;
-                            }
-
-                            V.frequency = initialV.frequency;
-                            scalarVoxelDensity[flatIndex] = V.density;
-
-                            //list of all active voxels
-                            int idx = System.Threading.Interlocked.Increment(ref activeVoxelCount) - 1;
-                            tempActiveVoxels[idx] = V;
-                        }
-                    }
-                }
+                    tempActiveVoxels[flatIndex] = createSolverVoxelFromData(inputData, flatIndex);
+                });
             }
-            );
-
-            //if all voxels are NULL, then instantiate new blank voxels
-            if (activeVoxelCount == 0)
+            else if (inputData.ActiveIndices != null)
             {
-                Parallel.For(0, resX, i =>
+                int[] activeIndices = inputData.ActiveIndices;
+                Parallel.For(0, activeIndices.Length, i =>
                 {
-                    for (int j = 0; j < resY; j++)
-                    {
-                        for (int k = 0; k < resZ; k++)
-                        {
-                            int flatIndex = i * voxelStrideX + j * voxelStrideY + k;
-                            Voxel V = new Voxel(voxelSize, i, j, k);
-                            V.flatIndex = flatIndex;
-                            V.densityStore = scalarDensityStore;
-                            voxels[i, j, k] = V;
-                            voxelFlat[flatIndex] = V;
-                            scalarVoxelDensity[flatIndex] = V.density;
-                            int idx = System.Threading.Interlocked.Increment(ref activeVoxelCount) - 1;
-                            tempActiveVoxels[idx] = V;
-                        }
-                    }
-                }
-            );
+                    tempActiveVoxels[i] = createSolverVoxelFromData(inputData, activeIndices[i]);
+                });
             }
 
-            if (activeVoxelCount == tempActiveVoxels.Length)
-            {
-                activeVoxels = tempActiveVoxels;
-                denseVoxelGrid = true;
-            }
-            else
-            {
-                activeVoxels = new Voxel[activeVoxelCount];
-                Array.Copy(tempActiveVoxels, activeVoxels, activeVoxelCount);
-                denseVoxelGrid = false;
-            }
+            activeVoxels = tempActiveVoxels;
+            denseVoxelGrid = activeVoxelCount == voxelCount;
 
             refreshVoxelBoundaryDensityLimits();
             
             reusableWeightsRange = int.MinValue;
             reusableAntWeightsRange = int.MinValue;
             ensureReusableDiffusionWeights();
+        }
+
+        Voxel createSolverVoxelFromData(VoxelGridData inputData, int flatIndex)
+        {
+            Voxel V = inputData.CreateVoxel(flatIndex, scalarDensityStore);
+            voxels[V.idX, V.idY, V.idZ] = V;
+            voxelFlat[flatIndex] = V;
+            scalarVoxelDensity[flatIndex] = V.density;
+
+            if (V.food > 0)
+            {
+                voxelHasPositiveFood = true;
+            }
+
+            if (V.voxelVector.Length > 0)
+            {
+                if (planarXY)
+                {
+                    V.voxelVector = new Vector3d(V.voxelVector.X, V.voxelVector.Y, 0);
+                }
+                else if (planarXZ)
+                {
+                    V.voxelVector = new Vector3d(V.voxelVector.X, 0, V.voxelVector.Z);
+                }
+                else if (planarYZ)
+                {
+                    V.voxelVector = new Vector3d(0, V.voxelVector.Y, V.voxelVector.Z);
+                }
+
+                V.vectorField = V.voxelVector.Length > 0;
+            }
+            else
+            {
+                V.vectorField = false;
+            }
+
+            return V;
         }
 
         void refreshVoxelBoundaryDensityLimitsIfNeeded()
