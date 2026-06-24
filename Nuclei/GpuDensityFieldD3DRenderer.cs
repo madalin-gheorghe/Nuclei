@@ -839,6 +839,149 @@ float SampleVolumeAtlasTrilinear(float3 worldPosition)
     return lerp(c0, c1, f.z);
 }
 
+float FancyTransfer(float normalizedValue)
+{
+    float visible = smoothstep(0.025, 0.18, normalizedValue);
+    float shaped = pow(saturate(normalizedValue), 0.72);
+    float highlight = smoothstep(0.52, 1.0, normalizedValue) * 0.22;
+    return saturate(visible * shaped + highlight);
+}
+
+float3 EstimateVolumeGradient(float3 worldPosition)
+{
+    int resX = max((int)VolumeGrid.x, 1);
+    int resY = max((int)VolumeGrid.y, 1);
+    int resZ = max((int)VolumeGrid.z, 1);
+    float3 voxelStep = VolumeBox.xyz / max(float3((float)resX, (float)resY, (float)resZ), float3(1.0, 1.0, 1.0));
+
+    float dx = SampleVolumeAtlasTrilinear(worldPosition + float3(voxelStep.x, 0.0, 0.0))
+        - SampleVolumeAtlasTrilinear(worldPosition - float3(voxelStep.x, 0.0, 0.0));
+    float dy = SampleVolumeAtlasTrilinear(worldPosition + float3(0.0, voxelStep.y, 0.0))
+        - SampleVolumeAtlasTrilinear(worldPosition - float3(0.0, voxelStep.y, 0.0));
+    float dz = SampleVolumeAtlasTrilinear(worldPosition + float3(0.0, 0.0, voxelStep.z))
+        - SampleVolumeAtlasTrilinear(worldPosition - float3(0.0, 0.0, voxelStep.z));
+
+    return float3(dx, dy, dz);
+}
+
+float3 ApplyFancyLighting(float3 color, float3 worldPosition, float3 rayDirection, float depthAlongRay)
+{
+    float3 gradient = EstimateVolumeGradient(worldPosition);
+    float gradientStrength = length(gradient);
+    if (gradientStrength <= 0.00001)
+    {
+        float flatDepthCue = lerp(1.08, 0.62, saturate(depthAlongRay));
+        return color * flatDepthCue;
+    }
+
+    float3 normal = normalize(gradient);
+    float3 lightDirection = normalize(float3(-0.35, -0.55, 0.75));
+    float diffuseA = saturate(dot(normal, lightDirection));
+    float diffuseB = saturate(dot(-normal, lightDirection)) * 0.45;
+    float rim = pow(saturate(1.0 - abs(dot(normal, -rayDirection))), 2.0) * 0.22;
+    float depthCue = lerp(1.12, 0.58, saturate(depthAlongRay));
+    float lighting = (0.58 + diffuseA * 0.42 + diffuseB + rim) * depthCue;
+    return color * lighting;
+}
+
+float LightningGlowTransfer(float normalizedValue)
+{
+    float visible = smoothstep(0.055, 0.28, normalizedValue);
+    return saturate(visible * pow(saturate(normalizedValue), 1.35));
+}
+
+float LightningCoreTransfer(float normalizedValue)
+{
+    float core = smoothstep(0.44, 0.88, normalizedValue);
+    return saturate(core * core);
+}
+
+float3 LightningColor(float value, float glow, float core, float depthAlongRay)
+{
+    if (Thresholds.z > 0.5)
+    {
+        return CustomColor.rgb * saturate(glow + core);
+    }
+
+    float3 coolHalo = float3(0.11, 0.06, 0.26);
+    float3 warmHalo = float3(1.0, 0.58, 0.22);
+    float3 whiteCore = float3(1.0, 0.96, 0.88);
+    float3 color = lerp(coolHalo, warmHalo, saturate(glow * 1.35));
+    color = lerp(color, whiteCore, saturate(core * 1.45));
+
+    float farTint = saturate(depthAlongRay);
+    color = lerp(color, color * float3(0.78, 0.84, 1.18), farTint * 0.22);
+    return color;
+}
+
+float4 RenderLightningVolume(float3 nearWorld, float3 direction, float startT, float travel, float stepLength, int steps)
+{
+    float t = startT + stepLength * 0.5;
+    float maximumValue = 0.0;
+    float maximumGlow = 0.0;
+    float maximumCore = 0.0;
+    float maximumDepth = 0.0;
+    float3 maximumPosition = nearWorld + direction * startT;
+    float4 accumulated = float4(0.0, 0.0, 0.0, 0.0);
+
+    [loop]
+    for (int i = 0; i < 160; i++)
+    {
+        if (i >= steps || accumulated.a > 0.92)
+        {
+            break;
+        }
+
+        float3 p = nearWorld + direction * t;
+        float value = SampleVolumeAtlasTrilinear(p);
+        if (InPreviewRange(value))
+        {
+            float n = saturate(value * Style.y);
+            float glow = LightningGlowTransfer(n);
+            float core = LightningCoreTransfer(n);
+            float signal = saturate(glow * 0.55 + core);
+            float depthAlongRay = saturate((t - startT) / travel);
+
+            if (signal > maximumGlow * 0.55 + maximumCore)
+            {
+                maximumValue = value;
+                maximumGlow = glow;
+                maximumCore = core;
+                maximumDepth = depthAlongRay;
+                maximumPosition = p;
+            }
+
+            float depthFade = lerp(1.10, 0.60, depthAlongRay);
+            float glowAlpha = glow * glow * 0.92;
+            float coreAlpha = core * 2.35;
+            float sampleAlpha = saturate((glowAlpha + coreAlpha) * (3.35 / max((float)steps, 1.0)) * VolumeAtlas.z * depthFade);
+            float3 color = LightningColor(value, glow, core, depthAlongRay);
+
+            accumulated.rgb += (1.0 - accumulated.a) * sampleAlpha * color;
+            accumulated.a += (1.0 - accumulated.a) * sampleAlpha;
+        }
+
+        t += stepLength;
+    }
+
+    if (maximumGlow <= 0.002 && accumulated.a <= 0.002)
+    {
+        clip(-1.0);
+    }
+
+    float edgeStrength = saturate(length(EstimateVolumeGradient(maximumPosition)) * 18.0);
+    float3 coreColor = LightningColor(maximumValue, maximumGlow, maximumCore, maximumDepth);
+    coreColor = ApplyFancyLighting(coreColor, maximumPosition, direction, maximumDepth);
+    float3 glowColor = accumulated.a > 0.002 ? accumulated.rgb / max(accumulated.a, 0.001) : coreColor;
+
+    float coreAlpha = saturate((0.08 + maximumGlow * 0.26 + maximumCore * 0.92) * VolumeAtlas.z);
+    float edgeBoost = lerp(0.82, 1.24, edgeStrength);
+    float finalAlpha = saturate((accumulated.a * 0.66 + coreAlpha * 0.48) * edgeBoost);
+    float coreBlend = saturate(0.42 + maximumCore * 0.42 + edgeStrength * 0.16);
+    float3 finalColor = lerp(glowColor, coreColor, coreBlend);
+    return float4(finalColor, finalAlpha);
+}
+
 float4 RenderVolume(VSOutput input)
 {
     float3 nearWorld = ScreenToWorldPoint(input.Position.xy, 0.0);
@@ -857,11 +1000,20 @@ float4 RenderVolume(VSOutput input)
     float travel = max(exitT - startT, 0.0001);
     float stepLength = travel / (float)steps;
     float t = startT + stepLength * 0.5;
+    if (VolumeAtlas.w > 1.5)
+    {
+        return RenderLightningVolume(nearWorld, direction, startT, travel, stepLength, steps);
+    }
+
     bool maximumIntensityMode = VolumeAtlas.w > 0.5;
 
     if (maximumIntensityMode)
     {
         float maximumValue = 0.0;
+        float maximumVisual = 0.0;
+        float maximumDepth = 0.0;
+        float3 maximumPosition = nearWorld + direction * startT;
+        float4 accumulated = float4(0.0, 0.0, 0.0, 0.0);
 
         [loop]
         for (int i = 0; i < 160; i++)
@@ -875,26 +1027,52 @@ float4 RenderVolume(VSOutput input)
             float value = SampleVolumeAtlasTrilinear(p);
             if (InPreviewRange(value))
             {
-                maximumValue = max(maximumValue, value);
+                float n = saturate(value * Style.y);
+                float visual = FancyTransfer(n);
+                float depthAlongRay = saturate((t - startT) / travel);
+                if (visual > maximumVisual)
+                {
+                    maximumVisual = visual;
+                    maximumValue = value;
+                    maximumDepth = depthAlongRay;
+                    maximumPosition = p;
+                }
+
+                float depthAlpha = lerp(1.12, 0.55, depthAlongRay);
+                float sampleAlpha = saturate(visual * visual * (2.7 / max((float)steps, 1.0)) * VolumeAtlas.z * depthAlpha);
+                float3 volumeColor = PreviewColor(value, visual);
+                if (Thresholds.z > 0.5)
+                {
+                    volumeColor = CustomColor.rgb * visual;
+                }
+
+                accumulated.rgb += (1.0 - accumulated.a) * sampleAlpha * volumeColor;
+                accumulated.a += (1.0 - accumulated.a) * sampleAlpha;
             }
 
             t += stepLength;
         }
 
-        if (maximumValue <= 0.002)
+        if (maximumVisual <= 0.002 && accumulated.a <= 0.002)
         {
             clip(-1.0);
         }
 
-        float n = saturate(maximumValue * Style.y);
-        float3 color = PreviewColor(maximumValue, n);
+        float3 mipColor = PreviewColor(maximumValue, maximumVisual);
         if (Thresholds.z > 0.5)
         {
-            color = CustomColor.rgb * n;
+            mipColor = CustomColor.rgb * maximumVisual;
         }
 
-        float alpha = saturate((0.08 + n * 0.92) * VolumeAtlas.z);
-        return float4(color, alpha);
+        mipColor = ApplyFancyLighting(mipColor, maximumPosition, direction, maximumDepth);
+        float3 volumeColorFinal = accumulated.a > 0.002 ? accumulated.rgb / max(accumulated.a, 0.001) : mipColor;
+        volumeColorFinal = ApplyFancyLighting(volumeColorFinal, maximumPosition, direction, maximumDepth);
+
+        float mipAlpha = saturate((0.05 + maximumVisual * 0.72) * VolumeAtlas.z);
+        float finalAlpha = saturate(accumulated.a * 0.72 + mipAlpha * 0.38);
+        float mipBlend = 0.42;
+        float3 finalColor = lerp(volumeColorFinal, mipColor, mipBlend);
+        return float4(finalColor, finalAlpha);
     }
 
     float4 accumulated = float4(0.0, 0.0, 0.0, 0.0);

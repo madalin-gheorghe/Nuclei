@@ -133,6 +133,7 @@ namespace Nuclei3
 
     internal sealed class ParticlePreviewDisplayFrame
     {
+        public GpuParticlePreviewFrame GpuFrame;
         public PointCloud SlimePointCloud;
         public PointCloud AntPointCloud1;
         public PointCloud AntPointCloud2;

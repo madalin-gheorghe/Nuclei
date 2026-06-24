@@ -229,30 +229,7 @@ namespace Nuclei3
 
         void initializeVoxelColors()
         {
-            Color valuesWhiteColor = System.Drawing.Color.FromArgb(255, 255, 255, 255);
-            Color chemoAttractantsColor = System.Drawing.Color.FromArgb(255, 223, 255, 123);
-            Color antFoodPheromonesColor = System.Drawing.Color.FromArgb(255, 57, 255, 170);
-            Color antBasePheromonesColor = System.Drawing.Color.FromArgb(255, 255, 0, 100);
-
-            Globals.voxelColorList_White = new List<Color>();
-            Globals.voxelColorList_chemoAttractants = new List<Color>();
-            Globals.voxelColorList_antFoodPheromones = new List<Color>();
-            Globals.voxelColorList_antBasePheromones = new List<Color>();
-
-            for (int i = 0; i <= 255; i++)
-            {
-                Color color_white = System.Drawing.Color.FromArgb((int)Math.Floor(i * 0.5), valuesWhiteColor.R, valuesWhiteColor.G, valuesWhiteColor.B);
-                Globals.voxelColorList_White.Add(color_white);
-
-                Color color_chemoAttractants = System.Drawing.Color.FromArgb((int)Math.Floor(i * 0.5), chemoAttractantsColor.R, chemoAttractantsColor.G, chemoAttractantsColor.B);
-                Globals.voxelColorList_chemoAttractants.Add(color_chemoAttractants);
-
-                Color color_antFoodPheromones = System.Drawing.Color.FromArgb((int)Math.Floor(i * 0.5), antFoodPheromonesColor.R, antFoodPheromonesColor.G, antFoodPheromonesColor.B);
-                Globals.voxelColorList_antFoodPheromones.Add(color_antFoodPheromones);
-
-                Color color_antBasePheromones = System.Drawing.Color.FromArgb((int)Math.Floor(i * 0.5), antBasePheromonesColor.R, antBasePheromonesColor.G, antBasePheromonesColor.B);
-                Globals.voxelColorList_antBasePheromones.Add(color_antBasePheromones);
-            }
+            VoxelPreviewPalette.EnsureInitialized();
         }
 
         /// <summary>

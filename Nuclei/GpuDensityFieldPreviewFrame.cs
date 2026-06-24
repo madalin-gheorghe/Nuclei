@@ -22,7 +22,7 @@ namespace Nuclei3
         public float MinimumThreshold = 0;
         public float MaximumThreshold = float.MaxValue;
         public float PreviewScale = 1.35f;
-        public float VolumeOpacity = 1.5f;
+        public float VolumeOpacity = 0.8f;
         public float VolumeContrast = 1.5f;
         public int VolumeSampleCount = 0;
         public int VolumeRenderMode = 0;

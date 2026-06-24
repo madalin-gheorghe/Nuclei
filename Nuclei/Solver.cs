@@ -237,27 +237,33 @@ public class Solver : GH_Component
                 setVoxelsTicks = Stopwatch.GetTimestamp() - outputStageStart;
                 outputsTicks = Stopwatch.GetTimestamp() - stageStart;
 
-                recordTimingAverages(
-                    settingsTicks,
-                    inputsTicks,
-                    senseTicks,
-                    moveTicks,
-                    trailTicks,
-                    diffuseTicks,
-                    parentTicks,
-                    populationTicks,
-                    outputsTicks,
-                    densitySyncTicks,
-                    setParticlesTicks,
-                    setVoxelsTicks,
-                    sensePrepareTicks,
-                    senseParticlesTicks,
-                    senseAntTicks,
-                    moveShuffleTicks,
-                    moveParticlesTicks,
-                    Stopwatch.GetTimestamp() - solveStart);
+                bool reachedMaxIterations = iteration >= maxIterations;
+                if (!reachedMaxIterations)
+                {
+                    recordTimingAverages(
+                        settingsTicks,
+                        inputsTicks,
+                        senseTicks,
+                        moveTicks,
+                        trailTicks,
+                        diffuseTicks,
+                        parentTicks,
+                        populationTicks,
+                        outputsTicks,
+                        densitySyncTicks,
+                        setParticlesTicks,
+                        setVoxelsTicks,
+                        sensePrepareTicks,
+                        senseParticlesTicks,
+                        senseAntTicks,
+                        moveShuffleTicks,
+                        moveParticlesTicks,
+                        Stopwatch.GetTimestamp() - solveStart);
+                }
 
-                this.Message = "Iteration: " + iteration;
+                this.Message = reachedMaxIterations
+                    ? "Complete: " + iteration + "/" + maxIterations
+                    : "Iteration: " + iteration;
             }
         }
 

@@ -132,7 +132,7 @@ namespace Nuclei3
 
             VoxelDensityLimits[offset] = DensityLimitOrUnset(voxel.minDensity);
             VoxelDensityLimits[offset + 1] = DensityLimitOrUnset(voxel.maxDensity);
-            VoxelDensityLimits[offset + 2] = 0;
+            VoxelDensityLimits[offset + 2] = PositiveValueOrZero(voxel.food);
             VoxelDensityLimits[offset + 3] = 0;
         }
 
@@ -145,6 +145,12 @@ namespace Nuclei3
         static float DensityLimitOrUnset(double value)
         {
             if (double.IsNaN(value) || double.IsInfinity(value) || value < 0) return -1.0f;
+            return (float)value;
+        }
+
+        static float PositiveValueOrZero(double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0) return 0.0f;
             return (float)value;
         }
 

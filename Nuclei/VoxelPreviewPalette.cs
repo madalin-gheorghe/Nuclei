@@ -26,12 +26,11 @@ namespace Nuclei3
         public static List<Color> CreateValuePalette(Color color)
         {
             var colors = new List<Color>(PaletteSize);
-            int maxAlpha = color.A > 0 ? color.A : 255;
 
             for (int i = 0; i < PaletteSize; i++)
             {
                 double t = i / 255.0;
-                colors.Add(FadeColor(color, maxAlpha, t));
+                colors.Add(FadeColor(color, t));
             }
 
             return colors;
@@ -50,20 +49,20 @@ namespace Nuclei3
             if (colors == null || colors.Count != PaletteSize) return false;
 
             Color middle = colors[128];
-            int expectedAlpha = ClampToByte((expectedColor.A > 0 ? expectedColor.A : 255) * (128.0 / 255.0));
-            return middle.A == expectedAlpha
-                && middle.R == expectedColor.R
-                && middle.G == expectedColor.G
-                && middle.B == expectedColor.B;
+            double t = 128.0 / 255.0;
+            return middle.A == 255
+                && middle.R == ClampToByte(expectedColor.R * t)
+                && middle.G == ClampToByte(expectedColor.G * t)
+                && middle.B == ClampToByte(expectedColor.B * t);
         }
 
-        static Color FadeColor(Color color, int maxAlpha, double t)
+        static Color FadeColor(Color color, double t)
         {
             return Color.FromArgb(
-                ClampToByte(maxAlpha * t),
-                color.R,
-                color.G,
-                color.B);
+                255,
+                ClampToByte(color.R * t),
+                ClampToByte(color.G * t),
+                ClampToByte(color.B * t));
         }
 
         static int ClampToByte(double value)

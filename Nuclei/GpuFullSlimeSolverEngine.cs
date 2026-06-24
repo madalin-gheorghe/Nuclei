@@ -125,6 +125,8 @@ namespace Nuclei3
         int densityPreviewHeight;
         int densityPreviewAxisMode;
         int densityPreviewSlice;
+        int densityPreviewAtlasColumns = 1;
+        int densityPreviewAtlasRows = 1;
         int densityPreviewScale = 1;
         long densityPreviewVersion = 0;
         readonly IntPtr[] staticFieldPreviewSharedHandles = new IntPtr[VoxelPreviewField.StaticFieldCount];
@@ -132,6 +134,8 @@ namespace Nuclei3
         readonly int[] staticFieldPreviewHeights = new int[VoxelPreviewField.StaticFieldCount];
         readonly int[] staticFieldPreviewAxisModes = new int[VoxelPreviewField.StaticFieldCount];
         readonly int[] staticFieldPreviewSlices = new int[VoxelPreviewField.StaticFieldCount];
+        readonly int[] staticFieldPreviewAtlasColumns = new int[VoxelPreviewField.StaticFieldCount];
+        readonly int[] staticFieldPreviewAtlasRows = new int[VoxelPreviewField.StaticFieldCount];
         readonly long[] staticFieldPreviewVersions = new long[VoxelPreviewField.StaticFieldCount];
         readonly float[] staticFieldPreviewScaleMinimums = new float[VoxelPreviewField.StaticFieldCount];
         readonly float[] staticFieldPreviewScaleMaximums = new float[VoxelPreviewField.StaticFieldCount];
@@ -536,6 +540,10 @@ namespace Nuclei3
             parameters.PreviewHeight = densityPreviewHeight;
             parameters.PreviewAxisMode = densityPreviewAxisMode;
             parameters.PreviewSlice = densityPreviewSlice;
+            parameters.PreviewAtlasColumns = densityPreviewAtlasColumns;
+            parameters.PreviewAtlasRows = densityPreviewAtlasRows;
+            parameters.PreviewPadding0 = 0;
+            parameters.PreviewPadding1 = 0;
             return parameters;
         }
 
@@ -641,6 +649,8 @@ namespace Nuclei3
                 ResZ = resZ,
                 AxisMode = densityPreviewAxisMode,
                 Slice = densityPreviewSlice,
+                AtlasColumns = densityPreviewAtlasColumns,
+                AtlasRows = densityPreviewAtlasRows,
                 VoxelSize = voxelSize,
                 Version = densityPreviewVersion,
                 ValueIndex = VoxelPreviewField.SlimeChemoattractants,
@@ -681,6 +691,8 @@ namespace Nuclei3
                 ResZ = resZ,
                 AxisMode = staticFieldPreviewAxisModes[valueIndex],
                 Slice = staticFieldPreviewSlices[valueIndex],
+                AtlasColumns = staticFieldPreviewAtlasColumns[valueIndex],
+                AtlasRows = staticFieldPreviewAtlasRows[valueIndex],
                 VoxelSize = voxelSize,
                 Version = staticFieldPreviewVersions[valueIndex],
                 ValueIndex = valueIndex,
@@ -1258,7 +1270,9 @@ namespace Nuclei3
             int height;
             int axisMode;
             int slice;
-            ResolveDensityPreviewLayout(dimensionMode, out width, out height, out axisMode, out slice);
+            int atlasColumns;
+            int atlasRows;
+            ResolveDensityPreviewLayout(dimensionMode, out width, out height, out axisMode, out slice, out atlasColumns, out atlasRows);
             if (width <= 0 || height <= 0)
             {
                 return false;
@@ -1268,7 +1282,9 @@ namespace Nuclei3
                 && staticFieldPreviewWidths[fieldIndex] == width
                 && staticFieldPreviewHeights[fieldIndex] == height
                 && staticFieldPreviewAxisModes[fieldIndex] == axisMode
-                && staticFieldPreviewSlices[fieldIndex] == slice)
+                && staticFieldPreviewSlices[fieldIndex] == slice
+                && staticFieldPreviewAtlasColumns[fieldIndex] == atlasColumns
+                && staticFieldPreviewAtlasRows[fieldIndex] == atlasRows)
             {
                 return true;
             }
@@ -1280,9 +1296,10 @@ namespace Nuclei3
                 + " width=" + width
                 + " height=" + height
                 + " axis=" + axisMode
-                + " slice=" + slice);
+                + " slice=" + slice
+                + " atlas=" + atlasColumns + "x" + atlasRows);
 
-            float[] previewValues = BuildStaticFieldPreviewValues(fieldIndex, width, height, axisMode, slice);
+            float[] previewValues = BuildStaticFieldPreviewValues(fieldIndex, width, height, axisMode, slice, atlasColumns, atlasRows);
 
             Texture2DDescription description = new Texture2DDescription(
                 Format.R32_Float,
@@ -1306,6 +1323,8 @@ namespace Nuclei3
             staticFieldPreviewHeights[fieldIndex] = height;
             staticFieldPreviewAxisModes[fieldIndex] = axisMode;
             staticFieldPreviewSlices[fieldIndex] = slice;
+            staticFieldPreviewAtlasColumns[fieldIndex] = atlasColumns;
+            staticFieldPreviewAtlasRows[fieldIndex] = atlasRows;
             staticFieldPreviewVersions[fieldIndex]++;
 
             using (IDXGIResource resource = texture.QueryInterface<IDXGIResource>())
@@ -1322,9 +1341,11 @@ namespace Nuclei3
             return staticFieldPreviewSharedHandles[fieldIndex] != IntPtr.Zero;
         }
 
-        float[] BuildStaticFieldPreviewValues(int fieldIndex, int width, int height, int axisMode, int slice)
+        float[] BuildStaticFieldPreviewValues(int fieldIndex, int width, int height, int axisMode, int slice, int atlasColumns, int atlasRows)
         {
             float[] previewValues = new float[width * height];
+            atlasColumns = Math.Max(1, atlasColumns);
+            atlasRows = Math.Max(1, atlasRows);
 
             for (int v = 0; v < height; v++)
             {
@@ -1334,7 +1355,21 @@ namespace Nuclei3
                     int y = v;
                     int z = slice;
 
-                    if (axisMode == 1)
+                    if (axisMode == 3)
+                    {
+                        int tileX = u / Math.Max(1, resX);
+                        int tileY = v / Math.Max(1, resY);
+                        z = tileY * atlasColumns + tileX;
+                        if (z >= resZ || tileY >= atlasRows)
+                        {
+                            previewValues[v * width + u] = 0;
+                            continue;
+                        }
+
+                        x = u - tileX * Math.Max(1, resX);
+                        y = v - tileY * Math.Max(1, resY);
+                    }
+                    else if (axisMode == 1)
                     {
                         x = u;
                         y = 0;
@@ -1513,6 +1548,8 @@ namespace Nuclei3
             staticFieldPreviewHeights[fieldIndex] = 0;
             staticFieldPreviewAxisModes[fieldIndex] = 0;
             staticFieldPreviewSlices[fieldIndex] = 0;
+            staticFieldPreviewAtlasColumns[fieldIndex] = 1;
+            staticFieldPreviewAtlasRows[fieldIndex] = 1;
             staticFieldPreviewScaleValid[fieldIndex] = false;
         }
 
@@ -1535,13 +1572,25 @@ namespace Nuclei3
             densityPreviewHeight = 0;
             densityPreviewAxisMode = 0;
             densityPreviewSlice = 0;
+            densityPreviewAtlasColumns = 1;
+            densityPreviewAtlasRows = 1;
             densityPreviewVersion++;
         }
 
         void CreateDensityPreviewTexture(SolverGpuDimensionMode dimensionMode)
         {
-            ResolveDensityPreviewLayout(dimensionMode, out densityPreviewWidth, out densityPreviewHeight, out densityPreviewAxisMode, out densityPreviewSlice);
-            ApplyDensityPreviewScale(ref densityPreviewWidth, ref densityPreviewHeight);
+            ResolveDensityPreviewLayout(
+                dimensionMode,
+                out densityPreviewWidth,
+                out densityPreviewHeight,
+                out densityPreviewAxisMode,
+                out densityPreviewSlice,
+                out densityPreviewAtlasColumns,
+                out densityPreviewAtlasRows);
+            if (densityPreviewAxisMode != 3)
+            {
+                ApplyDensityPreviewScale(ref densityPreviewWidth, ref densityPreviewHeight);
+            }
             if (densityPreviewWidth <= 0 || densityPreviewHeight <= 0)
             {
                 WriteSharedDensityPreviewStatus("skip invalid_layout");
@@ -1554,6 +1603,7 @@ namespace Nuclei3
                 + " scale=" + densityPreviewScale
                 + " axis=" + densityPreviewAxisMode
                 + " slice=" + densityPreviewSlice
+                + " atlas=" + densityPreviewAtlasColumns + "x" + densityPreviewAtlasRows
                 + " res=" + resX + "x" + resY + "x" + resZ);
 
             Texture2DDescription description = new Texture2DDescription(
@@ -1675,8 +1725,29 @@ namespace Nuclei3
             out int width,
             out int height,
             out int axisMode,
-            out int slice)
+            out int slice,
+            out int atlasColumns,
+            out int atlasRows)
         {
+            atlasColumns = 1;
+            atlasRows = 1;
+
+            if (dimensionMode.Tridimensional)
+            {
+                ResolveVolumeAtlasLayout(out atlasColumns, out atlasRows);
+                width = Math.Max(1, resX) * atlasColumns;
+                height = Math.Max(1, resY) * atlasRows;
+                axisMode = 3;
+                slice = 0;
+
+                if (width > MaxSharedPreviewTextureDimension || height > MaxSharedPreviewTextureDimension)
+                {
+                    throw new InvalidOperationException("3D voxel preview atlas would exceed Direct3D texture limits.");
+                }
+
+                return;
+            }
+
             if (dimensionMode.PlanarXZ)
             {
                 width = Math.Max(1, resX);
@@ -1699,6 +1770,32 @@ namespace Nuclei3
             height = Math.Max(1, resY);
             axisMode = 0;
             slice = dimensionMode.Tridimensional ? Math.Max(0, resZ / 2) : 0;
+        }
+
+        void ResolveVolumeAtlasLayout(out int columns, out int rows)
+        {
+            int sliceCount = Math.Max(1, resZ);
+            int sliceWidth = Math.Max(1, resX);
+            int sliceHeight = Math.Max(1, resY);
+            double targetColumns = Math.Sqrt((double)sliceCount * sliceHeight / sliceWidth);
+            columns = Math.Max(1, (int)Math.Ceiling(targetColumns));
+            rows = (sliceCount + columns - 1) / columns;
+
+            while (columns > 1 && columns * sliceWidth > MaxSharedPreviewTextureDimension)
+            {
+                columns--;
+                rows = (sliceCount + columns - 1) / columns;
+            }
+
+            while (rows * sliceHeight > MaxSharedPreviewTextureDimension)
+            {
+                columns++;
+                rows = (sliceCount + columns - 1) / columns;
+                if (columns * sliceWidth > MaxSharedPreviewTextureDimension)
+                {
+                    throw new InvalidOperationException("3D voxel preview atlas would exceed Direct3D texture limits.");
+                }
+            }
         }
 
         void CreateParticleBuffers(SolverGpuInputSnapshot snapshot)
@@ -2180,6 +2277,10 @@ namespace Nuclei3
             public int PreviewHeight;
             public int PreviewAxisMode;
             public int PreviewSlice;
+            public int PreviewAtlasColumns;
+            public int PreviewAtlasRows;
+            public int PreviewPadding0;
+            public int PreviewPadding1;
         }
 
         const string FullSolverShaderSource = @"
@@ -2213,6 +2314,10 @@ cbuffer Params : register(b0)
     int PreviewHeight;
     int PreviewAxisMode;
     int PreviewSlice;
+    int PreviewAtlasColumns;
+    int PreviewAtlasRows;
+    int PreviewPadding0;
+    int PreviewPadding1;
 }
 
 RWStructuredBuffer<float> Source : register(u0);
@@ -2838,6 +2943,26 @@ void BuildDensityPreview(uint3 id : SV_DispatchThreadID)
     int u = id.x;
     int v = id.y;
     if (u >= PreviewWidth || v >= PreviewHeight) return;
+
+    if (PreviewAxisMode == 3)
+    {
+        int sliceWidth = max(ResX, 1);
+        int sliceHeight = max(ResY, 1);
+        int columns = max(PreviewAtlasColumns, 1);
+        int tileX = u / sliceWidth;
+        int tileY = v / sliceHeight;
+        int z = tileY * columns + tileX;
+        if (z >= ResZ)
+        {
+            DensityPreview[int2(u, v)] = 0.0;
+            return;
+        }
+
+        int x = u - tileX * sliceWidth;
+        int y = v - tileY * sliceHeight;
+        DensityPreview[int2(u, v)] = Source[FlatIndex(clamp(x, 0, ResX - 1), clamp(y, 0, ResY - 1), clamp(z, 0, ResZ - 1))];
+        return;
+    }
 
     int sourceWidth = PreviewAxisMode == 2 ? ResY : ResX;
     int sourceHeight = PreviewAxisMode == 0 ? ResY : ResZ;

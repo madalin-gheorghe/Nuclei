@@ -506,7 +506,7 @@ namespace Nuclei3
 
         protected virtual float PreviewVolumeOpacity
         {
-            get { return 1.5f; }
+            get { return 0.8f; }
         }
 
         protected virtual float PreviewVolumeContrast
@@ -843,26 +843,4 @@ namespace Nuclei3
         }
     }
 
-    public class Preview_Voxel_Fancy : Preview_Voxel
-    {
-        public Preview_Voxel_Fancy()
-          : base("Fancy Preview", "Fancy Preview", "Experimental GPU voxel preview using maximum intensity projection and interpolated sampling")
-        {
-        }
-
-        protected override int PreviewVolumeRenderMode
-        {
-            get { return 1; }
-        }
-
-        public override GH_Exposure Exposure
-        {
-            get { return GH_Exposure.secondary; }
-        }
-
-        public override Guid ComponentGuid
-        {
-            get { return new Guid("9a7dfb59-5092-4196-93be-a3d8fa1054ef"); }
-        }
-    }
 }

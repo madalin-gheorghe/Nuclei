@@ -22,7 +22,7 @@ namespace Nuclei3
         const int QuadCornerFloats = 2;
         const int QuadCornerStrideBytes = QuadCornerFloats * sizeof(float);
         const int QuadCornerCount = 4;
-        const int ConstantBufferFloatCount = 20;
+        const int ConstantBufferFloatCount = 24;
         const int ConstantBufferBytes = ConstantBufferFloatCount * sizeof(float);
         const string StatusPath = @"C:\Nuclei\BenchmarkSuite1\NucleiD3DPreviewRenderer.txt";
 
@@ -37,12 +37,14 @@ namespace Nuclei3
         static readonly ParticlePreviewD3DRenderer instance = new ParticlePreviewD3DRenderer();
 
         readonly Dictionary<Guid, PreviewBuffer> previewBuffers = new Dictionary<Guid, PreviewBuffer>();
+        readonly Dictionary<Guid, SharedParticleTextureView> sharedParticleViews = new Dictionary<Guid, SharedParticleTextureView>();
 
         IntPtr devicePtr = IntPtr.Zero;
         IntPtr contextPtr = IntPtr.Zero;
         ID3D11Device device;
         ID3D11DeviceContext1 context;
         ID3D11VertexShader vertexShader;
+        ID3D11VertexShader gpuVertexShader;
         ID3D11PixelShader pixelShader;
         ID3D11InputLayout inputLayout;
         ID3D11Buffer quadCornerBuffer;
@@ -91,11 +93,16 @@ namespace Nuclei3
                 EnsureDevice(currentDevicePtr, currentContextPtr);
                 if (device == null || context == null) return false;
 
+                if (frame.GpuFrame != null && frame.GpuFrame.IsValid)
+                {
+                    return TryDrawGpuFrame(previewId, e, frame.GpuFrame, frame.PointSize);
+                }
+
                 PreviewBuffer previewBuffer = GetPreviewBuffer(previewId);
                 int vertexCount = previewBuffer.Update(device, context, frame);
                 if (vertexCount == 0) return false;
 
-                UpdateConstants(e.Viewport, frame.PointSize);
+                UpdateConstants(e.Viewport, frame.PointSize, null);
 
                 D3DStateSnapshot snapshot = D3DStateSnapshot.Capture(context);
                 try
@@ -138,6 +145,51 @@ namespace Nuclei3
             }
         }
 
+        bool TryDrawGpuFrame(Guid previewId, DrawEventArgs e, GpuParticlePreviewFrame gpuFrame, double pointSize)
+        {
+            SharedParticleTextureView textureView = GetSharedParticleTextureView(previewId);
+            if (!textureView.TryUpdate(device, gpuFrame))
+            {
+                return false;
+            }
+
+            UpdateConstants(e.Viewport, pointSize, gpuFrame);
+
+            D3DStateSnapshot snapshot = D3DStateSnapshot.Capture(context);
+            try
+            {
+                context.IASetInputLayout(null);
+                context.IASetPrimitiveTopology(PrimitiveTopology.TriangleStrip);
+                context.IASetVertexBuffer(0, null, 0, 0);
+                context.IASetVertexBuffer(1, null, 0, 0);
+
+                context.VSSetShader(gpuVertexShader);
+                context.GSSetShader(null);
+                context.PSSetShader(pixelShader);
+                context.VSSetConstantBuffer(0, constantBuffer);
+                context.VSSetShaderResource(0, textureView.ShaderResourceView);
+
+                context.OMSetBlendState(blendState);
+                context.OMSetDepthStencilState(depthDisabledState, 0);
+                context.RSSetState(rasterizerState);
+
+                context.DrawInstanced(QuadCornerCount, gpuFrame.ParticleCount, 0, 0);
+            }
+            finally
+            {
+                snapshot.Restore(context);
+                snapshot.Dispose();
+            }
+
+            if (!loggedSuccess)
+            {
+                loggedSuccess = true;
+                WriteStatus("draw_success_gpu_texture particle_count=" + gpuFrame.ParticleCount.ToString(CultureInfo.InvariantCulture));
+            }
+
+            return true;
+        }
+
         void EnsureDevice(IntPtr currentDevicePtr, IntPtr currentContextPtr)
         {
             if (devicePtr == currentDevicePtr && contextPtr == currentContextPtr && device != null && context != null)
@@ -164,9 +216,11 @@ namespace Nuclei3
         void CreateResources()
         {
             byte[] vertexShaderBytes = CompileShader(ShaderSource, "VSMain", "vs_4_0");
+            byte[] gpuVertexShaderBytes = CompileShader(ShaderSource, "VSGpu", "vs_4_0");
             byte[] pixelShaderBytes = CompileShader(ShaderSource, "PSMain", "ps_4_0");
 
             vertexShader = device.CreateVertexShader(vertexShaderBytes, null);
+            gpuVertexShader = device.CreateVertexShader(gpuVertexShaderBytes, null);
             pixelShader = device.CreatePixelShader(pixelShaderBytes, null);
 
             InputElementDescription[] inputElements =
@@ -227,7 +281,7 @@ namespace Nuclei3
             }
         }
 
-        void UpdateConstants(RhinoViewport viewport, double pointSize)
+        void UpdateConstants(RhinoViewport viewport, double pointSize, GpuParticlePreviewFrame gpuFrame)
         {
             Transform worldToScreen = viewport.GetTransform(Rhino.DocObjects.CoordinateSystem.World, Rhino.DocObjects.CoordinateSystem.Screen);
             float[] constants =
@@ -239,7 +293,11 @@ namespace Nuclei3
                 Math.Max(1.0f, viewport.Size.Width),
                 Math.Max(1.0f, viewport.Size.Height),
                 (float)Math.Max(1.0, pointSize),
-                0.0f
+                0.0f,
+                gpuFrame != null ? (float)gpuFrame.TextureWidth : 0.0f,
+                gpuFrame != null ? (float)gpuFrame.TextureHeight : 0.0f,
+                gpuFrame != null ? (float)gpuFrame.ParticleCount : 0.0f,
+                (float)Math.Max(1.0, pointSize)
             };
 
             MappedSubresource mapped = context.Map(constantBuffer, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
@@ -265,6 +323,18 @@ namespace Nuclei3
             return buffer;
         }
 
+        SharedParticleTextureView GetSharedParticleTextureView(Guid previewId)
+        {
+            SharedParticleTextureView view;
+            if (!sharedParticleViews.TryGetValue(previewId, out view))
+            {
+                view = new SharedParticleTextureView();
+                sharedParticleViews[previewId] = view;
+            }
+
+            return view;
+        }
+
         void UnregisterInternal(Guid previewId)
         {
             PreviewBuffer buffer;
@@ -272,6 +342,13 @@ namespace Nuclei3
             {
                 buffer.Dispose();
                 previewBuffers.Remove(previewId);
+            }
+
+            SharedParticleTextureView view;
+            if (sharedParticleViews.TryGetValue(previewId, out view))
+            {
+                view.Dispose();
+                sharedParticleViews.Remove(previewId);
             }
         }
 
@@ -283,6 +360,12 @@ namespace Nuclei3
             }
             previewBuffers.Clear();
 
+            foreach (SharedParticleTextureView view in sharedParticleViews.Values)
+            {
+                view.Dispose();
+            }
+            sharedParticleViews.Clear();
+
             DisposeCom(constantBuffer);
             DisposeCom(depthDisabledState);
             DisposeCom(rasterizerState);
@@ -290,6 +373,7 @@ namespace Nuclei3
             DisposeCom(quadCornerBuffer);
             DisposeCom(inputLayout);
             DisposeCom(pixelShader);
+            DisposeCom(gpuVertexShader);
             DisposeCom(vertexShader);
             DisposeCom(context);
             DisposeCom(device);
@@ -301,6 +385,7 @@ namespace Nuclei3
             quadCornerBuffer = null;
             inputLayout = null;
             pixelShader = null;
+            gpuVertexShader = null;
             vertexShader = null;
             context = null;
             device = null;
@@ -325,6 +410,67 @@ namespace Nuclei3
             }
             catch
             {
+            }
+        }
+
+        sealed class SharedParticleTextureView : IDisposable
+        {
+            public ID3D11ShaderResourceView ShaderResourceView;
+            IntPtr sharedHandle = IntPtr.Zero;
+            int width;
+            int height;
+
+            public bool TryUpdate(ID3D11Device device, GpuParticlePreviewFrame frame)
+            {
+                if (ShaderResourceView != null && sharedHandle == frame.SharedHandle && width == frame.TextureWidth && height == frame.TextureHeight)
+                {
+                    return true;
+                }
+
+                Dispose();
+
+                try
+                {
+                    ID3D11Texture2D sharedTexture = device.OpenSharedResource<ID3D11Texture2D>(frame.SharedHandle);
+                    try
+                    {
+                        ShaderResourceView = device.CreateShaderResourceView(
+                            sharedTexture,
+                            new ShaderResourceViewDescription(
+                                sharedTexture,
+                                ShaderResourceViewDimension.Texture2D,
+                                Format.R32G32B32A32_Float,
+                                0,
+                                1,
+                                0,
+                                1));
+
+                        sharedHandle = frame.SharedHandle;
+                        width = frame.TextureWidth;
+                        height = frame.TextureHeight;
+                        return true;
+                    }
+                    finally
+                    {
+                        DisposeCom(sharedTexture);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    WriteStatus("open_particle_shared_failed handle=0x" + frame.SharedHandle.ToInt64().ToString("X", CultureInfo.InvariantCulture)
+                        + " exception=" + ex.GetType().FullName
+                        + " message=" + ex.Message);
+                    return false;
+                }
+            }
+
+            public void Dispose()
+            {
+                DisposeCom(ShaderResourceView);
+                ShaderResourceView = null;
+                sharedHandle = IntPtr.Zero;
+                width = 0;
+                height = 0;
             }
         }
 
@@ -465,6 +611,7 @@ namespace Nuclei3
             readonly ID3D11VertexShader vertexShader;
             readonly ID3D11GeometryShader geometryShader;
             readonly ID3D11PixelShader pixelShader;
+            readonly ID3D11ShaderResourceView[] vertexResources = new ID3D11ShaderResourceView[1];
             readonly ID3D11Buffer[] vertexConstantBuffers = new ID3D11Buffer[1];
             readonly ID3D11Buffer[] geometryConstantBuffers = new ID3D11Buffer[1];
             readonly ID3D11BlendState blendState;
@@ -481,6 +628,7 @@ namespace Nuclei3
                 vertexShader = context.VSGetShader();
                 geometryShader = context.GSGetShader();
                 pixelShader = context.PSGetShader();
+                context.VSGetShaderResources(0, vertexResources);
                 context.VSGetConstantBuffers(0, vertexConstantBuffers);
                 context.GSGetConstantBuffers(0, geometryConstantBuffers);
                 blendState = context.OMGetBlendState();
@@ -504,6 +652,7 @@ namespace Nuclei3
                 context.VSSetShader(vertexShader);
                 context.GSSetShader(geometryShader);
                 context.PSSetShader(pixelShader);
+                context.VSSetShaderResources(0, vertexResources);
                 context.VSSetConstantBuffers(0, vertexConstantBuffers);
                 context.GSSetConstantBuffers(0, geometryConstantBuffers);
                 context.OMSetBlendState(blendState);
@@ -516,6 +665,7 @@ namespace Nuclei3
                 DisposeCom(inputLayout);
                 DisposeCom(vertexBuffers[0]);
                 DisposeCom(vertexBuffers[1]);
+                DisposeCom(vertexResources[0]);
                 DisposeCom(vertexShader);
                 DisposeCom(geometryShader);
                 DisposeCom(pixelShader);
@@ -532,7 +682,10 @@ cbuffer PreviewConstants : register(b0)
 {
     row_major float4x4 WorldToScreen;
     float4 ViewportAndSize;
+    float4 TextureLayout;
 };
+
+Texture2D<float4> ParticlePreviewTexture : register(t0);
 
 struct VSInput
 {
@@ -578,6 +731,64 @@ VSOutput VSMain(VSInput input)
     output.Position = float4(clipPosition + clipOffset * input.Corner, 0.5, 1.0);
     output.Color = input.Color;
     output.UV = input.Corner;
+    return output;
+}
+
+float2 QuadCorner(uint vertexId)
+{
+    if (vertexId == 0) return float2(-1.0, -1.0);
+    if (vertexId == 1) return float2(-1.0,  1.0);
+    if (vertexId == 2) return float2( 1.0, -1.0);
+    return float2(1.0, 1.0);
+}
+
+VSOutput VSGpu(uint vertexId : SV_VertexID, uint instanceId : SV_InstanceID)
+{
+    VSOutput output;
+
+    int particleCount = (int)TextureLayout.z;
+    int textureWidth = max(1, (int)TextureLayout.x);
+    float pointSize = max(TextureLayout.w, 1.0);
+    float2 corner = QuadCorner(vertexId);
+
+    if ((int)instanceId >= particleCount)
+    {
+        output.Position = float4(10.0, 10.0, 0.5, 1.0);
+        output.Color = float4(1.0, 1.0, 1.0, 1.0);
+        output.UV = corner;
+        return output;
+    }
+
+    int texX = (int)instanceId % textureWidth;
+    int row = (int)instanceId / textureWidth;
+    float4 positionGroup = ParticlePreviewTexture.Load(int3(texX, row * 2, 0));
+    float4 color = ParticlePreviewTexture.Load(int3(texX, row * 2 + 1, 0));
+
+    float4 screenPosition = mul(WorldToScreen, float4(positionGroup.xyz, 1.0));
+    if (abs(screenPosition.w) <= 0.000001)
+    {
+        output.Position = float4(10.0, 10.0, 0.5, 1.0);
+        output.Color = color;
+        output.UV = corner;
+        return output;
+    }
+
+    float2 viewportSize = max(ViewportAndSize.xy, float2(1.0, 1.0));
+    float2 clientPosition = screenPosition.xy / screenPosition.w;
+    float2 clipPosition = float2((clientPosition.x / viewportSize.x) * 2.0 - 1.0, 1.0 - (clientPosition.y / viewportSize.y) * 2.0);
+    float2 clipOffset = float2(pointSize / viewportSize.x, pointSize / viewportSize.y);
+    float2 margin = clipOffset * 2.0 + float2(0.05, 0.05);
+    if (clipPosition.x < -1.0 - margin.x || clipPosition.x > 1.0 + margin.x || clipPosition.y < -1.0 - margin.y || clipPosition.y > 1.0 + margin.y)
+    {
+        output.Position = float4(10.0, 10.0, 0.5, 1.0);
+        output.Color = color;
+        output.UV = corner;
+        return output;
+    }
+
+    output.Position = float4(clipPosition + clipOffset * corner, 0.5, 1.0);
+    output.Color = color;
+    output.UV = corner;
     return output;
 }
 
