@@ -1,8 +1,14 @@
 # Nuclei
 
-Nuclei is a Grasshopper/Rhino plugin for particle-based voxel simulations, with CPU and GPU solver work reconstructed into a Git history from the original self-coded project and later optimization milestones.
+Nuclei is an original Grasshopper/Rhino plugin for bottom-up generative systems, behaviour-based simulations, and voxel-controlled spatial maps.
 
-This repository intentionally tracks source code and small evidence summaries, not local build products or multi-gigabyte profiler captures.
+The plugin combines a simulation core with tools for defining particle behaviours and highly customizable voxel environments, allowing particles to adapt their movement through spatial behavior maps. Its slime-mold logic is inspired by Physarum transport-network research and expanded toward computational design, speculative urban systems, and generative spatial workflows.
+
+Stable public releases will be published on Food4Rhino:
+
+[Nuclei on Food4Rhino](https://www.food4rhino.com/en/app/nuclei)
+
+This repository tracks the source code, reconstructed optimization history, and small performance evidence summaries. It does not track local build products or multi-gigabyte profiler captures.
 
 ## Milestones
 
