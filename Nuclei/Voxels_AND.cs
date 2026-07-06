@@ -147,6 +147,11 @@ namespace Nuclei3
         /// <param name="DA">The DA object is used to retrieve from inputs and store in outputs.</param>
         protected override void SolveInstance(IGH_DataAccess DA)
         {
+            if (trySolveWithSidecar(DA))
+            {
+                return;
+            }
+
             //determine voxel settings
             DA.GetData(0, ref inputVoxels);
 
@@ -836,6 +841,57 @@ namespace Nuclei3
             if (min) this.Message = "Minimum";
             if (max) this.Message = "Maximum";
             if (average) this.Message = "Average";
+        }
+
+        //-------------------------------------------------------------------
+
+        bool trySolveWithSidecar(IGH_DataAccess DA)
+        {
+            List<VoxelGridData> inputs = new List<VoxelGridData>();
+            VoxelGridData first = null;
+
+            for (int p = 0; p < Params.Input.Count; p++)
+            {
+                Voxel[,,] current = null;
+                if (!DA.GetData(p, ref current) || current == null)
+                {
+                    continue;
+                }
+
+                VoxelGridData data = VoxelGridRegistry.GetOrCapture(current, Globals.voxelSize);
+                if (first == null)
+                {
+                    first = data;
+                }
+                else if (data.ResX != first.ResX || data.ResY != first.ResY || data.ResZ != first.ResZ)
+                {
+                    return false;
+                }
+
+                inputs.Add(data);
+            }
+
+            if (inputs.Count == 0)
+            {
+                return false;
+            }
+
+            VoxelGridData outputData = VoxelGridCombiner.Intersection(inputs, currentMergeMode());
+            voxels = outputData.ToVoxelArray(true);
+            VoxelGridRegistry.Set(voxels, outputData);
+            DA.SetData(0, voxels);
+
+            if (min) this.Message = "Minimum";
+            if (max) this.Message = "Maximum";
+            if (average) this.Message = "Average";
+            return true;
+        }
+
+        VoxelGridMergeMode currentMergeMode()
+        {
+            if (min) return VoxelGridMergeMode.Minimum;
+            if (max) return VoxelGridMergeMode.Maximum;
+            return VoxelGridMergeMode.Average;
         }
 
         //-------------------------------------------------------------------

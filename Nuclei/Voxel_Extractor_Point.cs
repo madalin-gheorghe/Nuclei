@@ -50,59 +50,25 @@ namespace Nuclei3
         {
             DA.GetData(0, ref inputVoxels);
 
-            //determine voxel settings
-            int resX = inputVoxels.GetLength(0);
-            int resY = inputVoxels.GetLength(1);
-            int resZ = inputVoxels.GetLength(2);
-
-            //determine voxel size
-            double voxelSize = Globals.voxelSize;
-
-            int totalVoxelCount = resX * resY * resZ;
+            VoxelGridData voxelData = VoxelGridRegistry.GetOrCapture(inputVoxels, Globals.voxelSize);
 
             //add voxel centers to output list
             if (outputVoxelPositions == null)
             {
-                outputVoxelPositions = new List<Point3d>(totalVoxelCount);
+                outputVoxelPositions = new List<Point3d>(voxelData.ActiveCount);
             }
             else
             {
                 outputVoxelPositions.Clear();
-                if (outputVoxelPositions.Capacity < totalVoxelCount)
+                if (outputVoxelPositions.Capacity < voxelData.ActiveCount)
                 {
-                    outputVoxelPositions.Capacity = totalVoxelCount;
+                    outputVoxelPositions.Capacity = voxelData.ActiveCount;
                 }
             }
 
-            for (int i = 0; i < resX; i++)
+            for (int i = 0; i < voxelData.ActiveCount; i++)
             {
-                for (int j = 0; j < resY; j++)
-                {
-                    for (int k = 0; k < resZ; k++)
-                    {
-                        Voxel inputV = inputVoxels[i, j, k];
-
-                        if (inputV != null)
-                        {
-                            outputVoxelPositions.Add(inputV.loc);
-                        }
-                    }
-                }
-            }
-
-            //if all voxels are NULL, then instantiate new blank voxel positions
-            if (outputVoxelPositions.Count == 0)
-            {
-                for (int i = 0; i < resX; i++)
-                {
-                    for (int j = 0; j < resY; j++)
-                    {
-                        for (int k = 0; k < resZ; k++)
-                        {
-                            outputVoxelPositions.Add(new Point3d(i * voxelSize + voxelSize / 2, j * voxelSize + voxelSize / 2, k * voxelSize + voxelSize / 2));
-                        }
-                    }
-                }
+                outputVoxelPositions.Add(voxelData.CenterPoint(voxelData.ActiveFlatIndexAt(i)));
             }
             
 

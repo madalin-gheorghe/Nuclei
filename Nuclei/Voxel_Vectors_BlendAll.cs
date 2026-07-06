@@ -218,8 +218,9 @@ namespace Nuclei3
                                                 {
                                                     Voxel neighbour = voxels[b_xID, b_yID, b_zID];
 
-                                                    neighbour.voxelVector.Unitize();
-                                                    neighbourSum += neighbour.voxelVector;
+                                                    Vector3d neighbourVector = neighbour.voxelVector;
+                                                    neighbourVector.Unitize();
+                                                    neighbourSum += neighbourVector;
                                                 }
                                             }
                                         }
@@ -227,8 +228,9 @@ namespace Nuclei3
                                 }
 
                                 neighbourSum.Unitize();
-                                outV.voxelVector.Unitize();
-                                newVoxelVector[i, j, k] = (1.0 - blendDiffuse) * outV.voxelVector + blendDiffuse * neighbourSum;
+                                Vector3d currentVector = outV.voxelVector;
+                                currentVector.Unitize();
+                                newVoxelVector[i, j, k] = (1.0 - blendDiffuse) * currentVector + blendDiffuse * neighbourSum;
                                 newVoxelVector[i, j, k].Unitize();
                             }
                         }

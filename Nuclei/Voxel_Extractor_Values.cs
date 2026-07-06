@@ -98,33 +98,25 @@ namespace Nuclei3
             DA.GetData(0, ref voxel);
             DA.GetData("Type", ref valueIndex);
 
-            //determine voxel settings
-
-            int resX = 0;
-            int resY = 0;
-            int resZ = 0;
-
-            if (voxel != null)
+            if (valueIndex >= 0 && valueIndex <= 7)
             {
-                resX = voxel.GetLength(0);
-                resY = voxel.GetLength(1);
-                resZ = voxel.GetLength(2);
-            }
+                VoxelGridData voxelData = VoxelGridRegistry.GetOrCapture(voxel, Globals.voxelSize);
+                ensureOutputCapacity(voxelData.ActiveCount);
 
-            //output values
-            int totalVoxelCount = resX * resY * resZ;
-            if (outputVoxelValues == null)
-            {
-                outputVoxelValues = new List<double>(totalVoxelCount);
-            }
-            else
-            {
-                outputVoxelValues.Clear();
-                if (outputVoxelValues.Capacity < totalVoxelCount)
+                for (int i = 0; i < voxelData.ActiveCount; i++)
                 {
-                    outputVoxelValues.Capacity = totalVoxelCount;
+                    outputVoxelValues.Add(voxelData.GetScalarValue(valueIndex, voxelData.ActiveFlatIndexAt(i)));
                 }
+
+                DA.SetDataList(0, outputVoxelValues);
+                return;
             }
+
+            int resX = voxel != null ? voxel.GetLength(0) : 0;
+            int resY = voxel != null ? voxel.GetLength(1) : 0;
+            int resZ = voxel != null ? voxel.GetLength(2) : 0;
+            ensureOutputCapacity(resX * resY * resZ);
+
             for (int i = 0; i < resX; i++)
             {
                 for (int j = 0; j < resY; j++)
@@ -184,6 +176,22 @@ namespace Nuclei3
            
 
             DA.SetDataList(0, outputVoxelValues);
+        }
+
+        void ensureOutputCapacity(int totalVoxelCount)
+        {
+            if (outputVoxelValues == null)
+            {
+                outputVoxelValues = new List<double>(totalVoxelCount);
+            }
+            else
+            {
+                outputVoxelValues.Clear();
+                if (outputVoxelValues.Capacity < totalVoxelCount)
+                {
+                    outputVoxelValues.Capacity = totalVoxelCount;
+                }
+            }
         }
 
         //-------------------------------------------------------------------

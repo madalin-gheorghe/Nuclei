@@ -155,6 +155,11 @@ namespace Nuclei3
             DA.GetData("Maximum Range", ref maxR);
             DA.GetData("Invert Voxel Selection", ref invert);
 
+            if (trySolveWithSidecar(DA))
+            {
+                return;
+            }
+
             //determine voxel settings
             int resX = inputVoxels.GetLength(0);
             int resY = inputVoxels.GetLength(1);
@@ -508,6 +513,214 @@ namespace Nuclei3
         Grasshopper.DataTree<Point3d> voxelPositions;
         Grasshopper.DataTree<double> voxelDistances;
         Grasshopper.DataTree<int> voxelIndices;
+
+        //-------------------------------------------------------------------
+
+        bool trySolveWithSidecar(IGH_DataAccess DA)
+        {
+            VoxelGridData inputData = VoxelGridRegistry.GetOrCapture(inputVoxels, Globals.voxelSize);
+            if (inputData.Count == 0 || inputData.VoxelSize <= 0)
+            {
+                return false;
+            }
+
+            double theRealMin = Math.Min(minR, maxR);
+            double theRealMax = Math.Max(minR, maxR);
+            bool[] selected = new bool[inputData.Count];
+            double[] minDistances = createFilledArray(inputData.Count, double.MaxValue);
+            double[] maxDistances = createFilledArray(inputData.Count, double.MinValue);
+            double[] sumDistances = createFilledArray(inputData.Count, -1);
+            int[] distanceCounts = new int[inputData.Count];
+            int[] nearestMeshIndices = createFilledIntArray(inputData.Count, -1);
+
+            for (int meshIndex = 0; meshIndex < attractorMeshes.Count; meshIndex++)
+            {
+                Mesh mesh = attractorMeshes[meshIndex];
+                if (mesh == null)
+                {
+                    continue;
+                }
+
+                BoundingBox bounds = mesh.GetBoundingBox(true);
+                if (!bounds.IsValid)
+                {
+                    continue;
+                }
+
+                bounds.Inflate(theRealMax);
+                int minX = clampVoxelIndex(voxelIndex(bounds.Min.X, inputData.VoxelSize), inputData.ResX);
+                int minY = clampVoxelIndex(voxelIndex(bounds.Min.Y, inputData.VoxelSize), inputData.ResY);
+                int minZ = clampVoxelIndex(voxelIndex(bounds.Min.Z, inputData.VoxelSize), inputData.ResZ);
+                int maxX = clampVoxelIndex(voxelIndex(bounds.Max.X, inputData.VoxelSize), inputData.ResX);
+                int maxY = clampVoxelIndex(voxelIndex(bounds.Max.Y, inputData.VoxelSize), inputData.ResY);
+                int maxZ = clampVoxelIndex(voxelIndex(bounds.Max.Z, inputData.VoxelSize), inputData.ResZ);
+
+                for (int x = minX; x <= maxX; x++)
+                {
+                    for (int y = minY; y <= maxY; y++)
+                    {
+                        for (int z = minZ; z <= maxZ; z++)
+                        {
+                            int flatIndex = inputData.FlatIndex(x, y, z);
+                            Point3d center = inputData.CenterPoint(flatIndex);
+                            Point3d closest = mesh.ClosestPoint(center);
+                            if (closest == Point3d.Unset)
+                            {
+                                continue;
+                            }
+
+                            double dist = closest.DistanceTo(center);
+                            if (theRealMin <= dist && dist <= theRealMax)
+                            {
+                                selected[flatIndex] = true;
+                                if (dist < minDistances[flatIndex])
+                                {
+                                    minDistances[flatIndex] = dist;
+                                    nearestMeshIndices[flatIndex] = meshIndex;
+                                }
+
+                                if (dist > maxDistances[flatIndex])
+                                {
+                                    maxDistances[flatIndex] = dist;
+                                }
+
+                                sumDistances[flatIndex] += dist;
+                                distanceCounts[flatIndex]++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            bool[] outputMask = new bool[inputData.Count];
+            if (invert)
+            {
+                for (int i = 0; i < outputMask.Length; i++)
+                {
+                    outputMask[i] = !selected[i];
+                }
+            }
+            else
+            {
+                Array.Copy(selected, outputMask, selected.Length);
+            }
+
+            VoxelGridData outputData = inputData.WithActiveMask(outputMask);
+            voxels = outputData.ToVoxelArray(true);
+            VoxelGridRegistry.Set(voxels, outputData);
+
+            int indexCounter = 0;
+            for (int ordinal = 0; ordinal < outputData.ActiveCount; ordinal++)
+            {
+                int flatIndex = outputData.ActiveFlatIndexAt(ordinal);
+                Point3d center = outputData.CenterPoint(flatIndex);
+
+                if (!invert)
+                {
+                    int index = nearestMeshIndices[flatIndex];
+                    int count = distanceCounts[flatIndex];
+                    if (index != -1 && count > 0)
+                    {
+                        Grasshopper.Kernel.Data.GH_Path path = new Grasshopper.Kernel.Data.GH_Path(index);
+                        voxelPositions.Add(center, path);
+                        voxelIndices.Add(indexCounter, path);
+
+                        if (min) voxelDistances.Add(minDistances[flatIndex], path);
+                        if (max) voxelDistances.Add(maxDistances[flatIndex], path);
+                        if (average) voxelDistances.Add(sumDistances[flatIndex] / count * 1f, path);
+
+                        indexCounter++;
+                    }
+                }
+                else
+                {
+                    int index = -1;
+                    double minDist = 999999;
+                    double maxDist = -99999;
+                    double outputDist = -1;
+                    int outputDistCounter = 0;
+
+                    for (int meshIndex = 0; meshIndex < attractorMeshes.Count; meshIndex++)
+                    {
+                        Mesh mesh = attractorMeshes[meshIndex];
+                        if (mesh == null)
+                        {
+                            continue;
+                        }
+
+                        Point3d closest = mesh.ClosestPoint(center);
+                        if (closest == Point3d.Unset)
+                        {
+                            continue;
+                        }
+
+                        double dist = closest.DistanceTo(center);
+                        index = 0;
+                        outputDist += dist;
+                        outputDistCounter++;
+                        if (dist < minDist) minDist = dist;
+                        if (dist > maxDist) maxDist = dist;
+                    }
+
+                    if (index != -1 && outputDistCounter > 0)
+                    {
+                        Grasshopper.Kernel.Data.GH_Path path = new Grasshopper.Kernel.Data.GH_Path(index);
+                        voxelPositions.Add(center, path);
+                        voxelIndices.Add(indexCounter, path);
+
+                        if (min) voxelDistances.Add(minDist, path);
+                        if (max) voxelDistances.Add(maxDist, path);
+                        if (average) voxelDistances.Add(outputDist / outputDistCounter * 1f, path);
+
+                        indexCounter++;
+                    }
+                }
+            }
+
+            DA.SetData(0, voxels);
+            DA.SetDataTree(1, voxelPositions);
+            DA.SetDataTree(2, voxelDistances);
+            DA.SetDataTree(3, voxelIndices);
+
+            if (min) this.Message = "Minimum";
+            if (max) this.Message = "Maximum";
+            if (average) this.Message = "Average";
+            return true;
+        }
+
+        int voxelIndex(double coordinate, double size)
+        {
+            return System.Convert.ToInt32((coordinate - Math.Abs(coordinate % size)) / size);
+        }
+
+        int clampVoxelIndex(int index, int count)
+        {
+            if (index < 0) return 0;
+            if (index >= count) return count - 1;
+            return index;
+        }
+
+        double[] createFilledArray(int count, double value)
+        {
+            double[] values = new double[count];
+            for (int i = 0; i < values.Length; i++)
+            {
+                values[i] = value;
+            }
+
+            return values;
+        }
+
+        int[] createFilledIntArray(int count, int value)
+        {
+            int[] values = new int[count];
+            for (int i = 0; i < values.Length; i++)
+            {
+                values[i] = value;
+            }
+
+            return values;
+        }
 
         //-------------------------------------------------------------------
 

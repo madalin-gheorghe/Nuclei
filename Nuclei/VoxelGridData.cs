@@ -271,6 +271,90 @@ namespace Nuclei3
             return result;
         }
 
+        public VoxelGridData WithActiveMask(bool[] activeMask)
+        {
+            if (activeMask == null || activeMask.Length != Count)
+            {
+                return this;
+            }
+
+            int activeCount = 0;
+            for (int i = 0; i < activeMask.Length; i++)
+            {
+                if (activeMask[i])
+                {
+                    activeCount++;
+                }
+            }
+
+            VoxelGridData result;
+            if (activeCount == Count)
+            {
+                result = CreateFullDomain(ResX, ResY, ResZ, VoxelSize);
+            }
+            else
+            {
+                int[] activeIndices = new int[activeCount];
+                int index = 0;
+                for (int i = 0; i < activeMask.Length; i++)
+                {
+                    if (activeMask[i])
+                    {
+                        activeIndices[index++] = i;
+                    }
+                }
+
+                bool[] maskCopy = new bool[activeMask.Length];
+                Array.Copy(activeMask, maskCopy, activeMask.Length);
+                result = new VoxelGridData(ResX, ResY, ResZ, VoxelSize, false, maskCopy, activeIndices, activeCount);
+            }
+
+            result.Density = Density;
+            result.MinimumDensity = MinimumDensity;
+            result.MaximumDensity = MaximumDensity;
+            result.Speed = Speed;
+            result.SensorDistance = SensorDistance;
+            result.SensorAngle = SensorAngle;
+            result.RotationAngle = RotationAngle;
+            result.Food = Food;
+            result.Vectors = Vectors;
+            result.Frequencies = Frequencies;
+            return result;
+        }
+
+        public VoxelGridData WithVectorValues(IList<Vector3d> vectors, IList<int> frequencies)
+        {
+            VoxelGridData result = CloneSharedMaps();
+            if (Count == 0)
+            {
+                return result;
+            }
+
+            Vector3d[] vectorValues = Vectors != null ? CopyVectors(Vectors) : new Vector3d[Count];
+            int[] frequencyValues = Frequencies != null ? CopyFrequencies(Frequencies) : DefaultFrequencies(Count);
+
+            bool vectorPerVoxel = vectors != null && vectors.Count == ActiveCount;
+            bool frequencyPerVoxel = frequencies != null && frequencies.Count == ActiveCount;
+            Vector3d fallbackVector = vectors != null && vectors.Count > 0 ? vectors[0] : Vector3d.Zero;
+            int fallbackFrequency = frequencies != null && frequencies.Count > 0 ? frequencies[0] : 1;
+            if (fallbackFrequency < 1) fallbackFrequency = 1;
+
+            for (int ordinal = 0; ordinal < ActiveCount; ordinal++)
+            {
+                int flatIndex = ActiveFlatIndexAt(ordinal);
+                Vector3d vector = vectorPerVoxel ? vectors[ordinal] : fallbackVector;
+                int frequency = frequencyPerVoxel ? frequencies[ordinal] : fallbackFrequency;
+                if (frequency < 1) frequency = 1;
+
+                vectorValues[flatIndex] = ProjectVectorToGridPlane(vector);
+                frequencyValues[flatIndex] = frequency;
+            }
+
+            result.Vectors = vectorValues;
+            result.Frequencies = frequencyValues;
+            return result;
+        }
+
         public Voxel CreateVoxel(int flatIndex, VoxelDensityStore densityStore)
         {
             int x;
@@ -299,6 +383,51 @@ namespace Nuclei3
             voxel.density = Density.Get(flatIndex);
 
             return voxel;
+        }
+
+        public Point3d CenterPoint(int flatIndex)
+        {
+            int x;
+            int y;
+            int z;
+            CoordinatesFromFlatIndex(flatIndex, out x, out y, out z);
+            return new Point3d(x * VoxelSize + VoxelSize / 2, y * VoxelSize + VoxelSize / 2, z * VoxelSize + VoxelSize / 2);
+        }
+
+        public double GetScalarValue(int fieldIndex, int flatIndex)
+        {
+            switch (fieldIndex)
+            {
+                case 0: return MinimumDensity.Get(flatIndex);
+                case 1: return MaximumDensity.Get(flatIndex);
+                case 2: return Speed.Get(flatIndex);
+                case 3: return SensorDistance.Get(flatIndex);
+                case 4: return SensorAngle.Get(flatIndex);
+                case 5: return RotationAngle.Get(flatIndex);
+                case 6: return Food.Get(flatIndex);
+                case 7: return Density.Get(flatIndex);
+                default: return 0;
+            }
+        }
+
+        public Vector3d GetVectorValue(int flatIndex)
+        {
+            return Vectors != null ? Vectors[flatIndex] : Vector3d.Zero;
+        }
+
+        public int GetFrequencyValue(int flatIndex)
+        {
+            return Frequencies != null ? Frequencies[flatIndex] : 3;
+        }
+
+        public int ActiveFlatIndexAt(int ordinal)
+        {
+            if (ordinal < 0 || ordinal >= ActiveCount)
+            {
+                return -1;
+            }
+
+            return AllVoxelsActive ? ordinal : ActiveIndices[ordinal];
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -349,6 +478,26 @@ namespace Nuclei3
             result.Vectors = Vectors;
             result.Frequencies = Frequencies;
             return result;
+        }
+
+        Vector3d ProjectVectorToGridPlane(Vector3d vector)
+        {
+            if (ResZ == 1)
+            {
+                return new Vector3d(vector.X, vector.Y, 0);
+            }
+
+            if (ResY == 1)
+            {
+                return new Vector3d(vector.X, 0, vector.Z);
+            }
+
+            if (ResX == 1)
+            {
+                return new Vector3d(0, vector.Y, vector.Z);
+            }
+
+            return vector;
         }
 
         VoxelScalarMap GetMap(VoxelScalarField field)
@@ -428,6 +577,31 @@ namespace Nuclei3
             }
 
             return value;
+        }
+
+        static Vector3d[] CopyVectors(Vector3d[] source)
+        {
+            Vector3d[] result = new Vector3d[source.Length];
+            Array.Copy(source, result, source.Length);
+            return result;
+        }
+
+        static int[] CopyFrequencies(int[] source)
+        {
+            int[] result = new int[source.Length];
+            Array.Copy(source, result, source.Length);
+            return result;
+        }
+
+        static int[] DefaultFrequencies(int count)
+        {
+            int[] result = new int[count];
+            for (int i = 0; i < result.Length; i++)
+            {
+                result[i] = 3;
+            }
+
+            return result;
         }
 
         static double ResolveVoxelSize(Voxel[,,] voxels, double fallbackVoxelSize)

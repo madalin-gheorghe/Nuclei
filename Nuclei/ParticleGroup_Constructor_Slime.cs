@@ -29,22 +29,27 @@ namespace Nuclei3
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
             //0
-            pManager.AddPointParameter("Initial Particle Positions", "particlePos", "Initial Particle Positions", GH_ParamAccess.list);
+            pManager.AddGenericParameter("Voxel Field", "voxels", "Voxel field used for internal particle generation", GH_ParamAccess.item);
             //1
-            pManager.AddNumberParameter("Speed", "speed", "Speed of particle movement", GH_ParamAccess.item, 1.3);
+            pManager.AddPointParameter("Initial Particle Positions", "particlePos", "Initial Particle Positions", GH_ParamAccess.list);
+            pManager[1].Optional = true;
             //2
-            pManager.AddNumberParameter("Sensor Distance", "sensorDistance", "Maximum distance for sensing surrounding voxel values", GH_ParamAccess.item, 6);
+            pManager.AddIntegerParameter("Particle Count", "count", "Number of particles to generate at random voxel centers when no initial positions are supplied", GH_ParamAccess.item, 0);
             //3
-            pManager.AddNumberParameter("Sensor Angle", "sensorAngle", "Angle of sensing surrounding voxel values", GH_ParamAccess.item, 45);
+            pManager.AddNumberParameter("Speed", "speed", "Speed of particle movement", GH_ParamAccess.item, 1.3);
             //4
-            pManager.AddNumberParameter("Rotation Angle", "rotationAngle", "Angle of rotation for the particles", GH_ParamAccess.item, 45);
+            pManager.AddNumberParameter("Sensor Distance", "sensorDistance", "Maximum distance for sensing surrounding voxel values", GH_ParamAccess.item, 6);
             //5
-            pManager.AddNumberParameter("Deposit", "deposit", "The Amount of Chemoattractants Each Particle Deposits in the Environment", GH_ParamAccess.item, 1);
+            pManager.AddNumberParameter("Sensor Angle", "sensorAngle", "Angle of sensing surrounding voxel values", GH_ParamAccess.item, 45);
             //6
-            pManager.AddNumberParameter("Wander", "wander", "The Frequency of Random Directions. VALUES FROM 0 TO 1. The Larger the Value the More Chaotic", GH_ParamAccess.item, 0);
+            pManager.AddNumberParameter("Rotation Angle", "rotationAngle", "Angle of rotation for the particles", GH_ParamAccess.item, 45);
             //7
+            pManager.AddNumberParameter("Deposit", "deposit", "The Amount of Chemoattractants Each Particle Deposits in the Environment", GH_ParamAccess.item, 1);
+            //8
+            pManager.AddNumberParameter("Wander", "wander", "The Frequency of Random Directions. VALUES FROM 0 TO 1. The Larger the Value the More Chaotic", GH_ParamAccess.item, 0);
+            //9
             pManager.AddColourParameter("Colour", "colour", "The Display Color of The Particles", GH_ParamAccess.item, Color.FromArgb(125, 220, 255, 0));
-            pManager[7].Optional = true;
+            pManager[9].Optional = true;
         }
 
         /// <summary>
@@ -69,8 +74,14 @@ namespace Nuclei3
         protected override void SolveInstance(IGH_DataAccess DA)
         {
             //get values
+            inputVoxels = null;
+            DA.GetData("Voxel Field", ref inputVoxels);
+
             initialPtList = new List<Point3d>();
-            DA.GetDataList(0, initialPtList);
+            DA.GetDataList(1, initialPtList);
+
+            DA.GetData("Particle Count", ref generatedParticleCount);
+            if (generatedParticleCount < 0) generatedParticleCount = 0;
 
             DA.GetData("Speed", ref particleSpeed);
             DA.GetData("Sensor Distance", ref particleSensorDistance);
@@ -96,6 +107,8 @@ namespace Nuclei3
 
         //inputs
         List<Point3d> initialPtList;
+        int generatedParticleCount;
+        Voxel[,,] inputVoxels;
 
         double particleSpeed;
         double particleSensorAngle;
@@ -114,35 +127,19 @@ namespace Nuclei3
 
         void createParticles(ParticleGroup _PG)
         {
-            ConcurrentBag<Particle> particleGroupConcurrent = new ConcurrentBag<Particle>();
-
-            Parallel.For(0, initialPtList.Count, i =>
+            if (initialPtList != null && initialPtList.Count > 0)
             {
-                Point3d pt = initialPtList[i];
-                Vector3d xVector = new Vector3d(1, 0, 0);
-                Vector3d yVector = new Vector3d(0, 1, 0);
-                Vector3d zVector = new Vector3d(0, 0, 1);
-                Plane pPlane = new Plane(new Point3d(pt.X, pt.Y, pt.Z), xVector, yVector);
-
-                //random vector for particle
-                System.Random random = new System.Random(11 * i);
-                double particleAngleX = random.NextDouble() * 4 * Math.PI;
-                double particleAngleY = random.NextDouble() * 4 * Math.PI;
-                double particleAngleZ = random.NextDouble() * 4 * Math.PI;
-                pPlane.Rotate(particleAngleZ, zVector);
-                pPlane.Rotate(particleAngleX, xVector);
-                pPlane.Rotate(particleAngleY, yVector);
-
-                Particle P = new Particle(pPlane);
-                P.parentParticleGroup = _PG;
-                particleGroupConcurrent.Add(P);
+                outputParticles = ParticleGenerator.CreateFromPoints(initialPtList, _PG);
             }
-            );
+            else
+            {
+                VoxelGridData voxelData = inputVoxels != null ? VoxelGridRegistry.GetOrCapture(inputVoxels, 1.0) : null;
+                outputParticles = voxelData != null
+                    ? ParticleGenerator.CreateRandomVoxelCenterParticles(generatedParticleCount, _PG, voxelData)
+                    : new List<Particle>();
+            }
 
-            outputParticles = new List<Particle>();
-            outputParticles = particleGroupConcurrent.ToList();
-
-            _PG.particles = new List<Particle>(outputParticles);
+            _PG.particles = outputParticles;
         }
 
         //-------------------------------------------------------------------

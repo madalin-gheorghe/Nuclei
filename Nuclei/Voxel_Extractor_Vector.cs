@@ -46,38 +46,24 @@ namespace Nuclei3
         {
             DA.GetData(0, ref voxel);
 
-            //determine voxel settings
-            int resX = voxel.GetLength(0);
-            int resY = voxel.GetLength(1);
-            int resZ = voxel.GetLength(2);
+            VoxelGridData voxelData = VoxelGridRegistry.GetOrCapture(voxel, Globals.voxelSize);
 
-            int totalVoxelCount = resX * resY * resZ;
             if (outputVoxelVectors == null)
             {
-                outputVoxelVectors = new List<Vector3d>(totalVoxelCount);
+                outputVoxelVectors = new List<Vector3d>(voxelData.ActiveCount);
             }
             else
             {
                 outputVoxelVectors.Clear();
-                if (outputVoxelVectors.Capacity < totalVoxelCount)
+                if (outputVoxelVectors.Capacity < voxelData.ActiveCount)
                 {
-                    outputVoxelVectors.Capacity = totalVoxelCount;
+                    outputVoxelVectors.Capacity = voxelData.ActiveCount;
                 }
             }
 
-            for (int k = 0; k < resZ; k++)
+            for (int i = 0; i < voxelData.ActiveCount; i++)
             {
-                for (int i = 0; i < resX; i++)
-                {
-                    for (int j = 0; j < resY; j++)
-                    {
-                        if (voxel[i, j, k] != null)
-                        {
-                            Voxel V = voxel[i, j, k];
-                            outputVoxelVectors.Add(V.voxelVector);
-                        }
-                    }
-                }
+                outputVoxelVectors.Add(voxelData.GetVectorValue(voxelData.ActiveFlatIndexAt(i)));
             }
 
             DA.SetDataList(0, outputVoxelVectors);

@@ -52,126 +52,22 @@ namespace Nuclei3
             DA.GetData(0, ref v1);
             DA.GetData(1, ref v2);
 
-            //determine voxel settings
-            int resX = v1.GetLength(0);
-            int resY = v1.GetLength(1);
-            int resZ = v1.GetLength(2);
+            VoxelGridData data1 = VoxelGridRegistry.GetOrCapture(v1, Globals.voxelSize);
+            VoxelGridData data2 = VoxelGridRegistry.GetOrCapture(v2, data1.VoxelSize);
+            bool[] activeMask = new bool[data1.Count];
 
-            //if voxels from construct voxels, then create empty voxels
-            double voxelSize = Globals.voxelSize;
-
-            //check to see if input voxel comes from construct voxels and is null
-
-            //v1
-            int activeVoxelsCounter1 = 0;
-
-            //count active voxels
-            Parallel.For(0, resX, i =>
+            for (int i = 0; i < data1.ActiveCount; i++)
             {
-                for (int j = 0; j < resY; j++)
+                int flatIndex = data1.ActiveFlatIndexAt(i);
+                if (!data2.IsActive(flatIndex))
                 {
-                    for (int k = 0; k < resZ; k++)
-                    {
-                        if (v1[i, j, k] != null)
-                        {
-                            int parallelCounter = System.Threading.Interlocked.Increment(ref activeVoxelsCounter1);
-                        }
-                    }
+                    activeMask[flatIndex] = true;
                 }
             }
-            );
 
-            //if there are 0 active voxels in v1 then instantiate empty v1 voxels
-            if (activeVoxelsCounter1 == 0)
-            {
-                Parallel.For(0, resX, i =>
-                {
-                    for (int j = 0; j < resY; j++)
-                    {
-                        for (int k = 0; k < resZ; k++)
-                        {
-                            v1[i, j, k] = new Voxel(voxelSize, i, j, k);
-                        }
-                    }
-                }
-                );
-            }
-
-            //v2
-            int activeVoxelsCounter2 = 0;
-
-            //count active voxels
-            Parallel.For(0, resX, i =>
-            {
-                for (int j = 0; j < resY; j++)
-                {
-                    for (int k = 0; k < resZ; k++)
-                    {
-                        if (v2[i, j, k] != null)
-                        {
-                            int parallelCounter = System.Threading.Interlocked.Increment(ref activeVoxelsCounter2);
-                        }
-                    }
-                }
-            }
-            );
-
-            //if there are 0 active voxels in v1 then instantiate empty v2 voxels
-            if (activeVoxelsCounter2 == 0)
-            {
-                Parallel.For(0, resX, i =>
-                {
-                    for (int j = 0; j < resY; j++)
-                    {
-                        for (int k = 0; k < resZ; k++)
-                        {
-                            v2[i, j, k] = new Voxel(voxelSize, i, j, k);
-                        }
-                    }
-                }
-                );
-            }
-
-            //create empty voxels
-            voxels = new Voxel[resX, resY, resZ];
-
-            Parallel.For(0, resX, i =>
-            {
-                for (int j = 0; j < resY; j++)
-                {
-                    for (int k = 0; k < resZ; k++)
-                    {
-                        //GATE AND NOT
-                        if (v1[i, j, k] != null || v2[i, j, k] != null)
-                        {
-
-                            if (v1[i, j, k] != null && v2[i, j, k] == null)
-                            {
-                                Voxel initialV1 = v1[i, j, k];
-
-                                Voxel V = new Voxel(voxelSize, i, j, k);
-                                voxels[i, j, k] = V;
-
-                                //assign the voxel values from v1
-                                V.minDensity = initialV1.minDensity;
-                                V.maxDensity = initialV1.maxDensity;
-
-                                V.speedMultiplier = initialV1.speedMultiplier;
-                                V.sensorAngleMultiplier = initialV1.sensorAngleMultiplier;
-                                V.sensorDistanceMultiplier = initialV1.sensorDistanceMultiplier;
-                                V.rotationAngleMultiplier = initialV1.rotationAngleMultiplier;
-
-                                V.food = initialV1.food;
-
-                                V.voxelVector = initialV1.voxelVector;
-
-                                V.frequency = initialV1.frequency;
-                            }
-                        }
-                    }
-                }
-            }
-            );
+            VoxelGridData outputData = data1.WithActiveMask(activeMask);
+            voxels = outputData.ToVoxelArray(true);
+            VoxelGridRegistry.Set(voxels, outputData);
 
             DA.SetData(0, voxels);
         }

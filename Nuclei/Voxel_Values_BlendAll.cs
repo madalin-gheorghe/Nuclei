@@ -309,15 +309,11 @@ namespace Nuclei3
         {
             if (diffuse > 0)
             {
+                double[] values = new double[activeVoxels.Length];
+                double[] weights = precomputeWeights(diffuseRange);
+
                 for (int i = 0; i < blendIterations; i++)
                 {
-                    //minDensity
-                    double[] values = new double[activeVoxels.Length];
-
-                    //precompute weights
-                    double[] weights = new double[diffuseRange * 2 + 1];
-                    weights = precomputeWeights(diffuseRange);
-
                     if (i % 2 == 0)
                     {
                         if (!planarYZ)

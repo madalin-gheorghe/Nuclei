@@ -159,6 +159,11 @@ namespace Nuclei3
             DA.GetData("Maximum Range", ref maxR);
             DA.GetData("Invert Voxel Selection", ref invert);
 
+            if (trySolveWithSidecar(DA))
+            {
+                return;
+            }
+
             //determine voxel settings
             int resX = inputVoxels.GetLength(0);
             int resY = inputVoxels.GetLength(1);
@@ -376,6 +381,166 @@ namespace Nuclei3
             if (min) this.Message = "Minimum";
             if (max) this.Message = "Maximum";
             if (average) this.Message = "Average";
+        }
+
+        //-------------------------------------------------------------------
+
+        bool trySolveWithSidecar(IGH_DataAccess DA)
+        {
+            VoxelGridData inputData = VoxelGridRegistry.GetOrCapture(inputVoxels, Globals.voxelSize);
+            if (inputData.Count == 0 || inputData.VoxelSize <= 0)
+            {
+                return false;
+            }
+
+            List<Point3d> realAttractorPoints = new List<Point3d>();
+            bool[] attractorCells = new bool[inputData.Count];
+
+            for (int i = 0; i < attractorPoints.Count; i++)
+            {
+                Point3d point = attractorPoints[i];
+                int xID = voxelIndex(point.X, inputData.VoxelSize);
+                int yID = voxelIndex(point.Y, inputData.VoxelSize);
+                int zID = voxelIndex(point.Z, inputData.VoxelSize);
+
+                if (xID >= 0 && xID < inputData.ResX && yID >= 0 && yID < inputData.ResY && zID >= 0 && zID < inputData.ResZ)
+                {
+                    int flatIndex = inputData.FlatIndex(xID, yID, zID);
+                    if (!attractorCells[flatIndex])
+                    {
+                        attractorCells[flatIndex] = true;
+                        realAttractorPoints.Add(point);
+                    }
+                }
+            }
+
+            double theRealMin = Math.Min(minR, maxR);
+            double theRealMax = Math.Max(minR, maxR);
+            double minSquared = theRealMin * theRealMin;
+            double maxSquared = theRealMax * theRealMax;
+            int maxRange = Convert.ToInt32(Math.Ceiling(theRealMax / inputData.VoxelSize));
+
+            bool[] selected = new bool[inputData.Count];
+            Parallel.For(0, realAttractorPoints.Count, i =>
+            {
+                Point3d point = realAttractorPoints[i];
+                int centerX = voxelIndex(point.X, inputData.VoxelSize);
+                int centerY = voxelIndex(point.Y, inputData.VoxelSize);
+                int centerZ = voxelIndex(point.Z, inputData.VoxelSize);
+
+                for (int x = centerX - maxRange; x <= centerX + maxRange; x++)
+                {
+                    if (x < 0 || x >= inputData.ResX) continue;
+                    double dx = (x * inputData.VoxelSize + inputData.VoxelSize / 2) - point.X;
+                    double dx2 = dx * dx;
+
+                    for (int y = centerY - maxRange; y <= centerY + maxRange; y++)
+                    {
+                        if (y < 0 || y >= inputData.ResY) continue;
+                        double dy = (y * inputData.VoxelSize + inputData.VoxelSize / 2) - point.Y;
+                        double dxy2 = dx2 + dy * dy;
+                        if (dxy2 > maxSquared) continue;
+
+                        for (int z = centerZ - maxRange; z <= centerZ + maxRange; z++)
+                        {
+                            if (z < 0 || z >= inputData.ResZ) continue;
+                            double dz = (z * inputData.VoxelSize + inputData.VoxelSize / 2) - point.Z;
+                            double distanceSquared = dxy2 + dz * dz;
+                            if (distanceSquared >= minSquared && distanceSquared <= maxSquared)
+                            {
+                                selected[inputData.FlatIndex(x, y, z)] = true;
+                            }
+                        }
+                    }
+                }
+            });
+
+            bool[] outputMask = new bool[inputData.Count];
+            if (invert)
+            {
+                for (int i = 0; i < outputMask.Length; i++)
+                {
+                    outputMask[i] = !selected[i];
+                }
+            }
+            else
+            {
+                Array.Copy(selected, outputMask, selected.Length);
+            }
+
+            VoxelGridData outputData = inputData.WithActiveMask(outputMask);
+            voxels = outputData.ToVoxelArray(true);
+            VoxelGridRegistry.Set(voxels, outputData);
+
+            int indexCounter = 0;
+            for (int ordinal = 0; ordinal < outputData.ActiveCount; ordinal++)
+            {
+                int flatIndex = outputData.ActiveFlatIndexAt(ordinal);
+                Point3d center = outputData.CenterPoint(flatIndex);
+
+                int index = -1;
+                double minDist = 999999;
+                double maxDist = -99999;
+                double outputDist = -1;
+                int outputDistCounter = 0;
+
+                for (int p = 0; p < realAttractorPoints.Count; p++)
+                {
+                    double dist = realAttractorPoints[p].DistanceTo(center);
+
+                    if (!invert)
+                    {
+                        if (theRealMin <= dist && dist <= theRealMax)
+                        {
+                            if (dist < minDist)
+                            {
+                                minDist = dist;
+                                index = p;
+                            }
+
+                            if (dist > maxDist) maxDist = dist;
+                            outputDist += dist;
+                            outputDistCounter++;
+                        }
+                    }
+                    else
+                    {
+                        index = 0;
+                        outputDist += dist;
+                        outputDistCounter++;
+                        if (dist < minDist) minDist = dist;
+                        if (dist > maxDist) maxDist = dist;
+                    }
+                }
+
+                if (index != -1 && outputDistCounter > 0)
+                {
+                    Grasshopper.Kernel.Data.GH_Path path = new Grasshopper.Kernel.Data.GH_Path(index);
+                    voxelPositions.Add(center, path);
+                    voxelIndices.Add(indexCounter, path);
+
+                    if (min) voxelDistances.Add(minDist, path);
+                    if (max) voxelDistances.Add(maxDist, path);
+                    if (average) voxelDistances.Add(outputDist / outputDistCounter * 1f, path);
+
+                    indexCounter++;
+                }
+            }
+
+            DA.SetData(0, voxels);
+            DA.SetDataTree(1, voxelPositions);
+            DA.SetDataTree(2, voxelDistances);
+            DA.SetDataTree(3, voxelIndices);
+
+            if (min) this.Message = "Minimum";
+            if (max) this.Message = "Maximum";
+            if (average) this.Message = "Average";
+            return true;
+        }
+
+        int voxelIndex(double coordinate, double size)
+        {
+            return System.Convert.ToInt32((coordinate - Math.Abs(coordinate % size)) / size);
         }
 
         //-------------------------------------------------------------------

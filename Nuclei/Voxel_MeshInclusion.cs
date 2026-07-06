@@ -65,6 +65,11 @@ namespace Nuclei3
             DA.GetDataList("Inclusion Meshes", meshes);
             DA.GetData("Invert Voxel Selection", ref invert);
 
+            if (trySolveWithSidecar(DA))
+            {
+                return;
+            }
+
             //determine voxel settings
             int resX = inputVoxels.GetLength(0);
             int resY = inputVoxels.GetLength(1);
@@ -248,6 +253,91 @@ namespace Nuclei3
 
             DA.SetData(0, voxels);
             DA.SetDataTree(1, voxelPositions);
+        }
+
+        //-------------------------------------------------------------------
+
+        bool trySolveWithSidecar(IGH_DataAccess DA)
+        {
+            VoxelGridData inputData = VoxelGridRegistry.GetOrCapture(inputVoxels, Globals.voxelSize);
+            if (inputData.Count == 0)
+            {
+                return false;
+            }
+
+            BoundingBox[] meshBounds = new BoundingBox[meshes.Count];
+            for (int i = 0; i < meshes.Count; i++)
+            {
+                meshBounds[i] = meshes[i] != null ? meshes[i].GetBoundingBox(true) : BoundingBox.Unset;
+                if (meshBounds[i].IsValid)
+                {
+                    meshBounds[i].Inflate(inputData.VoxelSize / 2);
+                }
+            }
+
+            bool[] insideMask = new bool[inputData.Count];
+            int[] firstMeshIndex = new int[inputData.Count];
+            for (int i = 0; i < firstMeshIndex.Length; i++)
+            {
+                firstMeshIndex[i] = -1;
+            }
+
+            Parallel.For(0, inputData.ActiveCount, ordinal =>
+            {
+                int flatIndex = inputData.ActiveFlatIndexAt(ordinal);
+                Point3d point = inputData.CenterPoint(flatIndex);
+
+                for (int meshIndex = 0; meshIndex < meshes.Count; meshIndex++)
+                {
+                    Mesh mesh = meshes[meshIndex];
+                    if (mesh == null)
+                    {
+                        continue;
+                    }
+
+                    BoundingBox bounds = meshBounds[meshIndex];
+                    if (bounds.IsValid && !bounds.Contains(point))
+                    {
+                        continue;
+                    }
+
+                    if (mesh.IsPointInside(point, inputData.VoxelSize / 2, true))
+                    {
+                        insideMask[flatIndex] = true;
+                        firstMeshIndex[flatIndex] = meshIndex;
+                        break;
+                    }
+                }
+            });
+
+            bool[] outputMask = new bool[inputData.Count];
+            if (invert)
+            {
+                for (int flatIndex = 0; flatIndex < outputMask.Length; flatIndex++)
+                {
+                    outputMask[flatIndex] = !insideMask[flatIndex];
+                }
+            }
+            else
+            {
+                Array.Copy(insideMask, outputMask, insideMask.Length);
+            }
+
+            VoxelGridData outputData = inputData.WithActiveMask(outputMask);
+            voxels = outputData.ToVoxelArray(true);
+            VoxelGridRegistry.Set(voxels, outputData);
+
+            voxelPositions.Clear();
+            for (int ordinal = 0; ordinal < outputData.ActiveCount; ordinal++)
+            {
+                int flatIndex = outputData.ActiveFlatIndexAt(ordinal);
+                int pathIndex = invert ? 0 : Math.Max(0, firstMeshIndex[flatIndex]);
+                voxelPositions.Add(outputData.CenterPoint(flatIndex), new Grasshopper.Kernel.Data.GH_Path(pathIndex));
+            }
+
+            DA.SetData(0, voxels);
+            DA.SetDataTree(1, voxelPositions);
+            return true;
         }
 
         //-------------------------------------------------------------------
