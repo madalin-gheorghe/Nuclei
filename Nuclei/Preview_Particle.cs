@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -16,7 +16,7 @@ namespace Nuclei3
         public Preview_Particle()
           : base("Particle Preview Settings", "Particle Preview",
               "Sets Up Dynamic Particle Preview Settings",
-              "Nuclei3", "Preview")
+              "Nuclei4", "Preview")
         {
         }
 
@@ -319,7 +319,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("a4a9e7cb-f899-461a-9137-207d4601ae14"); }
+            get { return new Guid("60649521-0784-4a2e-8dfa-27e4a04600ac"); }
         }
     }
 }

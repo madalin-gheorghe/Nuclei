@@ -1,4 +1,4 @@
-﻿using GH_IO.Serialization;
+using GH_IO.Serialization;
 using Grasshopper.Kernel;
 using Rhino.Geometry;
 using System;
@@ -17,7 +17,7 @@ namespace Nuclei3
         public Voxel_Attractor_Mesh()
           : base("Mesh Attractor for Voxel", "Mesh Attractor",
               "Use Meshes as Attractors for Voxel Centers",
-              "Nuclei3", " Environment")
+              "Nuclei4", " Environment")
         {
         }
 
@@ -743,7 +743,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("4bc514a7-677b-47f6-ae9f-735e776802ec"); }
+            get { return new Guid("6bb5c231-45a2-4fd8-8698-93da2b8631aa"); }
         }
     }
 }

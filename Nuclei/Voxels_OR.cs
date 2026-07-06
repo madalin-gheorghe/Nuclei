@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
@@ -38,7 +38,7 @@ namespace Nuclei3
         public Voxels_OR()
               : base("Voxel Selection Union", "Voxel Selection Union",
               "Perform Union on Two or More Voxel Values (OR)",
-              "Nuclei3", " Environment")
+              "Nuclei4", " Environment")
         {
             DataTest = "";
         }
@@ -1056,7 +1056,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("b18dc75e-5238-4537-950f-f53c4d9e1138"); }
+            get { return new Guid("0e3c0d1c-1057-4f08-9368-a0078a3d9d35"); }
         }
     }
 }

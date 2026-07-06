@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using Grasshopper.Kernel;
@@ -14,7 +14,7 @@ namespace Nuclei3
         public Particle_Settings_Division()
           : base("Particle Division Settings", "Division Settings",
               "Sets Up Dynamic Population Division Settings. Divides if Neighbour Count is INSIDE Range",
-              "Nuclei3", " Particles")
+              "Nuclei4", " Particles")
         {
         }
 
@@ -95,7 +95,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("cfc95316-c2a3-47cb-a98f-f37b929ae1ff"); }
+            get { return new Guid("7e505abb-dc4f-4226-a922-f92e25ab70da"); }
         }
     }
 }

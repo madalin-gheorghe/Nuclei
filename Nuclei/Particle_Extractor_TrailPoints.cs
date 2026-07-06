@@ -1,4 +1,4 @@
-﻿using Grasshopper.Kernel;
+using Grasshopper.Kernel;
 using Rhino.Geometry;
 
 using System;
@@ -17,7 +17,7 @@ namespace Nuclei3
         public Particle_Extractor_TrailPoints()
           : base("Extract Particle Trails", "Trail Points",
               "Extract Particle Trail Points",
-              "Nuclei3", " Particles")
+              "Nuclei4", " Particles")
         {
         }
 
@@ -115,7 +115,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("6faaafc2-1afe-4058-9d3d-fefa24a8c4bb"); }
+            get { return new Guid("0a97c625-4da3-4143-89c6-d88249de8741"); }
         }
     }
 }

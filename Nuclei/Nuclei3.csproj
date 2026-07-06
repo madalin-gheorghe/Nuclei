@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFrameworks>net48;net7.0-windows</TargetFrameworks>
 		<ImplicitUsings>disable</ImplicitUsings>
@@ -9,7 +9,7 @@
 		<UseWindowsForms>true</UseWindowsForms>
 		<GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
 		
-		<AssemblyName>Nuclei3</AssemblyName>
+		<AssemblyName>Nuclei4</AssemblyName>
 		<RootNamespace>Nuclei3</RootNamespace>
 
 		<TargetExt>.gha</TargetExt>

@@ -1,4 +1,4 @@
-﻿using Grasshopper.Kernel;
+using Grasshopper.Kernel;
 using Rhino.Geometry;
 using System;
 using System.Collections.Generic;
@@ -14,7 +14,7 @@ namespace Nuclei3
         public Voxel_Vectors()
           : base("Define Voxel Vectors", "Voxel Vectors",
               "Define Voxel Vector Field",
-              "Nuclei3", " Environment")
+              "Nuclei4", " Environment")
         {
         }
 
@@ -100,7 +100,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("69302de9-b10e-49e4-8562-f01d829c0033"); }
+            get { return new Guid("fd6a6fc7-5500-464d-9c1f-94de266ab994"); }
         }
     }
 }

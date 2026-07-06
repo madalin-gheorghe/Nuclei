@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -495,7 +495,7 @@ namespace Nuclei3
     public class ParticleParameter : GH_PersistentParam <ParticleGoo>
     {
         public ParticleParameter()
-            : base(new GH_InstanceDescription("Particle List", "Particle List", "Particle List", "Nuclei3", "Parameters"))
+            : base(new GH_InstanceDescription("Particle List", "Particle List", "Particle List", "Nuclei4", "Parameters"))
         {
         }
 
@@ -519,7 +519,7 @@ namespace Nuclei3
         {
             get 
             { 
-                return new Guid("63caf026-d9be-43fb-801d-a786c8a3d65d"); 
+                return new Guid("9247c2b8-6a33-4f72-b385-ddd1a1e25323"); 
             }
         }
 

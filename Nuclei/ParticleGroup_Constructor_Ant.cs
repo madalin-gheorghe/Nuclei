@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Collections.Concurrent;
@@ -19,7 +19,7 @@ namespace Nuclei3
         public ParticleGroup_Constructor_Ant()
           : base("Construct Ant Particles", "Ant Particles",
               "Construct and Define Ant Particle Properties",
-              "Nuclei3", " Particles")
+              "Nuclei4", " Particles")
         {
         }
 
@@ -162,7 +162,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("4f3ff2bb-3c45-4a3d-92d1-b7e696a50ac6"); }
+            get { return new Guid("3eab04d8-68ed-476d-b33d-a8633418ab12"); }
         }
     }
 }

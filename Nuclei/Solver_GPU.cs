@@ -15,9 +15,9 @@ namespace Nuclei3
     public class SolverGPU : GH_Component
     {
         public SolverGPU()
-          : base("Nuclei3 Solver GPU", "Solver GPU",
+          : base("Nuclei4 Solver GPU", "Solver GPU",
               "Experimental GPU compute solver scaffold",
-              "Nuclei3", " Solver")
+              "Nuclei4", " Solver")
         {
         }
 
@@ -1218,7 +1218,7 @@ namespace Nuclei3
 
         public override Guid ComponentGuid
         {
-            get { return new Guid("931b7e8e-700b-476c-8320-b26296c5b661"); }
+            get { return new Guid("e794ab27-6d27-4107-929f-b88e16209976"); }
         }
     }
 }

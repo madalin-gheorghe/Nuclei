@@ -1,4 +1,4 @@
-﻿using Grasshopper.Kernel;
+using Grasshopper.Kernel;
 using Rhino.Geometry;
 using System;
 using System.Collections.Concurrent;
@@ -15,7 +15,7 @@ namespace Nuclei3
         public Particle_Settings_Ant_Slime()
           : base("Particle Settings Slime Ant Interaction", "Ant and Slime Particle Interaction Settings",
               "Sets Up Species Interaction Settings",
-              "Nuclei3", " Particles")
+              "Nuclei4", " Particles")
         {
         }
 
@@ -92,7 +92,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("43b94038-957d-4734-8e86-71c18a40a9a7"); }
+            get { return new Guid("9c28782b-f3db-40e3-8bd7-f099d8b62ae3"); }
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using Grasshopper.Kernel;
@@ -14,7 +14,7 @@ namespace Nuclei3
         public Voxel_Settings_Wrap()
           : base("Voxel Wrap Settings", "Voxel Wrap Settings",
               "Settings for the Boundary Condition",
-              "Nuclei3", " Environment")
+              "Nuclei4", " Environment")
         {
         }
 
@@ -80,7 +80,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("725b1bd6-b618-48c4-8395-6945539ae20c"); }
+            get { return new Guid("43b61a51-6086-4cea-98f9-e482a7b6d57f"); }
         }
     }
 }

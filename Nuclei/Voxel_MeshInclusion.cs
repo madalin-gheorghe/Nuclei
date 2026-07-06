@@ -1,4 +1,4 @@
-﻿using Grasshopper.Kernel;
+using Grasshopper.Kernel;
 using Rhino.Geometry;
 using System;
 using System.Collections.Generic;
@@ -15,7 +15,7 @@ namespace Nuclei3
         public Voxel_MeshInclusion()
           : base("Voxel Inclusion in Mesh", "Mesh Inclusion",
               "Test if a Voxel Center is Inside a Mesh",
-              "Nuclei3", " Environment")
+              "Nuclei4", " Environment")
         {
         }
 
@@ -376,7 +376,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("96d3c813-142b-4a73-afef-a2f99b822a08"); }
+            get { return new Guid("74684ab4-cbf5-4cc1-a75a-4253eb83599b"); }
         }
     }
 }

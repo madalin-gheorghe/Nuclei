@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Collections.Concurrent;
@@ -20,7 +20,7 @@ namespace Nuclei3
         public VoxelConstructor()
           : base("Construct Voxels", "Construct Voxels",
               "Construct Empty Voxel Field Environment",
-              "Nuclei3", " Environment")
+              "Nuclei4", " Environment")
         {
         }
 
@@ -253,7 +253,7 @@ namespace Nuclei3
 
         public override Guid ComponentGuid
         {
-            get { return new Guid("6526b596-0bf5-405d-9dcb-2d9db924652b"); }
+            get { return new Guid("a3940a4d-9015-411c-9ffa-e38ecc90d394"); }
         }
     }
 }

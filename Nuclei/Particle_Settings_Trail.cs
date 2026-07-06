@@ -1,4 +1,4 @@
-﻿using Grasshopper.Kernel;
+using Grasshopper.Kernel;
 using Rhino.Geometry;
 using System;
 using System.Collections.Generic;
@@ -13,7 +13,7 @@ namespace Nuclei3
         public Particle_Settings_Trail()
           : base("Particle Trail Settings", "Trail Settings",
               "Sets Up Dynamic Trail Settings",
-              "Nuclei3", " Particles")
+              "Nuclei4", " Particles")
         {
         }
 
@@ -85,7 +85,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("935072e2-8f52-410e-b4b4-c28cbea94810"); }
+            get { return new Guid("cd0bb03c-2b66-4dbb-864e-02015f0255e7"); }
         }
     }
 }

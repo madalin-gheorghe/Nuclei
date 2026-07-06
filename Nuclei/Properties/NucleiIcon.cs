@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,9 +10,9 @@ namespace Nuclei3.Properties
         {
             public override Grasshopper.Kernel.GH_LoadingInstruction PriorityLoad()
             {
-                Grasshopper.Instances.ComponentServer.AddCategoryIcon("Nuclei3", Nuclei3.Properties.Resources.Nuclei2);
-                Grasshopper.Instances.ComponentServer.AddCategoryShortName("Nuclei3", "Nuclei");
-                Grasshopper.Instances.ComponentServer.AddCategorySymbolName("Nuclei3", 'N');
+                Grasshopper.Instances.ComponentServer.AddCategoryIcon("Nuclei4", Nuclei3.Properties.Resources.Nuclei2);
+                Grasshopper.Instances.ComponentServer.AddCategoryShortName("Nuclei4", "Nuclei4");
+                Grasshopper.Instances.ComponentServer.AddCategorySymbolName("Nuclei4", 'N');
 
                 return Grasshopper.Kernel.GH_LoadingInstruction.Proceed;
             }

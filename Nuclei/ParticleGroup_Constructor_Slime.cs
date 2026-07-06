@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Collections.Concurrent;
@@ -19,7 +19,7 @@ namespace Nuclei3
         public ParticleGroup_Constructor_Slime()
           : base("Construct Slime Particles", "Slime Particles",
               "Construct and Define Slime Particle Properties",
-              "Nuclei3", " Particles")
+              "Nuclei4", " Particles")
         {
         }
 
@@ -162,7 +162,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("d64158f3-9ccd-4aa6-954f-8b2e12113bc3"); }
+            get { return new Guid("24ede5e7-2957-4f98-8f83-80c6f5dfd31f"); }
         }
     }
 }

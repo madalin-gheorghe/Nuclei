@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using System.Linq;
@@ -36,7 +36,7 @@ namespace Nuclei3
         public Voxels_AND()
            : base("Voxel Selection Intersection", "Voxel Selection Intersection",
               "Perform Intersection on Voxel Selection (AND)",
-              "Nuclei3", " Environment")
+              "Nuclei4", " Environment")
         {
             DataTest = "";
         }
@@ -1000,7 +1000,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("9a4007ad-e7fb-49a8-a4ea-7e27c544fd5b"); }
+            get { return new Guid("e1c26fa2-35ea-4c83-8f1b-df7d90280196"); }
         }
     }
 }

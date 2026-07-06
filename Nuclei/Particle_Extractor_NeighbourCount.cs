@@ -1,4 +1,4 @@
-﻿using Grasshopper.Kernel;
+using Grasshopper.Kernel;
 using Rhino.Geometry;
 using System;
 using System.Collections.Generic;
@@ -13,7 +13,7 @@ namespace Nuclei3
         public Particle_Extractor_NeighbourCount()
           : base("Extract Particle Neighbour Count", "Particle Neighbour Count",
               "Extract Particle Neighbour Count",
-              "Nuclei3", " Particles")
+              "Nuclei4", " Particles")
         {
         }
 
@@ -89,7 +89,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("76c5184d-922b-4f16-969f-0cd31aff63f2"); }
+            get { return new Guid("d077c7a9-1db6-410c-87f9-917a0c3a353d"); }
         }
     }
 }
