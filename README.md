@@ -2,7 +2,7 @@
 
 Nuclei is an original Grasshopper/Rhino plugin for bottom-up generative systems, behaviour-based simulations, and voxel-controlled spatial maps.
 
-The plugin combines a simulation core with tools for defining particle behaviours and highly customizable voxel environments, allowing particles to adapt their movement through spatial behavior maps. Its slime-mold logic is inspired by Physarum transport-network research and expanded toward computational design, speculative urban systems, and generative spatial workflows.
+The plugin combines a simulation core with tools for defining particle behaviours and highly customizable voxel environments, allowing particles to adapt their movement through spatial behavior maps. Its slime-mold logic is inspired by [Physarum transport-network research](https://uwe-repository.worktribe.com/output/980579/characteristics-of-pattern-formation-and-evolution-in-approximations-of-physarum-transport-networks) and expanded toward computational design, speculative urban systems, and generative spatial workflows.
 
 Stable public releases will be published on Food4Rhino:
 
