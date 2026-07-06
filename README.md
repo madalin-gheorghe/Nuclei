@@ -12,11 +12,11 @@ This repository tracks the source code, reconstructed optimization history, and 
 
 ## Milestones
 
-- `v0.1-self-coded` - initial self-coded source reconstructed from `Nuclei 19 Apr Final.rar`.
-- `v0.2-cpu-stabilized` - CPU solver behavior stabilized, including wrap/no-wrap fixes and benchmark harness work.
-- `v0.3-cpu-preview-optimized` - CPU diffusion and preview cache optimization period.
-- `v0.4-gpu-solver` - first meaningful GPU solver and particle preview pipeline.
-- `v0.5-current-collaboration` - current reconstructed collaboration state with fast voxel data work and internal voxel-field particle generation.
+- `v3.0` - self-coded baseline hand-coded by Madalin Gheorghe; the initial stable Grasshopper/Rhino plugin before AI-assisted optimization work.
+- `v3.1` - CPU solver stabilization, wrap/no-wrap behavior fixes, and first structured benchmark workflow.
+- `v3.2` - CPU preview and diffusion optimization, separating solver and preview costs and clarifying the limits of CPU-side speedups.
+- `v4.0` - first meaningful GPU solver prototype using compute shader based execution and GPU-resident preview work.
+- `v4.1` - collaboration checkpoint for speed and main-functionality testing, with fast voxel data work, GPU solver progress, and internal voxel field particle generation.
 
 ## Performance Evidence
 
