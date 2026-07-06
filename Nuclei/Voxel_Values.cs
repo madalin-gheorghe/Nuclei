@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using Grasshopper.Kernel;
@@ -15,7 +15,7 @@ namespace Nuclei3
         public Voxel_Values()
           : base("Define Voxel Values", "Voxel Values", 
               "Define Voxel Differentiated Values",
-              "Nuclei3", " Environment")
+              "Nuclei4", " Environment")
         {
         }
 
@@ -132,7 +132,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("bd89c53c-93c6-4da8-8312-0fb911ff4ebe"); }
+            get { return new Guid("6a35ef3b-11f7-4d48-8103-683e82b2dd5d"); }
         }
     }
 }

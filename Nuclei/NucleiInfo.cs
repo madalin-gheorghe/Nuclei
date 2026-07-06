@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using Grasshopper.Kernel;
 
@@ -10,7 +10,7 @@ namespace Nuclei3
         {
             get
             {
-                return "Nuclei3";
+                return "Nuclei4";
             }
         }
         public override Bitmap Icon
@@ -33,7 +33,7 @@ namespace Nuclei3
         {
             get
             {
-                return new Guid("e3867b7b-1e11-45c4-9544-6f30e27d2730");
+                return new Guid("a4810f34-10b6-480c-a6d0-607aac4e8d2a");
             }
         }
 

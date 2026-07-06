@@ -1,4 +1,4 @@
-﻿using Grasshopper.Kernel;
+using Grasshopper.Kernel;
 using Rhino.Geometry;
 using Grasshopper.Kernel.Types;
 using System;
@@ -24,7 +24,7 @@ namespace Nuclei3
         }
 
         protected Preview_Voxel(string name, string nickname, string description)
-          : base(name, nickname, description, "Nuclei3", "Preview")
+          : base(name, nickname, description, "Nuclei4", "Preview")
         {
         }
 
@@ -839,7 +839,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("a95d5adc-0c7c-40c2-893f-6a9732ffdfa5"); }
+            get { return new Guid("fb2ea9fc-5963-4587-b09b-0422f61174db"); }
         }
     }
 

@@ -1,4 +1,4 @@
-﻿using Grasshopper.Kernel;
+using Grasshopper.Kernel;
 using Rhino.Geometry;
 using System;
 using System.Collections.Generic;
@@ -13,7 +13,7 @@ namespace Nuclei3
         public Particle_Extractor_Vector()
           : base("Extract Particle Vectors", "Particle Vectors",
               "Extract Particle Directions",
-              "Nuclei3", " Particles")
+              "Nuclei4", " Particles")
         {
         }
 
@@ -89,7 +89,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("90246ded-dd4c-436c-91aa-83521613bad2"); }
+            get { return new Guid("59e6dba6-2cec-4873-8b54-9f099d3599c2"); }
         }
     }
 }

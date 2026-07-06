@@ -1,4 +1,4 @@
-﻿using Grasshopper.Kernel;
+using Grasshopper.Kernel;
 using Rhino.Geometry;
 using System;
 using System.Collections.Concurrent;
@@ -16,7 +16,7 @@ namespace Nuclei3
         public Voxel_Values_BlendAll()
           : base("Voxel Values Blend", "Blend Values",
               "Blend All Values",
-              "Nuclei3", " Environment")
+              "Nuclei4", " Environment")
         {
         }
 
@@ -1369,7 +1369,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("eae9266c-418b-4e33-8a1a-6fee7b7eec1f"); }
+            get { return new Guid("0a968da4-646c-41fb-b48c-7e1d6c258d94"); }
         }
     }
 }

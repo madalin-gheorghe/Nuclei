@@ -1,4 +1,4 @@
-﻿using Grasshopper.Kernel;
+using Grasshopper.Kernel;
 using Rhino.Geometry;
 using System;
 using System.Collections.Generic;
@@ -14,7 +14,7 @@ namespace Nuclei3
         public Voxels_AND_NOT()
            : base("Voxel Selection Difference", "Voxel Selection Difference",
               "Perform Difference on Voxel Selection (AND NOT): V1 - V2",
-              "Nuclei3", " Environment")
+              "Nuclei4", " Environment")
         {
         }
 
@@ -103,7 +103,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("df63568f-cb5c-43e4-9b2f-1e7f0553404c"); }
+            get { return new Guid("9fb92daa-e99b-4ac3-985a-b985ad7bcf62"); }
         }
     }
 }

@@ -31,9 +31,9 @@ public class Solver : GH_Component
         /// Initializes a new instance of the Solver class.
         /// </summary>
         public Solver()
-          : base("Nuclei3 Solver", "Solver",
+          : base("Nuclei4 Solver", "Solver",
               "Where the magic happens",
-              "Nuclei3", " Solver")
+              "Nuclei4", " Solver")
         {
         }
 
@@ -6665,7 +6665,7 @@ public class Solver : GH_Component
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("e14eac59-d6d0-442a-a6b3-3e3a8f30be0f"); }
+            get { return new Guid("fb3d6e25-19b6-4673-accb-15c99b8ac33f"); }
         }
     }
 }

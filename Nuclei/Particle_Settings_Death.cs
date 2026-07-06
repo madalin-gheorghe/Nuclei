@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using Grasshopper.Kernel;
@@ -14,7 +14,7 @@ namespace Nuclei3
         public Particle_Settings_Death()
           : base("Particle Death Settings", "Death Settings",
               "Sets Up Dynamic Population Death Settings. Dies if Neighbour Count is OUTSIDE Range",
-              "Nuclei3", " Particles")
+              "Nuclei4", " Particles")
         {
         }
 
@@ -95,7 +95,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("9f969712-b5a5-485d-8345-bbb0a290912c"); }
+            get { return new Guid("b8f690ec-1e23-46c8-8fa4-4d3369cacfdf"); }
         }
     }
 }

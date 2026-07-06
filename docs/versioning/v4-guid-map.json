@@ -1,0 +1,282 @@
+[
+    {
+        "File":  "Nuclei\\Iterations.cs",
+        "Line":  83,
+        "Kind":  "Component",
+        "V3Guid":  "073b4973-6ea6-4485-907e-4a385f78d7e5",
+        "V4Guid":  "117cfcd7-ca25-4b01-8d76-688e2661ebb6"
+    },
+    {
+        "File":  "Nuclei\\NucleiInfo.cs",
+        "Line":  32,
+        "Kind":  "AssemblyInfoId",
+        "V3Guid":  "e3867b7b-1e11-45c4-9544-6f30e27d2730",
+        "V4Guid":  "a4810f34-10b6-480c-a6d0-607aac4e8d2a"
+    },
+    {
+        "File":  "Nuclei\\Particle.cs",
+        "Line":  518,
+        "Kind":  "Component",
+        "V3Guid":  "63caf026-d9be-43fb-801d-a786c8a3d65d",
+        "V4Guid":  "9247c2b8-6a33-4f72-b385-ddd1a1e25323"
+    },
+    {
+        "File":  "Nuclei\\Particle_Extractor_NeighbourCount.cs",
+        "Line":  90,
+        "Kind":  "Component",
+        "V3Guid":  "76c5184d-922b-4f16-969f-0cd31aff63f2",
+        "V4Guid":  "d077c7a9-1db6-410c-87f9-917a0c3a353d"
+    },
+    {
+        "File":  "Nuclei\\Particle_Extractor_Point.cs",
+        "Line":  107,
+        "Kind":  "Component",
+        "V3Guid":  "bf607888-0e68-4703-bdb2-d5ac6c6c717a",
+        "V4Guid":  "f11f6319-1d69-4c97-8734-17c3f6a13b4a"
+    },
+    {
+        "File":  "Nuclei\\Particle_Extractor_TrailPoints.cs",
+        "Line":  116,
+        "Kind":  "Component",
+        "V3Guid":  "6faaafc2-1afe-4058-9d3d-fefa24a8c4bb",
+        "V4Guid":  "0a97c625-4da3-4143-89c6-d88249de8741"
+    },
+    {
+        "File":  "Nuclei\\Particle_Extractor_Vector.cs",
+        "Line":  90,
+        "Kind":  "Component",
+        "V3Guid":  "90246ded-dd4c-436c-91aa-83521613bad2",
+        "V4Guid":  "59e6dba6-2cec-4873-8b54-9f099d3599c2"
+    },
+    {
+        "File":  "Nuclei\\Particle_Settings_Ant_Slime.cs",
+        "Line":  93,
+        "Kind":  "Component",
+        "V3Guid":  "43b94038-957d-4734-8e86-71c18a40a9a7",
+        "V4Guid":  "9c28782b-f3db-40e3-8bd7-f099d8b62ae3"
+    },
+    {
+        "File":  "Nuclei\\Particle_Settings_Death.cs",
+        "Line":  96,
+        "Kind":  "Component",
+        "V3Guid":  "9f969712-b5a5-485d-8345-bbb0a290912c",
+        "V4Guid":  "b8f690ec-1e23-46c8-8fa4-4d3369cacfdf"
+    },
+    {
+        "File":  "Nuclei\\Particle_Settings_Division.cs",
+        "Line":  96,
+        "Kind":  "Component",
+        "V3Guid":  "cfc95316-c2a3-47cb-a98f-f37b929ae1ff",
+        "V4Guid":  "7e505abb-dc4f-4226-a922-f92e25ab70da"
+    },
+    {
+        "File":  "Nuclei\\Particle_Settings_Population.cs",
+        "Line":  87,
+        "Kind":  "Component",
+        "V3Guid":  "57e14032-ff62-4217-8f3c-fc644ebf92ba",
+        "V4Guid":  "0224814f-9543-481b-9ec0-5f206c39b408"
+    },
+    {
+        "File":  "Nuclei\\Particle_Settings_Trail.cs",
+        "Line":  86,
+        "Kind":  "Component",
+        "V3Guid":  "935072e2-8f52-410e-b4b4-c28cbea94810",
+        "V4Guid":  "cd0bb03c-2b66-4dbb-864e-02015f0255e7"
+    },
+    {
+        "File":  "Nuclei\\ParticleGroup.cs",
+        "Line":  226,
+        "Kind":  "Component",
+        "V3Guid":  "5cf001f6-7143-4ada-8d98-a9f53efbed6a",
+        "V4Guid":  "e480f2e7-279f-4b31-a16e-ca5058446daa"
+    },
+    {
+        "File":  "Nuclei\\ParticleGroup_Constructor_Ant.cs",
+        "Line":  163,
+        "Kind":  "Component",
+        "V3Guid":  "4f3ff2bb-3c45-4a3d-92d1-b7e696a50ac6",
+        "V4Guid":  "3eab04d8-68ed-476d-b33d-a8633418ab12"
+    },
+    {
+        "File":  "Nuclei\\ParticleGroup_Constructor_Slime.cs",
+        "Line":  163,
+        "Kind":  "Component",
+        "V3Guid":  "d64158f3-9ccd-4aa6-954f-8b2e12113bc3",
+        "V4Guid":  "24ede5e7-2957-4f98-8f83-80c6f5dfd31f"
+    },
+    {
+        "File":  "Nuclei\\Point_Extractor_ParentVoxel.cs",
+        "Line":  245,
+        "Kind":  "Component",
+        "V3Guid":  "99e2e062-92c8-47f0-ae51-a6b62e167d36",
+        "V4Guid":  "f4f3534c-1921-448d-b785-dd0854bc8bed"
+    },
+    {
+        "File":  "Nuclei\\Preview_Particle.cs",
+        "Line":  320,
+        "Kind":  "Component",
+        "V3Guid":  "a4a9e7cb-f899-461a-9137-207d4601ae14",
+        "V4Guid":  "60649521-0784-4a2e-8dfa-27e4a04600ac"
+    },
+    {
+        "File":  "Nuclei\\Preview_Voxel.cs",
+        "Line":  840,
+        "Kind":  "Component",
+        "V3Guid":  "a95d5adc-0c7c-40c2-893f-6a9732ffdfa5",
+        "V4Guid":  "fb2ea9fc-5963-4587-b09b-0422f61174db"
+    },
+    {
+        "File":  "Nuclei\\Solver.cs",
+        "Line":  6666,
+        "Kind":  "Component",
+        "V3Guid":  "e14eac59-d6d0-442a-a6b3-3e3a8f30be0f",
+        "V4Guid":  "fb3d6e25-19b6-4673-accb-15c99b8ac33f"
+    },
+    {
+        "File":  "Nuclei\\Solver_GPU.cs",
+        "Line":  1219,
+        "Kind":  "Component",
+        "V3Guid":  "931b7e8e-700b-476c-8320-b26296c5b661",
+        "V4Guid":  "e794ab27-6d27-4107-929f-b88e16209976"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Attractor_Curve.cs",
+        "Line":  803,
+        "Kind":  "Component",
+        "V3Guid":  "2260534a-7462-4f13-b91c-098dafda7af4",
+        "V4Guid":  "59741edd-30fb-42a7-93cb-26f7dee3e03b"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Attractor_Mesh.cs",
+        "Line":  744,
+        "Kind":  "Component",
+        "V3Guid":  "4bc514a7-677b-47f6-ae9f-735e776802ec",
+        "V4Guid":  "6bb5c231-45a2-4fd8-8698-93da2b8631aa"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Attractor_Point.cs",
+        "Line":  587,
+        "Kind":  "Component",
+        "V3Guid":  "848aeb01-90d9-453f-9165-4c7968ecd962",
+        "V4Guid":  "a0ac8ea3-c26e-4852-8e48-e507d0cc6132"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Constructor.cs",
+        "Line":  254,
+        "Kind":  "Component",
+        "V3Guid":  "6526b596-0bf5-405d-9dcb-2d9db924652b",
+        "V4Guid":  "a3940a4d-9015-411c-9ffa-e38ecc90d394"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Extractor_Box.cs",
+        "Line":  83,
+        "Kind":  "Component",
+        "V3Guid":  "c6f57849-0f66-4d3c-a754-a8865095b188",
+        "V4Guid":  "f02270d9-89f0-4465-93ac-750061478aed"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Extractor_Point.cs",
+        "Line":  108,
+        "Kind":  "Component",
+        "V3Guid":  "a1f09327-216f-4782-8137-4c112528c7da",
+        "V4Guid":  "deb55383-1cb3-4b17-8d01-cc05d1b9c635"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Extractor_Values.cs",
+        "Line":  226,
+        "Kind":  "Component",
+        "V3Guid":  "ce402494-5f09-4fc4-a651-dfbbed7a92b9",
+        "V4Guid":  "9668d334-4d67-464e-9e19-c581c49c26a7"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Extractor_Vector.cs",
+        "Line":  100,
+        "Kind":  "Component",
+        "V3Guid":  "be2396bf-49dd-43ca-85a2-8cf72d708cfe",
+        "V4Guid":  "8f334745-181f-4bf2-a60f-4b11bbdfcc8b"
+    },
+    {
+        "File":  "Nuclei\\Voxel_MeshInclusion.cs",
+        "Line":  377,
+        "Kind":  "Component",
+        "V3Guid":  "96d3c813-142b-4a73-afef-a2f99b822a08",
+        "V4Guid":  "74684ab4-cbf5-4cc1-a75a-4253eb83599b"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Settings_Ant.cs",
+        "Line":  110,
+        "Kind":  "Component",
+        "V3Guid":  "ac01514e-2a81-4aea-a0f2-72a1182d4988",
+        "V4Guid":  "3486cda4-b3f3-47a1-886b-f047d6d7a13a"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Settings_Slime.cs",
+        "Line":  92,
+        "Kind":  "Component",
+        "V3Guid":  "04377373-aa20-4bd2-9a12-3fae39b5f74e",
+        "V4Guid":  "dc1f1c7b-2376-487d-a4ac-d14d9cad856d"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Settings_Wrap.cs",
+        "Line":  81,
+        "Kind":  "Component",
+        "V3Guid":  "725b1bd6-b618-48c4-8395-6945539ae20c",
+        "V4Guid":  "43b61a51-6086-4cea-98f9-e482a7b6d57f"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Values.cs",
+        "Line":  133,
+        "Kind":  "Component",
+        "V3Guid":  "bd89c53c-93c6-4da8-8312-0fb911ff4ebe",
+        "V4Guid":  "6a35ef3b-11f7-4d48-8103-683e82b2dd5d"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Values_BlendAll.cs",
+        "Line":  1370,
+        "Kind":  "Component",
+        "V3Guid":  "eae9266c-418b-4e33-8a1a-6fee7b7eec1f",
+        "V4Guid":  "0a968da4-646c-41fb-b48c-7e1d6c258d94"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Vectors.cs",
+        "Line":  101,
+        "Kind":  "Component",
+        "V3Guid":  "69302de9-b10e-49e4-8562-f01d829c0033",
+        "V4Guid":  "fd6a6fc7-5500-464d-9c1f-94de266ab994"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Vectors_BlendAll.cs",
+        "Line":  309,
+        "Kind":  "Component",
+        "V3Guid":  "9cecbe0d-5b14-4e01-a7ee-7987e75faf71",
+        "V4Guid":  "ee2dadbd-e610-457d-8a08-e603062c4a45"
+    },
+    {
+        "File":  "Nuclei\\Voxel_Vectors_Discretize.cs",
+        "Line":  90,
+        "Kind":  "Component",
+        "V3Guid":  "e78a0027-8bbc-4e14-b294-e613134951e5",
+        "V4Guid":  "c4f37772-d03a-44a5-bd50-755442b1c5f3"
+    },
+    {
+        "File":  "Nuclei\\Voxels_AND.cs",
+        "Line":  1001,
+        "Kind":  "Component",
+        "V3Guid":  "9a4007ad-e7fb-49a8-a4ea-7e27c544fd5b",
+        "V4Guid":  "e1c26fa2-35ea-4c83-8f1b-df7d90280196"
+    },
+    {
+        "File":  "Nuclei\\Voxels_AND_NOT.cs",
+        "Line":  104,
+        "Kind":  "Component",
+        "V3Guid":  "df63568f-cb5c-43e4-9b2f-1e7f0553404c",
+        "V4Guid":  "9fb92daa-e99b-4ac3-985a-b985ad7bcf62"
+    },
+    {
+        "File":  "Nuclei\\Voxels_OR.cs",
+        "Line":  1057,
+        "Kind":  "Component",
+        "V3Guid":  "b18dc75e-5238-4537-950f-f53c4d9e1138",
+        "V4Guid":  "0e3c0d1c-1057-4f08-9368-a0078a3d9d35"
+    }
+]

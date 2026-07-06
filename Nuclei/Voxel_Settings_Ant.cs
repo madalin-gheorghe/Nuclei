@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using Grasshopper.Kernel;
@@ -14,7 +14,7 @@ namespace Nuclei3
         public EnivronmentSettings_Ant()
           : base("Voxel Settings Ant", "Voxel Settings Ant",
               "Sets Up How The Environment Data Is Interpreted for Ant Particles",
-              "Nuclei3", " Environment")
+              "Nuclei4", " Environment")
         {
         }
 
@@ -109,7 +109,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("ac01514e-2a81-4aea-a0f2-72a1182d4988"); }
+            get { return new Guid("3486cda4-b3f3-47a1-886b-f047d6d7a13a"); }
         }
     }
 }

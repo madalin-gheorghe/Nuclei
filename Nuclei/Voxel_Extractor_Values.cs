@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -21,7 +21,7 @@ namespace Nuclei3
         public Voxel_Extractor_Values()
           : base("Extract Voxel Values", "Voxel Values",
               "Extract Voxel Values",
-              "Nuclei3", " Environment")
+              "Nuclei4", " Environment")
         {
         }
 
@@ -225,7 +225,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("ce402494-5f09-4fc4-a651-dfbbed7a92b9"); }
+            get { return new Guid("9668d334-4d67-464e-9e19-c581c49c26a7"); }
         }
     }
 }

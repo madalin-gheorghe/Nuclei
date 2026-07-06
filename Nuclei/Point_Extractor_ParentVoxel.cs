@@ -1,4 +1,4 @@
-﻿using Grasshopper.Kernel;
+using Grasshopper.Kernel;
 using Rhino.Geometry;
 
 using System;
@@ -21,7 +21,7 @@ namespace Nuclei3
         public Point_Extractor_ParentVoxel()
           : base("Extract Parent Voxel", "Extract Parent Voxel",
               "Extract The Voxel in which The Point Is Contained",
-              "Nuclei3", "Utility")
+              "Nuclei4", "Utility")
         {
         }
 
@@ -244,7 +244,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("99e2e062-92c8-47f0-ae51-a6b62e167d36"); }
+            get { return new Guid("f4f3534c-1921-448d-b785-dd0854bc8bed"); }
         }
     }
 }

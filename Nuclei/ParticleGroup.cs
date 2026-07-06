@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -203,7 +203,7 @@ namespace Nuclei3
         public class ParticleGroupParameter : GH_PersistentParam<ParticleGroupGoo>
         {
             public ParticleGroupParameter()
-                : base(new GH_InstanceDescription("Particle Group List", "Particle Group List", "Particle Group List", "Nuclei3", "Parameters"))
+                : base(new GH_InstanceDescription("Particle Group List", "Particle Group List", "Particle Group List", "Nuclei4", "Parameters"))
             {
             }
 
@@ -227,7 +227,7 @@ namespace Nuclei3
             {
                 get
                 {
-                    return new Guid("5cf001f6-7143-4ada-8d98-a9f53efbed6a");
+                    return new Guid("e480f2e7-279f-4b31-a16e-ca5058446daa");
                 }
             }
 

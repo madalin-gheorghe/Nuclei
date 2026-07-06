@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Collections.Concurrent;
@@ -20,7 +20,7 @@ namespace Nuclei3
         public Voxel_Attractor_Point()
           : base("Point Attractor for Voxels", "Point Attractor",
               "Use Points as Attractors for Voxel Centers",
-              "Nuclei3", " Environment")
+              "Nuclei4", " Environment")
         {
         }
 
@@ -586,7 +586,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("848aeb01-90d9-453f-9165-4c7968ecd962"); }
+            get { return new Guid("a0ac8ea3-c26e-4852-8e48-e507d0cc6132"); }
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using Grasshopper.Kernel;
+using Grasshopper.Kernel;
 using Rhino.Geometry;
 using System;
 using System.Collections.Generic;
@@ -13,7 +13,7 @@ namespace Nuclei3
         public Particle_Settings_Population()
           : base("Particle Population Settings", "Population Settings",
               "Sets Up Population Settings",
-              "Nuclei3", " Particles")
+              "Nuclei4", " Particles")
         {
         }
 
@@ -86,7 +86,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("57e14032-ff62-4217-8f3c-fc644ebf92ba"); }
+            get { return new Guid("0224814f-9543-481b-9ec0-5f206c39b408"); }
         }
     }
 }
