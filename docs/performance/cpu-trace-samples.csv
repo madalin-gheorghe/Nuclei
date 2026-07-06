@@ -1,0 +1,9 @@
+report,focused_samples_total,top_frame,top_frame_samples,previewparticle_samples,pointcloudadd_samples,solversolveinstance_samples,sense_samples,movedeposit_samples,diffusion_samples,parentvoxel_samples,boundarydecay_samples,trail_samples,grasshoppercollect_samples
+1548,1734805,"Grasshopper.Kernel.GH_Document.NewSolution(bool,value class Grasshopper.Kernel.GH_SolutionMode)",114298,80836,52767,26901,76412,57149,126461,44988,38716,5912,458116
+1611,2232492,"Grasshopper.Kernel.GH_Document.NewSolution(bool,value class Grasshopper.Kernel.GH_SolutionMode)",154427,111961,72284,36241,102711,77738,177837,59644,51553,7982,565054
+1627-read,1390906,"Grasshopper.Kernel.GH_Document.NewSolution(bool,value class Grasshopper.Kernel.GH_SolutionMode)",98307,69671,49446,22699,59052,44968,100036,34685,31139,0,354938
+1637-read,2320979,"Nuclei3.Solver.<particleSenseValuesAndVectors>b__121_0(int32)",192109,108621,37453,67017,209478,156472,359878,124359,97137,16156,628432
+1655-read,2294572,"Nuclei3.Solver.<particleMoveAndDeposit>b__123_0(int32)",254760,62109,0,88842,204276,264463,235130,86479,134907,20911,711306
+1724-read,2078776,"Nuclei3.Solver.<particleSenseValuesAndVectors>b__141_0(int32)",166190,67163,24725,63444,179934,140836,318740,103518,94707,13698,557290
+1758-read,1937299,"Nuclei3.Solver.<particleSenseValuesAndVectors>b__140_0(int32)",146600,83198,28879,55574,160713,126843,276456,93398,79914,12790,520924
+1823-read,1613329,"Nuclei3.Solver.<particleSenseSlimeOnly>b__146_0(int32)",131160,36531,10429,50219,151454,111726,289846,66800,71802,12685,410980
