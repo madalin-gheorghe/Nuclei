@@ -6,6 +6,8 @@ The raw Visual Studio `.diagsession` files are intentionally excluded from Git. 
 
 ## Files
 
+- [solver-frame-comparison.md](solver-frame-comparison.md) is the quick-read comparison of CPU and GPU median ms/frame.
+- [solver-frame-comparison.csv](solver-frame-comparison.csv) is the source CSV for that comparison.
 - [diagnostic-index.csv](diagnostic-index.csv) lists every local `.diagsession` capture used during the optimization work.
 - [cpu-trace-samples.csv](cpu-trace-samples.csv) records decoded Visual Studio CPU Usage hot-frame sample counts from selected reports.
 - [benchmark-summary.csv](benchmark-summary.csv) records representative millisecond timings from the later `NucleiTiming.csv` schema.
@@ -20,6 +22,8 @@ Local raw diagnostics:
 - Runtime timing CSV: `NucleiTiming.csv`, `32286` rows
 
 The runtime CSV schema evolved while instrumentation was being added. Early rows are useful as historical instrumentation evidence, but the stable millisecond comparisons in this repository use later-schema rows from June 24, 2026.
+
+Important unit note: `TimingReporter` stores `total_ms` as milliseconds per sample/frame. It divides the accumulated stopwatch ticks by `samples` before writing the row, so the comparison tables do not divide by `samples` again.
 
 Component row counts in the local timing CSV:
 

@@ -16,6 +16,8 @@ This repository intentionally tracks source code and small evidence summaries, n
 
 The detailed performance notes live in [docs/performance/performance-history.md](docs/performance/performance-history.md).
 
+For the easiest overview, start with [docs/performance/solver-frame-comparison.md](docs/performance/solver-frame-comparison.md). It compares CPU and GPU median ms/frame and speedup ratios.
+
 Local Visual Studio `.diagsession` captures are kept outside Git because the current diagnostic set is about 2.77 GB. The repository instead includes small CSV summaries for the diagnostic inventory, decoded CPU hot-frame samples, and representative GPU timing runs.
 
 ## Build
@@ -27,4 +29,3 @@ For CI-style validation without installing into Grasshopper:
 ```powershell
 dotnet build .\Nuclei\Nuclei3.csproj -c Debug -f net48 -p:SkipGrasshopperInstall=true
 ```
-
