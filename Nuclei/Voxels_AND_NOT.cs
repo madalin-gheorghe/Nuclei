@@ -54,6 +54,24 @@ namespace Nuclei3
 
             VoxelGridData data1 = VoxelGridRegistry.GetOrCapture(v1, Globals.voxelSize);
             VoxelGridData data2 = VoxelGridRegistry.GetOrCapture(v2, data1.VoxelSize);
+
+            if (!sameGrid(data1, data2))
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, "Difference inputs must have matching voxel grid dimensions.");
+                DA.SetData(0, v1);
+                return;
+            }
+
+            long data1Signature = data1.ContentSignature();
+            long data2Signature = data2.ContentSignature();
+            if (canReuseCachedSidecarOutput(data1, data2, data1Signature, data2Signature))
+            {
+                voxels = cachedSidecarOutputVoxels;
+                VoxelGridRegistry.Set(voxels, cachedSidecarOutputData);
+                DA.SetData(0, voxels);
+                return;
+            }
+
             bool[] activeMask = new bool[data1.Count];
 
             for (int i = 0; i < data1.ActiveCount; i++)
@@ -68,8 +86,37 @@ namespace Nuclei3
             VoxelGridData outputData = data1.WithActiveMask(activeMask);
             voxels = outputData.ToVoxelArray(true);
             VoxelGridRegistry.Set(voxels, outputData);
+            cacheSidecarOutput(data1, data2, data1Signature, data2Signature, voxels, outputData);
 
             DA.SetData(0, voxels);
+        }
+
+        bool canReuseCachedSidecarOutput(VoxelGridData data1, VoxelGridData data2, long data1Signature, long data2Signature)
+        {
+            return cachedSidecarOutputVoxels != null &&
+                   cachedSidecarOutputData != null &&
+                   (object.ReferenceEquals(cachedSidecarInputData1, data1) || cachedSidecarInputSignature1 == data1Signature) &&
+                   (object.ReferenceEquals(cachedSidecarInputData2, data2) || cachedSidecarInputSignature2 == data2Signature);
+        }
+
+        void cacheSidecarOutput(VoxelGridData data1, VoxelGridData data2, long data1Signature, long data2Signature, Voxel[,,] outputVoxels, VoxelGridData outputData)
+        {
+            cachedSidecarInputData1 = data1;
+            cachedSidecarInputData2 = data2;
+            cachedSidecarInputSignature1 = data1Signature;
+            cachedSidecarInputSignature2 = data2Signature;
+            cachedSidecarOutputVoxels = outputVoxels;
+            cachedSidecarOutputData = outputData;
+        }
+
+        static bool sameGrid(VoxelGridData data1, VoxelGridData data2)
+        {
+            return data1 != null &&
+                   data2 != null &&
+                   data1.ResX == data2.ResX &&
+                   data1.ResY == data2.ResY &&
+                   data1.ResZ == data2.ResZ &&
+                   data1.Count == data2.Count;
         }
 
         //-------------------------------------------------------------------
@@ -82,6 +129,12 @@ namespace Nuclei3
 
         //outputs
         Voxel[,,] voxels;
+        VoxelGridData cachedSidecarInputData1;
+        VoxelGridData cachedSidecarInputData2;
+        long cachedSidecarInputSignature1;
+        long cachedSidecarInputSignature2;
+        Voxel[,,] cachedSidecarOutputVoxels;
+        VoxelGridData cachedSidecarOutputData;
 
         //-------------------------------------------------------------------
 

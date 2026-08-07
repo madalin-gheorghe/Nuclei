@@ -56,14 +56,15 @@ namespace Nuclei3
             for (int i = 0; i < particles.Count; i++)
             {
                 Particle P = particles[i];
+                if (P == null || P.trails == null || P.trails.Count == 0)
+                {
+                    continue;
+                }
+
+                Grasshopper.Kernel.Data.GH_Path path = new Grasshopper.Kernel.Data.GH_Path(retrieveIndex(P), i);
                 for (int j = 0; j < P.trails.Count; j++)
                 {
-
-                    if (P.trails.Count > 0)
-                    {
-                        Point3d pt = P.trails[j];
-                        outputParticleTrails.Add(pt, new Grasshopper.Kernel.Data.GH_Path(retrieveIndex(P), i));
-                    }
+                    outputParticleTrails.Add(P.trails[j], path);
                 }
             }
 

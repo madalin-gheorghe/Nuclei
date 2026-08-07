@@ -18,6 +18,12 @@ This repository tracks the source code, reconstructed optimization history, and 
 - `v4.0` - first meaningful GPU solver prototype using compute shader based execution and GPU-resident preview work.
 - `v4.1` - collaboration checkpoint for speed and main-functionality testing, with fast voxel data work, GPU solver progress, and internal voxel field particle generation.
 
+## Current V4 Development
+
+The current v4 development checkpoint targets Rhino 9 on Windows. It includes a Direct3D 11 compute-shader solver, GPU-resident particle and voxel previews, GPU particle-trail display, live voxel behavior maps, internal particle generation, and population-aware preview colors. CPU-oriented v3.x builds remain separate for compatibility and comparison.
+
+Dynamic particle division and death are the next GPU solver architecture milestone and are not included in this checkpoint.
+
 ## Performance Evidence
 
 The detailed performance notes live in [docs/performance/performance-history.md](docs/performance/performance-history.md).

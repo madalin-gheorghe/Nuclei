@@ -1,9 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using GH_IO.Serialization;
 using Grasshopper.Kernel;
+using Grasshopper.Kernel.Data;
+using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace Nuclei3
 {
@@ -29,7 +33,7 @@ namespace Nuclei3
             //1
             pManager.AddIntegerParameter("Type", "type", "Type of Voxel Value", GH_ParamAccess.item, 0);
             //2
-            pManager.AddNumberParameter("Multiplier Value", "multiplier", "Value Assigned to Voxel will Multiply the Particle Settings", GH_ParamAccess.list);
+            pManager.AddNumberParameter("Multiplier Value", "multiplier", "Value Assigned to Voxel will Multiply the Particle Settings", GH_ParamAccess.tree);
         }
 
         /// <summary>
@@ -45,12 +49,31 @@ namespace Nuclei3
             get { return GH_Exposure.tertiary; }
         }
 
+        public override bool Write(GH_IWriter writer)
+        {
+            return base.Write(writer);
+        }
+
+        public override bool Read(GH_IReader reader)
+        {
+            valueOrderMode = VoxelValueOrderMode.Auto;
+            return base.Read(reader);
+        }
+
+        protected override void AppendAdditionalComponentMenuItems(ToolStripDropDown menu)
+        {
+            base.AppendAdditionalComponentMenuItems(menu);
+        }
+
         /// <summary>
         /// This is the method that actually does the work.
         /// </summary>
         /// <param name="DA">The DA object is used to retrieve from inputs and store in outputs.</param>
         protected override void SolveInstance(IGH_DataAccess DA)
         {
+            valueOrderMode = VoxelValueOrderMode.Auto;
+            Message = string.Empty;
+
             //add value list
             if (Params.Input[1].SourceCount == 0)
             {
@@ -88,16 +111,33 @@ namespace Nuclei3
             }
 
             valueMultipliers = new List<double>();
+            valueMultiplierTree = new GH_Structure<GH_Number>();
 
             //set inputs
             DA.GetData("Voxels", ref inputVoxels);
             DA.GetData("Type", ref valueIndex);
-            DA.GetDataList("Multiplier Value", valueMultipliers);
+            DA.GetDataTree(2, out valueMultiplierTree);
 
             VoxelGridData inputData = VoxelGridRegistry.GetOrCapture(inputVoxels, Globals.voxelSize);
+            if (tryReuseCachedOutput(inputData, valueMultiplierTree, 0, false))
+            {
+                DA.SetData(0, voxels);
+                return;
+            }
+
+            valueMultipliers = buildValueList(inputData, valueMultiplierTree);
+            validateValueCount(inputData, valueMultipliers);
+            long valueHash = hashValues(valueMultipliers);
+            if (tryReuseCachedOutput(inputData, valueMultiplierTree, valueHash, true))
+            {
+                DA.SetData(0, voxels);
+                return;
+            }
+
             VoxelGridData outputData = inputData.WithScalarValues(valueIndex, valueMultipliers);
             voxels = outputData.ToVoxelArray(true);
             VoxelGridRegistry.Set(voxels, outputData);
+            cacheOutput(inputData, valueMultiplierTree, valueHash, outputData, voxels);
 
             DA.SetData(0, voxels);
         }
@@ -108,11 +148,201 @@ namespace Nuclei3
         Voxel[,,] inputVoxels;
         int valueIndex;
         List<double> valueMultipliers;
+        GH_Structure<GH_Number> valueMultiplierTree;
+        VoxelValueOrderMode valueOrderMode = VoxelValueOrderMode.Auto;
 
         //outputs
         Voxel[,,] voxels;
+        VoxelGridData cachedInputData;
+        GH_Structure<GH_Number> cachedInputValueTree;
+        int cachedValueIndex = int.MinValue;
+        VoxelValueOrderMode cachedValueOrderMode = VoxelValueOrderMode.Auto;
+        long cachedValueHash;
+        bool cachedValueHashValid;
+        VoxelGridData cachedOutputData;
+        Voxel[,,] cachedOutputVoxels;
 
         //-------------------------------------------------------------------
+
+        enum VoxelValueOrderMode
+        {
+            Auto = 0,
+            Voxel = 1,
+            ImageRows = 2
+        }
+
+        List<double> buildValueList(VoxelGridData voxelData, GH_Structure<GH_Number> valueTree)
+        {
+            List<double> values = flattenValueTree(valueTree);
+            if (values.Count <= 1 || voxelData == null || voxelData.Count == 0)
+            {
+                return values;
+            }
+
+            VoxelValueOrderMode resolvedMode = resolveValueOrderMode(voxelData, valueTree, values);
+
+            if (resolvedMode == VoxelValueOrderMode.ImageRows && values.Count == voxelData.Count)
+            {
+                return imageRowValuesToVoxelOrder(voxelData, values);
+            }
+
+            return values;
+        }
+
+        static List<double> flattenValueTree(GH_Structure<GH_Number> valueTree)
+        {
+            List<double> values = new List<double>();
+            if (valueTree == null) return values;
+
+            for (int i = 0; i < valueTree.Branches.Count; i++)
+            {
+                List<GH_Number> branch = valueTree.Branches[i];
+                if (branch == null) continue;
+
+                for (int j = 0; j < branch.Count; j++)
+                {
+                    GH_Number value = branch[j];
+                    if (value != null)
+                    {
+                        values.Add(value.Value);
+                    }
+                }
+            }
+
+            return values;
+        }
+
+        VoxelValueOrderMode resolveValueOrderMode(VoxelGridData voxelData, GH_Structure<GH_Number> valueTree, List<double> values)
+        {
+            if (valueOrderMode != VoxelValueOrderMode.Auto)
+            {
+                return valueOrderMode;
+            }
+
+            if (looksLikeImageRowTree(voxelData, valueTree, values))
+            {
+                return VoxelValueOrderMode.ImageRows;
+            }
+
+            return VoxelValueOrderMode.Voxel;
+        }
+
+        static bool looksLikeImageRowTree(VoxelGridData voxelData, GH_Structure<GH_Number> valueTree, List<double> values)
+        {
+            if (voxelData == null || valueTree == null || values == null) return false;
+            if (voxelData.Count <= 0 || values.Count != voxelData.Count) return false;
+
+            int expectedRowCount = voxelData.ResY * voxelData.ResZ;
+            if (expectedRowCount <= 1) return false;
+            if (valueTree.Branches.Count != expectedRowCount) return false;
+
+            for (int i = 0; i < valueTree.Branches.Count; i++)
+            {
+                List<GH_Number> branch = valueTree.Branches[i];
+                if (branch == null || branch.Count != voxelData.ResX)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        static List<double> imageRowValuesToVoxelOrder(VoxelGridData voxelData, List<double> imageRowValues)
+        {
+            double[] voxelValues = new double[voxelData.Count];
+
+            for (int z = 0; z < voxelData.ResZ; z++)
+            {
+                for (int y = 0; y < voxelData.ResY; y++)
+                {
+                    for (int x = 0; x < voxelData.ResX; x++)
+                    {
+                        int imageIndex = z * voxelData.ResX * voxelData.ResY + y * voxelData.ResX + x;
+                        int voxelIndex = voxelData.FlatIndex(x, y, z);
+                        voxelValues[voxelIndex] = imageRowValues[imageIndex];
+                    }
+                }
+            }
+
+            return new List<double>(voxelValues);
+        }
+
+        void validateValueCount(VoxelGridData voxelData, List<double> values)
+        {
+            if (voxelData == null || values == null) return;
+            if (values.Count == 0 || values.Count == 1 || values.Count == voxelData.Count || values.Count == voxelData.ActiveCount) return;
+
+            AddRuntimeMessage(
+                GH_RuntimeMessageLevel.Warning,
+                "Multiplier count (" + values.Count + ") does not match active voxels (" + voxelData.ActiveCount + ") or full voxel grid (" + voxelData.Count + "). Values were not remapped.");
+        }
+
+        bool tryReuseCachedOutput(VoxelGridData inputData, GH_Structure<GH_Number> valueTree, long valueHash, bool hasValueHash)
+        {
+            if (cachedOutputVoxels == null || cachedOutputData == null)
+            {
+                return false;
+            }
+
+            if (!ReferenceEquals(cachedInputData, inputData)
+                || cachedValueIndex != valueIndex
+                || cachedValueOrderMode != valueOrderMode)
+            {
+                return false;
+            }
+
+            bool sameValues = ReferenceEquals(cachedInputValueTree, valueTree)
+                || (hasValueHash && cachedValueHashValid && cachedValueHash == valueHash);
+
+            if (!sameValues)
+            {
+                return false;
+            }
+
+            voxels = cachedOutputVoxels;
+            VoxelGridRegistry.Set(voxels, cachedOutputData);
+            return true;
+        }
+
+        void cacheOutput(VoxelGridData inputData, GH_Structure<GH_Number> valueTree, long valueHash, VoxelGridData outputData, Voxel[,,] outputVoxels)
+        {
+            cachedInputData = inputData;
+            cachedInputValueTree = valueTree;
+            cachedValueIndex = valueIndex;
+            cachedValueOrderMode = valueOrderMode;
+            cachedValueHash = valueHash;
+            cachedValueHashValid = true;
+            cachedOutputData = outputData;
+            cachedOutputVoxels = outputVoxels;
+        }
+
+        static long hashValues(IList<double> values)
+        {
+            unchecked
+            {
+                long hash = 1469598103934665603L;
+                int count = values != null ? values.Count : 0;
+                hash = hashLong(hash, count);
+
+                for (int i = 0; i < count; i++)
+                {
+                    hash = hashLong(hash, BitConverter.DoubleToInt64Bits(values[i]));
+                }
+
+                return hash;
+            }
+        }
+
+        static long hashLong(long hash, long value)
+        {
+            unchecked
+            {
+                hash ^= value;
+                hash *= 1099511628211L;
+                return hash;
+            }
+        }
 
         /// <summary>
         /// Provides an Icon for the component.

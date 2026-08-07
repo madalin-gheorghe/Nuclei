@@ -67,7 +67,7 @@ namespace Nuclei3
 
         public override bool Read(GH_IReader reader)
         {
-            highResolutionDisplay = true;
+            highResolutionDisplay = false;
             reader.TryGetBoolean("HighResolutionDisplay", ref highResolutionDisplay);
             return base.Read(reader);
         }
@@ -77,7 +77,7 @@ namespace Nuclei3
             base.AppendAdditionalComponentMenuItems(menu);
 
             var highResToggle = Menu_AppendItem(menu, "High Res Display", highResolutionDisplayHandler, true, highResolutionDisplay);
-            highResToggle.ToolTipText = "Display Slime Chemoattractants with a 10x interpolated GPU texture.";
+            highResToggle.ToolTipText = "Display small 2D Slime Chemoattractants fields with a 10x interpolated GPU texture. Large fields stay at native resolution.";
         }
 
         void highResolutionDisplayHandler(object sender, EventArgs e)
@@ -220,138 +220,28 @@ namespace Nuclei3
                     tridimensional = false;
                 }
 
-                ConcurrentBag<VoxelPreviewSample> voxelSamplesConcurrent = new ConcurrentBag<VoxelPreviewSample>();
-
-                maxExistingVoxelValue = 1;
-
-                //get positions and values
-                Parallel.For(0, resZ, k =>
+                if (tryReuseStaticPreviewCache(resX, resY, resZ))
                 {
-                    for (int i = 0; i < resX; i++)
-                    {
-                        for (int j = 0; j < resY; j++)
-                        {
-                            if (voxel[i, j, k] != null)
-                            {
-                                Voxel V = voxel[i, j, k];
-
-                                if (valueIndex == 0)
-                                {
-                                    if (V.minDensity >= 0)
-                                    {
-                                        if (min <= V.minDensity && V.minDensity <= max)
-                                        {
-                                            addPreviewSample(voxelSamplesConcurrent, V, V.minDensity, voxelSize / 12);
-                                        }
-                                    }
-                                }
-
-                                if (valueIndex == 1)
-                                {
-                                    if (V.maxDensity >= 0)
-                                    {
-                                        if (min <= V.maxDensity && V.maxDensity <= max)
-                                        {
-                                            addPreviewSample(voxelSamplesConcurrent, V, V.maxDensity, voxelSize / 11);
-                                        }
-                                    }
-                                }
-
-                                if (valueIndex == 2)
-                                {
-                                    if (V.speedMultiplier >= 0)
-                                    {
-                                        if (min <= V.speedMultiplier && V.speedMultiplier <= max)
-                                        {
-                                            addPreviewSample(voxelSamplesConcurrent, V, V.speedMultiplier, voxelSize / 10);
-                                        }
-                                    }
-                                }
-
-                                if (valueIndex == 3)
-                                {
-                                    if (V.sensorDistanceMultiplier >= 0)
-                                    {
-                                        if (min <= V.sensorDistanceMultiplier && V.sensorDistanceMultiplier <= max)
-                                        {
-                                            addPreviewSample(voxelSamplesConcurrent, V, V.sensorDistanceMultiplier, voxelSize / 9);
-                                        }
-                                    }
-                                }
-
-                                if (valueIndex == 4)
-                                {
-                                    if (V.sensorAngleMultiplier >= 0)
-                                    {
-                                        if (min <= V.sensorAngleMultiplier && V.sensorAngleMultiplier <= max)
-                                        {
-                                            addPreviewSample(voxelSamplesConcurrent, V, V.sensorAngleMultiplier, voxelSize / 8);
-                                        }
-                                    }
-                                }
-
-                                if (valueIndex == 5)
-                                {
-                                    if (V.rotationAngleMultiplier >= 0)
-                                    {
-                                        if (min <= V.rotationAngleMultiplier && V.rotationAngleMultiplier <= max)
-                                        {
-                                            addPreviewSample(voxelSamplesConcurrent, V, V.rotationAngleMultiplier, voxelSize / 7);
-                                        }
-                                    }
-                                }
-
-                                if (valueIndex == 6)
-                                {
-                                    if (V.food >= 0)
-                                    {
-                                        if (min <= V.food && V.food <= max)
-                                        {
-                                            addPreviewSample(voxelSamplesConcurrent, V, V.food, voxelSize / 2.5);
-                                        }
-                                    }
-                                }
-
-                                if (valueIndex == 7)
-                                {
-                                    if (V.density > 0.01)
-                                    {
-                                        if (min <= V.density && V.density <= max)
-                                        {
-                                            addPreviewSample(voxelSamplesConcurrent, V, V.density, voxelSize / 4);
-                                        }
-                                    }
-                                }
-
-                                if (valueIndex == 8)
-                                {
-                                    if (V.towardsFoodPheromone > 0.01)
-                                    {
-                                        if (min <= V.towardsFoodPheromone && V.towardsFoodPheromone <= max)
-                                        {
-                                            addPreviewSample(voxelSamplesConcurrent, V, V.towardsFoodPheromone, voxelSize / 3);
-                                        }
-                                    }
-                                }
-
-                                if (valueIndex == 9)
-                                {
-                                    if (V.towardsBasePheromone > 0.01)
-                                    {
-                                        if (min <= V.towardsBasePheromone && V.towardsBasePheromone <= max)
-                                        {
-                                            addPreviewSample(voxelSamplesConcurrent, V, V.towardsBasePheromone, voxelSize / 5);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    return;
                 }
-                );
 
-                buildCachedPointCloud(voxelSamplesConcurrent);
+                if (!VoxelPreviewField.IsStatic(valueIndex))
+                {
+                    invalidateStaticPreviewCache();
+                }
+
+                VoxelGridData previewData = VoxelGridRegistry.GetOrCapture(voxel, voxelSize);
+                if (!tridimensional && buildPlanarPreviewMesh(previewData))
+                {
+                    clearPointCloudOnly();
+                    updateClippingBox();
+                    rememberStaticPreviewCache(resX, resY, resZ);
+                    return;
+                }
+
+                buildSampledPointCloud(previewData, resX, resY, resZ);
                 updateClippingBox();
+                rememberStaticPreviewCache(resX, resY, resZ);
             }
             else
             {
@@ -365,7 +255,11 @@ namespace Nuclei3
 
             if (gpuDensityPreviewActive) return;
 
-            if (Hidden || Locked || voxelPointCloud == null || voxelPointCloud.Count == 0) return;
+            if (Hidden || Locked) return;
+
+            bool hasPlanarMesh = planarPreviewMesh != null && planarPreviewMesh.Faces.Count > 0;
+            bool hasPointCloud = voxelPointCloud != null && voxelPointCloud.Count > 0;
+            if (!hasPlanarMesh && !hasPointCloud) return;
 
             //draw background polygon
             if (!Globals.tridimensional)
@@ -373,7 +267,22 @@ namespace Nuclei3
                 args.Display.DrawPolygon(Globals.bgPolygon, Color.Black, true);
             }
 
-            args.Display.DrawPointCloud(voxelPointCloud, 3);
+            if (!Globals.tridimensional && hasPlanarMesh)
+            {
+                args.Display.DrawMeshFalseColors(planarPreviewMesh);
+                return;
+            }
+
+            if (!Globals.tridimensional && stablePointBuckets != null && stablePointBuckets.Count > 0)
+            {
+                drawStablePlanarPreview(args);
+                return;
+            }
+
+            if (hasPointCloud)
+            {
+                args.Display.DrawPointCloud(voxelPointCloud, 3);
+            }
         }
 
         public override BoundingBox ClippingBox
@@ -402,22 +311,29 @@ namespace Nuclei3
 
         internal bool WantsGpuDynamicDensityPreview
         {
-            get { return Rhino.RhinoApp.ExeVersion >= 9 && !Hidden && !Locked && VoxelPreviewField.IsDynamicDensity(CurrentValueIndex()); }
+            get { return Rhino.RhinoApp.ExeVersion >= 9 && !Hidden && !Locked && CurrentValueIndex() == VoxelPreviewField.SlimeChemoattractants; }
         }
 
         internal int GpuDensityPreviewScale
         {
-            get { return highResolutionDisplay ? 10 : 1; }
+            get { return safeGpuDensityPreviewScale(); }
         }
 
         internal bool WantsGpuVoxelPreview
         {
-            get { return Rhino.RhinoApp.ExeVersion >= 9 && !Hidden && !Locked && VoxelPreviewField.IsGpuSupported(CurrentValueIndex()); }
+            get { return WantsGpuDynamicDensityPreview; }
         }
 
         internal bool WantsSolverVoxelOutput
         {
-            get { return !Hidden && !Locked && !WantsGpuVoxelPreview; }
+            get
+            {
+                int currentValueIndex = CurrentValueIndex();
+                return !Hidden
+                    && !Locked
+                    && !WantsGpuVoxelPreview
+                    && VoxelPreviewField.IsDynamicDensity(currentValueIndex);
+            }
         }
 
         internal GpuDensityFieldPreviewFrame GetGpuDensityFieldPreviewFrame()
@@ -532,6 +448,84 @@ namespace Nuclei3
             return (float)value;
         }
 
+        const int HighResolutionDensityPreviewScale = 10;
+        const int MaxSharedPreviewTextureDimension = 16384;
+        const long MaxHighResolutionDensityPreviewPixels = 33554432;
+
+        int safeGpuDensityPreviewScale()
+        {
+            if (!highResolutionDisplay || voxel == null)
+            {
+                return 1;
+            }
+
+            int width;
+            int height;
+            if (!tryGetPlanarDensityPreviewBaseSize(out width, out height))
+            {
+                return 1;
+            }
+
+            long basePixels = (long)width * height;
+            if (basePixels <= 0)
+            {
+                return 1;
+            }
+
+            long scaledWidth = (long)width * HighResolutionDensityPreviewScale;
+            long scaledHeight = (long)height * HighResolutionDensityPreviewScale;
+            long scaledPixels = scaledWidth * scaledHeight;
+            if (scaledWidth > MaxSharedPreviewTextureDimension
+                || scaledHeight > MaxSharedPreviewTextureDimension
+                || scaledPixels > MaxHighResolutionDensityPreviewPixels)
+            {
+                return 1;
+            }
+
+            return HighResolutionDensityPreviewScale;
+        }
+
+        bool tryGetPlanarDensityPreviewBaseSize(out int width, out int height)
+        {
+            width = 0;
+            height = 0;
+            if (voxel == null)
+            {
+                return false;
+            }
+
+            int x = voxel.GetLength(0);
+            int y = voxel.GetLength(1);
+            int z = voxel.GetLength(2);
+            if (x <= 0 || y <= 0 || z <= 0)
+            {
+                return false;
+            }
+
+            if (x > 1 && y > 1 && z == 1)
+            {
+                width = x;
+                height = y;
+                return true;
+            }
+
+            if (x > 1 && y == 1 && z > 1)
+            {
+                width = x;
+                height = z;
+                return true;
+            }
+
+            if (x == 1 && y > 1 && z > 1)
+            {
+                width = y;
+                height = z;
+                return true;
+            }
+
+            return false;
+        }
+
         void disableGpuDensityPreview()
         {
             if (gpuDensityPreviewActive)
@@ -578,6 +572,16 @@ namespace Nuclei3
         void updateClippingBox()
         {
             clippingBox = BoundingBox.Empty;
+            if (voxel != null)
+            {
+                double size = Globals.voxelSize > 0 ? Globals.voxelSize : voxelSize;
+                clippingBox = new BoundingBox(
+                    new Point3d(0, 0, 0),
+                    new Point3d(voxel.GetLength(0) * size, voxel.GetLength(1) * size, voxel.GetLength(2) * size));
+                clippingBox.Inflate(Math.Max(size * 2, 1.0));
+                return;
+            }
+
             if (voxelPoints == null || voxelPoints.Count == 0) return;
 
             clippingBox = new BoundingBox(voxelPoints);
@@ -589,6 +593,7 @@ namespace Nuclei3
             voxel = null;
             clearPointCloudPreview();
             disableGpuDensityPreview();
+            invalidateStaticPreviewCache();
         }
 
         void clearPointCloudPreview()
@@ -596,33 +601,245 @@ namespace Nuclei3
             voxelPoints = null;
             voxelValues = null;
             voxelPointCloud = null;
+            stablePointBuckets = null;
+            planarPreviewMesh = null;
             clippingBox = BoundingBox.Empty;
+            invalidateStaticPreviewCache();
         }
 
-        void addPreviewSample(ConcurrentBag<VoxelPreviewSample> samples, Voxel V, double value, double planarOffset)
+        void clearPointCloudOnly()
         {
-            Point3d loc = V.loc;
-            if (planarXY) loc.Z = planarOffset;
-            if (planarXZ) loc.Y = planarOffset;
-            if (planarYZ) loc.X = planarOffset;
-            samples.Add(new VoxelPreviewSample(loc, value));
+            voxelPoints = null;
+            voxelValues = null;
+            voxelPointCloud = null;
+            stablePointBuckets = null;
         }
 
-        void buildCachedPointCloud(ConcurrentBag<VoxelPreviewSample> samples)
+        bool tryReuseStaticPreviewCache(int resX, int resY, int resZ)
         {
-            voxelPoints = new List<Point3d>(samples.Count);
-            voxelValues = new List<double>(samples.Count);
-            voxelPointCloud = new PointCloud();
+            if (!staticPreviewCacheValid || !VoxelPreviewField.IsStatic(valueIndex))
+            {
+                return false;
+            }
+
+            if (!ReferenceEquals(staticPreviewCacheVoxels, voxel))
+            {
+                return false;
+            }
+
+            VoxelGridData currentData;
+            VoxelGridRegistry.TryGet(voxel, out currentData);
+            if (!ReferenceEquals(staticPreviewCacheData, currentData))
+            {
+                return false;
+            }
+
+            if (staticPreviewCacheResX != resX
+                || staticPreviewCacheResY != resY
+                || staticPreviewCacheResZ != resZ
+                || staticPreviewCacheValueIndex != valueIndex
+                || staticPreviewCacheAutomaticDomain != automaticPreviewDomain
+                || Math.Abs(staticPreviewCacheMin - min) > 1e-12
+                || Math.Abs(staticPreviewCacheMax - max) > 1e-12
+                || Math.Abs(staticPreviewCacheVoxelSize - voxelSize) > 1e-12
+                || staticPreviewCacheColourArgb != colour.ToArgb())
+            {
+                return false;
+            }
+
+            if (staticPreviewCachePointCount > 0 && (voxelPointCloud == null || voxelPointCloud.Count != staticPreviewCachePointCount))
+            {
+                return false;
+            }
+
+            currentPreviewDomain = staticPreviewCachePreviewDomain;
+            updatePreviewDomainMessage();
+            return true;
+        }
+
+        void rememberStaticPreviewCache(int resX, int resY, int resZ)
+        {
+            if (!VoxelPreviewField.IsStatic(valueIndex))
+            {
+                invalidateStaticPreviewCache();
+                return;
+            }
+
+            VoxelGridData currentData;
+            VoxelGridRegistry.TryGet(voxel, out currentData);
+
+            staticPreviewCacheValid = true;
+            staticPreviewCacheVoxels = voxel;
+            staticPreviewCacheData = currentData;
+            staticPreviewCacheResX = resX;
+            staticPreviewCacheResY = resY;
+            staticPreviewCacheResZ = resZ;
+            staticPreviewCacheValueIndex = valueIndex;
+            staticPreviewCacheAutomaticDomain = automaticPreviewDomain;
+            staticPreviewCacheMin = min;
+            staticPreviewCacheMax = max;
+            staticPreviewCacheVoxelSize = voxelSize;
+            staticPreviewCacheColourArgb = colour.ToArgb();
+            staticPreviewCachePreviewDomain = currentPreviewDomain;
+            staticPreviewCachePointCount = voxelPointCloud != null ? voxelPointCloud.Count : 0;
+        }
+
+        void invalidateStaticPreviewCache()
+        {
+            staticPreviewCacheValid = false;
+            staticPreviewCacheVoxels = null;
+            staticPreviewCacheData = null;
+            staticPreviewCachePointCount = 0;
+        }
+
+        const int MaxPlanarPreviewMeshVertices = 400000;
+        const int MaxPointCloudPreviewSamples = 300000;
+
+        bool buildPlanarPreviewMesh(VoxelGridData previewData)
+        {
+            planarPreviewMesh = null;
+            stablePointBuckets = null;
+            if (voxel == null || tridimensional) return false;
+
+            int resX = voxel.GetLength(0);
+            int resY = voxel.GetLength(1);
+            int resZ = voxel.GetLength(2);
+
+            int uCount;
+            int vCount;
+            if (planarXY)
+            {
+                uCount = resX;
+                vCount = resY;
+            }
+            else if (planarXZ)
+            {
+                uCount = resX;
+                vCount = resZ;
+            }
+            else if (planarYZ)
+            {
+                uCount = resY;
+                vCount = resZ;
+            }
+            else
+            {
+                return false;
+            }
+
+            if (uCount < 2 || vCount < 2) return false;
+
+            int sampleUCount;
+            int sampleVCount;
+            resolvePlanarSampleCounts(uCount, vCount, out sampleUCount, out sampleVCount);
+            if (sampleUCount < 2 || sampleVCount < 2) return false;
+
+            int vertexCount = sampleUCount * sampleVCount;
+            double[] values = new double[vertexCount];
+            bool[] hasValues = new bool[vertexCount];
             minExistingVoxelValue = double.PositiveInfinity;
             maxExistingVoxelValue = double.NegativeInfinity;
 
-            foreach (VoxelPreviewSample sample in samples)
+            Mesh mesh = new Mesh();
+            mesh.Vertices.Capacity = vertexCount;
+            mesh.Faces.Capacity = (sampleUCount - 1) * (sampleVCount - 1);
+
+            for (int su = 0; su < sampleUCount; su++)
             {
-                if (double.IsNaN(sample.Value) || double.IsInfinity(sample.Value)) continue;
-                if (sample.Value < minExistingVoxelValue) minExistingVoxelValue = sample.Value;
-                if (sample.Value > maxExistingVoxelValue) maxExistingVoxelValue = sample.Value;
+                int u = sampleIndexToSourceIndex(su, sampleUCount, uCount);
+                for (int sv = 0; sv < sampleVCount; sv++)
+                {
+                    int v = sampleIndexToSourceIndex(sv, sampleVCount, vCount);
+                    int vertexIndex = su * sampleVCount + sv;
+
+                    int x;
+                    int y;
+                    int z;
+                    planarCoordinates(u, v, out x, out y, out z);
+                    mesh.Vertices.Add(previewPointAt(previewData, x, y, z));
+
+                    double value;
+                    if (tryGetPreviewValueAt(previewData, x, y, z, out value))
+                    {
+                        values[vertexIndex] = value;
+                        hasValues[vertexIndex] = true;
+                        if (value < minExistingVoxelValue) minExistingVoxelValue = value;
+                        if (value > maxExistingVoxelValue) maxExistingVoxelValue = value;
+                    }
+                }
             }
 
+            applyPreviewDomainFromSamples();
+
+            for (int i = 0; i < vertexCount; i++)
+            {
+                mesh.VertexColors.Add(hasValues[i] ? retrieveVoxelColor(values[i]) : Color.Black);
+            }
+
+            for (int su = 0; su < sampleUCount - 1; su++)
+            {
+                for (int sv = 0; sv < sampleVCount - 1; sv++)
+                {
+                    int a = su * sampleVCount + sv;
+                    int b = (su + 1) * sampleVCount + sv;
+                    int c = (su + 1) * sampleVCount + sv + 1;
+                    int d = su * sampleVCount + sv + 1;
+                    mesh.Faces.AddFace(a, b, c, d);
+                }
+            }
+
+            mesh.Normals.ComputeNormals();
+            mesh.Compact();
+            planarPreviewMesh = mesh;
+            return true;
+        }
+
+        void buildSampledPointCloud(VoxelGridData previewData, int resX, int resY, int resZ)
+        {
+            planarPreviewMesh = null;
+            stablePointBuckets = null;
+            List<VoxelPreviewSample> samples = new List<VoxelPreviewSample>();
+            minExistingVoxelValue = double.PositiveInfinity;
+            maxExistingVoxelValue = double.NegativeInfinity;
+
+            int step = previewSampleStep(resX, resY, resZ, MaxPointCloudPreviewSamples);
+            for (int x = 0; x < resX; x += step)
+            {
+                for (int y = 0; y < resY; y += step)
+                {
+                    for (int z = 0; z < resZ; z += step)
+                    {
+                        double value;
+                        if (!tryGetPreviewValueAt(previewData, x, y, z, out value))
+                        {
+                            continue;
+                        }
+
+                        Point3d point = previewPointAt(previewData, x, y, z);
+                        samples.Add(new VoxelPreviewSample(point, value));
+                        if (value < minExistingVoxelValue) minExistingVoxelValue = value;
+                        if (value > maxExistingVoxelValue) maxExistingVoxelValue = value;
+                    }
+                }
+            }
+
+            applyPreviewDomainFromSamples();
+
+            voxelPoints = new List<Point3d>(samples.Count);
+            voxelValues = new List<double>(samples.Count);
+            voxelPointCloud = new PointCloud();
+            for (int i = 0; i < samples.Count; i++)
+            {
+                VoxelPreviewSample sample = samples[i];
+                Color sampleColor = retrieveVoxelColor(sample.Value);
+                voxelPoints.Add(sample.Point);
+                voxelValues.Add(sample.Value);
+                voxelPointCloud.Add(sample.Point, sampleColor);
+            }
+        }
+
+        void applyPreviewDomainFromSamples()
+        {
             if (double.IsPositiveInfinity(minExistingVoxelValue) || double.IsNegativeInfinity(maxExistingVoxelValue))
             {
                 if (automaticPreviewDomain)
@@ -643,12 +860,245 @@ namespace Nuclei3
             }
 
             updatePreviewDomainMessage();
+        }
 
-            foreach (VoxelPreviewSample sample in samples)
+        void resolvePlanarSampleCounts(int uCount, int vCount, out int sampleUCount, out int sampleVCount)
+        {
+            sampleUCount = uCount;
+            sampleVCount = vCount;
+            long fullCount = (long)uCount * vCount;
+            if (fullCount <= MaxPlanarPreviewMeshVertices)
             {
-                voxelPoints.Add(sample.Point);
-                voxelValues.Add(sample.Value);
-                voxelPointCloud.Add(sample.Point, retrieveVoxelColor(sample.Value));
+                return;
+            }
+
+            double scale = Math.Sqrt(MaxPlanarPreviewMeshVertices / (double)fullCount);
+            sampleUCount = Math.Max(2, (int)Math.Floor(uCount * scale));
+            sampleVCount = Math.Max(2, (int)Math.Floor(vCount * scale));
+
+            while ((long)sampleUCount * sampleVCount > MaxPlanarPreviewMeshVertices)
+            {
+                if (sampleUCount >= sampleVCount && sampleUCount > 2)
+                {
+                    sampleUCount--;
+                }
+                else if (sampleVCount > 2)
+                {
+                    sampleVCount--;
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+
+        static int sampleIndexToSourceIndex(int sampleIndex, int sampleCount, int sourceCount)
+        {
+            if (sourceCount <= 1) return 0;
+            if (sampleCount <= 1) return 0;
+            int value = (int)Math.Round(sampleIndex * (sourceCount - 1) / (double)(sampleCount - 1));
+            if (value < 0) return 0;
+            if (value >= sourceCount) return sourceCount - 1;
+            return value;
+        }
+
+        static int previewSampleStep(int resX, int resY, int resZ, int maxSamples)
+        {
+            long count = (long)Math.Max(1, resX) * Math.Max(1, resY) * Math.Max(1, resZ);
+            if (count <= maxSamples) return 1;
+
+            int step = 1;
+            while (sampledCount(resX, resY, resZ, step) > maxSamples)
+            {
+                step++;
+            }
+
+            return step;
+        }
+
+        static long sampledCount(int resX, int resY, int resZ, int step)
+        {
+            return ((resX + step - 1L) / step)
+                * ((resY + step - 1L) / step)
+                * ((resZ + step - 1L) / step);
+        }
+
+        void planarCoordinates(int u, int v, out int x, out int y, out int z)
+        {
+            if (planarXY)
+            {
+                x = u;
+                y = v;
+                z = 0;
+                return;
+            }
+
+            if (planarXZ)
+            {
+                x = u;
+                y = 0;
+                z = v;
+                return;
+            }
+
+            x = 0;
+            y = u;
+            z = v;
+        }
+
+        Point3d previewPointAt(VoxelGridData previewData, int x, int y, int z)
+        {
+            Voxel V = voxelAt(x, y, z);
+            Point3d loc = V != null
+                ? V.loc
+                : previewData != null
+                    ? previewData.CenterPoint(previewData.FlatIndex(x, y, z))
+                    : fallbackPoint(x, y, z);
+
+            double offset = previewPlanarOffset();
+            if (planarXY) loc.Z = offset;
+            if (planarXZ) loc.Y = offset;
+            if (planarYZ) loc.X = offset;
+            return loc;
+        }
+
+        Point3d fallbackPoint(int x, int y, int z)
+        {
+            double size = voxelSize > 0 ? voxelSize : 1.0;
+            return new Point3d(x * size + size / 2, y * size + size / 2, z * size + size / 2);
+        }
+
+        Voxel voxelAt(int x, int y, int z)
+        {
+            if (voxel == null
+                || x < 0 || y < 0 || z < 0
+                || x >= voxel.GetLength(0)
+                || y >= voxel.GetLength(1)
+                || z >= voxel.GetLength(2))
+            {
+                return null;
+            }
+
+            return voxel[x, y, z];
+        }
+
+        double previewPlanarOffset()
+        {
+            switch (valueIndex)
+            {
+                case 0: return voxelSize / 12;
+                case 1: return voxelSize / 11;
+                case 2: return voxelSize / 10;
+                case 3: return voxelSize / 9;
+                case 4: return voxelSize / 8;
+                case 5: return voxelSize / 7;
+                case 6: return voxelSize / 2.5;
+                case 7: return voxelSize / 4;
+                case 8: return voxelSize / 3;
+                case 9: return voxelSize / 5;
+                default: return voxelSize / 12;
+            }
+        }
+
+        bool tryGetPreviewValueAt(VoxelGridData previewData, int x, int y, int z, out double value)
+        {
+            value = 0;
+            int flatIndex = -1;
+            if (previewData != null)
+            {
+                flatIndex = previewData.FlatIndex(x, y, z);
+                if (!previewData.IsActive(flatIndex)) return false;
+            }
+
+            Voxel V = voxelAt(x, y, z);
+
+            switch (valueIndex)
+            {
+                case 0:
+                    value = previewData != null ? previewData.MinimumDensity.Get(flatIndex) : V != null ? V.minDensity : -1;
+                    if (value < 0) return false;
+                    break;
+                case 1:
+                    value = previewData != null ? previewData.MaximumDensity.Get(flatIndex) : V != null ? V.maxDensity : -1;
+                    if (value < 0) return false;
+                    break;
+                case 2:
+                    value = previewData != null ? previewData.Speed.Get(flatIndex) : V != null ? V.speedMultiplier : -1;
+                    if (value < 0) return false;
+                    break;
+                case 3:
+                    value = previewData != null ? previewData.SensorDistance.Get(flatIndex) : V != null ? V.sensorDistanceMultiplier : -1;
+                    if (value < 0) return false;
+                    break;
+                case 4:
+                    value = previewData != null ? previewData.SensorAngle.Get(flatIndex) : V != null ? V.sensorAngleMultiplier : -1;
+                    if (value < 0) return false;
+                    break;
+                case 5:
+                    value = previewData != null ? previewData.RotationAngle.Get(flatIndex) : V != null ? V.rotationAngleMultiplier : -1;
+                    if (value < 0) return false;
+                    break;
+                case 6:
+                    value = previewData != null ? previewData.Food.Get(flatIndex) : V != null ? V.food : -1;
+                    if (value < 0) return false;
+                    break;
+                case 7:
+                    value = V != null ? V.density : previewData != null ? previewData.Density.Get(flatIndex) : 0;
+                    if (value <= 0.01) return false;
+                    break;
+                case 8:
+                    if (V == null) return false;
+                    value = V.towardsFoodPheromone;
+                    if (value <= 0.01) return false;
+                    break;
+                case 9:
+                    if (V == null) return false;
+                    value = V.towardsBasePheromone;
+                    if (value <= 0.01) return false;
+                    break;
+                default:
+                    return false;
+            }
+
+            return min <= value && value <= max;
+        }
+
+        void addStablePoint(Point3d point, Color color)
+        {
+            int argb = color.ToArgb();
+            for (int i = 0; i < stablePointBuckets.Count; i++)
+            {
+                if (stablePointBuckets[i].Argb == argb)
+                {
+                    stablePointBuckets[i].Points.Add(point);
+                    return;
+                }
+            }
+
+            StablePointBucket bucket = new StablePointBucket(color);
+            bucket.Points.Add(point);
+            stablePointBuckets.Add(bucket);
+        }
+
+        void drawStablePlanarPreview(IGH_PreviewArgs args)
+        {
+            for (int i = 0; i < stablePointBuckets.Count; i++)
+            {
+                StablePointBucket bucket = stablePointBuckets[i];
+                if (bucket.Points.Count == 0) continue;
+
+                args.Display.DrawPoints(
+                    bucket.Points,
+                    Rhino.Display.PointStyle.Simple,
+                    bucket.Color,
+                    bucket.Color,
+                    3.0f,
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    false,
+                    false);
             }
         }
 
@@ -682,11 +1132,27 @@ namespace Nuclei3
         List<double> voxelValues;
 
         PointCloud voxelPointCloud;
+        List<StablePointBucket> stablePointBuckets;
+        Mesh planarPreviewMesh;
         BoundingBox clippingBox = BoundingBox.Empty;
         bool gpuDensityPreviewActive = false;
         SolverGPU gpuDensitySolver;
         BoundingBox gpuDensityClippingBox = BoundingBox.Empty;
         bool highResolutionDisplay = true;
+        bool staticPreviewCacheValid;
+        Voxel[,,] staticPreviewCacheVoxels;
+        VoxelGridData staticPreviewCacheData;
+        int staticPreviewCacheResX;
+        int staticPreviewCacheResY;
+        int staticPreviewCacheResZ;
+        int staticPreviewCacheValueIndex;
+        bool staticPreviewCacheAutomaticDomain;
+        double staticPreviewCacheMin;
+        double staticPreviewCacheMax;
+        double staticPreviewCacheVoxelSize;
+        int staticPreviewCacheColourArgb;
+        Interval staticPreviewCachePreviewDomain = new Interval(0, 1);
+        int staticPreviewCachePointCount;
 
         struct VoxelPreviewSample
         {
@@ -698,6 +1164,20 @@ namespace Nuclei3
 
             public Point3d Point;
             public double Value;
+        }
+
+        class StablePointBucket
+        {
+            public StablePointBucket(Color color)
+            {
+                Color = color;
+                Argb = color.ToArgb();
+                Points = new List<Point3d>();
+            }
+
+            public Color Color;
+            public int Argb;
+            public List<Point3d> Points;
         }
 
         //-------------------------------------------------------------------
@@ -744,12 +1224,12 @@ namespace Nuclei3
                 voxelColor = voxelColorList[index];
             }
 
-            //in case max density == 0 
+            //in case max density is blocked
             if (valueIndex == 1)
             {
-                if (d < 0.01)
+                if (d < VoxelOccupancy.BlockedMaxDensityThreshold)
                 {
-                    voxelColor = System.Drawing.Color.FromArgb(255, 18, 12, 33);
+                    voxelColor = System.Drawing.Color.FromArgb(255, 29, 19, 53);
                 }
             }
 

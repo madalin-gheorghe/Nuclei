@@ -90,10 +90,20 @@ namespace Nuclei3
 
             Globals.voxelSize = voxelSize;
 
-            //createVoxels();
+            bool sameGrid = voxel != null
+                && voxel.GetLength(0) == resX
+                && voxel.GetLength(1) == resY
+                && voxel.GetLength(2) == resZ
+                && Math.Abs(cachedVoxelSize - voxelSize) < 1e-12;
 
-            voxel = new Voxel[resX, resY, resZ];
-            VoxelGridRegistry.Set(voxel, VoxelGridData.CreateFullDomain(resX, resY, resZ, voxelSize));
+            if (!sameGrid)
+            {
+                voxel = new Voxel[resX, resY, resZ];
+                cachedVoxelData = VoxelGridData.CreateFullDomain(resX, resY, resZ, voxelSize);
+                cachedVoxelSize = voxelSize;
+            }
+
+            VoxelGridRegistry.Set(voxel, cachedVoxelData ?? VoxelGridData.CreateFullDomain(resX, resY, resZ, voxelSize));
             DA.SetData(0, voxel);
 
             initializeBGPolygon();
@@ -114,8 +124,10 @@ namespace Nuclei3
 
         //inputs
         double voxelSize;
+        double cachedVoxelSize = double.NaN;
         int resX, resY, resZ = 1;
         Voxel[,,] voxel;
+        VoxelGridData cachedVoxelData;
 
         //-------------------------------------------------------------------
 

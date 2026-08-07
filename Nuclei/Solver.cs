@@ -71,7 +71,7 @@ public class Solver : GH_Component
 
         public override GH_Exposure Exposure
         {
-            get { return GH_Exposure.primary; }
+            get { return GH_Exposure.hidden; }
         }
 
         /// <summary>
@@ -118,6 +118,10 @@ public class Solver : GH_Component
                 particles = new ParticleList();
 
                 inheritParticleGroups();
+                if (antParticles && scalarDensityStore != null)
+                {
+                    scalarDensityStore.EnsureAntPheromoneArrays(voxelFlat != null ? voxelFlat.Length : 0);
+                }
                 particleCheckParentVoxel();
 
                 //global colors
@@ -398,6 +402,16 @@ public class Solver : GH_Component
         double[] reusableAntWeights;
         int reusableWeightsRange = int.MinValue;
         int reusableAntWeightsRange = int.MinValue;
+        readonly int[] reusableDiffusionAxes = new int[3];
+        static readonly int[,] tridimensionalDiffusionAxisOrders = new int[,]
+        {
+            { 0, 1, 2 },
+            { 1, 2, 0 },
+            { 2, 0, 1 },
+            { 2, 1, 0 },
+            { 1, 0, 2 },
+            { 0, 2, 1 }
+        };
 
         /////////////////////////////////////////////
 
@@ -686,6 +700,7 @@ public class Solver : GH_Component
             scalarVoxelDensity = new double[voxelCount];
             scalarVoxelScratch = new double[voxelCount];
             scalarDensityStore = new VoxelDensityStore(scalarVoxelDensity);
+            scalarDensityStore.AttachStaticMaps(inputData);
             scalarVoxelDensityAuthoritative = true;
             scalarVoxelDensityDirtyForOutput = false;
             voxelHasPositiveFood = false;
@@ -853,8 +868,7 @@ public class Solver : GH_Component
                    !antParticles &&
                    !voxelHasPositiveFood &&
                    scalarVoxelDensity != null &&
-                   scalarVoxelScratch != null &&
-                   (densityLimitsDisabled || densityLimitsOnlyBoundaryVoxels);
+                   scalarVoxelScratch != null;
         }
 
         void syncScalarDensityToVoxelsIfNeeded()
@@ -883,6 +897,39 @@ public class Solver : GH_Component
 
         //-------------------------------------------------------------------
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static int diffusionOrderIndex(int iteration)
+        {
+            int index = (iteration - 1) % 6;
+            return index < 0 ? 0 : index;
+        }
+
+        int getDiffusionAxisOrder(int[] axes)
+        {
+            if (tridimensional)
+            {
+                int orderIndex = diffusionOrderIndex(iteration);
+                axes[0] = tridimensionalDiffusionAxisOrders[orderIndex, 0];
+                axes[1] = tridimensionalDiffusionAxisOrders[orderIndex, 1];
+                axes[2] = tridimensionalDiffusionAxisOrders[orderIndex, 2];
+                return 3;
+            }
+
+            int count = 0;
+            if (!planarYZ) axes[count++] = 0;
+            if (!planarXZ) axes[count++] = 1;
+            if (!planarXY) axes[count++] = 2;
+
+            if (count == 2 && (diffusionOrderIndex(iteration) & 1) == 1)
+            {
+                int first = axes[0];
+                axes[0] = axes[1];
+                axes[1] = first;
+            }
+
+            return count;
+        }
+
         void diffuseVoxels()
         {
             ensureReusableDiffusionWeights();
@@ -904,19 +951,21 @@ public class Solver : GH_Component
 
             if (diffuse > 0)
             {
-                if (!planarYZ)
+                int axisCount = getDiffusionAxisOrder(reusableDiffusionAxes);
+                for (int i = 0; i < axisCount; i++)
                 {
-                    xPassInPlace(reusableWeights);
-                }
-
-                if (!planarXZ)
-                {
-                    yPassInPlace(reusableWeights);
-                }
-
-                if (!planarXY)
-                {
-                    zPassInPlace(reusableWeights);
+                    switch (reusableDiffusionAxes[i])
+                    {
+                        case 0:
+                            xPassInPlace(reusableWeights);
+                            break;
+                        case 1:
+                            yPassInPlace(reusableWeights);
+                            break;
+                        case 2:
+                            zPassInPlace(reusableWeights);
+                            break;
+                    }
                 }
 
                 /*
@@ -970,38 +1019,20 @@ public class Solver : GH_Component
             {
                 if (baseDiffuseRate > 0 || foodDiffuseRate > 0)
                 {
-                    if (iteration % 2 == 0)
+                    int axisCount = getDiffusionAxisOrder(reusableDiffusionAxes);
+                    for (int i = 0; i < axisCount; i++)
                     {
-                        if (!planarYZ)
+                        switch (reusableDiffusionAxes[i])
                         {
-                            ants_xPass(reusableAntWeights);
-                        }
-                        if (!planarXZ)
-                        {
-                            ants_yPass(reusableAntWeights);
-                        }
-
-                        if (!planarXY)
-                        {
-                            ants_zPass(reusableAntWeights);
-                        }
-                    }
-
-                    else
-                    {
-                        if (!planarXY)
-                        {
-                           ants_zPass(reusableAntWeights);
-                        }
-
-                        if (!planarXZ)
-                        {
-                            ants_yPass(reusableAntWeights);
-                        }
-
-                        if (!planarYZ)
-                        {
-                            ants_xPass(reusableAntWeights);
+                            case 0:
+                                ants_xPass(reusableAntWeights);
+                                break;
+                            case 1:
+                                ants_yPass(reusableAntWeights);
+                                break;
+                            case 2:
+                                ants_zPass(reusableAntWeights);
+                                break;
                         }
                     }
                 }
@@ -1104,22 +1135,23 @@ public class Solver : GH_Component
             double[] weights = reusableWeights;
             double keep = 1 - diffuse;
             double diffuseAmount = diffuse;
+            int axisCount = getDiffusionAxisOrder(reusableDiffusionAxes);
 
-            if (!planarYZ)
+            for (int i = 0; i < axisCount; i++)
             {
-                diffuseScalarXPass(weights, keep, diffuseAmount);
-                swapScalarDensityBuffers();
-            }
+                switch (reusableDiffusionAxes[i])
+                {
+                    case 0:
+                        diffuseScalarXPass(weights, keep, diffuseAmount);
+                        break;
+                    case 1:
+                        diffuseScalarYPass(weights, keep, diffuseAmount);
+                        break;
+                    case 2:
+                        diffuseScalarZPass(weights, keep, diffuseAmount);
+                        break;
+                }
 
-            if (!planarXZ)
-            {
-                diffuseScalarYPass(weights, keep, diffuseAmount);
-                swapScalarDensityBuffers();
-            }
-
-            if (!planarXY)
-            {
-                diffuseScalarZPass(weights, keep, diffuseAmount);
                 swapScalarDensityBuffers();
             }
 
@@ -1158,7 +1190,7 @@ public class Solver : GH_Component
                 Parallel.For(0, density.Length, i =>
                 {
                     double value = density[i] - densityDecay;
-                    density[i] = value > 0 ? value : 0;
+                    density[i] = clampScalarDensityAtIndex(value > 0 ? value : 0, i);
                 });
             }
             else if (planarYZ)
@@ -1179,7 +1211,7 @@ public class Solver : GH_Component
                         else
                         {
                             double value = density[index] - densityDecay;
-                            density[index] = value > 0 ? value : 0;
+                            density[index] = clampScalarDensityAtIndex(value > 0 ? value : 0, index);
                         }
                     }
                 });
@@ -1221,7 +1253,7 @@ public class Solver : GH_Component
                             else
                             {
                                 double value = density[index] - densityDecay;
-                                density[index] = value > 0 ? value : 0;
+                                density[index] = clampScalarDensityAtIndex(value > 0 ? value : 0, index);
                             }
                         }
                     }
@@ -1508,7 +1540,7 @@ public class Solver : GH_Component
             for (int i = 0; i < prefixLength; i++)
             {
                 int x = wrap ? wrapLineIndex(coordinateStart + i, xCount) : i;
-                double density = source[baseIndex + x * strideX];
+                double density = scalarSourceDensity(source, baseIndex + x * strideX);
                 int next = i + 1;
                 sumPrefix[next] = sumPrefix[i] + density;
                 cosPrefix[next] = cosPrefix[i] + density * cosTable[i];
@@ -1529,7 +1561,7 @@ public class Solver : GH_Component
 
                 int index = baseIndex + x * strideX;
                 double value = source[index] * keep + diffuseAmount * weightedSum;
-                destination[index] = clampScalarDensity(value, x, y, z);
+                destination[index] = clampScalarDensity(value, index, x, y, z);
             }
         }
 
@@ -1551,7 +1583,7 @@ public class Solver : GH_Component
             for (int i = 0; i < prefixLength; i++)
             {
                 int y = wrap ? wrapLineIndex(coordinateStart + i, yCount) : i;
-                double density = source[baseIndex + y * strideY];
+                double density = scalarSourceDensity(source, baseIndex + y * strideY);
                 int next = i + 1;
                 sumPrefix[next] = sumPrefix[i] + density;
                 cosPrefix[next] = cosPrefix[i] + density * cosTable[i];
@@ -1572,7 +1604,7 @@ public class Solver : GH_Component
 
                 int index = baseIndex + y * strideY;
                 double value = source[index] * keep + diffuseAmount * weightedSum;
-                destination[index] = clampScalarDensity(value, x, y, z);
+                destination[index] = clampScalarDensity(value, index, x, y, z);
             }
         }
 
@@ -1594,7 +1626,7 @@ public class Solver : GH_Component
             for (int i = 0; i < prefixLength; i++)
             {
                 int z = wrap ? wrapLineIndex(coordinateStart + i, zCount) : i;
-                double density = source[baseIndex + z];
+                double density = scalarSourceDensity(source, baseIndex + z);
                 int next = i + 1;
                 sumPrefix[next] = sumPrefix[i] + density;
                 cosPrefix[next] = cosPrefix[i] + density * cosTable[i];
@@ -1615,7 +1647,7 @@ public class Solver : GH_Component
 
                 int index = baseIndex + z;
                 double value = source[index] * keep + diffuseAmount * weightedSum;
-                destination[index] = clampScalarDensity(value, x, y, z);
+                destination[index] = clampScalarDensity(value, index, x, y, z);
             }
         }
 
@@ -1630,24 +1662,24 @@ public class Solver : GH_Component
             for (int x = 0; x < xCount; x++)
             {
                 int index = baseIndex + x * strideX;
-                double centerDensity = source[index];
+                double centerDensity = scalarSourceDensity(source, index);
                 double sum;
 
                 if (wrap)
                 {
                     int leftIndex = x == 0 ? baseIndex + lastX * strideX : index - strideX;
                     int rightIndex = x == lastX ? baseIndex : index + strideX;
-                    sum = source[leftIndex] * leftWeight + centerDensity * centerWeight + source[rightIndex] * rightWeight;
+                    sum = scalarSourceDensity(source, leftIndex) * leftWeight + centerDensity * centerWeight + scalarSourceDensity(source, rightIndex) * rightWeight;
                 }
                 else
                 {
                     sum = centerDensity * centerWeight;
-                    if (x > 0) sum += source[index - strideX] * leftWeight;
-                    if (x < lastX) sum += source[index + strideX] * rightWeight;
+                    if (x > 0) sum += scalarSourceDensity(source, index - strideX) * leftWeight;
+                    if (x < lastX) sum += scalarSourceDensity(source, index + strideX) * rightWeight;
                 }
 
                 double value = centerDensity * keep + diffuseAmount * sum;
-                destination[index] = clampScalarDensity(value, x, y, z);
+                destination[index] = clampScalarDensity(value, index, x, y, z);
             }
         }
 
@@ -1662,24 +1694,24 @@ public class Solver : GH_Component
             for (int y = 0; y < yCount; y++)
             {
                 int index = baseIndex + y * strideY;
-                double centerDensity = source[index];
+                double centerDensity = scalarSourceDensity(source, index);
                 double sum;
 
                 if (wrap)
                 {
                     int leftIndex = y == 0 ? baseIndex + lastY * strideY : index - strideY;
                     int rightIndex = y == lastY ? baseIndex : index + strideY;
-                    sum = source[leftIndex] * leftWeight + centerDensity * centerWeight + source[rightIndex] * rightWeight;
+                    sum = scalarSourceDensity(source, leftIndex) * leftWeight + centerDensity * centerWeight + scalarSourceDensity(source, rightIndex) * rightWeight;
                 }
                 else
                 {
                     sum = centerDensity * centerWeight;
-                    if (y > 0) sum += source[index - strideY] * leftWeight;
-                    if (y < lastY) sum += source[index + strideY] * rightWeight;
+                    if (y > 0) sum += scalarSourceDensity(source, index - strideY) * leftWeight;
+                    if (y < lastY) sum += scalarSourceDensity(source, index + strideY) * rightWeight;
                 }
 
                 double value = centerDensity * keep + diffuseAmount * sum;
-                destination[index] = clampScalarDensity(value, x, y, z);
+                destination[index] = clampScalarDensity(value, index, x, y, z);
             }
         }
 
@@ -1694,29 +1726,71 @@ public class Solver : GH_Component
             for (int z = 0; z < zCount; z++)
             {
                 int index = baseIndex + z;
-                double centerDensity = source[index];
+                double centerDensity = scalarSourceDensity(source, index);
                 double sum;
 
                 if (wrap)
                 {
                     int leftIndex = z == 0 ? baseIndex + lastZ : index - 1;
                     int rightIndex = z == lastZ ? baseIndex : index + 1;
-                    sum = source[leftIndex] * leftWeight + centerDensity * centerWeight + source[rightIndex] * rightWeight;
+                    sum = scalarSourceDensity(source, leftIndex) * leftWeight + centerDensity * centerWeight + scalarSourceDensity(source, rightIndex) * rightWeight;
                 }
                 else
                 {
                     sum = centerDensity * centerWeight;
-                    if (z > 0) sum += source[index - 1] * leftWeight;
-                    if (z < lastZ) sum += source[index + 1] * rightWeight;
+                    if (z > 0) sum += scalarSourceDensity(source, index - 1) * leftWeight;
+                    if (z < lastZ) sum += scalarSourceDensity(source, index + 1) * rightWeight;
                 }
 
                 double value = centerDensity * keep + diffuseAmount * sum;
-                destination[index] = clampScalarDensity(value, x, y, z);
+                destination[index] = clampScalarDensity(value, index, x, y, z);
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        double clampScalarDensity(double value, int x, int y, int z)
+        double scalarSourceDensity(double[] source, int index)
+        {
+            return isBlockedScalarIndex(index) ? 0 : source[index];
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool isBlockedScalarIndex(int index)
+        {
+            VoxelDensityStore store = scalarDensityStore;
+            double[] maxDensity = store != null ? store.MaxDensity : null;
+            return maxDensity != null &&
+                   index >= 0 &&
+                   index < maxDensity.Length &&
+                   VoxelOccupancy.IsBlockedMaxDensity(maxDensity[index]);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        double clampScalarDensityAtIndex(double value, int index)
+        {
+            if (value <= 0) return 0;
+            if (value > 1) value = 1;
+
+            VoxelDensityStore store = scalarDensityStore;
+            double[] maxValues = store != null ? store.MaxDensity : null;
+            if (maxValues != null && index >= 0 && index < maxValues.Length)
+            {
+                double maxDensity = maxValues[index];
+                if (VoxelOccupancy.IsBlockedMaxDensity(maxDensity)) return 0;
+                if (maxDensity != -1 && value > maxDensity) value = maxDensity;
+            }
+
+            double[] minValues = store != null ? store.MinDensity : null;
+            if (minValues != null && index >= 0 && index < minValues.Length)
+            {
+                double minDensity = minValues[index];
+                if (minDensity != -1 && value > 0 && minDensity > value) value = minDensity;
+            }
+
+            return value;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        double clampScalarDensity(double value, int index, int x, int y, int z)
         {
             if (value > 1) value = 1;
 
@@ -1725,7 +1799,7 @@ public class Solver : GH_Component
                 value = 0.01;
             }
 
-            return value;
+            return clampScalarDensityAtIndex(value, index);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1916,7 +1990,7 @@ public class Solver : GH_Component
                     for (int offset = startOffset; offset <= endOffset; offset++)
                     {
                         Voxel neighbour = voxelGrid[x + offset, y, z];
-                        if (neighbour != null && neighbour.maxDensity != 0)
+                        if (VoxelOccupancy.IsWalkable(neighbour))
                         {
                             sum += neighbour.density * weights[weightIndex];
                         }
@@ -1960,7 +2034,7 @@ public class Solver : GH_Component
                     if (d_xID >= 0 && d_xID < xCount)
                     {
                         Voxel neighbour = voxelGrid[d_xID, y, z];
-                        if (neighbour != null && neighbour.maxDensity != 0)
+                        if (VoxelOccupancy.IsWalkable(neighbour))
                         {
                             sum += neighbour.density * weights[weightIndex];
                         }
@@ -2147,7 +2221,7 @@ public class Solver : GH_Component
                     for (int offset = startOffset; offset <= endOffset; offset++)
                     {
                         Voxel neighbour = voxelGrid[x, y + offset, z];
-                        if (neighbour != null && neighbour.maxDensity != 0)
+                        if (VoxelOccupancy.IsWalkable(neighbour))
                         {
                             sum += neighbour.density * weights[weightIndex];
                         }
@@ -2191,7 +2265,7 @@ public class Solver : GH_Component
                     if (d_yID >= 0 && d_yID < yCount)
                     {
                         Voxel neighbour = voxelGrid[x, d_yID, z];
-                        if (neighbour != null && neighbour.maxDensity != 0)
+                        if (VoxelOccupancy.IsWalkable(neighbour))
                         {
                             sum += neighbour.density * weights[weightIndex];
                         }
@@ -2378,7 +2452,7 @@ public class Solver : GH_Component
                     for (int offset = startOffset; offset <= endOffset; offset++)
                     {
                         Voxel neighbour = voxelGrid[x, y, z + offset];
-                        if (neighbour != null && neighbour.maxDensity != 0)
+                        if (VoxelOccupancy.IsWalkable(neighbour))
                         {
                             sum += neighbour.density * weights[weightIndex];
                         }
@@ -2422,7 +2496,7 @@ public class Solver : GH_Component
                     if (d_zID >= 0 && d_zID < zCount)
                     {
                         Voxel neighbour = voxelGrid[x, y, d_zID];
-                        if (neighbour != null && neighbour.maxDensity != 0)
+                        if (VoxelOccupancy.IsWalkable(neighbour))
                         {
                             sum += neighbour.density * weights[weightIndex];
                         }
@@ -2461,9 +2535,9 @@ public class Solver : GH_Component
                 Voxel left = voxelGrid[leftIndex, y, z];
                 Voxel right = voxelGrid[rightIndex, y, z];
 
-                double sum = V.maxDensity == 0 ? 0 : V.density * centerWeight;
-                if (left != null && left.maxDensity != 0) sum += left.density * leftWeight;
-                if (right != null && right.maxDensity != 0) sum += right.density * rightWeight;
+                double sum = VoxelOccupancy.IsBlockedMaxDensity(V.maxDensity) ? 0 : V.density * centerWeight;
+                if (VoxelOccupancy.IsWalkable(left)) sum += left.density * leftWeight;
+                if (VoxelOccupancy.IsWalkable(right)) sum += right.density * rightWeight;
 
                 double val = V.density * keep + diffuseAmount * sum;
                 if (val > 1) val = 1;
@@ -2546,9 +2620,9 @@ public class Solver : GH_Component
                 Voxel left = voxelGrid[x, leftIndex, z];
                 Voxel right = voxelGrid[x, rightIndex, z];
 
-                double sum = V.maxDensity == 0 ? 0 : V.density * centerWeight;
-                if (left != null && left.maxDensity != 0) sum += left.density * leftWeight;
-                if (right != null && right.maxDensity != 0) sum += right.density * rightWeight;
+                double sum = VoxelOccupancy.IsBlockedMaxDensity(V.maxDensity) ? 0 : V.density * centerWeight;
+                if (VoxelOccupancy.IsWalkable(left)) sum += left.density * leftWeight;
+                if (VoxelOccupancy.IsWalkable(right)) sum += right.density * rightWeight;
 
                 double val = V.density * keep + diffuseAmount * sum;
                 if (val > 1) val = 1;
@@ -2631,9 +2705,9 @@ public class Solver : GH_Component
                 Voxel left = voxelGrid[x, y, leftIndex];
                 Voxel right = voxelGrid[x, y, rightIndex];
 
-                double sum = V.maxDensity == 0 ? 0 : V.density * centerWeight;
-                if (left != null && left.maxDensity != 0) sum += left.density * leftWeight;
-                if (right != null && right.maxDensity != 0) sum += right.density * rightWeight;
+                double sum = VoxelOccupancy.IsBlockedMaxDensity(V.maxDensity) ? 0 : V.density * centerWeight;
+                if (VoxelOccupancy.IsWalkable(left)) sum += left.density * leftWeight;
+                if (VoxelOccupancy.IsWalkable(right)) sum += right.density * rightWeight;
 
                 double val = V.density * keep + diffuseAmount * sum;
                 if (val > 1) val = 1;
@@ -2845,9 +2919,9 @@ public class Solver : GH_Component
 
                 if (center != null)
                 {
-                    double sum = center.maxDensity == 0 ? 0 : center.density * centerWeight;
-                    if (left != null && left.maxDensity != 0) sum += left.density * leftWeight;
-                    if (right != null && right.maxDensity != 0) sum += right.density * rightWeight;
+                    double sum = VoxelOccupancy.IsBlockedMaxDensity(center.maxDensity) ? 0 : center.density * centerWeight;
+                    if (VoxelOccupancy.IsWalkable(left)) sum += left.density * leftWeight;
+                    if (VoxelOccupancy.IsWalkable(right)) sum += right.density * rightWeight;
 
                     double val = center.density * keep + diffuseAmount * sum;
                     if (val > 1) val = 1;
@@ -2940,9 +3014,9 @@ public class Solver : GH_Component
 
                 if (center != null)
                 {
-                    double sum = center.maxDensity == 0 ? 0 : center.density * centerWeight;
-                    if (left != null && left.maxDensity != 0) sum += left.density * leftWeight;
-                    if (right != null && right.maxDensity != 0) sum += right.density * rightWeight;
+                    double sum = VoxelOccupancy.IsBlockedMaxDensity(center.maxDensity) ? 0 : center.density * centerWeight;
+                    if (VoxelOccupancy.IsWalkable(left)) sum += left.density * leftWeight;
+                    if (VoxelOccupancy.IsWalkable(right)) sum += right.density * rightWeight;
 
                     double val = center.density * keep + diffuseAmount * sum;
                     if (val > 1) val = 1;
@@ -3035,9 +3109,9 @@ public class Solver : GH_Component
 
                 if (center != null)
                 {
-                    double sum = center.maxDensity == 0 ? 0 : center.density * centerWeight;
-                    if (left != null && left.maxDensity != 0) sum += left.density * leftWeight;
-                    if (right != null && right.maxDensity != 0) sum += right.density * rightWeight;
+                    double sum = VoxelOccupancy.IsBlockedMaxDensity(center.maxDensity) ? 0 : center.density * centerWeight;
+                    if (VoxelOccupancy.IsWalkable(left)) sum += left.density * leftWeight;
+                    if (VoxelOccupancy.IsWalkable(right)) sum += right.density * rightWeight;
 
                     double val = center.density * keep + diffuseAmount * sum;
                     if (val > 1) val = 1;
@@ -3149,7 +3223,7 @@ public class Solver : GH_Component
                         if (d_xID >= 0 && d_xID < xCount)
                         {
                             Voxel neighbour = voxelGrid[d_xID, idY, idZ];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 sum += neighbour.density * weights[weightIndex];
                             }
@@ -3187,7 +3261,7 @@ public class Solver : GH_Component
                         if (d_xID >= 0 && d_xID < xCount)
                         {
                             Voxel neighbour = voxelGrid[d_xID, idY, 0];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 sum += neighbour.density * weights[weightIndex];
                             }
@@ -3225,7 +3299,7 @@ public class Solver : GH_Component
                         if (d_xID >= 0 && d_xID < xCount)
                         {
                             Voxel neighbour = voxelGrid[d_xID, 0, idZ];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 sum += neighbour.density * weights[weightIndex];
                             }
@@ -3279,7 +3353,7 @@ public class Solver : GH_Component
                         if (d_yID >= 0 && d_yID < yCount)
                         {
                             Voxel neighbour = voxelGrid[idX, d_yID, idZ];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 sum += neighbour.density * weights[weightIndex];
                             }
@@ -3317,7 +3391,7 @@ public class Solver : GH_Component
                         if (d_yID >= 0 && d_yID < yCount)
                         {
                             Voxel neighbour = voxelGrid[idX, d_yID, 0];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 sum += neighbour.density * weights[weightIndex];
                             }
@@ -3355,7 +3429,7 @@ public class Solver : GH_Component
                         if (d_yID >= 0 && d_yID < yCount)
                         {
                             Voxel neighbour = voxelGrid[0, d_yID, idZ];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 sum += neighbour.density * weights[weightIndex];
                             }
@@ -3409,7 +3483,7 @@ public class Solver : GH_Component
                         if (d_zID >= 0 && d_zID < zCount)
                         {
                             Voxel neighbour = voxelGrid[idX, idY, d_zID];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 sum += neighbour.density * weights[weightIndex];
                             }
@@ -3447,7 +3521,7 @@ public class Solver : GH_Component
                         if (d_zID >= 0 && d_zID < zCount)
                         {
                             Voxel neighbour = voxelGrid[idX, 0, d_zID];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 sum += neighbour.density * weights[weightIndex];
                             }
@@ -3485,7 +3559,7 @@ public class Solver : GH_Component
                         if (d_zID >= 0 && d_zID < zCount)
                         {
                             Voxel neighbour = voxelGrid[0, idY, d_zID];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 sum += neighbour.density * weights[weightIndex];
                             }
@@ -3587,7 +3661,7 @@ public class Solver : GH_Component
                         if (d_xID >= 0 && d_xID < resX)
                         {
                             Voxel neighbour = voxels[d_xID, V.idY, V.idZ];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
                                 if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
@@ -3636,7 +3710,7 @@ public class Solver : GH_Component
                         if (d_xID >= 0 && d_xID < resX)
                         {
                             Voxel neighbour = voxels[d_xID, V.idY, 0];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
                                 if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
@@ -3685,7 +3759,7 @@ public class Solver : GH_Component
                         if (d_xID >= 0 && d_xID < resX)
                         {
                             Voxel neighbour = voxels[d_xID, 0, V.idZ];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
                                 if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
@@ -3740,7 +3814,7 @@ public class Solver : GH_Component
                         if (d_yID >= 0 && d_yID < resY)
                         {
                             Voxel neighbour = voxels[V.idX, d_yID, V.idZ];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
                                 if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
@@ -3789,7 +3863,7 @@ public class Solver : GH_Component
                         if (d_yID >= 0 && d_yID < resY)
                         {
                             Voxel neighbour = voxels[V.idX, d_yID, 0];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
                                 if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
@@ -3838,7 +3912,7 @@ public class Solver : GH_Component
                         if (d_yID >= 0 && d_yID < resY)
                         {
                             Voxel neighbour = voxels[0, d_yID, V.idZ];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
                                 if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
@@ -3893,7 +3967,7 @@ public class Solver : GH_Component
                         if (d_zID >= 0 && d_zID < resZ)
                         {
                             Voxel neighbour = voxels[V.idX, V.idY, d_zID];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
                                 if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
@@ -3942,7 +4016,7 @@ public class Solver : GH_Component
                         if (d_zID >= 0 && d_zID < resZ)
                         {
                             Voxel neighbour = voxels[V.idX, 0, d_zID];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
                                 if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
@@ -3991,7 +4065,7 @@ public class Solver : GH_Component
                         if (d_zID >= 0 && d_zID < resZ)
                         {
                             Voxel neighbour = voxels[0, V.idY, d_zID];
-                            if (neighbour != null && neighbour.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(neighbour))
                             {
                                 if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
                                 if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
@@ -4074,7 +4148,7 @@ public class Solver : GH_Component
                         {
                             initialP.parentVoxel = voxels[xID, yID, zID];
                             initialP.die = false;
-                            if (initialP.parentVoxel.maxDensity == 0.01) initialP.die = true;
+                            if (initialP.parentVoxel.maxDensity == VoxelOccupancy.BlockedMaxDensityThreshold) initialP.die = true;
                         }
                         else
                         {
@@ -4088,7 +4162,7 @@ public class Solver : GH_Component
                     {
                         if (initialP.die == false)
                         {
-                            if (initialP.parentVoxel.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(initialP.parentVoxel))
                             {
                                 if (!initialP.parentParticleGroup.ant)
                                 {
@@ -4160,7 +4234,7 @@ public class Solver : GH_Component
                     {
                         if (initialP.die == false)
                         {
-                            if (initialP.parentVoxel.maxDensity != 0)
+                            if (VoxelOccupancy.IsWalkable(initialP.parentVoxel))
                             {
                                 if (initialP.parentParticleGroup.ant)
                                 {
@@ -4307,6 +4381,14 @@ public class Solver : GH_Component
 
                     if (parentVoxel != null)
                     {
+                        if (VoxelOccupancy.IsBlockedMaxDensity(parentVoxel.maxDensity))
+                        {
+                            P.parentVoxel = null;
+                            P.die = true;
+                            setWorkingDensity(parentVoxel, 0);
+                            return localPreviewCache;
+                        }
+
                         P.parentVoxel = parentVoxel;
                         particleCountTouchedVoxels[i] = parentVoxel;
                         System.Threading.Interlocked.Increment(ref parentVoxel.particleCount);
@@ -4335,16 +4417,12 @@ public class Solver : GH_Component
                             }
                         }
 
-                        if (parentVoxel.maxDensity == 0)
-                        {
-                            P.die = true;
-                            setWorkingDensity(parentVoxel, 0);
-                        }
                     }
                     else
                     {
                         P.parentVoxel = null;
                         P.die = true;
+                        return localPreviewCache;
                     }
 
                     if (localPreviewCache != null)
@@ -4368,6 +4446,7 @@ public class Solver : GH_Component
                 previewCache.CompleteBuild();
             }
 
+            particles.RemoveAll(p => p.die == true && p.parentVoxel == null);
             particleCountTouchedCount = particleCount;
         }
 
@@ -4633,6 +4712,12 @@ public class Solver : GH_Component
                 Particle P = particles[p];
                 Voxel parentVoxel = P.parentVoxel;
                 if (parentVoxel == null) return;
+                if (VoxelOccupancy.IsBlockedMaxDensity(parentVoxel.maxDensity))
+                {
+                    P.parentVoxel = null;
+                    P.die = true;
+                    return;
+                }
 
                 ParticleGroup parentGroup = P.parentParticleGroup;
                 bool ant = parentGroup.ant;
@@ -4721,6 +4806,12 @@ public class Solver : GH_Component
                 Particle P = particles[p];
                 Voxel parentVoxel = P.parentVoxel;
                 if (parentVoxel == null) return;
+                if (VoxelOccupancy.IsBlockedMaxDensity(parentVoxel.maxDensity))
+                {
+                    P.parentVoxel = null;
+                    P.die = true;
+                    return;
+                }
 
                 ParticleGroup parentGroup = P.parentParticleGroup;
 
@@ -4799,7 +4890,7 @@ public class Solver : GH_Component
         double sampleSlimeSensorValue(Point3d potPos)
         {
             Voxel potentialVoxel = getParentVoxel(potPos.X, potPos.Y, potPos.Z);
-            if (potentialVoxel == null || potentialVoxel.maxDensity == 0) return -1;
+            if (!VoxelOccupancy.IsWalkable(potentialVoxel)) return -1;
             if (!wrapBoundaries && potentialVoxel.boundary) return -1;
 
             double voxelValue = potentialVoxel.density;
@@ -4875,7 +4966,7 @@ public class Solver : GH_Component
                 currentValue = voxelValue;
             }
 
-            if (potentialVoxel.maxDensity == 0)
+            if (VoxelOccupancy.IsBlockedMaxDensity(potentialVoxel.maxDensity))
             {
                 currentValue = -1;
             }
@@ -5088,6 +5179,13 @@ public class Solver : GH_Component
                 Voxel parentVoxel = P.parentVoxel;
                 if (parentVoxel != null)
                 {
+                    if (VoxelOccupancy.IsBlockedMaxDensity(parentVoxel.maxDensity))
+                    {
+                        P.parentVoxel = null;
+                        P.die = true;
+                        return;
+                    }
+
                     ParticleGroup parentGroup = P.parentParticleGroup;
   
                     Vector3d xVector = P.pPlane.XAxis;
@@ -5169,10 +5267,10 @@ public class Solver : GH_Component
                     //find parent voxel for new location
                     Voxel nextVoxel = getParentVoxel(nextLoc.X, nextLoc.Y, nextLoc.Z);
 
-                    //account for maxDensity == 0
+                    //account for blocked maxDensity values
                     if (nextVoxel != null)
                     {
-                        if (nextVoxel.maxDensity == 0) nextVoxel = null;
+                        if (VoxelOccupancy.IsBlockedMaxDensity(nextVoxel.maxDensity)) nextVoxel = null;
                     }
 
                     //move to a random neighbour
@@ -5215,7 +5313,7 @@ public class Solver : GH_Component
                                         if (u >= 0 && u < resX && v >= 0 && v < resY && w >= 0 && w < resZ)
                                         {
                                             Voxel neighborV = voxels[u, v, w];
-                                            if (neighborV != null && neighborV.maxDensity != 0 && !neighborV.boundary)
+                                            if (VoxelOccupancy.IsWalkable(neighborV) && !neighborV.boundary)
                                             {
                                                 if (neighborCount < 27)
                                                 {
@@ -5365,7 +5463,7 @@ public class Solver : GH_Component
         void particleDeposit(Particle P, double depositValue)
         {
             Voxel parentVoxel = P.parentVoxel;
-            if (parentVoxel == null || parentVoxel.maxDensity == 0) return;
+            if (parentVoxel == null || VoxelOccupancy.IsBlockedMaxDensity(parentVoxel.maxDensity)) return;
 
             ParticleGroup parentGroup = P.parentParticleGroup;
             if (!wrapBoundaries && !canDepositAtVoxel(parentVoxel, parentGroup.sensorDistance)) return;
@@ -6050,7 +6148,7 @@ public class Solver : GH_Component
                                                 if (voxels[P.parentVoxel.idX + u, P.parentVoxel.idY + v, P.parentVoxel.idZ + w] != null)
                                                 {
                                                     Voxel neighbourV = voxels[P.parentVoxel.idX + u, P.parentVoxel.idY + v, P.parentVoxel.idZ + w];
-                                                    if (neighbourV.particleCount == 0 && neighbourV.maxDensity != 0)
+                                                    if (neighbourV.particleCount == 0 && VoxelOccupancy.IsWalkable(neighbourV))
                                                     {
                                                         emptyNeighbours.Add(neighbourV);
                                                     }
@@ -6087,7 +6185,7 @@ public class Solver : GH_Component
                                                 if (voxels[P.parentVoxel.idX + u, P.parentVoxel.idY + v, 0] != null)
                                                 {
                                                     Voxel neighbourV = voxels[P.parentVoxel.idX + u, P.parentVoxel.idY + v, 0];
-                                                    if (neighbourV.particleCount == 0 && neighbourV.maxDensity != 0)
+                                                    if (neighbourV.particleCount == 0 && VoxelOccupancy.IsWalkable(neighbourV))
                                                     {
                                                         emptyNeighbours.Add(neighbourV);
                                                     }
@@ -6121,7 +6219,7 @@ public class Solver : GH_Component
                                                 if (voxels[P.parentVoxel.idX + u, 0, P.parentVoxel.idZ + w] != null)
                                                 {
                                                     Voxel neighbourV = voxels[P.parentVoxel.idX + u, 0, P.parentVoxel.idZ + w];
-                                                    if (neighbourV.particleCount == 0)
+                                                    if (neighbourV.particleCount == 0 && VoxelOccupancy.IsWalkable(neighbourV))
                                                     {
                                                         emptyNeighbours.Add(neighbourV);
                                                     }
@@ -6155,7 +6253,7 @@ public class Solver : GH_Component
                                                 if (voxels[0, P.parentVoxel.idY + v, P.parentVoxel.idZ + w] != null)
                                                 {
                                                     Voxel neighbourV = voxels[0, P.parentVoxel.idY + v, P.parentVoxel.idZ + w];
-                                                    if (neighbourV.particleCount == 0)
+                                                    if (neighbourV.particleCount == 0 && VoxelOccupancy.IsWalkable(neighbourV))
                                                     {
                                                         emptyNeighbours.Add(neighbourV);
                                                     }
@@ -6319,17 +6417,17 @@ public class Solver : GH_Component
 
                             //assign parent voxel
                             newP.parentVoxel = particleCheckParentVoxel(P);
-                            if (newP.parentVoxel.maxDensity == 0) newP.die = true;
+                            if (newP.parentVoxel == null || VoxelOccupancy.IsBlockedMaxDensity(newP.parentVoxel.maxDensity)) newP.die = true;
 
-                            //increase particle count to parent voxel
-                            newP.parentVoxel.particleCount++;
-
-                            //deposit chemoattractors
-                            //particleDeposit(newP, retrieveDepositValue(newP) * 2);
-
-                            //add new particle to lists
                             if (!newP.die)
                             {
+                                //increase particle count to parent voxel
+                                newP.parentVoxel.particleCount++;
+
+                                //deposit chemoattractors
+                                //particleDeposit(newP, retrieveDepositValue(newP) * 2);
+
+                                //add new particle to lists
                                 newParticles.Add(newP);
                                 P.parentParticleGroup.particles.Add(newP);
                             }

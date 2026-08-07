@@ -729,7 +729,7 @@ float4 RenderPlane(VSOutput input)
     }
     else if (Thresholds.w > 0.5 && Thresholds.w < 1.5 && value < 0.01)
     {
-        color = float3(0.070588, 0.047059, 0.129412);
+        color = float3(0.113725, 0.074510, 0.207843);
     }
 
     if (Style.z > 0.5 && !inRange)

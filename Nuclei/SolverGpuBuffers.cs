@@ -102,7 +102,7 @@ namespace Nuclei3
                         VoxelVectorsXyz[flatIndex * 3] = (float)voxel.voxelVector.X;
                         VoxelVectorsXyz[flatIndex * 3 + 1] = (float)voxel.voxelVector.Y;
                         VoxelVectorsXyz[flatIndex * 3 + 2] = (float)voxel.voxelVector.Z;
-                        if (voxel.maxDensity != 0)
+                        if (!VoxelOccupancy.IsBlockedMaxDensity(voxel.maxDensity))
                         {
                             VoxelFlags[flatIndex] = 1;
                         }
@@ -220,6 +220,11 @@ namespace Nuclei3
                             continue;
                         }
 
+                        if (FlatIndexFromPosition(particle.pPlane.Origin) < 0)
+                        {
+                            continue;
+                        }
+
                         if (particle.parentParticleGroup == null)
                         {
                             particle.parentParticleGroup = group;
@@ -261,6 +266,12 @@ namespace Nuclei3
 
                     Plane plane = particle.pPlane;
                     Point3d origin = plane.Origin;
+                    int parentFlatIndex = FlatIndexFromPosition(origin);
+                    if (parentFlatIndex < 0)
+                    {
+                        continue;
+                    }
+
                     Vector3d xAxis = plane.XAxis;
                     Vector3d yAxis = plane.YAxis;
                     NormalizeParticleAxes(ref xAxis, ref yAxis);
@@ -275,7 +286,7 @@ namespace Nuclei3
                     ParticleYAxesXyz[particleIndex * 3 + 1] = (float)yAxis.Y;
                     ParticleYAxesXyz[particleIndex * 3 + 2] = (float)yAxis.Z;
                     ParticleGroupIndices[particleIndex] = groupIndex;
-                    ParticleParentIndices[particleIndex] = FlatIndexFromPosition(origin);
+                    ParticleParentIndices[particleIndex] = parentFlatIndex;
 
                     particleIndex++;
                 }
@@ -445,7 +456,16 @@ namespace Nuclei3
                 return -1;
             }
 
-            return FlatIndex(x, y, z);
+            int flatIndex = FlatIndex(x, y, z);
+            return IsWalkableFlatIndex(flatIndex) ? flatIndex : -1;
+        }
+
+        bool IsWalkableFlatIndex(int flatIndex)
+        {
+            return VoxelFlags != null &&
+                   flatIndex >= 0 &&
+                   flatIndex < VoxelFlags.Length &&
+                   (VoxelFlags[flatIndex] & 1) != 0;
         }
 
         static float ComputeSlimeWanderFrequency(double wander, int particleCount)
