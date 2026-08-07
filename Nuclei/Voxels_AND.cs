@@ -876,15 +876,75 @@ namespace Nuclei3
                 return false;
             }
 
-            VoxelGridData outputData = VoxelGridCombiner.Intersection(inputs, currentMergeMode());
+            VoxelGridMergeMode mergeMode = currentMergeMode();
+            long[] inputSignatures = captureInputSignatures(inputs);
+            if (canReuseCachedSidecarOutput(inputs, inputSignatures, mergeMode))
+            {
+                voxels = cachedSidecarOutputVoxels;
+                VoxelGridRegistry.Set(voxels, cachedSidecarOutputData);
+                DA.SetData(0, voxels);
+
+                if (min) this.Message = "Minimum";
+                if (max) this.Message = "Maximum";
+                if (average) this.Message = "Average";
+                return true;
+            }
+
+            VoxelGridData outputData = VoxelGridCombiner.Intersection(inputs, mergeMode);
             voxels = outputData.ToVoxelArray(true);
             VoxelGridRegistry.Set(voxels, outputData);
+            cacheSidecarOutput(inputs, inputSignatures, mergeMode, voxels, outputData);
             DA.SetData(0, voxels);
 
             if (min) this.Message = "Minimum";
             if (max) this.Message = "Maximum";
             if (average) this.Message = "Average";
             return true;
+        }
+
+        static long[] captureInputSignatures(List<VoxelGridData> inputs)
+        {
+            long[] signatures = new long[inputs.Count];
+            for (int i = 0; i < inputs.Count; i++)
+            {
+                signatures[i] = inputs[i] != null ? inputs[i].ContentSignature() : 0;
+            }
+
+            return signatures;
+        }
+
+        bool canReuseCachedSidecarOutput(List<VoxelGridData> inputs, long[] inputSignatures, VoxelGridMergeMode mergeMode)
+        {
+            if (cachedSidecarOutputVoxels == null ||
+                cachedSidecarOutputData == null ||
+                cachedSidecarInputData == null ||
+                cachedSidecarInputSignatures == null ||
+                cachedSidecarMergeMode != mergeMode ||
+                cachedSidecarInputData.Length != inputs.Count ||
+                cachedSidecarInputSignatures.Length != inputSignatures.Length)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < inputs.Count; i++)
+            {
+                if (!object.ReferenceEquals(cachedSidecarInputData[i], inputs[i]) &&
+                    cachedSidecarInputSignatures[i] != inputSignatures[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        void cacheSidecarOutput(List<VoxelGridData> inputs, long[] inputSignatures, VoxelGridMergeMode mergeMode, Voxel[,,] outputVoxels, VoxelGridData outputData)
+        {
+            cachedSidecarInputData = inputs.ToArray();
+            cachedSidecarInputSignatures = inputSignatures;
+            cachedSidecarMergeMode = mergeMode;
+            cachedSidecarOutputVoxels = outputVoxels;
+            cachedSidecarOutputData = outputData;
         }
 
         VoxelGridMergeMode currentMergeMode()
@@ -907,6 +967,11 @@ namespace Nuclei3
 
         //outputs
         Voxel[,,] voxels;
+        VoxelGridData[] cachedSidecarInputData;
+        long[] cachedSidecarInputSignatures;
+        VoxelGridMergeMode cachedSidecarMergeMode;
+        Voxel[,,] cachedSidecarOutputVoxels;
+        VoxelGridData cachedSidecarOutputData;
 
         //-------------------------------------------------------------------
 

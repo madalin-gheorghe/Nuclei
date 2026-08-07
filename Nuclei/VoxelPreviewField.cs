@@ -22,12 +22,14 @@ namespace Nuclei3
 
         public static bool IsDynamicDensity(int valueIndex)
         {
-            return valueIndex == SlimeChemoattractants;
+            return valueIndex == SlimeChemoattractants
+                || valueIndex == AntFoodPheromones
+                || valueIndex == AntBasePheromones;
         }
 
         public static bool IsGpuSupported(int valueIndex)
         {
-            return IsDynamicDensity(valueIndex);
+            return IsStatic(valueIndex) || valueIndex == SlimeChemoattractants;
         }
     }
 }

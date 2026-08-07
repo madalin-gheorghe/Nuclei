@@ -391,7 +391,7 @@ namespace Nuclei3
                             {
                                 Voxel neighbour = voxels[d_xID, V.idY, V.idZ];
 
-                                if (neighbour.maxDensity != 0)
+                                if (VoxelOccupancy.IsWalkable(neighbour))
                                 {
                                     switch (type)
                                     {
@@ -472,7 +472,7 @@ namespace Nuclei3
                                 {
                                     Voxel neighbour = voxels[d_xID, V.idY, 0];
 
-                                    if (neighbour.maxDensity != 0)
+                                    if (VoxelOccupancy.IsWalkable(neighbour))
                                     {
                                         switch (type)
                                         {
@@ -551,7 +551,7 @@ namespace Nuclei3
                                 {
                                     Voxel neighbour = voxels[d_xID, 0, V.idZ];
 
-                                    if (neighbour.maxDensity != 0)
+                                    if (VoxelOccupancy.IsWalkable(neighbour))
                                     {
                                         switch (type)
                                         {
@@ -695,7 +695,7 @@ namespace Nuclei3
                             {
                                 Voxel neighbour = voxels[V.idX, d_yID, V.idZ];
 
-                                if (neighbour.maxDensity != 0)
+                                if (VoxelOccupancy.IsWalkable(neighbour))
                                 {
                                     switch (type)
                                     {
@@ -776,7 +776,7 @@ namespace Nuclei3
                                 {
                                     Voxel neighbour = voxels[V.idX, d_yID, 0];
 
-                                    if (neighbour.maxDensity != 0)
+                                    if (VoxelOccupancy.IsWalkable(neighbour))
                                     {
                                         switch (type)
                                         {
@@ -855,7 +855,7 @@ namespace Nuclei3
                                 {
                                     Voxel neighbour = voxels[0, d_yID, V.idZ];
 
-                                    if (neighbour.maxDensity != 0)
+                                    if (VoxelOccupancy.IsWalkable(neighbour))
                                     {
                                         switch (type)
                                         {
@@ -998,7 +998,7 @@ namespace Nuclei3
                             {
                                 Voxel neighbour = voxels[V.idX, V.idY, d_zID];
 
-                                if (neighbour.maxDensity != 0)
+                                if (VoxelOccupancy.IsWalkable(neighbour))
                                 {
                                     switch (type)
                                     {
@@ -1079,7 +1079,7 @@ namespace Nuclei3
                                 {
                                     Voxel neighbour = voxels[V.idX, 0, d_zID];
 
-                                    if (neighbour.maxDensity != 0)
+                                    if (VoxelOccupancy.IsWalkable(neighbour))
                                     {
                                         switch (type)
                                         {
@@ -1158,7 +1158,7 @@ namespace Nuclei3
                                 {
                                     Voxel neighbour = voxels[0, V.idY, d_zID];
 
-                                    if (neighbour.maxDensity != 0)
+                                    if (VoxelOccupancy.IsWalkable(neighbour))
                                     {
                                         switch (type)
                                         {

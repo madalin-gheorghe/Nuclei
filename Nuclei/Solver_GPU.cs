@@ -41,7 +41,7 @@ namespace Nuclei3
 
         public override GH_Exposure Exposure
         {
-            get { return GH_Exposure.secondary; }
+            get { return GH_Exposure.primary; }
         }
 
         protected override void SolveInstance(IGH_DataAccess DA)
@@ -53,18 +53,6 @@ namespace Nuclei3
             long outputsTicks = 0;
             long setParticlesTicks = 0;
             long setVoxelsTicks = 0;
-            bool hasVisibleParticlePreviewRecipient = HasVisibleParticlePreviewRecipient(Params.Output[0], new HashSet<IGH_Param>());
-            int densityPreviewScale = DensityPreviewScaleForRecipients(Params.Output[1], new HashSet<IGH_Param>());
-            bool hasVisibleDynamicDensityPreviewRecipient = densityPreviewScale > 0;
-            bool useSharedParticlePreview = hasVisibleParticlePreviewRecipient && Rhino.RhinoApp.ExeVersion >= 9;
-            bool buildSolverPreviewCache = WantsSolverOwnedPreview(hasVisibleParticlePreviewRecipient);
-            bool buildParticlePreviewCache = (hasVisibleParticlePreviewRecipient && !useSharedParticlePreview) || buildSolverPreviewCache;
-            solverOwnsPreviewCache = buildSolverPreviewCache;
-            bool needsFullParticleOutput = NeedsOutputData(0);
-            bool buildPreviewDuringFullParticleSync = needsFullParticleOutput && buildParticlePreviewCache;
-            bool needsParticleOutput = needsFullParticleOutput || hasVisibleParticlePreviewRecipient;
-            bool needsVoxelSync = NeedsOutputData(1);
-            bool shouldSetVoxelOutput = needsVoxelSync || HasOutputRecipient(Params.Output[1]);
 
             bool reset = true;
             Voxel[,,] inputVoxels = null;
@@ -92,6 +80,25 @@ namespace Nuclei3
             stageStart = Stopwatch.GetTimestamp();
             SolverGpuSettings solverSettings = SolverGpuSettings.FromStrings(settings);
             settingsTicks = Stopwatch.GetTimestamp() - stageStart;
+
+            bool hasVisibleParticlePreviewRecipient = HasVisibleParticlePreviewRecipient(Params.Output[0], new HashSet<IGH_Param>());
+            bool hasVisibleParticleTrailPreviewRecipient = HasVisibleParticleTrailPreviewRecipient(Params.Output[0], new HashSet<IGH_Param>());
+            bool hasParticleTrailRecipient = HasParticleTrailRecipient(Params.Output[0], new HashSet<IGH_Param>());
+            int densityPreviewScale = DensityPreviewScaleForRecipients(Params.Output[1], new HashSet<IGH_Param>());
+            bool hasVisibleDynamicDensityPreviewRecipient = densityPreviewScale > 0;
+            bool useSharedParticlePreview = hasVisibleParticlePreviewRecipient && Rhino.RhinoApp.ExeVersion >= 9;
+            bool useSharedParticleTrailPreview = hasVisibleParticleTrailPreviewRecipient && Rhino.RhinoApp.ExeVersion >= 9 && solverSettings.TrailSize > 1;
+            bool buildSolverPreviewCache = WantsSolverOwnedPreview(hasVisibleParticlePreviewRecipient);
+            bool buildParticlePreviewCache = (hasVisibleParticlePreviewRecipient && !useSharedParticlePreview) || buildSolverPreviewCache;
+            solverOwnsPreviewCache = buildSolverPreviewCache;
+            bool needsParticleTrailState = hasParticleTrailRecipient && solverSettings.TrailSize > 1;
+            bool needsParticleTrailResetOutput = reset && hasParticleTrailRecipient;
+            bool needsFullParticleOutput = NeedsOutputData(0) || needsParticleTrailState || needsParticleTrailResetOutput;
+            bool buildPreviewDuringFullParticleSync = needsFullParticleOutput && buildParticlePreviewCache;
+            bool needsParticleOutput = needsFullParticleOutput || hasVisibleParticlePreviewRecipient || hasVisibleParticleTrailPreviewRecipient;
+            bool needsVoxelSync = NeedsOutputData(1);
+            bool shouldSetVoxelOutput = needsVoxelSync || HasOutputRecipient(Params.Output[1]);
+
             bool atMaxIterationsAtEntry = !reset && iteration >= solverSettings.MaxIterations;
             bool shouldResetState = reset
                 || voxels == null
@@ -104,7 +111,7 @@ namespace Nuclei3
                 try
                 {
                     stageStart = Stopwatch.GetTimestamp();
-                    ResetState(inputVoxels, inputParticleGroups, solverSettings, hasVisibleDynamicDensityPreviewRecipient, useSharedParticlePreview, densityPreviewScale);
+                    ResetState(inputVoxels, inputParticleGroups, solverSettings, hasVisibleDynamicDensityPreviewRecipient, useSharedParticlePreview, useSharedParticleTrailPreview, densityPreviewScale);
                     if (buildParticlePreviewCache)
                     {
                         BuildPreviewCacheFromCurrentParticles();
@@ -141,6 +148,7 @@ namespace Nuclei3
                     stageStart = Stopwatch.GetTimestamp();
                     SetDensityFieldPreviewEnabled(hasVisibleDynamicDensityPreviewRecipient, densityPreviewScale);
                     SetParticlePreviewEnabled(useSharedParticlePreview);
+                    SetParticleTrailPreviewEnabled(useSharedParticleTrailPreview, solverSettings.TrailSize);
                     if (!UpdateLiveParticleGroupSettings(inputParticleGroups))
                     {
                         settingsSupported = false;
@@ -245,7 +253,7 @@ namespace Nuclei3
             }
         }
 
-        void ResetState(Voxel[,,] inputVoxels, List<ParticleGroup> inputParticleGroups, SolverGpuSettings settings, bool enableDensityFieldPreview, bool enableParticlePreview, int densityPreviewScale)
+        void ResetState(Voxel[,,] inputVoxels, List<ParticleGroup> inputParticleGroups, SolverGpuSettings settings, bool enableDensityFieldPreview, bool enableParticlePreview, bool enableParticleTrailPreview, int densityPreviewScale)
         {
             SolverGpuInputSnapshot snapshot = SolverGpuInputSnapshot.Capture(inputVoxels, inputParticleGroups);
 
@@ -254,6 +262,7 @@ namespace Nuclei3
             voxels = snapshot.Voxels;
             inputVoxelReference = inputVoxels;
             particles = snapshot.Particles;
+            ClearParticleTrails(particles);
             resX = snapshot.ResX;
             resY = snapshot.ResY;
             resZ = snapshot.ResZ;
@@ -264,6 +273,7 @@ namespace Nuclei3
             particleGroupParticleCounts = CaptureInputParticleGroupCounts(inputParticleGroups);
             gpuDensityFieldPreviewEnabled = enableDensityFieldPreview;
             gpuParticlePreviewEnabled = enableParticlePreview;
+            gpuParticleTrailPreviewEnabled = enableParticleTrailPreview;
             unsupportedGpuReason = "";
             iteration = 0;
             lastPreviewReadbackQueuedIteration = -1;
@@ -278,8 +288,35 @@ namespace Nuclei3
 
             if (gpuStatus != null && gpuStatus.Available && snapshot.VoxelDensity != null && snapshot.VoxelDensity.Length > 0)
             {
-                fullSolverEngine = new GpuFullSlimeSolverEngine(snapshot, enableDensityFieldPreview, enableParticlePreview, densityPreviewScale);
+                fullSolverEngine = new GpuFullSlimeSolverEngine(snapshot, enableDensityFieldPreview, enableParticlePreview, enableParticleTrailPreview, settings.TrailSize, densityPreviewScale);
                 ConfigureGpuParticlePreviewProvider();
+                ConfigureGpuParticleTrailPreviewProvider();
+            }
+        }
+
+        void ClearParticleTrails(ParticleList particleList)
+        {
+            if (particleList == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < particleList.Count; i++)
+            {
+                Particle particle = particleList[i];
+                if (particle == null)
+                {
+                    continue;
+                }
+
+                if (particle.trails == null)
+                {
+                    particle.trails = new List<Point3d>();
+                }
+                else if (particle.trails.Count > 0)
+                {
+                    particle.trails.Clear();
+                }
             }
         }
 
@@ -310,6 +347,19 @@ namespace Nuclei3
             ConfigureGpuParticlePreviewProvider();
         }
 
+        void SetParticleTrailPreviewEnabled(bool enabled, int trailSize)
+        {
+            gpuParticleTrailPreviewEnabled = enabled;
+            if (fullSolverEngine == null)
+            {
+                ConfigureGpuParticleTrailPreviewProvider();
+                return;
+            }
+
+            fullSolverEngine.SetSharedParticleTrailPreviewEnabled(enabled, trailSize);
+            ConfigureGpuParticleTrailPreviewProvider();
+        }
+
         void ConfigureGpuParticlePreviewProvider()
         {
             if (particles == null)
@@ -319,6 +369,18 @@ namespace Nuclei3
 
             particles.GpuPreviewFrameProvider = gpuParticlePreviewEnabled && fullSolverEngine != null
                 ? (Func<GpuParticlePreviewFrame>)fullSolverEngine.CreateParticlePreviewFrame
+                : null;
+        }
+
+        void ConfigureGpuParticleTrailPreviewProvider()
+        {
+            if (particles == null)
+            {
+                return;
+            }
+
+            particles.GpuTrailPreviewFrameProvider = gpuParticleTrailPreviewEnabled && fullSolverEngine != null
+                ? (Func<GpuParticleTrailPreviewFrame>)fullSolverEngine.CreateParticleTrailPreviewFrame
                 : null;
         }
 
@@ -333,8 +395,7 @@ namespace Nuclei3
                 && inputVoxels.GetLength(1) == resY
                 && inputVoxels.GetLength(2) == resZ
                 && !HasAntParticleGroups(inputParticleGroups)
-                && InputParticleGroupCountsMatch(inputParticleGroups)
-                && CountInputParticles(inputParticleGroups) == particleCount;
+                && InputParticleGroupCountsMatch(inputParticleGroups);
         }
 
         void ApplyGlobalDimensionState()
@@ -417,26 +478,6 @@ namespace Nuclei3
             }
 
             return false;
-        }
-
-        int CountInputParticles(List<ParticleGroup> inputParticleGroups)
-        {
-            int count = 0;
-            if (inputParticleGroups == null)
-            {
-                return 0;
-            }
-
-            for (int i = 0; i < inputParticleGroups.Count; i++)
-            {
-                ParticleGroup group = inputParticleGroups[i];
-                if (group != null && group.particles != null)
-                {
-                    count += group.particles.Count;
-                }
-            }
-
-            return count;
         }
 
         GpuFullSolverStepResult RunGpuSolverStep(SolverGpuSettings settings, bool syncVoxels, bool syncParticles, bool buildPreviewCache)
@@ -696,6 +737,12 @@ namespace Nuclei3
                     continue;
                 }
 
+                Preview_Particle_Trails_GPU trailPreview = GetOwnerComponent(recipient) as Preview_Particle_Trails_GPU;
+                if (trailPreview != null)
+                {
+                    continue;
+                }
+
                 Preview_Voxel voxelPreview = GetOwnerComponent(recipient) as Preview_Voxel;
                 if (voxelPreview != null)
                 {
@@ -785,6 +832,52 @@ namespace Nuclei3
                 }
 
                 if (HasVisibleParticlePreviewRecipient(recipient, visited))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        bool HasVisibleParticleTrailPreviewRecipient(IGH_Param sourceParam, HashSet<IGH_Param> visited)
+        {
+            if (sourceParam == null || sourceParam.Recipients == null) return false;
+
+            foreach (IGH_Param recipient in sourceParam.Recipients)
+            {
+                if (recipient == null || !visited.Add(recipient)) continue;
+
+                Preview_Particle_Trails_GPU preview = GetOwnerComponent(recipient) as Preview_Particle_Trails_GPU;
+                if (preview != null)
+                {
+                    if (preview.WantsGpuTrailPreview) return true;
+                    continue;
+                }
+
+                if (HasVisibleParticleTrailPreviewRecipient(recipient, visited))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        bool HasParticleTrailRecipient(IGH_Param sourceParam, HashSet<IGH_Param> visited)
+        {
+            if (sourceParam == null || sourceParam.Recipients == null) return false;
+
+            foreach (IGH_Param recipient in sourceParam.Recipients)
+            {
+                if (recipient == null || !visited.Add(recipient)) continue;
+
+                if (GetOwnerComponent(recipient) is Particle_Extractor_TrailPoints)
+                {
+                    return true;
+                }
+
+                if (HasParticleTrailRecipient(recipient, visited))
                 {
                     return true;
                 }
@@ -951,6 +1044,7 @@ namespace Nuclei3
             if (particles != null)
             {
                 particles.GpuPreviewFrameProvider = null;
+                particles.GpuTrailPreviewFrameProvider = null;
             }
 
             if (fullSolverEngine != null)
@@ -1144,7 +1238,11 @@ namespace Nuclei3
             context.Division = settings.Division;
             context.Death = settings.Death;
             context.MaxIterations = settings.MaxIterations;
-            context.GpuPreviewMode = gpuDensityFieldPreviewEnabled ? "global_density" : "off";
+            context.GpuPreviewMode = gpuDensityFieldPreviewEnabled
+                ? "global_density"
+                : gpuParticleTrailPreviewEnabled
+                    ? "particle_trails"
+                    : "off";
             context.GpuDensityFieldPreview = gpuDensityFieldPreviewEnabled;
             return context;
         }
@@ -1207,6 +1305,7 @@ namespace Nuclei3
         string timingContextKey = "";
         bool gpuDensityFieldPreviewEnabled = false;
         bool gpuParticlePreviewEnabled = false;
+        bool gpuParticleTrailPreviewEnabled = false;
 
         protected override System.Drawing.Bitmap Icon
         {

@@ -215,6 +215,7 @@ namespace Nuclei3
     {
         public ParticlePreviewCache PreviewCache = new ParticlePreviewCache();
         internal Func<GpuParticlePreviewFrame> GpuPreviewFrameProvider;
+        internal Func<GpuParticleTrailPreviewFrame> GpuTrailPreviewFrameProvider;
 
         public ParticleList()
         {
@@ -228,6 +229,11 @@ namespace Nuclei3
         internal GpuParticlePreviewFrame GetGpuPreviewFrame()
         {
             return GpuPreviewFrameProvider != null ? GpuPreviewFrameProvider() : null;
+        }
+
+        internal GpuParticleTrailPreviewFrame GetGpuTrailPreviewFrame()
+        {
+            return GpuTrailPreviewFrameProvider != null ? GpuTrailPreviewFrameProvider() : null;
         }
     }
 
