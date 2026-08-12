@@ -8,6 +8,14 @@ namespace Nuclei3
         public double Diffuse = 0.1;
         public int DiffuseRange = 1;
         public double Decay = 0.03;
+        public double AntFoodDiffuse = 0.05;
+        public double AntFoodDecay = 0.005;
+        public double AntBaseDiffuse = 0.1;
+        public double AntBaseDecay = 0.01;
+        public int AntDiffuseRange = 1;
+        public double SlimeAntFood = 0;
+        public double SlimeAntBase = 0;
+        public double AntSlime = 0;
         public bool WrapBoundaries = false;
         public int MaxIterations = 100000;
         public int TrailSize = 0;
@@ -15,6 +23,18 @@ namespace Nuclei3
         public bool DynamicPopulation = false;
         public bool Division = false;
         public bool Death = false;
+        public int MinimumPopulation = 100;
+        public int MaximumPopulation = 20000;
+        public int DivisionMinimumAge = 10;
+        public int DivisionRange = 3;
+        public int DivisionMinimumNeighbours = 0;
+        public int DivisionMaximumNeighbours = 10;
+        public int DivisionFrequency = 5;
+        public int DeathMinimumAge = 10;
+        public int DeathRange = 3;
+        public int DeathMinimumNeighbours = 0;
+        public int DeathMaximumNeighbours = 10;
+        public int DeathFrequency = 5;
 
         public static SolverGpuSettings FromStrings(IList<string> settings)
         {
@@ -47,6 +67,21 @@ namespace Nuclei3
                         if (parsed.DiffuseRange < 0) parsed.DiffuseRange = 0;
                         break;
 
+                    case "VoxelSettingsAnt":
+                        if (parts.Length > 1) parsed.AntFoodDiffuse = Convert.ToDouble(parts[1]);
+                        if (parts.Length > 2) parsed.AntFoodDecay = Convert.ToDouble(parts[2]);
+                        if (parts.Length > 3) parsed.AntBaseDiffuse = Convert.ToDouble(parts[3]);
+                        if (parts.Length > 4) parsed.AntBaseDecay = Convert.ToDouble(parts[4]);
+                        if (parts.Length > 5) parsed.AntDiffuseRange = Convert.ToInt32(parts[5]);
+                        parsed.AntDiffuseRange = Math.Max(0, parsed.AntDiffuseRange);
+                        break;
+
+                    case "SpeciesInteractionSettings":
+                        if (parts.Length > 1) parsed.SlimeAntFood = Convert.ToDouble(parts[1]);
+                        if (parts.Length > 2) parsed.SlimeAntBase = Convert.ToDouble(parts[2]);
+                        if (parts.Length > 3) parsed.AntSlime = Convert.ToDouble(parts[3]);
+                        break;
+
                     case "WrapSettings":
                         if (parts.Length > 1) parsed.WrapBoundaries = Convert.ToBoolean(parts[1]);
                         break;
@@ -65,18 +100,77 @@ namespace Nuclei3
 
                     case "DivisionSettings":
                         if (parts.Length > 1) parsed.Division = Convert.ToBoolean(parts[1]);
+                        if (parts.Length > 2) parsed.DivisionMinimumAge = Convert.ToInt32(parts[2]);
+                        if (parts.Length > 3) parsed.DivisionRange = Convert.ToInt32(parts[3]);
+                        if (parts.Length > 4) parsed.DivisionMinimumNeighbours = Convert.ToInt32(parts[4]);
+                        if (parts.Length > 5) parsed.DivisionMaximumNeighbours = Convert.ToInt32(parts[5]);
+                        if (parts.Length > 6) parsed.DivisionFrequency = Convert.ToInt32(parts[6]);
                         break;
 
                     case "DeathSettings":
                         if (parts.Length > 1) parsed.Death = Convert.ToBoolean(parts[1]);
+                        if (parts.Length > 2) parsed.DeathMinimumAge = Convert.ToInt32(parts[2]);
+                        if (parts.Length > 3) parsed.DeathRange = Convert.ToInt32(parts[3]);
+                        if (parts.Length > 4) parsed.DeathMinimumNeighbours = Convert.ToInt32(parts[4]);
+                        if (parts.Length > 5) parsed.DeathMaximumNeighbours = Convert.ToInt32(parts[5]);
+                        if (parts.Length > 6) parsed.DeathFrequency = Convert.ToInt32(parts[6]);
+                        break;
+
+                    case "PopulationSettings":
+                        if (parts.Length > 1) parsed.MinimumPopulation = Convert.ToInt32(parts[1]);
+                        if (parts.Length > 2) parsed.MaximumPopulation = Convert.ToInt32(parts[2]);
                         break;
 
                 }
             }
 
             parsed.DynamicPopulation = parsed.Division || parsed.Death;
+            parsed.AntFoodDiffuse = Math.Max(0, parsed.AntFoodDiffuse);
+            parsed.AntFoodDecay = Math.Max(0, parsed.AntFoodDecay);
+            parsed.AntBaseDiffuse = Math.Max(0, parsed.AntBaseDiffuse);
+            parsed.AntBaseDecay = Math.Max(0, parsed.AntBaseDecay);
+            parsed.SlimeAntFood = Clamp01(parsed.SlimeAntFood);
+            parsed.SlimeAntBase = Clamp01(parsed.SlimeAntBase);
+            parsed.AntSlime = Math.Max(0, parsed.AntSlime);
+            parsed.MinimumPopulation = Math.Max(0, parsed.MinimumPopulation);
+            parsed.MaximumPopulation = Math.Max(0, parsed.MaximumPopulation);
+            if (parsed.MinimumPopulation > parsed.MaximumPopulation)
+            {
+                int swap = parsed.MinimumPopulation;
+                parsed.MinimumPopulation = parsed.MaximumPopulation;
+                parsed.MaximumPopulation = swap;
+            }
+
+            parsed.DivisionMinimumAge = Math.Max(0, parsed.DivisionMinimumAge);
+            parsed.DivisionRange = Math.Max(0, parsed.DivisionRange);
+            parsed.DivisionFrequency = Math.Max(1, parsed.DivisionFrequency);
+            NormalizeNeighbourRange(ref parsed.DivisionMinimumNeighbours, ref parsed.DivisionMaximumNeighbours);
+
+            parsed.DeathMinimumAge = Math.Max(0, parsed.DeathMinimumAge);
+            parsed.DeathRange = Math.Max(0, parsed.DeathRange);
+            parsed.DeathFrequency = Math.Max(1, parsed.DeathFrequency);
+            NormalizeNeighbourRange(ref parsed.DeathMinimumNeighbours, ref parsed.DeathMaximumNeighbours);
 
             return parsed;
+        }
+
+        static void NormalizeNeighbourRange(ref int minimum, ref int maximum)
+        {
+            minimum = Math.Max(0, minimum);
+            maximum = Math.Max(0, maximum);
+            if (minimum <= maximum)
+            {
+                return;
+            }
+
+            int swap = minimum;
+            minimum = maximum;
+            maximum = swap;
+        }
+
+        static double Clamp01(double value)
+        {
+            return Math.Max(0, Math.Min(1, value));
         }
     }
 

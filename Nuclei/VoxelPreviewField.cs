@@ -12,8 +12,10 @@ namespace Nuclei3
         public const int SlimeChemoattractants = 7;
         public const int AntFoodPheromones = 8;
         public const int AntBasePheromones = 9;
+        public const int AntPheromones = 10;
+        public const int AntsAndSlime = 11;
 
-        public const int StaticFieldCount = 7;
+        public const int StaticFieldCount = 6;
 
         public static bool IsStatic(int valueIndex)
         {
@@ -22,14 +24,22 @@ namespace Nuclei3
 
         public static bool IsDynamicDensity(int valueIndex)
         {
-            return valueIndex == SlimeChemoattractants
+            return valueIndex == Food
+                || valueIndex == SlimeChemoattractants
                 || valueIndex == AntFoodPheromones
-                || valueIndex == AntBasePheromones;
+                || valueIndex == AntBasePheromones
+                || valueIndex == AntPheromones
+                || valueIndex == AntsAndSlime;
+        }
+
+        public static bool IsCombinedDynamicDensity(int valueIndex)
+        {
+            return valueIndex == AntPheromones || valueIndex == AntsAndSlime;
         }
 
         public static bool IsGpuSupported(int valueIndex)
         {
-            return IsStatic(valueIndex) || valueIndex == SlimeChemoattractants;
+            return IsStatic(valueIndex) || IsDynamicDensity(valueIndex);
         }
     }
 }

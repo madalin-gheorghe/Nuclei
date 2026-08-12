@@ -32,6 +32,11 @@ namespace Nuclei3
         public float ColorA = 0;
         public bool UseCustomColor;
 
+        public bool ColorTexture
+        {
+            get { return VoxelPreviewField.IsDynamicDensity(ValueIndex); }
+        }
+
         public bool IsValid
         {
             get

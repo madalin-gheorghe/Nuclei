@@ -27,7 +27,27 @@
 
 	<ItemGroup>
 		<EmbeddedResource Update="Properties\Resources.resx" Generator="ResXFileCodeGenerator" LastGenOutput="Resources.Designer.cs" />
+		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\MoveParticlesAndDeposit.cso" LogicalName="Nuclei3.GpuShaders.MoveParticlesAndDeposit.cso" />
+		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyDeposits.cso" LogicalName="Nuclei3.GpuShaders.ApplyDeposits.cso" />
+		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ClearParticleCounts.cso" LogicalName="Nuclei3.GpuShaders.ClearParticleCounts.cso" />
+		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\CountParticles.cso" LogicalName="Nuclei3.GpuShaders.CountParticles.cso" />
+		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\SeedNeighbourCounts.cso" LogicalName="Nuclei3.GpuShaders.SeedNeighbourCounts.cso" />
+		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\SumNeighbourAxis.cso" LogicalName="Nuclei3.GpuShaders.SumNeighbourAxis.cso" />
+		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyParticleDeath.cso" LogicalName="Nuclei3.GpuShaders.ApplyParticleDeath.cso" />
+		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyParticleDivision.cso" LogicalName="Nuclei3.GpuShaders.ApplyParticleDivision.cso" />
+		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\DiffuseAxis.cso" LogicalName="Nuclei3.GpuShaders.DiffuseAxis.cso" />
+		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyDecay.cso" LogicalName="Nuclei3.GpuShaders.ApplyDecay.cso" />
+		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\BuildDensityPreview.cso" LogicalName="Nuclei3.GpuShaders.BuildDensityPreview.cso" />
+		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\BuildCombinedDensityPreview.cso" LogicalName="Nuclei3.GpuShaders.BuildCombinedDensityPreview.cso" />
+		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\BuildParticlePreview.cso" LogicalName="Nuclei3.GpuShaders.BuildParticlePreview.cso" />
+		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\BuildParticleTrailPreview.cso" LogicalName="Nuclei3.GpuShaders.BuildParticleTrailPreview.cso" />
 	</ItemGroup>
+
+	<Target Name="CompileGpuShaders" BeforeTargets="PrepareResources"
+		Inputs="$(MSBuildProjectDirectory)\GpuFullSlimeSolverEngine.cs;$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Program.cs;$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Nuclei.ShaderCompiler.csproj"
+		Outputs="$(IntermediateOutputPath)GpuShaders\shaders.complete">
+		<Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Nuclei.ShaderCompiler.csproj&quot; --configuration Release -- &quot;$(MSBuildProjectDirectory)\GpuFullSlimeSolverEngine.cs&quot; &quot;$(IntermediateOutputPath)GpuShaders&quot;" />
+	</Target>
 
 	<PropertyGroup Condition="$(Configuration) == 'Debug'">
 		<StartAction>Program</StartAction>

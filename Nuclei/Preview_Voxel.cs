@@ -133,6 +133,8 @@ namespace Nuclei3
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Chemoattractants", "7"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food Pheromones", "8"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Base Pheromones", "9"));
+                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Pheromones", "10"));
+                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ants and Slime", "11"));
 
                 vallist.ListItems.AddRange(items);
                 // Until now, the slider is a hypothetical object.
@@ -142,6 +144,8 @@ namespace Nuclei3
                 Component.Params.Input[1].AddSource(vallist);
                 Component.Params.Input[1].CollectData();
             }
+
+            ensureCombinedPreviewChoices();
 
             //DA.GetData("Display", ref display);
             min = 0;
@@ -311,7 +315,7 @@ namespace Nuclei3
 
         internal bool WantsGpuDynamicDensityPreview
         {
-            get { return Rhino.RhinoApp.ExeVersion >= 9 && !Hidden && !Locked && CurrentValueIndex() == VoxelPreviewField.SlimeChemoattractants; }
+            get { return Rhino.RhinoApp.ExeVersion >= 9 && !Hidden && !Locked && VoxelPreviewField.IsDynamicDensity(CurrentValueIndex()); }
         }
 
         internal int GpuDensityPreviewScale
@@ -407,7 +411,8 @@ namespace Nuclei3
                 frame.MaximumThreshold = temp;
             }
 
-            bool useCustomColor = colour.R != 0 || colour.G != 0 || colour.B != 0;
+            bool useCustomColor = !VoxelPreviewField.IsCombinedDynamicDensity(currentValueIndex)
+                && (colour.R != 0 || colour.G != 0 || colour.B != 0);
             frame.UseCustomColor = useCustomColor;
             frame.ColorR = colour.R / 255.0f;
             frame.ColorG = colour.G / 255.0f;
@@ -567,6 +572,37 @@ namespace Nuclei3
             }
 
             return valueIndex;
+        }
+
+        void ensureCombinedPreviewChoices()
+        {
+            if (Params == null || Params.Input == null || Params.Input.Count < 2 || Params.Input[1].SourceCount != 1)
+            {
+                return;
+            }
+
+            Grasshopper.Kernel.Special.GH_ValueList valueList = Params.Input[1].Sources[0] as Grasshopper.Kernel.Special.GH_ValueList;
+            if (valueList == null)
+            {
+                return;
+            }
+
+            bool nucleiDynamicFields = valueList.ListItems.Any(item => item.Expression == "7" && item.Name == "Slime Chemoattractants")
+                && valueList.ListItems.Any(item => item.Expression == "8" && item.Name == "Ant Food Pheromones")
+                && valueList.ListItems.Any(item => item.Expression == "9" && item.Name == "Ant Base Pheromones");
+            if (!nucleiDynamicFields)
+            {
+                return;
+            }
+
+            if (!valueList.ListItems.Any(item => item.Expression == "10"))
+            {
+                valueList.ListItems.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Pheromones", "10"));
+            }
+            if (!valueList.ListItems.Any(item => item.Expression == "11"))
+            {
+                valueList.ListItems.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ants and Slime", "11"));
+            }
         }
 
         void updateClippingBox()

@@ -18,11 +18,12 @@ This repository tracks the source code, reconstructed optimization history, and 
 - `v4.0` - first meaningful GPU solver prototype using compute shader based execution and GPU-resident preview work.
 - `v4.1` - collaboration checkpoint for speed and main-functionality testing, with fast voxel data work, GPU solver progress, and internal voxel field particle generation.
 
-## Current V4 Development
+## Current Development Backups
 
-The current v4 development checkpoint targets Rhino 9 on Windows. It includes a Direct3D 11 compute-shader solver, GPU-resident particle and voxel previews, GPU particle-trail display, live voxel behavior maps, internal particle generation, and population-aware preview colors. CPU-oriented v3.x builds remain separate for compatibility and comparison.
+- [`main`](../../tree/main) and [`v4.x`](../../tree/v4.x) contain the current V4 GPU development checkpoint for Rhino 9 on Windows.
+- [`v3.x`](../../tree/v3.x) contains the current V3.3 CPU checkpoint for Rhino 8 compatibility and behavior comparison.
 
-Dynamic particle division and death are the next GPU solver architecture milestone and are not included in this checkpoint.
+The current V4 checkpoint includes the Direct3D 11 compute-shader solver, GPU-resident particle and voxel previews, ordered GPU particle trails, live voxel behavior maps, internal particle generation, dynamic particle division and death, and ant food/pheromone behavior. The V3.x CPU solver remains the behavioral reference when features are translated to the GPU. Known implementation differences are documented in [CPU to GPU Behavior Parity](docs/GPU_BEHAVIOR_PARITY.md).
 
 ## Performance Evidence
 
@@ -34,7 +35,7 @@ Local Visual Studio `.diagsession` captures are kept outside Git because the cur
 
 ## Build
 
-The plugin project is `Nuclei/Nuclei3.csproj` in `Nuclei.sln`.
+The plugin project is `Nuclei/Nuclei3.csproj` in `Nuclei.sln`. On `main`, it builds the V4 plugin for Rhino 9 on Windows.
 
 For CI-style validation without installing into Grasshopper:
 

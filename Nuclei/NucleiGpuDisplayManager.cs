@@ -90,6 +90,28 @@ namespace Nuclei3
                 return snapshot;
             }
         }
+
+        internal static bool HasActivePlanarVoxelDensityPreview()
+        {
+            Preview_Voxel[] previews = SnapshotVoxelDensityPreviews();
+            for (int i = 0; i < previews.Length; i++)
+            {
+                GpuDensityFieldPreviewFrame frame = previews[i].GetGpuDensityFieldPreviewFrame();
+                if (IsPlanarSimulationFrame(frame))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        internal static bool IsPlanarSimulationFrame(GpuDensityFieldPreviewFrame frame)
+        {
+            return frame != null
+                && frame.IsValid
+                && (frame.ResX == 1 || frame.ResY == 1 || frame.ResZ == 1);
+        }
     }
 
     internal sealed class NucleiGpuDisplayConduit : DisplayConduit
@@ -114,6 +136,7 @@ namespace Nuclei3
             Preview_Voxel[] previews = NucleiGpuDisplayManager.SnapshotVoxelDensityPreviews();
             if (previews.Length == 0) return;
 
+            bool hasPlanarPreview = false;
             for (int i = 0; i < previews.Length; i++)
             {
                 Preview_Voxel preview = previews[i];
@@ -123,11 +146,18 @@ namespace Nuclei3
                     continue;
                 }
 
+                hasPlanarPreview |= NucleiGpuDisplayManager.IsPlanarSimulationFrame(frame);
+
                 long drawStart = Stopwatch.GetTimestamp();
                 if (GpuDensityFieldD3DRenderer.TryDraw(preview.InstanceGuid, e, frame))
                 {
                     preview.RecordGpuDensityFieldPreviewDrawTiming(Stopwatch.GetTimestamp() - drawStart);
                 }
+            }
+
+            if (hasPlanarPreview)
+            {
+                ParticlePreviewDisplayConduit.DrawRegisteredPreviews(e);
             }
         }
     }
