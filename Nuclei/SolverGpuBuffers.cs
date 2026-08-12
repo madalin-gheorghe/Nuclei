@@ -9,6 +9,7 @@ namespace Nuclei3
     {
         public Voxel[,,] Voxels;
         public ParticleList Particles;
+        public ParticleGroup[] ParticleGroups;
         public int ResX;
         public int ResY;
         public int ResZ;
@@ -18,9 +19,13 @@ namespace Nuclei3
         public float[] ParticlePositionsXyz;
         public float[] ParticleDirectionsXyz;
         public float[] ParticleYAxesXyz;
+        public float[] ParticleHomesXyz;
+        public uint[] ParticleAntStates;
         public int[] ParticleGroupIndices;
         public int[] ParticleParentIndices;
         public float[] VoxelDensity;
+        public float[] AntFoodPheromone;
+        public float[] AntBasePheromone;
         public float[] VoxelBehaviorData;
         public float[] VoxelVectorData;
         public float[] VoxelDensityLimits;
@@ -33,11 +38,13 @@ namespace Nuclei3
         public float[] GroupData1;
         public float[] GroupColorData;
         public bool HasAntParticles;
+        public bool HasSlimeParticles;
 
         public static SolverGpuInputSnapshot Capture(Voxel[,,] inputVoxels, IList<ParticleGroup> particleGroups)
         {
             SolverGpuInputSnapshot snapshot = new SolverGpuInputSnapshot();
 
+            snapshot.DetectPopulationKinds(particleGroups);
             snapshot.CaptureVoxels(inputVoxels);
             snapshot.CaptureParticles(particleGroups);
 
@@ -49,7 +56,9 @@ namespace Nuclei3
             if (inputVoxels == null)
             {
                 Voxels = new Voxel[0, 0, 0];
-                VoxelDensity = new float[0];
+                VoxelDensity = HasSlimeParticles ? new float[0] : null;
+                AntFoodPheromone = HasAntParticles ? new float[0] : null;
+                AntBasePheromone = HasAntParticles ? new float[0] : null;
                 VoxelBehaviorData = new float[0];
                 VoxelVectorData = new float[0];
                 VoxelDensityLimits = new float[0];
@@ -71,7 +80,9 @@ namespace Nuclei3
             bool hasInputVoxels = ContainsAnyVoxel(inputVoxels);
 
             Voxels = new Voxel[ResX, ResY, ResZ];
-            VoxelDensity = new float[voxelCount];
+            VoxelDensity = HasSlimeParticles ? new float[voxelCount] : null;
+            AntFoodPheromone = HasAntParticles ? new float[voxelCount] : null;
+            AntBasePheromone = HasAntParticles ? new float[voxelCount] : null;
             VoxelBehaviorData = new float[voxelCount * 4];
             VoxelVectorData = new float[voxelCount * 4];
             VoxelDensityLimits = new float[voxelCount * 4];
@@ -97,7 +108,15 @@ namespace Nuclei3
                         voxel.flatIndex = flatIndex;
                         Voxels[x, y, z] = voxel;
 
-                        VoxelDensity[flatIndex] = (float)voxel.density;
+                        if (HasSlimeParticles)
+                        {
+                            VoxelDensity[flatIndex] = (float)voxel.density;
+                        }
+                        if (HasAntParticles)
+                        {
+                            AntFoodPheromone[flatIndex] = (float)Math.Max(0, voxel.towardsFoodPheromone);
+                            AntBasePheromone[flatIndex] = (float)Math.Max(0, voxel.towardsBasePheromone);
+                        }
                         CaptureVoxelBehaviorFields(voxel, flatIndex);
                         VoxelVectorsXyz[flatIndex * 3] = (float)voxel.voxelVector.X;
                         VoxelVectorsXyz[flatIndex * 3 + 1] = (float)voxel.voxelVector.Y;
@@ -225,12 +244,19 @@ namespace Nuclei3
                             continue;
                         }
 
-                        if (particle.parentParticleGroup == null)
+                        ParticleGroup simulationGroup = groupIndex < ParticleGroups.Length
+                            ? ParticleGroups[groupIndex]
+                            : null;
+                        Particle simulationParticle = new Particle(particle.pPlane);
+                        simulationParticle.parentParticleGroup = simulationGroup;
+                        simulationParticle.home = group.ant ? particle.pPlane : particle.home;
+                        simulationParticle.foundFood = group.ant && particle.foundFood;
+                        simulationParticle.age = Math.Max(0, particle.age);
+                        Particles.Add(simulationParticle);
+                        if (simulationGroup != null)
                         {
-                            particle.parentParticleGroup = group;
+                            simulationGroup.particles.Add(simulationParticle);
                         }
-
-                        Particles.Add(particle);
                     }
                 }
             }
@@ -239,6 +265,8 @@ namespace Nuclei3
             ParticlePositionsXyz = new float[ParticleCount * 3];
             ParticleDirectionsXyz = new float[ParticleCount * 3];
             ParticleYAxesXyz = new float[ParticleCount * 3];
+            ParticleHomesXyz = new float[ParticleCount * 3];
+            ParticleAntStates = new uint[ParticleCount];
             ParticleGroupIndices = new int[ParticleCount];
             ParticleParentIndices = new int[ParticleCount];
 
@@ -287,6 +315,11 @@ namespace Nuclei3
                     ParticleYAxesXyz[particleIndex * 3 + 2] = (float)yAxis.Z;
                     ParticleGroupIndices[particleIndex] = groupIndex;
                     ParticleParentIndices[particleIndex] = parentFlatIndex;
+                    Point3d home = group.ant ? plane.Origin : particle.home.Origin;
+                    ParticleHomesXyz[particleIndex * 3] = (float)home.X;
+                    ParticleHomesXyz[particleIndex * 3 + 1] = (float)home.Y;
+                    ParticleHomesXyz[particleIndex * 3 + 2] = (float)home.Z;
+                    ParticleAntStates[particleIndex] = group.ant && particle.foundFood ? 1u : 0u;
 
                     particleIndex++;
                 }
@@ -295,9 +328,32 @@ namespace Nuclei3
 
         void CaptureParticleGroups(IList<ParticleGroup> particleGroups)
         {
-            CaptureGroupSettings(particleGroups, out GroupData0, out GroupData1, out HasAntParticles);
+            CaptureGroupSettings(particleGroups, out GroupData0, out GroupData1, out HasAntParticles, out HasSlimeParticles);
             GroupColorData = CaptureGroupColors(particleGroups);
             GroupCount = particleGroups != null ? particleGroups.Count : 0;
+            ParticleGroups = new ParticleGroup[GroupCount];
+            for (int i = 0; i < GroupCount; i++)
+            {
+                ParticleGroup source = particleGroups[i];
+                if (source == null)
+                {
+                    ParticleGroups[i] = new ParticleGroup();
+                    continue;
+                }
+
+                ParticleGroups[i] = new ParticleGroup(
+                    source.speed,
+                    source.sensorDistance,
+                    source.sensorAngle,
+                    source.rotationAngle,
+                    source.depositValue,
+                    source.wanderFrequency,
+                    source.baseWanderFrequency,
+                    source.color)
+                {
+                    ant = source.ant
+                };
+            }
         }
 
         public static float[] CaptureGroupColors(IList<ParticleGroup> particleGroups)
@@ -329,12 +385,14 @@ namespace Nuclei3
             IList<ParticleGroup> particleGroups,
             out float[] groupData0,
             out float[] groupData1,
-            out bool hasAntParticles)
+            out bool hasAntParticles,
+            out bool hasSlimeParticles)
         {
             int groupCount = particleGroups != null ? particleGroups.Count : 0;
             groupData0 = new float[groupCount * 4];
             groupData1 = new float[groupCount * 4];
             hasAntParticles = false;
+            hasSlimeParticles = false;
 
             if (particleGroups == null)
             {
@@ -353,6 +411,10 @@ namespace Nuclei3
                 {
                     hasAntParticles = true;
                 }
+                else
+                {
+                    hasSlimeParticles = true;
+                }
 
                 double sensorAngle = Math.PI * group.sensorAngle / 180.0;
                 double rotationAngle = Math.PI * group.rotationAngle / 180.0;
@@ -365,12 +427,34 @@ namespace Nuclei3
                 groupData0[offset] = (float)group.speed;
                 groupData0[offset + 1] = (float)group.sensorDistance;
                 groupData0[offset + 2] = (float)sensorAngle;
-                groupData0[offset + 3] = 0;
+                groupData0[offset + 3] = (float)group.wanderFrequency;
 
                 groupData1[offset] = (float)rotationAngle;
-                groupData1[offset + 1] = 0;
+                groupData1[offset + 1] = group.ant ? 1 : 0;
                 groupData1[offset + 2] = (float)group.depositValue;
                 groupData1[offset + 3] = wanderFrequency;
+            }
+        }
+
+        void DetectPopulationKinds(IList<ParticleGroup> particleGroups)
+        {
+            HasAntParticles = false;
+            HasSlimeParticles = false;
+            if (particleGroups == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < particleGroups.Count; i++)
+            {
+                ParticleGroup group = particleGroups[i];
+                if (group == null)
+                {
+                    continue;
+                }
+
+                if (group.ant) HasAntParticles = true;
+                else HasSlimeParticles = true;
             }
         }
 

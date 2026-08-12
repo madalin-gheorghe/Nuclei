@@ -103,7 +103,8 @@ namespace Nuclei3
             bool shouldResetState = reset
                 || voxels == null
                 || particles == null
-                || !StateMatches(inputVoxels, inputParticleGroups);
+                || !StateMatches(inputVoxels, inputParticleGroups)
+                || (fullSolverEngine != null && !fullSolverEngine.SupportsPopulationCapacity(solverSettings));
             bool stateResetFailed = false;
 
             if (shouldResetState)
@@ -130,13 +131,7 @@ namespace Nuclei3
             atMaxIterationsAtEntry = !reset && iteration >= solverSettings.MaxIterations;
 
             bool settingsSupported = true;
-            if (solverSettings.DynamicPopulation)
-            {
-                unsupportedGpuReason = "Dynamic population is not supported by Solver GPU yet.";
-                settingsSupported = false;
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, unsupportedGpuReason);
-            }
-            else if (unsupportedGpuReason == "Dynamic population is not supported by Solver GPU yet.")
+            if (unsupportedGpuReason == "Dynamic population is not supported by Solver GPU yet.")
             {
                 unsupportedGpuReason = "";
             }
@@ -178,6 +173,7 @@ namespace Nuclei3
                     stageStart = Stopwatch.GetTimestamp();
                     solverResult = RunGpuSolverStep(solverSettings, needsVoxelSync, needsFullParticleOutput, buildPreviewDuringFullParticleSync);
                     engineTicks = Stopwatch.GetTimestamp() - stageStart;
+                    particleCount = solverResult.ParticleCount;
                     iteration++;
                     if (solverResult.QueuedPreviewReadback)
                     {
@@ -255,9 +251,13 @@ namespace Nuclei3
 
         void ResetState(Voxel[,,] inputVoxels, List<ParticleGroup> inputParticleGroups, SolverGpuSettings settings, bool enableDensityFieldPreview, bool enableParticlePreview, bool enableParticleTrailPreview, int densityPreviewScale)
         {
+            Stopwatch resetTimer = Stopwatch.StartNew();
+            Stopwatch stageTimer = Stopwatch.StartNew();
             SolverGpuInputSnapshot snapshot = SolverGpuInputSnapshot.Capture(inputVoxels, inputParticleGroups);
+            double snapshotMs = stageTimer.Elapsed.TotalMilliseconds;
+            stageTimer.Restart();
 
-            DisposeGpuEngines();
+            bool usedFastReset = fullSolverEngine != null && fullSolverEngine.CanFastReset(snapshot, settings);
 
             voxels = snapshot.Voxels;
             inputVoxelReference = inputVoxels;
@@ -270,6 +270,9 @@ namespace Nuclei3
             activeVoxelCount = snapshot.ActiveVoxelCount;
             particleCount = snapshot.ParticleCount;
             particleGroupCount = snapshot.GroupCount;
+            antParticles = snapshot.HasAntParticles;
+            particleGroupReferences = snapshot.ParticleGroups ?? new ParticleGroup[0];
+            Globals.particleGroups = new List<ParticleGroup>(particleGroupReferences);
             particleGroupParticleCounts = CaptureInputParticleGroupCounts(inputParticleGroups);
             gpuDensityFieldPreviewEnabled = enableDensityFieldPreview;
             gpuParticlePreviewEnabled = enableParticlePreview;
@@ -279,19 +282,39 @@ namespace Nuclei3
             lastPreviewReadbackQueuedIteration = -1;
             ConfigurePreviewCacheRefresh();
 
-            if (snapshot.HasAntParticles)
+            if (gpuStatus != null && gpuStatus.Available && snapshot.ResX > 0 && snapshot.ResY > 0 && snapshot.ResZ > 0)
             {
-                unsupportedGpuReason = "Ant particle groups are not supported by Solver GPU yet.";
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, unsupportedGpuReason);
-                return;
-            }
+                if (usedFastReset)
+                {
+                    try
+                    {
+                        fullSolverEngine.FastReset(snapshot, settings);
+                    }
+                    catch
+                    {
+                        usedFastReset = false;
+                        DisposeGpuEngines();
+                    }
+                }
 
-            if (gpuStatus != null && gpuStatus.Available && snapshot.VoxelDensity != null && snapshot.VoxelDensity.Length > 0)
-            {
-                fullSolverEngine = new GpuFullSlimeSolverEngine(snapshot, enableDensityFieldPreview, enableParticlePreview, enableParticleTrailPreview, settings.TrailSize, densityPreviewScale);
+                if (!usedFastReset)
+                {
+                    DisposeGpuEngines();
+                    fullSolverEngine = new GpuFullSlimeSolverEngine(snapshot, settings, enableDensityFieldPreview, enableParticlePreview, enableParticleTrailPreview, settings.TrailSize, densityPreviewScale);
+                }
                 ConfigureGpuParticlePreviewProvider();
                 ConfigureGpuParticleTrailPreviewProvider();
             }
+
+            double restoreMs = stageTimer.Elapsed.TotalMilliseconds;
+            TimingReporter.WriteGpuReset(
+                usedFastReset ? "fast" : "full",
+                particleCount,
+                snapshot.ResX * snapshot.ResY * snapshot.ResZ,
+                createTimingContext(settings),
+                resetTimer.Elapsed.TotalMilliseconds,
+                snapshotMs,
+                restoreMs);
         }
 
         void ClearParticleTrails(ParticleList particleList)
@@ -394,7 +417,6 @@ namespace Nuclei3
             return inputVoxels.GetLength(0) == resX
                 && inputVoxels.GetLength(1) == resY
                 && inputVoxels.GetLength(2) == resZ
-                && !HasAntParticleGroups(inputParticleGroups)
                 && InputParticleGroupCountsMatch(inputParticleGroups);
         }
 
@@ -492,14 +514,9 @@ namespace Nuclei3
             float[] groupData1;
             float[] groupColorData;
             bool hasAntParticles;
-            SolverGpuInputSnapshot.CaptureGroupSettings(inputParticleGroups, out groupData0, out groupData1, out hasAntParticles);
+            bool hasSlimeParticles;
+            SolverGpuInputSnapshot.CaptureGroupSettings(inputParticleGroups, out groupData0, out groupData1, out hasAntParticles, out hasSlimeParticles);
             groupColorData = SolverGpuInputSnapshot.CaptureGroupColors(inputParticleGroups);
-
-            if (hasAntParticles)
-            {
-                unsupportedGpuReason = "Ant particle groups are not supported by Solver GPU yet.";
-                return false;
-            }
 
             ApplyLiveParticleGroupMetadata(inputParticleGroups);
 
@@ -519,37 +536,17 @@ namespace Nuclei3
 
         void ApplyLiveParticleGroupMetadata(List<ParticleGroup> inputParticleGroups)
         {
-            if (particles == null || inputParticleGroups == null)
+            if (inputParticleGroups == null || particleGroupReferences == null)
             {
                 return;
             }
 
-            HashSet<ParticleGroup> updatedGroups = new HashSet<ParticleGroup>();
-            int particleOffset = 0;
-            for (int groupIndex = 0; groupIndex < inputParticleGroups.Count; groupIndex++)
+            int count = Math.Min(inputParticleGroups.Count, particleGroupReferences.Length);
+            for (int groupIndex = 0; groupIndex < count; groupIndex++)
             {
                 ParticleGroup inputGroup = inputParticleGroups[groupIndex];
-                int groupParticleCount = inputGroup != null && inputGroup.particles != null ? inputGroup.particles.Count : 0;
-
-                for (int localIndex = 0; localIndex < groupParticleCount && particleOffset + localIndex < particles.Count; localIndex++)
-                {
-                    Particle particle = particles[particleOffset + localIndex];
-                    if (particle == null || inputGroup == null)
-                    {
-                        continue;
-                    }
-
-                    if (particle.parentParticleGroup == null)
-                    {
-                        particle.parentParticleGroup = inputGroup;
-                    }
-                    else if (updatedGroups.Add(particle.parentParticleGroup))
-                    {
-                        CopyParticleGroupSettings(inputGroup, particle.parentParticleGroup);
-                    }
-                }
-
-                particleOffset += groupParticleCount;
+                ParticleGroup targetGroup = particleGroupReferences[groupIndex];
+                CopyParticleGroupSettings(inputGroup, targetGroup);
             }
         }
 
@@ -689,6 +686,7 @@ namespace Nuclei3
             {
                 status += " | gpu step ms: " + solverResult.TotalMilliseconds.ToString("0.###")
                     + " | particle ms: " + solverResult.ParticleMilliseconds.ToString("0.###")
+                    + " | population ms: " + solverResult.PopulationMilliseconds.ToString("0.###")
                     + " | diffusion ms: " + solverResult.DiffusionMilliseconds.ToString("0.###")
                     + " | readback ms: " + solverResult.ReadbackMilliseconds.ToString("0.###")
                     + " | sync: " + ParticleSyncMarker(solverResult) + (solverResult.SyncedVoxels ? "v" : "-")
@@ -1070,6 +1068,7 @@ namespace Nuclei3
             timingInputsTicks = 0;
             timingEngineTicks = 0;
             timingGpuMoveMs = 0;
+            timingGpuPopulationMs = 0;
             timingGpuDiffuseMs = 0;
             timingGpuReadbackMs = 0;
             timingOutputsTicks = 0;
@@ -1186,6 +1185,7 @@ namespace Nuclei3
             if (solverResult != null)
             {
                 timingGpuMoveMs += solverResult.ParticleMilliseconds;
+                timingGpuPopulationMs += solverResult.PopulationMilliseconds;
                 timingGpuDiffuseMs += solverResult.DiffusionMilliseconds;
                 timingGpuReadbackMs += solverResult.ReadbackMilliseconds;
             }
@@ -1211,6 +1211,7 @@ namespace Nuclei3
                 TimingReporter.TicksToMilliseconds(timingInputsTicks, timingSampleCount),
                 timingGpuMoveMs / timingSampleCount,
                 timingGpuDiffuseMs / timingSampleCount,
+                timingGpuPopulationMs / timingSampleCount,
                 timingGpuReadbackMs / timingSampleCount,
                 TimingReporter.TicksToMilliseconds(timingOutputsTicks, timingSampleCount),
                 TimingReporter.TicksToMilliseconds(timingSetParticlesTicks, timingSampleCount),
@@ -1230,8 +1231,8 @@ namespace Nuclei3
             context.Diffuse = settings.Diffuse;
             context.DiffuseRange = settings.DiffuseRange;
             context.Decay = settings.Decay;
-            context.AntParticles = false;
-            context.DiffuseRangeAnt = 0;
+            context.AntParticles = antParticles;
+            context.DiffuseRangeAnt = settings.AntDiffuseRange;
             context.TrailSize = settings.TrailSize;
             context.TrailFreq = settings.TrailFreq;
             context.DynPop = settings.DynamicPopulation;
@@ -1259,7 +1260,12 @@ namespace Nuclei3
                 + "|" + context.Diffuse
                 + "|" + context.DiffuseRange
                 + "|" + context.Decay
+                + "|" + (context.AntParticles ? "1" : "0")
+                + "|" + context.DiffuseRangeAnt
                 + "|" + context.MaxIterations
+                + "|" + (context.DynPop ? "1" : "0")
+                + "|" + (context.Division ? "1" : "0")
+                + "|" + (context.Death ? "1" : "0")
                 + "|" + context.GpuPreviewMode
                 + "|" + (context.GpuDensityFieldPreview ? "1" : "0");
         }
@@ -1275,6 +1281,8 @@ namespace Nuclei3
         int activeVoxelCount;
         int particleCount;
         int particleGroupCount;
+        bool antParticles;
+        ParticleGroup[] particleGroupReferences = new ParticleGroup[0];
         int[] particleGroupParticleCounts = new int[0];
         int iteration = 0;
         int lastPreviewReadbackQueuedIteration = -1;
@@ -1286,6 +1294,7 @@ namespace Nuclei3
         long timingInputsTicks = 0;
         long timingEngineTicks = 0;
         double timingGpuMoveMs = 0;
+        double timingGpuPopulationMs = 0;
         double timingGpuDiffuseMs = 0;
         double timingGpuReadbackMs = 0;
         long timingOutputsTicks = 0;

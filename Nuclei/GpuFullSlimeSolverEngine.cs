@@ -18,6 +18,7 @@ namespace Nuclei3
     {
         public double TotalMilliseconds;
         public double ParticleMilliseconds;
+        public double PopulationMilliseconds;
         public double DiffusionMilliseconds;
         public double ReadbackMilliseconds;
         public int Passes;
@@ -57,24 +58,41 @@ namespace Nuclei3
         ID3D11ComputeShader applyDepositsShader;
         ID3D11ComputeShader clearCountsShader;
         ID3D11ComputeShader countParticlesShader;
+        ID3D11ComputeShader seedNeighbourCountsShader;
+        ID3D11ComputeShader sumNeighbourAxisShader;
+        ID3D11ComputeShader applyParticleDeathShader;
+        ID3D11ComputeShader applyParticleDivisionShader;
         ID3D11ComputeShader diffusionShader;
         ID3D11ComputeShader decayShader;
         ID3D11ComputeShader densityPreviewShader;
+        ID3D11ComputeShader combinedDensityPreviewShader;
         ID3D11ComputeShader particlePreviewShader;
         ID3D11ComputeShader particleTrailPreviewShader;
 
         ID3D11Buffer densityA;
         ID3D11Buffer densityB;
         ID3D11Buffer densityReadbackBuffer;
+        ID3D11Buffer antFoodA;
+        ID3D11Buffer antFoodB;
+        ID3D11Buffer antBaseA;
+        ID3D11Buffer antBaseB;
+        ID3D11Buffer antFoodReadbackBuffer;
+        ID3D11Buffer antBaseReadbackBuffer;
+        ID3D11Buffer antFoodRemainingReadbackBuffer;
         ID3D11Buffer particlePositionBuffer;
         ID3D11Buffer particleDirectionBuffer;
         ID3D11Buffer particleYAxisBuffer;
+        ID3D11Buffer particleHomeBuffer;
         ID3D11Buffer particlePositionReadbackBuffer;
         ID3D11Buffer particleDirectionReadbackBuffer;
         ID3D11Buffer particleYAxisReadbackBuffer;
+        ID3D11Buffer particleAuxReadbackBuffer;
+        ID3D11Buffer populationStateReadbackBuffer;
         readonly ID3D11Buffer[] particlePositionPreviewReadbackBuffers = new ID3D11Buffer[PreviewReadbackBufferCount];
         ID3D11Buffer particleCountBuffer;
         ID3D11Buffer depositBuffer;
+        ID3D11Buffer neighbourCountA;
+        ID3D11Buffer neighbourCountB;
         ID3D11Buffer groupData0Buffer;
         ID3D11Buffer groupData1Buffer;
         ID3D11Buffer groupColorDataBuffer;
@@ -84,6 +102,7 @@ namespace Nuclei3
         ID3D11Buffer voxelDensityLimitsBuffer;
         ID3D11Buffer parameterBuffer;
         ID3D11Buffer weightsBuffer;
+        ID3D11Buffer antWeightsBuffer;
         ID3D11Texture2D densityPreviewTexture;
         readonly ID3D11Texture2D[] staticFieldPreviewTextures = new ID3D11Texture2D[VoxelPreviewField.StaticFieldCount];
         ID3D11Texture2D particlePreviewTexture;
@@ -93,11 +112,22 @@ namespace Nuclei3
 
         ID3D11UnorderedAccessView densityAView;
         ID3D11UnorderedAccessView densityBView;
+        ID3D11UnorderedAccessView antFoodAView;
+        ID3D11UnorderedAccessView antFoodBView;
+        ID3D11UnorderedAccessView antBaseAView;
+        ID3D11UnorderedAccessView antBaseBView;
+        ID3D11ShaderResourceView antFoodAResourceView;
+        ID3D11ShaderResourceView antFoodBResourceView;
+        ID3D11ShaderResourceView antBaseAResourceView;
+        ID3D11ShaderResourceView antBaseBResourceView;
         ID3D11UnorderedAccessView particlePositionView;
         ID3D11UnorderedAccessView particleDirectionView;
         ID3D11UnorderedAccessView particleYAxisView;
+        ID3D11UnorderedAccessView particleHomeView;
         ID3D11UnorderedAccessView particleCountView;
         ID3D11UnorderedAccessView depositView;
+        ID3D11UnorderedAccessView neighbourCountAView;
+        ID3D11UnorderedAccessView neighbourCountBView;
         ID3D11ShaderResourceView groupData0View;
         ID3D11ShaderResourceView groupData1View;
         ID3D11ShaderResourceView groupColorDataView;
@@ -106,6 +136,7 @@ namespace Nuclei3
         ID3D11ShaderResourceView voxelVectorView;
         ID3D11ShaderResourceView voxelDensityLimitsView;
         ID3D11ShaderResourceView weightsView;
+        ID3D11ShaderResourceView antWeightsView;
         ID3D11UnorderedAccessView densityPreviewTextureView;
         ID3D11UnorderedAccessView particlePreviewTextureView;
         ID3D11UnorderedAccessView particleTrailPreviewTextureView;
@@ -114,7 +145,8 @@ namespace Nuclei3
         readonly int resY;
         readonly int resZ;
         readonly int voxelCount;
-        readonly int particleCount;
+        readonly int particleCapacity;
+        int particleCount;
         readonly int groupCount;
         readonly float voxelSize;
         bool enableSharedDensityPreview;
@@ -124,16 +156,29 @@ namespace Nuclei3
         readonly float dimY;
         readonly float dimZ;
         readonly float[] densityReadback;
+        readonly float[] antFoodReadback;
+        readonly float[] antBaseReadback;
+        readonly int[] antFoodRemainingReadback;
         readonly float[] particlePositionReadback;
         readonly float[] particleDirectionReadback;
         readonly float[] particleYAxisReadback;
         readonly float[] particlePositionPreviewReadback;
+        readonly int[] particleAuxReadback;
+        readonly int[] particleSlotGenerations;
+        readonly int[] populationStateReadback = new int[4];
+        readonly Particle[] particleSlots;
+        readonly ParticleGroup[] particleGroups;
         Voxel[,,] staticPreviewVoxels;
         readonly bool[] previewReadbackPending = new bool[PreviewReadbackBufferCount];
         readonly int[] previewReadbackSequences = new int[PreviewReadbackBufferCount];
 
         bool densityInA = true;
+        bool antFoodInA = true;
+        bool antBaseInA = true;
+        readonly bool hasAntParticles;
+        readonly bool hasSlimeParticles;
         int weightsRange = int.MinValue;
+        int antWeightsRange = int.MinValue;
         int previewReadbackNextIndex = 0;
         int previewReadbackSequenceCounter = 0;
         int previewReadbackCompletedSequence = 0;
@@ -146,6 +191,8 @@ namespace Nuclei3
         int densityPreviewAtlasRows = 1;
         int densityPreviewScale = 1;
         long densityPreviewVersion = 0;
+        int densityPreviewValueIndex = VoxelPreviewField.SlimeChemoattractants;
+        bool densityPreviewColorTexture;
         readonly IntPtr[] staticFieldPreviewSharedHandles = new IntPtr[VoxelPreviewField.StaticFieldCount];
         readonly int[] staticFieldPreviewWidths = new int[VoxelPreviewField.StaticFieldCount];
         readonly int[] staticFieldPreviewHeights = new int[VoxelPreviewField.StaticFieldCount];
@@ -172,7 +219,7 @@ namespace Nuclei3
         float[] particleTrailPreviewGroupColorData;
         long particleTrailPreviewVersion = 0;
 
-        public GpuFullSlimeSolverEngine(SolverGpuInputSnapshot snapshot, bool enableSharedDensityPreview, bool enableSharedParticlePreview, bool enableSharedParticleTrailPreview, int particleTrailSize, int densityPreviewScale)
+        public GpuFullSlimeSolverEngine(SolverGpuInputSnapshot snapshot, SolverGpuSettings settings, bool enableSharedDensityPreview, bool enableSharedParticlePreview, bool enableSharedParticleTrailPreview, int particleTrailSize, int densityPreviewScale)
         {
             if (snapshot == null)
             {
@@ -184,7 +231,20 @@ namespace Nuclei3
             resZ = snapshot.ResZ;
             voxelCount = Math.Max(0, resX * resY * resZ);
             particleCount = Math.Max(0, snapshot.ParticleCount);
+            int requestedCapacity = settings != null && settings.DynamicPopulation
+                ? settings.MaximumPopulation
+                : particleCount;
+            particleCapacity = Math.Max(particleCount, Math.Max(0, requestedCapacity));
             groupCount = Math.Max(0, snapshot.GroupCount);
+            hasAntParticles = snapshot.HasAntParticles;
+            hasSlimeParticles = snapshot.HasSlimeParticles;
+            particleGroups = snapshot.ParticleGroups ?? new ParticleGroup[groupCount];
+            particleSlots = new Particle[particleCapacity];
+            int snapshotParticleObjectCount = snapshot.Particles != null ? snapshot.Particles.Count : 0;
+            for (int i = 0; i < particleCount && i < snapshotParticleObjectCount; i++)
+            {
+                particleSlots[i] = snapshot.Particles[i];
+            }
             particleTrailPreviewGroupColorData = snapshot.GroupColorData;
             voxelSize = snapshot.VoxelSize > 0 ? snapshot.VoxelSize : 1.0f;
             this.densityPreviewScale = NormalizeDensityPreviewScale(densityPreviewScale);
@@ -201,16 +261,28 @@ namespace Nuclei3
                 throw new ArgumentException("GPU solver requires at least one voxel.");
             }
 
-            densityReadback = new float[voxelCount];
-            particlePositionReadback = new float[particleCount * 4];
-            particleDirectionReadback = new float[particleCount * 4];
-            particleYAxisReadback = new float[particleCount * 4];
-            particlePositionPreviewReadback = new float[particleCount * 4];
+            densityReadback = hasSlimeParticles ? new float[voxelCount] : new float[0];
+            antFoodReadback = hasAntParticles ? new float[voxelCount] : new float[0];
+            antBaseReadback = hasAntParticles ? new float[voxelCount] : new float[0];
+            antFoodRemainingReadback = hasAntParticles ? new int[voxelCount] : new int[0];
+            particlePositionReadback = new float[particleCapacity * 4];
+            particleDirectionReadback = new float[particleCapacity * 4];
+            particleYAxisReadback = new float[particleCapacity * 4];
+            particlePositionPreviewReadback = new float[particleCapacity * 4];
+            particleAuxReadback = new int[particleCapacity * 5];
+            particleSlotGenerations = new int[particleCapacity];
             staticPreviewVoxels = snapshot.Voxels;
 
             CreateDevice(out device, out context);
             CompileShaders();
-            CreateDensityBuffers(snapshot.VoxelDensity);
+            if (hasSlimeParticles)
+            {
+                CreateDensityBuffers(snapshot.VoxelDensity);
+            }
+            if (hasAntParticles)
+            {
+                CreateAntFieldBuffers(snapshot.AntFoodPheromone, snapshot.AntBasePheromone);
+            }
             CreateParameterBuffer();
             if (enableSharedDensityPreview)
             {
@@ -224,7 +296,7 @@ namespace Nuclei3
             {
                 CreateParticleTrailPreviewTexture(particleTrailPreviewTrailSize);
             }
-            CreateVoxelFlagBuffer(snapshot.VoxelFlags);
+            CreateVoxelFlagBuffer(snapshot);
             CreateVoxelBehaviorBuffers(snapshot);
             CreateParticleBuffers(snapshot);
             CreateGroupBuffers(snapshot);
@@ -244,6 +316,152 @@ namespace Nuclei3
         public bool Matches(int x, int y, int z, int particles)
         {
             return resX == x && resY == y && resZ == z && particleCount == particles;
+        }
+
+        public bool SupportsPopulationCapacity(SolverGpuSettings settings)
+        {
+            return settings == null || !settings.DynamicPopulation || settings.MaximumPopulation <= particleCapacity;
+        }
+
+        public bool CanFastReset(SolverGpuInputSnapshot snapshot, SolverGpuSettings settings)
+        {
+            if (snapshot == null || settings == null)
+            {
+                return false;
+            }
+
+            return snapshot.ResX == resX
+                && snapshot.ResY == resY
+                && snapshot.ResZ == resZ
+                && Math.Abs(snapshot.VoxelSize - voxelSize) < 0.000001f
+                && snapshot.ParticleCount <= particleCapacity
+                && snapshot.GroupCount == groupCount
+                && snapshot.HasAntParticles == hasAntParticles
+                && snapshot.HasSlimeParticles == hasSlimeParticles
+                && SupportsPopulationCapacity(settings);
+        }
+
+        public void FastReset(SolverGpuInputSnapshot snapshot, SolverGpuSettings settings)
+        {
+            if (!CanFastReset(snapshot, settings))
+            {
+                throw new InvalidOperationException("GPU solver state is not compatible with fast reset.");
+            }
+
+            UnbindComputeResources();
+            particleCount = snapshot.ParticleCount;
+            staticPreviewVoxels = snapshot.Voxels;
+
+            Array.Clear(particleSlots, 0, particleSlots.Length);
+            int snapshotParticleCount = snapshot.Particles != null ? snapshot.Particles.Count : 0;
+            for (int i = 0; i < particleCount && i < snapshotParticleCount; i++)
+            {
+                particleSlots[i] = snapshot.Particles[i];
+            }
+            if (snapshot.ParticleGroups == null || snapshot.ParticleGroups.Length != groupCount)
+            {
+                throw new InvalidOperationException("GPU reset particle groups do not match the existing solver.");
+            }
+            for (int i = 0; i < groupCount; i++)
+            {
+                particleGroups[i] = snapshot.ParticleGroups[i];
+            }
+
+            if (hasSlimeParticles)
+            {
+                float[] initialDensity = snapshot.VoxelDensity != null && snapshot.VoxelDensity.Length == voxelCount
+                    ? snapshot.VoxelDensity
+                    : new float[voxelCount];
+                context.UpdateSubresourceSafe(initialDensity, densityA, 0, 0, 0, 0, false);
+                context.UpdateSubresourceSafe(initialDensity, densityB, 0, 0, 0, 0, false);
+                densityInA = true;
+            }
+
+            if (hasAntParticles)
+            {
+                float[] initialFoodPheromone = snapshot.AntFoodPheromone != null && snapshot.AntFoodPheromone.Length == voxelCount
+                    ? snapshot.AntFoodPheromone
+                    : new float[voxelCount];
+                float[] initialBasePheromone = snapshot.AntBasePheromone != null && snapshot.AntBasePheromone.Length == voxelCount
+                    ? snapshot.AntBasePheromone
+                    : new float[voxelCount];
+                context.UpdateSubresourceSafe(initialFoodPheromone, antFoodA, 0, 0, 0, 0, false);
+                context.UpdateSubresourceSafe(initialFoodPheromone, antFoodB, 0, 0, 0, 0, false);
+                context.UpdateSubresourceSafe(initialBasePheromone, antBaseA, 0, 0, 0, 0, false);
+                context.UpdateSubresourceSafe(initialBasePheromone, antBaseB, 0, 0, 0, 0, false);
+                antFoodInA = true;
+                antBaseInA = true;
+            }
+
+            float[] positions;
+            float[] directions;
+            float[] yAxes;
+            float[] homes;
+            BuildParticleBufferData(snapshot, out positions, out directions, out yAxes, out homes);
+            if (particleCapacity > 0)
+            {
+                context.UpdateSubresourceSafe(positions, particlePositionBuffer, 0, 0, 0, 0, false);
+                context.UpdateSubresourceSafe(directions, particleDirectionBuffer, 0, 0, 0, 0, false);
+                context.UpdateSubresourceSafe(yAxes, particleYAxisBuffer, 0, 0, 0, 0, false);
+                context.UpdateSubresourceSafe(homes, particleHomeBuffer, 0, 0, 0, 0, false);
+            }
+
+            uint[] particleCounts;
+            uint[] depositAndParticleAux;
+            BuildAuxiliaryState(snapshot, out particleCounts, out depositAndParticleAux);
+            context.UpdateSubresourceSafe(particleCounts, particleCountBuffer, 0, 0, 0, 0, false);
+            context.UpdateSubresourceSafe(depositAndParticleAux, depositBuffer, 0, 0, 0, 0, false);
+
+            float[] zeroVoxelState = new float[voxelCount];
+            context.UpdateSubresourceSafe(zeroVoxelState, neighbourCountA, 0, 0, 0, 0, false);
+            context.UpdateSubresourceSafe(zeroVoxelState, neighbourCountB, 0, 0, 0, 0, false);
+
+            if (!UpdateGroupSettings(snapshot.GroupData0, snapshot.GroupData1, snapshot.GroupColorData)
+                || !UpdateVoxelBehaviorFields(snapshot))
+            {
+                throw new InvalidOperationException("GPU reset could not restore group or voxel fields.");
+            }
+
+            Array.Clear(densityReadback, 0, densityReadback.Length);
+            Array.Clear(antFoodReadback, 0, antFoodReadback.Length);
+            Array.Clear(antBaseReadback, 0, antBaseReadback.Length);
+            Array.Clear(antFoodRemainingReadback, 0, antFoodRemainingReadback.Length);
+            Array.Clear(particlePositionReadback, 0, particlePositionReadback.Length);
+            Array.Clear(particleDirectionReadback, 0, particleDirectionReadback.Length);
+            Array.Clear(particleYAxisReadback, 0, particleYAxisReadback.Length);
+            Array.Clear(particlePositionPreviewReadback, 0, particlePositionPreviewReadback.Length);
+            Array.Clear(particleAuxReadback, 0, particleAuxReadback.Length);
+            Array.Clear(particleSlotGenerations, 0, particleSlotGenerations.Length);
+            Array.Clear(populationStateReadback, 0, populationStateReadback.Length);
+
+            ResetPreviewReadbackState();
+            ResetParticleTrailPreviewHistory();
+            DispatchClearParticleCounts(0);
+            DispatchCountParticles(0);
+
+            SolverGpuDimensionMode dimensionMode = SolverGpuDimensionMode.FromResolution(resX, resY, resZ);
+            if (enableSharedDensityPreview && densityPreviewTextureView != null)
+            {
+                DispatchDensityPreviewPass(settings, dimensionMode, 0);
+            }
+            if (enableSharedParticlePreview && particlePreviewTextureView != null)
+            {
+                DispatchParticlePreviewPass(settings, dimensionMode, 0);
+            }
+            if (enableSharedParticleTrailPreview && particleTrailPreviewTextureView != null)
+            {
+                DispatchParticleTrailPreviewPass(
+                    new SolverGpuSettings { TrailSize = particleTrailPreviewTrailSize, TrailFreq = 1 },
+                    dimensionMode,
+                    0);
+            }
+            context.Flush();
+        }
+
+        public int SynchronizeActiveParticleCount()
+        {
+            ReadBackPopulationState();
+            return particleCount;
         }
 
         static int DiffusionOrderIndex(int iteration)
@@ -311,9 +529,9 @@ namespace Nuclei3
         int ClampTrailPreviewSizeForParticleCount(int trailSize)
         {
             trailSize = NormalizeTrailPreviewSize(trailSize);
-            if (trailSize <= 1 || particleCount <= 0) return 0;
+            if (trailSize <= 1 || particleCapacity <= 0) return 0;
 
-            int maxSamplesForParticles = MaxParticleTrailPreviewTexels / Math.Max(1, particleCount);
+            int maxSamplesForParticles = MaxParticleTrailPreviewTexels / Math.Max(1, particleCapacity);
             if (maxSamplesForParticles < 2) return 0;
             return Math.Min(trailSize, maxSamplesForParticles);
         }
@@ -376,7 +594,10 @@ namespace Nuclei3
             int passCount = 0;
             bool movedParticles = false;
 
-            EnsureWeights(settings.DiffuseRange);
+            if (hasSlimeParticles)
+            {
+                EnsureWeights(settings.DiffuseRange);
+            }
 
             if (particleCount > 0 && iteration > 1)
             {
@@ -391,7 +612,15 @@ namespace Nuclei3
             double particleMs = stage.Elapsed.TotalMilliseconds;
 
             stage.Restart();
-            if (settings.Diffuse > 0)
+            if (settings.DynamicPopulation && particleCapacity > 0 && iteration > 1)
+            {
+                DispatchDynamicPopulation(settings, dimensionMode, iteration);
+            }
+            stage.Stop();
+            double populationMs = stage.Elapsed.TotalMilliseconds;
+
+            stage.Restart();
+            if (hasSlimeParticles && settings.Diffuse > 0)
             {
                 int axisCount = GetDiffusionAxisOrder(dimensionMode, iteration, diffusionAxisScratch);
                 for (int i = 0; i < axisCount; i++)
@@ -402,12 +631,20 @@ namespace Nuclei3
                 }
             }
 
-            DispatchDecayPass(settings, dimensionMode, iteration);
-            SwapDensityBuffers();
-            passCount++;
+            if (hasSlimeParticles)
+            {
+                DispatchDecayPass(settings, dimensionMode, iteration);
+                SwapDensityBuffers();
+                passCount++;
+            }
+            if (hasAntParticles)
+            {
+                passCount += DispatchAntPheromoneField(true, settings, dimensionMode, iteration);
+                passCount += DispatchAntPheromoneField(false, settings, dimensionMode, iteration);
+            }
             if (enableSharedDensityPreview)
             {
-                DispatchDensityPreviewPass(settings, dimensionMode, iteration);
+                DispatchSelectedDensityPreviewPass(settings, dimensionMode, iteration);
             }
             if (enableSharedParticlePreview)
             {
@@ -423,8 +660,10 @@ namespace Nuclei3
             stage.Restart();
             if (syncVoxels)
             {
-                ReadBackDensity();
-                ApplyDensityToVoxels(voxels);
+                if (hasSlimeParticles) ReadBackDensity();
+                if (hasAntParticles) ReadBackAntFields();
+                if (hasSlimeParticles) ApplyDensityToVoxels(voxels);
+                if (hasAntParticles) ApplyAntFieldsToVoxels(voxels);
             }
 
             bool builtPreviewCache = false;
@@ -449,6 +688,7 @@ namespace Nuclei3
             {
                 TotalMilliseconds = total.Elapsed.TotalMilliseconds,
                 ParticleMilliseconds = particleMs,
+                PopulationMilliseconds = populationMs,
                 DiffusionMilliseconds = diffusionMs,
                 ReadbackMilliseconds = readbackMs,
                 Passes = passCount,
@@ -466,7 +706,7 @@ namespace Nuclei3
 
         void DispatchMoveParticlesAndDeposit(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
         {
-            if (particleCount <= 0 || particlePositionView == null)
+            if (particleCapacity <= 0 || particlePositionView == null)
             {
                 return;
             }
@@ -476,13 +716,19 @@ namespace Nuclei3
             context.CSSetShader(moveShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetShaderResources(1, new ID3D11ShaderResourceView[] { groupData0View, groupData1View, voxelFlagsView, null, voxelBehaviorView, voxelVectorView, voxelDensityLimitsView });
+            if (hasAntParticles)
+            {
+                context.CSSetShaderResource(8, CurrentAntFoodResourceView());
+                context.CSSetShaderResource(9, CurrentAntBaseResourceView());
+                context.CSSetUnorderedAccessView(7, particleHomeView, -1);
+            }
             context.CSSetUnorderedAccessView(0, CurrentDensityView(), -1);
             context.CSSetUnorderedAccessView(2, particlePositionView, -1);
             context.CSSetUnorderedAccessView(3, particleDirectionView, -1);
             context.CSSetUnorderedAccessView(4, particleYAxisView, -1);
             context.CSSetUnorderedAccessView(5, particleCountView, -1);
             context.CSSetUnorderedAccessView(6, depositView, -1);
-            context.Dispatch(DispatchGroupCount(particleCount), 1, 1);
+            context.Dispatch(DispatchGroupCount(particleCapacity), 1, 1);
             UnbindComputeResources();
         }
 
@@ -495,6 +741,11 @@ namespace Nuclei3
             context.CSSetShaderResource(3, voxelFlagsView);
             context.CSSetShaderResource(7, voxelDensityLimitsView);
             context.CSSetUnorderedAccessView(0, CurrentDensityView(), -1);
+            if (hasAntParticles)
+            {
+                context.CSSetUnorderedAccessView(1, CurrentAntFoodView(), -1);
+                context.CSSetUnorderedAccessView(7, CurrentAntBaseView(), -1);
+            }
             context.CSSetUnorderedAccessView(6, depositView, -1);
             context.Dispatch(DispatchGroupCount(voxelCount), 1, 1);
             UnbindComputeResources();
@@ -512,13 +763,13 @@ namespace Nuclei3
             context.CSSetShader(clearCountsShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetUnorderedAccessView(5, particleCountView, -1);
-            context.Dispatch(DispatchGroupCount(voxelCount), 1, 1);
+            context.Dispatch(DispatchGroupCount(Math.Max(voxelCount, groupCount)), 1, 1);
             UnbindComputeResources();
         }
 
         void DispatchCountParticles(int iteration)
         {
-            if (particleCount <= 0 || particleCountView == null)
+            if (particleCapacity <= 0 || particleCountView == null)
             {
                 return;
             }
@@ -527,9 +778,124 @@ namespace Nuclei3
 
             context.CSSetShader(countParticlesShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+            context.CSSetShaderResource(3, voxelFlagsView);
             context.CSSetUnorderedAccessView(3, particleDirectionView, -1);
             context.CSSetUnorderedAccessView(5, particleCountView, -1);
-            context.Dispatch(DispatchGroupCount(particleCount), 1, 1);
+            context.Dispatch(DispatchGroupCount(particleCapacity), 1, 1);
+            UnbindComputeResources();
+        }
+
+        void DispatchDynamicPopulation(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
+        {
+            if (particleCapacity <= 0 || particleCountView == null || depositView == null)
+            {
+                return;
+            }
+
+            if (settings.Death && iteration % settings.DeathFrequency == 0)
+            {
+                ID3D11UnorderedAccessView neighbourView = DispatchBuildNeighbourCounts(settings.DeathRange, settings, dimensionMode, iteration);
+                DispatchParticleDeath(neighbourView, settings, dimensionMode, iteration);
+            }
+
+            if (settings.Division && iteration % settings.DivisionFrequency == 0)
+            {
+                ID3D11UnorderedAccessView neighbourView = DispatchBuildNeighbourCounts(settings.DivisionRange, settings, dimensionMode, iteration);
+                DispatchParticleDivision(neighbourView, settings, dimensionMode, iteration);
+            }
+        }
+
+        ID3D11UnorderedAccessView DispatchBuildNeighbourCounts(int range, SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
+        {
+            FullSolverParameters parameters = CreateParameters(0, settings, dimensionMode, iteration);
+            parameters.Range = Math.Max(0, range);
+            UpdateParameters(parameters);
+
+            context.CSSetShader(seedNeighbourCountsShader);
+            context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+            context.CSSetUnorderedAccessView(1, neighbourCountAView, -1);
+            context.CSSetUnorderedAccessView(5, particleCountView, -1);
+            context.Dispatch(DispatchGroupCount(voxelCount), 1, 1);
+            UnbindComputeResources();
+
+            ID3D11UnorderedAccessView current = neighbourCountAView;
+            ID3D11UnorderedAccessView next = neighbourCountBView;
+            int axisCount = GetDiffusionAxisOrder(dimensionMode, iteration, diffusionAxisScratch);
+            for (int i = 0; i < axisCount; i++)
+            {
+                int axis = diffusionAxisScratch[i];
+                parameters.Axis = axis;
+                UpdateParameters(parameters);
+
+                context.CSSetShader(sumNeighbourAxisShader);
+                context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+                context.CSSetUnorderedAccessView(0, current, -1);
+                context.CSSetUnorderedAccessView(1, next, -1);
+                context.Dispatch(DispatchLineGroupCount(NeighbourLineCount(axis)), 1, 1);
+                UnbindComputeResources();
+
+                ID3D11UnorderedAccessView swap = current;
+                current = next;
+                next = swap;
+            }
+
+            return current;
+        }
+
+        int NeighbourLineCount(int axis)
+        {
+            if (axis == 0) return resY * resZ;
+            if (axis == 1) return resX * resZ;
+            return resX * resY;
+        }
+
+        void DispatchParticleDeath(ID3D11UnorderedAccessView neighbourView, SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
+        {
+            if (neighbourView == null || applyParticleDeathShader == null)
+            {
+                return;
+            }
+
+            UpdateParameters(CreateParameters(0, settings, dimensionMode, iteration));
+            context.CSSetShader(applyParticleDeathShader);
+            context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+            context.CSSetUnorderedAccessView(0, neighbourView, -1);
+            context.CSSetUnorderedAccessView(2, particlePositionView, -1);
+            context.CSSetUnorderedAccessView(3, particleDirectionView, -1);
+            context.CSSetUnorderedAccessView(4, particleYAxisView, -1);
+            context.CSSetUnorderedAccessView(5, particleCountView, -1);
+            context.CSSetUnorderedAccessView(6, depositView, -1);
+            context.Dispatch(DispatchGroupCount(particleCapacity), 1, 1);
+            UnbindComputeResources();
+        }
+
+        void DispatchParticleDivision(ID3D11UnorderedAccessView neighbourView, SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
+        {
+            if (neighbourView == null || applyParticleDivisionShader == null)
+            {
+                return;
+            }
+
+            UpdateParameters(CreateParameters(0, settings, dimensionMode, iteration));
+            context.CSSetShader(applyParticleDivisionShader);
+            context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+            context.CSSetShaderResources(2, new ID3D11ShaderResourceView[]
+            {
+                groupData1View,
+                voxelFlagsView,
+                null,
+                null,
+                null,
+                voxelDensityLimitsView
+            });
+            context.CSSetUnorderedAccessView(0, neighbourView, -1);
+            context.CSSetUnorderedAccessView(2, particlePositionView, -1);
+            context.CSSetUnorderedAccessView(3, particleDirectionView, -1);
+            context.CSSetUnorderedAccessView(4, particleYAxisView, -1);
+            context.CSSetUnorderedAccessView(5, particleCountView, -1);
+            context.CSSetUnorderedAccessView(6, depositView, -1);
+            context.CSSetUnorderedAccessView(7, particleHomeView, -1);
+            context.Dispatch(DispatchGroupCount(particleCapacity), 1, 1);
             UnbindComputeResources();
         }
 
@@ -562,25 +928,90 @@ namespace Nuclei3
             UnbindComputeResources();
         }
 
-        void DispatchDensityPreviewPass(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
+        int DispatchAntPheromoneField(bool foodField, SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
         {
-            if (densityPreviewShader == null || densityPreviewTextureView == null || parameterBuffer == null)
+            float diffuse = (float)(foodField ? settings.AntFoodDiffuse : settings.AntBaseDiffuse);
+            float decay = (float)(foodField ? settings.AntFoodDecay : settings.AntBaseDecay);
+            int range = Math.Max(0, settings.AntDiffuseRange);
+            int passes = 0;
+
+            EnsureAntWeights(range);
+            if (diffuse > 0)
+            {
+                int axisCount = GetDiffusionAxisOrder(dimensionMode, iteration, diffusionAxisScratch);
+                for (int i = 0; i < axisCount; i++)
+                {
+                    FullSolverParameters parameters = CreateParameters(diffusionAxisScratch[i], settings, dimensionMode, iteration);
+                    parameters.Range = range;
+                    parameters.Keep = 1.0f - diffuse;
+                    parameters.Diffuse = diffuse;
+                    parameters.Decay = decay;
+                    parameters.FieldMode = foodField ? 1 : 2;
+                    UpdateParameters(parameters);
+                    context.CSSetShader(diffusionShader);
+                    context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+                    context.CSSetShaderResource(0, antWeightsView);
+                    context.CSSetShaderResource(3, voxelFlagsView);
+                    context.CSSetShaderResource(7, voxelDensityLimitsView);
+                    context.CSSetUnorderedAccessView(0, foodField ? CurrentAntFoodView() : CurrentAntBaseView(), -1);
+                    context.CSSetUnorderedAccessView(1, foodField ? NextAntFoodView() : NextAntBaseView(), -1);
+                    context.Dispatch(DispatchGroupCount(voxelCount), 1, 1);
+                    UnbindComputeResources();
+                    if (foodField) antFoodInA = !antFoodInA;
+                    else antBaseInA = !antBaseInA;
+                    passes++;
+                }
+            }
+
+            FullSolverParameters decayParameters = CreateParameters(0, settings, dimensionMode, iteration);
+            decayParameters.Decay = decay;
+            decayParameters.FieldMode = foodField ? 1 : 2;
+            UpdateParameters(decayParameters);
+            context.CSSetShader(decayShader);
+            context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+            context.CSSetShaderResource(3, voxelFlagsView);
+            context.CSSetShaderResource(7, voxelDensityLimitsView);
+            context.CSSetUnorderedAccessView(0, foodField ? CurrentAntFoodView() : CurrentAntBaseView(), -1);
+            context.CSSetUnorderedAccessView(1, foodField ? NextAntFoodView() : NextAntBaseView(), -1);
+            context.Dispatch(DispatchGroupCount(voxelCount), 1, 1);
+            UnbindComputeResources();
+            if (foodField) antFoodInA = !antFoodInA;
+            else antBaseInA = !antBaseInA;
+            return passes + 1;
+        }
+
+        void DispatchDensityPreviewPass(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration, ID3D11UnorderedAccessView sourceView = null)
+        {
+            bool colorPreview = densityPreviewColorTexture;
+            ID3D11ComputeShader previewShader = colorPreview ? combinedDensityPreviewShader : densityPreviewShader;
+            if (previewShader == null || densityPreviewTextureView == null || parameterBuffer == null)
             {
                 WriteSharedDensityPreviewStatus("dispatch_skip missing_resource shader="
-                    + (densityPreviewShader != null)
+                    + (previewShader != null)
                     + " texture_uav=" + (densityPreviewTextureView != null)
                     + " parameters=" + (parameterBuffer != null));
                 return;
             }
 
             WriteSharedDensityPreviewStatus("dispatch_begin width=" + densityPreviewWidth + " height=" + densityPreviewHeight);
-            UpdateParameters(CreateParameters(0, settings, dimensionMode, iteration));
+            FullSolverParameters previewParameters = CreateParameters(0, settings, dimensionMode, iteration);
+            previewParameters.FieldMode = densityPreviewValueIndex;
+            UpdateParameters(previewParameters);
             WriteSharedDensityPreviewStatus("dispatch_parameters_ok");
 
-            context.CSSetShader(densityPreviewShader);
+            context.CSSetShader(previewShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
-            context.CSSetUnorderedAccessView(0, CurrentDensityView(), -1);
+            context.CSSetUnorderedAccessView(0, colorPreview ? CurrentDensityView() : sourceView ?? CurrentDensityView(), -1);
+            if (colorPreview)
+            {
+                context.CSSetUnorderedAccessView(6, depositView, -1);
+            }
             context.CSSetUnorderedAccessView(7, densityPreviewTextureView, -1);
+            if (colorPreview && hasAntParticles)
+            {
+                context.CSSetShaderResource(8, CurrentAntFoodResourceView());
+                context.CSSetShaderResource(9, CurrentAntBaseResourceView());
+            }
             WriteSharedDensityPreviewStatus("dispatch_bind_ok");
             context.Dispatch((densityPreviewWidth + 15) / 16, (densityPreviewHeight + 15) / 16, 1);
             WriteSharedDensityPreviewStatus("dispatch_call_ok");
@@ -590,9 +1021,23 @@ namespace Nuclei3
             densityPreviewVersion++;
         }
 
+        void DispatchSelectedDensityPreviewPass(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
+        {
+            ID3D11UnorderedAccessView source = CurrentDensityView();
+            if (!densityPreviewColorTexture && densityPreviewValueIndex == VoxelPreviewField.AntFoodPheromones && hasAntParticles)
+            {
+                source = CurrentAntFoodView();
+            }
+            else if (!densityPreviewColorTexture && densityPreviewValueIndex == VoxelPreviewField.AntBasePheromones && hasAntParticles)
+            {
+                source = CurrentAntBaseView();
+            }
+            DispatchDensityPreviewPass(settings, dimensionMode, iteration, source);
+        }
+
         void DispatchParticlePreviewPass(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
         {
-            if (particleCount <= 0 || particlePreviewShader == null || particlePreviewTextureView == null || parameterBuffer == null || groupColorDataView == null)
+            if (particleCapacity <= 0 || particlePreviewShader == null || particlePreviewTextureView == null || parameterBuffer == null || groupColorDataView == null)
             {
                 WriteSharedParticlePreviewStatus("dispatch_skip particle_count=" + particleCount
                     + " shader=" + (particlePreviewShader != null)
@@ -609,10 +1054,12 @@ namespace Nuclei3
 
             context.CSSetShader(particlePreviewShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+            context.CSSetShaderResource(2, groupData1View);
             context.CSSetShaderResource(4, groupColorDataView);
             context.CSSetUnorderedAccessView(2, particlePositionView, -1);
+            context.CSSetUnorderedAccessView(6, depositView, -1);
             context.CSSetUnorderedAccessView(7, particlePreviewTextureView, -1);
-            context.Dispatch(DispatchGroupCount(particleCount), 1, 1);
+            context.Dispatch(DispatchGroupCount(particleCapacity), 1, 1);
             UnbindComputeResources();
             context.Flush();
             particlePreviewVersion++;
@@ -620,7 +1067,7 @@ namespace Nuclei3
 
         void DispatchParticleTrailPreviewPass(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
         {
-            if (particleCount <= 0 || particleTrailPreviewShader == null || particleTrailPreviewTextureView == null || parameterBuffer == null)
+            if (particleCapacity <= 0 || particleTrailPreviewShader == null || particleTrailPreviewTextureView == null || parameterBuffer == null)
             {
                 return;
             }
@@ -690,7 +1137,7 @@ namespace Nuclei3
                 context.CSSetUnorderedAccessView(2, particlePositionView, -1);
                 context.CSSetUnorderedAccessView(4, particleYAxisView, -1);
                 context.CSSetUnorderedAccessView(7, particleTrailPreviewTextureView, -1);
-                context.Dispatch(DispatchGroupCount(particleCount), 1, 1);
+                context.Dispatch(DispatchGroupCount(particleCapacity), 1, 1);
                 UnbindComputeResources();
                 context.Flush();
                 particleTrailPreviewVersion++;
@@ -742,7 +1189,35 @@ namespace Nuclei3
             parameters.ResY = resY;
             parameters.ResZ = resZ;
             parameters.VoxelCount = voxelCount;
-            parameters.ParticleCount = particleCount;
+            parameters.ParticleCount = particleCapacity;
+            parameters.ParticleCapacity = particleCapacity;
+            parameters.MinimumPopulation = settings.MinimumPopulation;
+            parameters.MaximumPopulation = Math.Min(settings.MaximumPopulation, particleCapacity);
+            parameters.DynamicPopulation = settings.DynamicPopulation ? 1 : 0;
+            parameters.DivisionEnabled = settings.Division ? 1 : 0;
+            parameters.DivisionMinimumAge = settings.DivisionMinimumAge;
+            parameters.DivisionRange = settings.DivisionRange;
+            parameters.DivisionMinimumNeighbours = settings.DivisionMinimumNeighbours;
+            parameters.DivisionMaximumNeighbours = settings.DivisionMaximumNeighbours;
+            parameters.DivisionFrequency = settings.DivisionFrequency;
+            parameters.DeathEnabled = settings.Death ? 1 : 0;
+            parameters.DeathMinimumAge = settings.DeathMinimumAge;
+            parameters.DeathRange = settings.DeathRange;
+            parameters.DeathMinimumNeighbours = settings.DeathMinimumNeighbours;
+            parameters.DeathMaximumNeighbours = settings.DeathMaximumNeighbours;
+            parameters.DeathFrequency = settings.DeathFrequency;
+            parameters.HasAntParticles = hasAntParticles ? 1 : 0;
+            parameters.FieldMode = 0;
+            parameters.AntDiffuseRange = settings.AntDiffuseRange;
+            parameters.HasSlimeParticles = hasSlimeParticles ? 1 : 0;
+            parameters.AntFoodDiffuse = (float)settings.AntFoodDiffuse;
+            parameters.AntFoodDecay = (float)settings.AntFoodDecay;
+            parameters.AntBaseDiffuse = (float)settings.AntBaseDiffuse;
+            parameters.AntBaseDecay = (float)settings.AntBaseDecay;
+            parameters.SlimeAntFood = (float)settings.SlimeAntFood;
+            parameters.SlimeAntBase = (float)settings.SlimeAntBase;
+            parameters.AntSlime = (float)settings.AntSlime;
+            parameters.AntPaddingFloat = 0;
             parameters.Axis = axis;
             parameters.Range = settings.DiffuseRange;
             parameters.Wrap = settings.WrapBoundaries ? 1 : 0;
@@ -854,6 +1329,46 @@ namespace Nuclei3
             return densityInA ? densityA : densityB;
         }
 
+        ID3D11UnorderedAccessView CurrentAntFoodView()
+        {
+            return antFoodInA ? antFoodAView : antFoodBView;
+        }
+
+        ID3D11UnorderedAccessView NextAntFoodView()
+        {
+            return antFoodInA ? antFoodBView : antFoodAView;
+        }
+
+        ID3D11Buffer CurrentAntFoodBuffer()
+        {
+            return antFoodInA ? antFoodA : antFoodB;
+        }
+
+        ID3D11ShaderResourceView CurrentAntFoodResourceView()
+        {
+            return antFoodInA ? antFoodAResourceView : antFoodBResourceView;
+        }
+
+        ID3D11UnorderedAccessView CurrentAntBaseView()
+        {
+            return antBaseInA ? antBaseAView : antBaseBView;
+        }
+
+        ID3D11UnorderedAccessView NextAntBaseView()
+        {
+            return antBaseInA ? antBaseBView : antBaseAView;
+        }
+
+        ID3D11Buffer CurrentAntBaseBuffer()
+        {
+            return antBaseInA ? antBaseA : antBaseB;
+        }
+
+        ID3D11ShaderResourceView CurrentAntBaseResourceView()
+        {
+            return antBaseInA ? antBaseAResourceView : antBaseBResourceView;
+        }
+
         public GpuDensityFieldPreviewFrame CreateDensityFieldPreviewFrame()
         {
             if (!enableSharedDensityPreview)
@@ -866,6 +1381,11 @@ namespace Nuclei3
                 return null;
             }
 
+            return CreateDynamicDensityFieldPreviewFrame(densityPreviewValueIndex);
+        }
+
+        GpuDensityFieldPreviewFrame CreateDynamicDensityFieldPreviewFrame(int valueIndex)
+        {
             return new GpuDensityFieldPreviewFrame
             {
                 SharedHandle = densityPreviewSharedHandle,
@@ -880,7 +1400,7 @@ namespace Nuclei3
                 AtlasRows = densityPreviewAtlasRows,
                 VoxelSize = voxelSize,
                 Version = densityPreviewVersion,
-                ValueIndex = VoxelPreviewField.SlimeChemoattractants,
+                ValueIndex = valueIndex,
                 PreviewScale = 1.35f
             };
         }
@@ -889,13 +1409,35 @@ namespace Nuclei3
         {
             if (VoxelPreviewField.IsDynamicDensity(valueIndex))
             {
+                if (valueIndex == VoxelPreviewField.SlimeChemoattractants && !hasSlimeParticles)
+                {
+                    return null;
+                }
                 int normalizedScale = NormalizeDensityPreviewScale(previewScale);
-                if (densityPreviewScale != normalizedScale)
+                if ((valueIndex == VoxelPreviewField.AntFoodPheromones
+                    || valueIndex == VoxelPreviewField.AntBasePheromones
+                    || VoxelPreviewField.IsCombinedDynamicDensity(valueIndex)) && !hasAntParticles)
+                {
+                    return null;
+                }
+                bool colorTexture = VoxelPreviewField.IsDynamicDensity(valueIndex);
+                if (densityPreviewColorTexture != colorTexture)
+                {
+                    densityPreviewValueIndex = valueIndex;
+                    densityPreviewColorTexture = colorTexture;
+                    DisposeDensityPreviewTexture();
+                }
+                if (!enableSharedDensityPreview || densityPreviewScale != normalizedScale || densityPreviewTexture == null)
                 {
                     SetSharedDensityPreviewEnabled(true, dimensionMode, normalizedScale);
                 }
+                if (valueIndex != densityPreviewValueIndex)
+                {
+                    densityPreviewValueIndex = valueIndex;
+                    DispatchSelectedDensityPreviewPass(new SolverGpuSettings(), dimensionMode, 0);
+                }
 
-                return CreateDensityFieldPreviewFrame();
+                return CreateDynamicDensityFieldPreviewFrame(valueIndex);
             }
 
             if (!VoxelPreviewField.IsStatic(valueIndex))
@@ -944,7 +1486,7 @@ namespace Nuclei3
                 SharedHandle = particlePreviewSharedHandle,
                 TextureWidth = particlePreviewWidth,
                 TextureHeight = particlePreviewHeight,
-                ParticleCount = particleCount,
+                ParticleCount = particleCapacity,
                 ResX = resX,
                 ResY = resY,
                 ResZ = resZ,
@@ -975,7 +1517,7 @@ namespace Nuclei3
                 SharedHandle = particleTrailPreviewSharedHandle,
                 TextureWidth = particleTrailPreviewWidth,
                 TextureHeight = particleTrailPreviewHeight,
-                ParticleCount = particleCount,
+                ParticleCount = particleCapacity,
                 TrailSize = particleTrailPreviewTrailSize,
                 ValidTrailCount = particleTrailPreviewValidCount,
                 HeadIndex = particleTrailPreviewHeadIndex,
@@ -1029,20 +1571,84 @@ namespace Nuclei3
             }
         }
 
+        void ReadBackAntFields()
+        {
+            ReadBackFloatBuffer(antFoodReadbackBuffer, CurrentAntFoodBuffer(), antFoodReadback);
+            ReadBackFloatBuffer(antBaseReadbackBuffer, CurrentAntBaseBuffer(), antBaseReadback);
+
+            int sourceOffset = voxelCount * 3 * sizeof(uint);
+            int byteCount = voxelCount * sizeof(uint);
+            context.CopySubresourceRegion(
+                antFoodRemainingReadbackBuffer,
+                0,
+                0,
+                0,
+                0,
+                depositBuffer,
+                0,
+                new Vortice.Mathematics.Box(sourceOffset, 0, 0, sourceOffset + byteCount, 1, 1));
+            MappedSubresource mapped = context.Map(antFoodRemainingReadbackBuffer, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+            try
+            {
+                Marshal.Copy(mapped.DataPointer, antFoodRemainingReadback, 0, antFoodRemainingReadback.Length);
+            }
+            finally
+            {
+                context.Unmap(antFoodRemainingReadbackBuffer);
+            }
+        }
+
+        void ReadBackFloatBuffer(ID3D11Buffer readbackBuffer, ID3D11Buffer sourceBuffer, float[] destination)
+        {
+            context.CopyResource(readbackBuffer, sourceBuffer);
+            MappedSubresource mapped = context.Map(readbackBuffer, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+            try
+            {
+                Marshal.Copy(mapped.DataPointer, destination, 0, destination.Length);
+            }
+            finally
+            {
+                context.Unmap(readbackBuffer);
+            }
+        }
+
+        void ApplyAntFieldsToVoxels(Voxel[,,] voxels)
+        {
+            if (voxels == null) return;
+            for (int x = 0; x < resX; x++)
+            {
+                for (int y = 0; y < resY; y++)
+                {
+                    int baseIndex = x * resY * resZ + y * resZ;
+                    for (int z = 0; z < resZ; z++)
+                    {
+                        Voxel voxel = voxels[x, y, z];
+                        if (voxel == null) continue;
+                        int index = baseIndex + z;
+                        voxel.towardsFoodPheromone = antFoodReadback[index];
+                        voxel.towardsBasePheromone = antBaseReadback[index];
+                        voxel.food = antFoodRemainingReadback[index] / DepositScale;
+                    }
+                }
+            }
+        }
+
         void ReadBackParticles()
         {
-            if (particleCount <= 0)
+            if (particleCapacity <= 0)
             {
                 return;
             }
 
             ReadBackParticlePositions();
             ReadBackParticleAxes();
+            ReadBackParticleAuxiliaryState();
+            ReadBackPopulationState();
         }
 
         void ReadBackParticlePositions()
         {
-            if (particleCount <= 0)
+            if (particleCapacity <= 0)
             {
                 return;
             }
@@ -1053,7 +1659,7 @@ namespace Nuclei3
 
         public bool QueuePreviewCacheReadback()
         {
-            if (particleCount <= 0)
+            if (particleCapacity <= 0)
             {
                 return false;
             }
@@ -1073,7 +1679,7 @@ namespace Nuclei3
 
         public bool TryCompletePreviewCache(ParticleList particles)
         {
-            if (particleCount <= 0)
+            if (particleCapacity <= 0)
             {
                 return false;
             }
@@ -1181,15 +1787,85 @@ namespace Nuclei3
             previewReadbackCompletedSequence = previewReadbackSequenceCounter;
         }
 
+        void ResetPreviewReadbackState()
+        {
+            Array.Clear(previewReadbackPending, 0, previewReadbackPending.Length);
+            Array.Clear(previewReadbackSequences, 0, previewReadbackSequences.Length);
+            previewReadbackNextIndex = 0;
+            previewReadbackSequenceCounter = 0;
+            previewReadbackCompletedSequence = 0;
+        }
+
         void ReadBackParticleAxes()
         {
-            if (particleCount <= 0)
+            if (particleCapacity <= 0)
             {
                 return;
             }
 
             ReadBackFloat4Buffer(particleDirectionReadbackBuffer, particleDirectionBuffer, particleDirectionReadback);
             ReadBackFloat4Buffer(particleYAxisReadbackBuffer, particleYAxisBuffer, particleYAxisReadback);
+        }
+
+        void ReadBackParticleAuxiliaryState()
+        {
+            if (particleAuxReadbackBuffer == null || depositBuffer == null || particleAuxReadback.Length == 0)
+            {
+                return;
+            }
+
+            int sourceOffset = (voxelCount * 4 + particleCapacity) * sizeof(uint);
+            int byteCount = particleAuxReadback.Length * sizeof(uint);
+            context.CopySubresourceRegion(
+                particleAuxReadbackBuffer,
+                0,
+                0,
+                0,
+                0,
+                depositBuffer,
+                0,
+                new Vortice.Mathematics.Box(sourceOffset, 0, 0, sourceOffset + byteCount, 1, 1));
+
+            MappedSubresource mapped = context.Map(particleAuxReadbackBuffer, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+            try
+            {
+                Marshal.Copy(mapped.DataPointer, particleAuxReadback, 0, particleAuxReadback.Length);
+            }
+            finally
+            {
+                context.Unmap(particleAuxReadbackBuffer);
+            }
+        }
+
+        void ReadBackPopulationState()
+        {
+            if (populationStateReadbackBuffer == null || particleCountBuffer == null)
+            {
+                return;
+            }
+
+            int sourceOffset = voxelCount * sizeof(uint);
+            context.CopySubresourceRegion(
+                populationStateReadbackBuffer,
+                0,
+                0,
+                0,
+                0,
+                particleCountBuffer,
+                0,
+                new Vortice.Mathematics.Box(sourceOffset, 0, 0, sourceOffset + 4 * sizeof(uint), 1, 1));
+
+            MappedSubresource mapped = context.Map(populationStateReadbackBuffer, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+            try
+            {
+                Marshal.Copy(mapped.DataPointer, populationStateReadback, 0, populationStateReadback.Length);
+            }
+            finally
+            {
+                context.Unmap(populationStateReadbackBuffer);
+            }
+
+            particleCount = Math.Max(0, Math.Min(particleCapacity, populationStateReadback[0]));
         }
 
         void ReadBackFloat4Buffer(ID3D11Buffer readbackBuffer, ID3D11Buffer sourceBuffer, float[] destination)
@@ -1209,28 +1885,61 @@ namespace Nuclei3
 
         bool ApplyParticlesToOutput(ParticleList particles, Voxel[,,] voxels, SolverGpuSettings settings, int iteration, bool buildPreviewCache)
         {
-            if (particles == null || particleCount <= 0)
+            if (particles == null || particleCapacity <= 0)
             {
                 return false;
             }
 
-            int count = Math.Min(particles.Count, particleCount);
             ParticlePreviewCache previewCache = buildPreviewCache ? particles.PreviewCache : null;
-            ParticlePreviewBuildCache previewBuildCache = previewCache != null ? new ParticlePreviewBuildCache(count) : null;
+            ParticlePreviewBuildCache previewBuildCache = previewCache != null ? new ParticlePreviewBuildCache(particleCount) : null;
             if (previewCache != null)
             {
-                previewCache.BeginBuild(count);
+                previewCache.BeginBuild(particleCount);
             }
 
-            for (int i = 0; i < count; i++)
+            particles.Clear();
+            for (int groupIndex = 0; groupIndex < particleGroups.Length; groupIndex++)
             {
-                Particle particle = particles[i];
-                if (particle == null)
+                ParticleGroup group = particleGroups[groupIndex];
+                if (group != null && group.particles != null)
                 {
+                    group.particles.Clear();
+                }
+            }
+            int activeCount = 0;
+            for (int i = 0; i < particleCapacity; i++)
+            {
+                int offset = i * 4;
+                int groupIndex = (int)Math.Round(particlePositionReadback[offset + 3]);
+                if (groupIndex < 0 || groupIndex >= groupCount)
+                {
+                    Particle deadParticle = particleSlots[i];
+                    if (deadParticle != null && deadParticle.trails != null)
+                    {
+                        deadParticle.trails.Clear();
+                    }
+                    particleSlots[i] = null;
                     continue;
                 }
 
-                int offset = i * 4;
+                Particle particle = particleSlots[i];
+                int generation = particleAuxReadback[particleCapacity * 3 + i];
+                if (particle == null)
+                {
+                    particle = new Particle();
+                    particleSlots[i] = particle;
+                }
+                else if (particleSlotGenerations[i] != generation && particle.trails != null)
+                {
+                    particle.trails.Clear();
+                }
+                particleSlotGenerations[i] = generation;
+                particle.parentParticleGroup = groupIndex < particleGroups.Length ? particleGroups[groupIndex] : null;
+                particle.age = particleAuxReadback[i];
+                particle.foundFood = particle.parentParticleGroup != null
+                    && particle.parentParticleGroup.ant
+                    && particleAuxReadback[particleCapacity * 4 + i] != 0;
+
                 Point3d origin = new Point3d(
                     particlePositionReadback[offset],
                     particlePositionReadback[offset + 1],
@@ -1256,6 +1965,9 @@ namespace Nuclei3
 
                 int parentIndex = (int)Math.Round(particleDirectionReadback[offset + 3]);
                 particle.parentVoxel = VoxelFromFlatIndex(voxels, parentIndex);
+                particle.age = particleAuxReadback[i];
+                particle.neighbourCount_Die = particleAuxReadback[particleCapacity + i];
+                particle.neighbourCount_Div = particleAuxReadback[particleCapacity * 2 + i];
 
                 if (particleYAxisReadback[offset + 3] > 0.5f)
                 {
@@ -1266,7 +1978,16 @@ namespace Nuclei3
                 {
                     previewBuildCache.AddParticle(particle);
                 }
+
+                particles.Add(particle);
+                if (particle.parentParticleGroup != null && particle.parentParticleGroup.particles != null)
+                {
+                    particle.parentParticleGroup.particles.Add(particle);
+                }
+                activeCount++;
             }
+
+            particleCount = activeCount;
 
             RecordTrails(particles, settings, iteration);
 
@@ -1277,7 +1998,7 @@ namespace Nuclei3
                 return true;
             }
 
-            particles.PreviewCache.Invalidate(count);
+            particles.PreviewCache.Invalidate(activeCount);
             return false;
         }
 
@@ -1288,35 +2009,45 @@ namespace Nuclei3
 
         bool BuildPreviewCacheFromPositions(ParticleList particles, float[] positionReadback)
         {
-            if (particles == null || particleCount <= 0)
+            if (particles == null || particleCapacity <= 0)
             {
                 return false;
             }
 
-            int count = Math.Min(particles.Count, particleCount);
             ParticlePreviewCache previewCache = particles.PreviewCache;
-            ParticlePreviewBuildCache previewBuildCache = new ParticlePreviewBuildCache(count);
-            previewCache.BeginBuild(count);
+            ParticlePreviewBuildCache previewBuildCache = new ParticlePreviewBuildCache(particleCount);
+            previewCache.BeginBuild(particleCount);
 
-            for (int i = 0; i < count; i++)
+            int activeCount = 0;
+            for (int i = 0; i < particleCapacity; i++)
             {
-                Particle particle = particles[i];
-                if (particle == null)
+                int offset = i * 4;
+                int groupIndex = (int)Math.Round(positionReadback[offset + 3]);
+                if (groupIndex < 0 || groupIndex >= groupCount)
                 {
                     continue;
                 }
 
-                int offset = i * 4;
+                Particle particle = particleSlots[i];
+                if (particle == null)
+                {
+                    particle = new Particle();
+                    particle.parentParticleGroup = groupIndex < particleGroups.Length ? particleGroups[groupIndex] : null;
+                    particleSlots[i] = particle;
+                }
+
                 Point3d origin = new Point3d(
                     positionReadback[offset],
                     positionReadback[offset + 1],
                     positionReadback[offset + 2]);
 
                 previewBuildCache.AddParticlePoint(particle, origin);
+                activeCount++;
             }
 
             previewCache.Merge(previewBuildCache);
             previewCache.CompleteBuild();
+            previewCache.ParticleCount = activeCount;
             return true;
         }
 
@@ -1454,6 +2185,21 @@ namespace Nuclei3
                 new ShaderResourceViewDescription(weightsBuffer, Format.Unknown, 0, weights.Length, BufferExtendedShaderResourceViewFlags.None));
         }
 
+        void EnsureAntWeights(int range)
+        {
+            if (antWeightsView != null && antWeightsRange == range) return;
+
+            if (antWeightsView != null) antWeightsView.Dispose();
+            if (antWeightsBuffer != null) antWeightsBuffer.Dispose();
+            float[] weights = PrecomputeWeights(range);
+            antWeightsRange = range;
+            antWeightsBuffer = device.CreateBuffer(weights, BindFlags.ShaderResource, ResourceUsage.Default,
+                CpuAccessFlags.None, ResourceOptionFlags.BufferStructured, weights.Length * sizeof(float), sizeof(float));
+            antWeightsView = device.CreateShaderResourceView(
+                antWeightsBuffer,
+                new ShaderResourceViewDescription(antWeightsBuffer, Format.Unknown, 0, weights.Length, BufferExtendedShaderResourceViewFlags.None));
+        }
+
         static float[] PrecomputeWeights(int range)
         {
             int total = (range + 1) * 2 + 1;
@@ -1515,6 +2261,42 @@ namespace Nuclei3
             densityBView = device.CreateUnorderedAccessView(
                 densityB,
                 new UnorderedAccessViewDescription(densityB, Format.Unknown, 0, voxelCount, BufferUnorderedAccessViewFlags.None));
+        }
+
+        void CreateAntFieldBuffers(float[] initialFoodPheromone, float[] initialBasePheromone)
+        {
+            float[] food = initialFoodPheromone != null && initialFoodPheromone.Length == voxelCount
+                ? initialFoodPheromone
+                : new float[voxelCount];
+            float[] basePheromone = initialBasePheromone != null && initialBasePheromone.Length == voxelCount
+                ? initialBasePheromone
+                : new float[voxelCount];
+
+            CreateAntFieldPair(food, out antFoodA, out antFoodB, out antFoodAView, out antFoodBView, out antFoodAResourceView, out antFoodBResourceView);
+            CreateAntFieldPair(basePheromone, out antBaseA, out antBaseB, out antBaseAView, out antBaseBView, out antBaseAResourceView, out antBaseBResourceView);
+            antFoodReadbackBuffer = CreateReadbackBuffer(voxelCount * sizeof(float));
+            antBaseReadbackBuffer = CreateReadbackBuffer(voxelCount * sizeof(float));
+            antFoodRemainingReadbackBuffer = CreateReadbackBuffer(voxelCount * sizeof(uint));
+        }
+
+        void CreateAntFieldPair(
+            float[] initial,
+            out ID3D11Buffer bufferA,
+            out ID3D11Buffer bufferB,
+            out ID3D11UnorderedAccessView viewA,
+            out ID3D11UnorderedAccessView viewB,
+            out ID3D11ShaderResourceView resourceA,
+            out ID3D11ShaderResourceView resourceB)
+        {
+            BindFlags bind = BindFlags.UnorderedAccess | BindFlags.ShaderResource;
+            bufferA = device.CreateBuffer(initial, bind, ResourceUsage.Default, CpuAccessFlags.None,
+                ResourceOptionFlags.BufferStructured, voxelCount * sizeof(float), sizeof(float));
+            bufferB = device.CreateBuffer(voxelCount * sizeof(float), bind, ResourceUsage.Default, CpuAccessFlags.None,
+                ResourceOptionFlags.BufferStructured, sizeof(float));
+            viewA = CreateUav(bufferA, voxelCount);
+            viewB = CreateUav(bufferB, voxelCount);
+            resourceA = CreateSrv(bufferA, voxelCount);
+            resourceB = CreateSrv(bufferB, voxelCount);
         }
 
         bool EnsureStaticFieldPreviewTexture(int fieldIndex, SolverGpuDimensionMode dimensionMode)
@@ -1917,8 +2699,9 @@ namespace Nuclei3
                 + " atlas=" + densityPreviewAtlasColumns + "x" + densityPreviewAtlasRows
                 + " res=" + resX + "x" + resY + "x" + resZ);
 
+            Format previewFormat = densityPreviewColorTexture ? Format.R32G32B32A32_Float : Format.R32_Float;
             Texture2DDescription description = new Texture2DDescription(
-                Format.R32_Float,
+                previewFormat,
                 densityPreviewWidth,
                 densityPreviewHeight,
                 1,
@@ -1938,7 +2721,7 @@ namespace Nuclei3
                 new UnorderedAccessViewDescription(
                     densityPreviewTexture,
                     UnorderedAccessViewDimension.Texture2D,
-                    Format.R32_Float,
+                    previewFormat,
                     0,
                     0,
                     0));
@@ -1950,7 +2733,7 @@ namespace Nuclei3
             }
 
             WriteSharedDensityPreviewStatus("shared_handle=0x" + densityPreviewSharedHandle.ToInt64().ToString("X"));
-            DispatchDensityPreviewPass(new SolverGpuSettings(), dimensionMode, 0);
+            DispatchSelectedDensityPreviewPass(new SolverGpuSettings(), dimensionMode, 0);
             WriteSharedDensityPreviewStatus("initial_dispatch_ok");
         }
 
@@ -1990,7 +2773,7 @@ namespace Nuclei3
 
         void CreateParticlePreviewTexture()
         {
-            if (particleCount <= 0)
+            if (particleCapacity <= 0)
             {
                 return;
             }
@@ -1999,7 +2782,7 @@ namespace Nuclei3
             WriteSharedParticlePreviewStatus(
                 "create_texture_begin width=" + particlePreviewWidth
                 + " height=" + particlePreviewHeight
-                + " particles=" + particleCount);
+                + " particles=" + particleCapacity);
 
             Texture2DDescription description = new Texture2DDescription(
                 Format.R32G32B32A32_Float,
@@ -2036,7 +2819,7 @@ namespace Nuclei3
         void CreateParticleTrailPreviewTexture(int trailSize)
         {
             trailSize = ClampTrailPreviewSizeForParticleCount(trailSize);
-            if (particleCount <= 0 || trailSize <= 1)
+            if (particleCapacity <= 0 || trailSize <= 1)
             {
                 return;
             }
@@ -2124,18 +2907,18 @@ namespace Nuclei3
         void ResolveParticlePreviewLayout(out int width, out int height)
         {
             int maxRows = MaxSharedPreviewTextureDimension / 2;
-            width = Math.Min(4096, Math.Max(1, particleCount));
-            int rows = (particleCount + width - 1) / width;
+            width = Math.Min(4096, Math.Max(1, particleCapacity));
+            int rows = (particleCapacity + width - 1) / width;
 
             if (rows > maxRows)
             {
-                width = (particleCount + maxRows - 1) / maxRows;
+                width = (particleCapacity + maxRows - 1) / maxRows;
                 if (width > MaxSharedPreviewTextureDimension)
                 {
                     throw new InvalidOperationException("Particle preview texture would exceed Direct3D texture limits.");
                 }
 
-                rows = (particleCount + width - 1) / width;
+                rows = (particleCapacity + width - 1) / width;
             }
 
             height = Math.Max(2, rows * 2);
@@ -2144,18 +2927,18 @@ namespace Nuclei3
         void ResolveParticleTrailPreviewLayout(int trailSize, out int width, out int height)
         {
             int maxParticleRows = Math.Max(1, MaxSharedPreviewTextureDimension / Math.Max(2, trailSize));
-            width = Math.Min(MaxSharedPreviewTextureDimension, Math.Max(1, particleCount));
-            int particleRows = (particleCount + width - 1) / width;
+            width = Math.Min(MaxSharedPreviewTextureDimension, Math.Max(1, particleCapacity));
+            int particleRows = (particleCapacity + width - 1) / width;
 
             if (particleRows > maxParticleRows)
             {
-                width = (particleCount + maxParticleRows - 1) / maxParticleRows;
+                width = (particleCapacity + maxParticleRows - 1) / maxParticleRows;
                 if (width > MaxSharedPreviewTextureDimension)
                 {
                     throw new InvalidOperationException("Particle trail preview texture would exceed Direct3D texture limits.");
                 }
 
-                particleRows = (particleCount + width - 1) / width;
+                particleRows = (particleCapacity + width - 1) / width;
             }
 
             height = Math.Max(trailSize, particleRows * trailSize);
@@ -2245,14 +3028,58 @@ namespace Nuclei3
 
         void CreateParticleBuffers(SolverGpuInputSnapshot snapshot)
         {
-            if (particleCount <= 0)
+            if (particleCapacity <= 0)
             {
                 return;
             }
 
-            float[] positions = new float[particleCount * 4];
-            float[] directions = new float[particleCount * 4];
-            float[] yAxes = new float[particleCount * 4];
+            float[] positions;
+            float[] directions;
+            float[] yAxes;
+            float[] homes;
+            BuildParticleBufferData(snapshot, out positions, out directions, out yAxes, out homes);
+
+            particlePositionBuffer = CreateFloat4Buffer(positions, BindFlags.UnorderedAccess);
+            particleDirectionBuffer = CreateFloat4Buffer(directions, BindFlags.UnorderedAccess);
+            particleYAxisBuffer = CreateFloat4Buffer(yAxes, BindFlags.UnorderedAccess);
+            particleHomeBuffer = CreateFloat4Buffer(homes, BindFlags.UnorderedAccess);
+            particlePositionReadbackBuffer = CreateReadbackBuffer(positions.Length * sizeof(float));
+            particleDirectionReadbackBuffer = CreateReadbackBuffer(directions.Length * sizeof(float));
+            particleYAxisReadbackBuffer = CreateReadbackBuffer(yAxes.Length * sizeof(float));
+            particleAuxReadbackBuffer = CreateReadbackBuffer(Math.Max(sizeof(uint), particleAuxReadback.Length * sizeof(uint)));
+            populationStateReadbackBuffer = CreateReadbackBuffer(4 * sizeof(uint));
+            for (int i = 0; i < particlePositionPreviewReadbackBuffers.Length; i++)
+            {
+                particlePositionPreviewReadbackBuffers[i] = CreateReadbackBuffer(positions.Length * sizeof(float));
+            }
+
+            particlePositionView = CreateUav(particlePositionBuffer, particleCapacity);
+            particleDirectionView = CreateUav(particleDirectionBuffer, particleCapacity);
+            particleYAxisView = CreateUav(particleYAxisBuffer, particleCapacity);
+            particleHomeView = CreateUav(particleHomeBuffer, particleCapacity);
+        }
+
+        void BuildParticleBufferData(
+            SolverGpuInputSnapshot snapshot,
+            out float[] positions,
+            out float[] directions,
+            out float[] yAxes,
+            out float[] homes)
+        {
+            positions = new float[particleCapacity * 4];
+            directions = new float[particleCapacity * 4];
+            yAxes = new float[particleCapacity * 4];
+            homes = new float[particleCapacity * 4];
+
+            for (int i = 0; i < particleCapacity; i++)
+            {
+                positions[i * 4 + 3] = -1;
+                directions[i * 4 + 3] = -1;
+                yAxes[i * 4] = 0;
+                yAxes[i * 4 + 1] = 1;
+                yAxes[i * 4 + 2] = 0;
+                homes[i * 4 + 3] = -1;
+            }
 
             for (int i = 0; i < particleCount; i++)
             {
@@ -2272,22 +3099,20 @@ namespace Nuclei3
                 yAxes[target4 + 1] = snapshot.ParticleYAxesXyz[source3 + 1];
                 yAxes[target4 + 2] = snapshot.ParticleYAxesXyz[source3 + 2];
                 yAxes[target4 + 3] = 0;
+                if (snapshot.ParticleHomesXyz != null && snapshot.ParticleHomesXyz.Length >= source3 + 3)
+                {
+                    homes[target4] = snapshot.ParticleHomesXyz[source3];
+                    homes[target4 + 1] = snapshot.ParticleHomesXyz[source3 + 1];
+                    homes[target4 + 2] = snapshot.ParticleHomesXyz[source3 + 2];
+                }
+                else
+                {
+                    homes[target4] = positions[target4];
+                    homes[target4 + 1] = positions[target4 + 1];
+                    homes[target4 + 2] = positions[target4 + 2];
+                }
+                homes[target4 + 3] = 1;
             }
-
-            particlePositionBuffer = CreateFloat4Buffer(positions, BindFlags.UnorderedAccess);
-            particleDirectionBuffer = CreateFloat4Buffer(directions, BindFlags.UnorderedAccess);
-            particleYAxisBuffer = CreateFloat4Buffer(yAxes, BindFlags.UnorderedAccess);
-            particlePositionReadbackBuffer = CreateReadbackBuffer(positions.Length * sizeof(float));
-            particleDirectionReadbackBuffer = CreateReadbackBuffer(directions.Length * sizeof(float));
-            particleYAxisReadbackBuffer = CreateReadbackBuffer(yAxes.Length * sizeof(float));
-            for (int i = 0; i < particlePositionPreviewReadbackBuffers.Length; i++)
-            {
-                particlePositionPreviewReadbackBuffers[i] = CreateReadbackBuffer(positions.Length * sizeof(float));
-            }
-
-            particlePositionView = CreateUav(particlePositionBuffer, particleCount);
-            particleDirectionView = CreateUav(particleDirectionBuffer, particleCount);
-            particleYAxisView = CreateUav(particleYAxisBuffer, particleCount);
         }
 
         void CreateGroupBuffers(SolverGpuInputSnapshot snapshot)
@@ -2305,8 +3130,9 @@ namespace Nuclei3
             groupColorDataView = CreateSrv(groupColorDataBuffer, groupCount);
         }
 
-        void CreateVoxelFlagBuffer(uint[] flags)
+        void CreateVoxelFlagBuffer(SolverGpuInputSnapshot snapshot)
         {
+            uint[] flags = snapshot.VoxelFlags;
             uint[] source = flags != null && flags.Length == voxelCount ? flags : new uint[voxelCount];
 
             voxelFlagsBuffer = device.CreateBuffer(
@@ -2322,24 +3148,99 @@ namespace Nuclei3
                 voxelFlagsBuffer,
                 new ShaderResourceViewDescription(voxelFlagsBuffer, Format.Unknown, 0, voxelCount, BufferExtendedShaderResourceViewFlags.None));
 
+            uint[] particleCounts;
+            uint[] depositAndParticleAux;
+            BuildAuxiliaryState(snapshot, out particleCounts, out depositAndParticleAux);
+
             particleCountBuffer = device.CreateBuffer(
-                voxelCount * sizeof(uint),
+                particleCounts,
                 BindFlags.UnorderedAccess,
                 ResourceUsage.Default,
                 CpuAccessFlags.None,
                 ResourceOptionFlags.BufferStructured,
+                particleCounts.Length * sizeof(uint),
                 sizeof(uint));
 
             depositBuffer = device.CreateBuffer(
-                voxelCount * sizeof(uint),
+                depositAndParticleAux,
                 BindFlags.UnorderedAccess,
                 ResourceUsage.Default,
                 CpuAccessFlags.None,
                 ResourceOptionFlags.BufferStructured,
+                depositAndParticleAux.Length * sizeof(uint),
                 sizeof(uint));
 
-            particleCountView = CreateUav(particleCountBuffer, voxelCount);
-            depositView = CreateUav(depositBuffer, voxelCount);
+            particleCountView = CreateUav(particleCountBuffer, particleCounts.Length);
+            depositView = CreateUav(depositBuffer, depositAndParticleAux.Length);
+
+            neighbourCountA = device.CreateBuffer(
+                voxelCount * sizeof(float),
+                BindFlags.UnorderedAccess,
+                ResourceUsage.Default,
+                CpuAccessFlags.None,
+                ResourceOptionFlags.BufferStructured,
+                sizeof(float));
+            neighbourCountB = device.CreateBuffer(
+                voxelCount * sizeof(float),
+                BindFlags.UnorderedAccess,
+                ResourceUsage.Default,
+                CpuAccessFlags.None,
+                ResourceOptionFlags.BufferStructured,
+                sizeof(float));
+            neighbourCountAView = CreateUav(neighbourCountA, voxelCount);
+            neighbourCountBView = CreateUav(neighbourCountB, voxelCount);
+        }
+
+        void BuildAuxiliaryState(
+            SolverGpuInputSnapshot snapshot,
+            out uint[] particleCounts,
+            out uint[] depositAndParticleAux)
+        {
+            particleCounts = new uint[voxelCount + 4 + groupCount];
+            particleCounts[voxelCount] = (uint)particleCount;
+            particleCounts[voxelCount + 1] = (uint)Math.Max(0, particleCapacity - particleCount);
+            particleCounts[voxelCount + 2] = (uint)particleCount;
+            int initialGroupIndexCount = snapshot.ParticleGroupIndices != null
+                ? Math.Min(particleCount, snapshot.ParticleGroupIndices.Length)
+                : 0;
+            for (int particleIndex = 0; particleIndex < initialGroupIndexCount; particleIndex++)
+            {
+                int groupIndex = snapshot.ParticleGroupIndices[particleIndex];
+                if (groupIndex >= 0 && groupIndex < groupCount)
+                {
+                    particleCounts[voxelCount + 4 + groupIndex]++;
+                }
+            }
+
+            depositAndParticleAux = new uint[voxelCount * 4 + particleCapacity * 6];
+            int foodRemainingBase = voxelCount * 3;
+            if (snapshot.VoxelDensityLimits != null)
+            {
+                for (int voxelIndex = 0; voxelIndex < voxelCount; voxelIndex++)
+                {
+                    float food = snapshot.VoxelDensityLimits[voxelIndex * 4 + 2];
+                    depositAndParticleAux[foodRemainingBase + voxelIndex] = (uint)Math.Round(Math.Max(0, food) * DepositScale);
+                }
+            }
+
+            int freeSlotBase = voxelCount * 4;
+            for (int slot = particleCount; slot < particleCapacity; slot++)
+            {
+                depositAndParticleAux[freeSlotBase + slot - particleCount] = (uint)slot;
+            }
+
+            int ageBase = voxelCount * 4 + particleCapacity;
+            int antStateBase = voxelCount * 4 + particleCapacity * 5;
+            int particleObjectCount = snapshot.Particles != null ? snapshot.Particles.Count : 0;
+            for (int slot = 0; slot < particleCount && slot < particleObjectCount; slot++)
+            {
+                Particle particle = snapshot.Particles[slot];
+                depositAndParticleAux[ageBase + slot] = (uint)Math.Max(0, particle != null ? particle.age : 0);
+                depositAndParticleAux[antStateBase + slot] = snapshot.ParticleAntStates != null && slot < snapshot.ParticleAntStates.Length
+                    ? snapshot.ParticleAntStates[slot]
+                    : 0u;
+            }
+
         }
 
         void CreateVoxelBehaviorBuffers(SolverGpuInputSnapshot snapshot)
@@ -2441,25 +3342,47 @@ namespace Nuclei3
 
         void CompileShaders()
         {
-            using (Blob moveBytecode = CompileShader(FullSolverShaderSource, "MoveParticlesAndDeposit"))
-            using (Blob applyDepositsBytecode = CompileShader(FullSolverShaderSource, "ApplyDeposits"))
-            using (Blob clearCountsBytecode = CompileShader(FullSolverShaderSource, "ClearParticleCounts"))
-            using (Blob countParticlesBytecode = CompileShader(FullSolverShaderSource, "CountParticles"))
-            using (Blob diffusionBytecode = CompileShader(FullSolverShaderSource, "DiffuseAxis"))
-            using (Blob decayBytecode = CompileShader(FullSolverShaderSource, "ApplyDecay"))
-            using (Blob densityPreviewBytecode = CompileShader(FullSolverShaderSource, "BuildDensityPreview"))
-            using (Blob particlePreviewBytecode = CompileShader(FullSolverShaderSource, "BuildParticlePreview"))
-            using (Blob particleTrailPreviewBytecode = CompileShader(FullSolverShaderSource, "BuildParticleTrailPreview"))
+            moveShader = CreateComputeShader("MoveParticlesAndDeposit");
+            applyDepositsShader = CreateComputeShader("ApplyDeposits");
+            clearCountsShader = CreateComputeShader("ClearParticleCounts");
+            countParticlesShader = CreateComputeShader("CountParticles");
+            seedNeighbourCountsShader = CreateComputeShader("SeedNeighbourCounts");
+            sumNeighbourAxisShader = CreateComputeShader("SumNeighbourAxis");
+            applyParticleDeathShader = CreateComputeShader("ApplyParticleDeath");
+            applyParticleDivisionShader = CreateComputeShader("ApplyParticleDivision");
+            diffusionShader = CreateComputeShader("DiffuseAxis");
+            decayShader = CreateComputeShader("ApplyDecay");
+            densityPreviewShader = CreateComputeShader("BuildDensityPreview");
+            combinedDensityPreviewShader = CreateComputeShader("BuildCombinedDensityPreview");
+            particlePreviewShader = CreateComputeShader("BuildParticlePreview");
+            particleTrailPreviewShader = CreateComputeShader("BuildParticleTrailPreview");
+        }
+
+        ID3D11ComputeShader CreateComputeShader(string entryPoint)
+        {
+            string resourceName = "Nuclei3.GpuShaders." + entryPoint + ".cso";
+            using (Stream stream = typeof(GpuFullSlimeSolverEngine).Assembly.GetManifestResourceStream(resourceName))
             {
-                moveShader = device.CreateComputeShader(moveBytecode, null);
-                applyDepositsShader = device.CreateComputeShader(applyDepositsBytecode, null);
-                clearCountsShader = device.CreateComputeShader(clearCountsBytecode, null);
-                countParticlesShader = device.CreateComputeShader(countParticlesBytecode, null);
-                diffusionShader = device.CreateComputeShader(diffusionBytecode, null);
-                decayShader = device.CreateComputeShader(decayBytecode, null);
-                densityPreviewShader = device.CreateComputeShader(densityPreviewBytecode, null);
-                particlePreviewShader = device.CreateComputeShader(particlePreviewBytecode, null);
-                particleTrailPreviewShader = device.CreateComputeShader(particleTrailPreviewBytecode, null);
+                if (stream != null)
+                {
+                    byte[] bytecode = new byte[stream.Length];
+                    int offset = 0;
+                    while (offset < bytecode.Length)
+                    {
+                        int read = stream.Read(bytecode, offset, bytecode.Length - offset);
+                        if (read <= 0) break;
+                        offset += read;
+                    }
+                    if (offset == bytecode.Length)
+                    {
+                        return device.CreateComputeShader(bytecode, null);
+                    }
+                }
+            }
+
+            using (Blob runtimeBytecode = CompileShader(FullSolverShaderSource, entryPoint))
+            {
+                return device.CreateComputeShader(runtimeBytecode, null);
             }
         }
 
@@ -2522,6 +3445,11 @@ namespace Nuclei3
             return (count + 255) / 256;
         }
 
+        static int DispatchLineGroupCount(int count)
+        {
+            return (count + 63) / 64;
+        }
+
         void SwapDensityBuffers()
         {
             densityInA = !densityInA;
@@ -2534,7 +3462,7 @@ namespace Nuclei3
                 context.CSSetUnorderedAccessView(i, null, -1);
             }
 
-            for (int i = 0; i <= 7; i++)
+            for (int i = 0; i <= 9; i++)
             {
                 context.CSSetShaderResource(i, null);
             }
@@ -2589,11 +3517,22 @@ namespace Nuclei3
             if (particleTrailPreviewMutex != null) particleTrailPreviewMutex.Dispose();
             if (densityAView != null) densityAView.Dispose();
             if (densityBView != null) densityBView.Dispose();
+            if (antFoodAView != null) antFoodAView.Dispose();
+            if (antFoodBView != null) antFoodBView.Dispose();
+            if (antBaseAView != null) antBaseAView.Dispose();
+            if (antBaseBView != null) antBaseBView.Dispose();
+            if (antFoodAResourceView != null) antFoodAResourceView.Dispose();
+            if (antFoodBResourceView != null) antFoodBResourceView.Dispose();
+            if (antBaseAResourceView != null) antBaseAResourceView.Dispose();
+            if (antBaseBResourceView != null) antBaseBResourceView.Dispose();
             if (particlePositionView != null) particlePositionView.Dispose();
             if (particleDirectionView != null) particleDirectionView.Dispose();
             if (particleYAxisView != null) particleYAxisView.Dispose();
+            if (particleHomeView != null) particleHomeView.Dispose();
             if (particleCountView != null) particleCountView.Dispose();
             if (depositView != null) depositView.Dispose();
+            if (neighbourCountAView != null) neighbourCountAView.Dispose();
+            if (neighbourCountBView != null) neighbourCountBView.Dispose();
             if (groupData0View != null) groupData0View.Dispose();
             if (groupData1View != null) groupData1View.Dispose();
             if (groupColorDataView != null) groupColorDataView.Dispose();
@@ -2603,6 +3542,13 @@ namespace Nuclei3
             if (voxelDensityLimitsView != null) voxelDensityLimitsView.Dispose();
             if (densityA != null) densityA.Dispose();
             if (densityB != null) densityB.Dispose();
+            if (antFoodA != null) antFoodA.Dispose();
+            if (antFoodB != null) antFoodB.Dispose();
+            if (antBaseA != null) antBaseA.Dispose();
+            if (antBaseB != null) antBaseB.Dispose();
+            if (antFoodReadbackBuffer != null) antFoodReadbackBuffer.Dispose();
+            if (antBaseReadbackBuffer != null) antBaseReadbackBuffer.Dispose();
+            if (antFoodRemainingReadbackBuffer != null) antFoodRemainingReadbackBuffer.Dispose();
             if (densityPreviewTexture != null) densityPreviewTexture.Dispose();
             if (particlePreviewTexture != null) particlePreviewTexture.Dispose();
             if (particleTrailPreviewTexture != null) particleTrailPreviewTexture.Dispose();
@@ -2610,9 +3556,12 @@ namespace Nuclei3
             if (particlePositionBuffer != null) particlePositionBuffer.Dispose();
             if (particleDirectionBuffer != null) particleDirectionBuffer.Dispose();
             if (particleYAxisBuffer != null) particleYAxisBuffer.Dispose();
+            if (particleHomeBuffer != null) particleHomeBuffer.Dispose();
             if (particlePositionReadbackBuffer != null) particlePositionReadbackBuffer.Dispose();
             if (particleDirectionReadbackBuffer != null) particleDirectionReadbackBuffer.Dispose();
             if (particleYAxisReadbackBuffer != null) particleYAxisReadbackBuffer.Dispose();
+            if (particleAuxReadbackBuffer != null) particleAuxReadbackBuffer.Dispose();
+            if (populationStateReadbackBuffer != null) populationStateReadbackBuffer.Dispose();
             for (int i = 0; i < particlePositionPreviewReadbackBuffers.Length; i++)
             {
                 if (particlePositionPreviewReadbackBuffers[i] != null)
@@ -2623,6 +3572,8 @@ namespace Nuclei3
             }
             if (particleCountBuffer != null) particleCountBuffer.Dispose();
             if (depositBuffer != null) depositBuffer.Dispose();
+            if (neighbourCountA != null) neighbourCountA.Dispose();
+            if (neighbourCountB != null) neighbourCountB.Dispose();
             if (groupData0Buffer != null) groupData0Buffer.Dispose();
             if (groupData1Buffer != null) groupData1Buffer.Dispose();
             if (groupColorDataBuffer != null) groupColorDataBuffer.Dispose();
@@ -2635,9 +3586,14 @@ namespace Nuclei3
             if (applyDepositsShader != null) applyDepositsShader.Dispose();
             if (clearCountsShader != null) clearCountsShader.Dispose();
             if (countParticlesShader != null) countParticlesShader.Dispose();
+            if (seedNeighbourCountsShader != null) seedNeighbourCountsShader.Dispose();
+            if (sumNeighbourAxisShader != null) sumNeighbourAxisShader.Dispose();
+            if (applyParticleDeathShader != null) applyParticleDeathShader.Dispose();
+            if (applyParticleDivisionShader != null) applyParticleDivisionShader.Dispose();
             if (diffusionShader != null) diffusionShader.Dispose();
             if (decayShader != null) decayShader.Dispose();
             if (densityPreviewShader != null) densityPreviewShader.Dispose();
+            if (combinedDensityPreviewShader != null) combinedDensityPreviewShader.Dispose();
             if (particlePreviewShader != null) particlePreviewShader.Dispose();
             if (particleTrailPreviewShader != null) particleTrailPreviewShader.Dispose();
             if (context != null) context.Dispose();
@@ -2656,6 +3612,19 @@ namespace Nuclei3
             {
                 weightsBuffer.Dispose();
                 weightsBuffer = null;
+            }
+
+
+            if (antWeightsView != null)
+            {
+                antWeightsView.Dispose();
+                antWeightsView = null;
+            }
+
+            if (antWeightsBuffer != null)
+            {
+                antWeightsBuffer.Dispose();
+                antWeightsBuffer = null;
             }
         }
 
@@ -2732,6 +3701,34 @@ namespace Nuclei3
             public int PreviewAtlasRows;
             public int PreviewPadding0;
             public int PreviewPadding1;
+            public int ParticleCapacity;
+            public int MinimumPopulation;
+            public int MaximumPopulation;
+            public int DynamicPopulation;
+            public int DivisionEnabled;
+            public int DivisionMinimumAge;
+            public int DivisionRange;
+            public int DivisionMinimumNeighbours;
+            public int DivisionMaximumNeighbours;
+            public int DivisionFrequency;
+            public int DeathEnabled;
+            public int DeathMinimumAge;
+            public int DeathRange;
+            public int DeathMinimumNeighbours;
+            public int DeathMaximumNeighbours;
+            public int DeathFrequency;
+            public int HasAntParticles;
+            public int FieldMode;
+            public int AntDiffuseRange;
+            public int HasSlimeParticles;
+            public float AntFoodDiffuse;
+            public float AntFoodDecay;
+            public float AntBaseDiffuse;
+            public float AntBaseDecay;
+            public float SlimeAntFood;
+            public float SlimeAntBase;
+            public float AntSlime;
+            public float AntPaddingFloat;
         }
 
         const string FullSolverShaderSource = @"
@@ -2769,6 +3766,34 @@ cbuffer Params : register(b0)
     int PreviewAtlasRows;
     int PreviewPadding0;
     int PreviewPadding1;
+    int ParticleCapacity;
+    int MinimumPopulation;
+    int MaximumPopulation;
+    int DynamicPopulation;
+    int DivisionEnabled;
+    int DivisionMinimumAge;
+    int DivisionRange;
+    int DivisionMinimumNeighbours;
+    int DivisionMaximumNeighbours;
+    int DivisionFrequency;
+    int DeathEnabled;
+    int DeathMinimumAge;
+    int DeathRange;
+    int DeathMinimumNeighbours;
+    int DeathMaximumNeighbours;
+    int DeathFrequency;
+    int HasAntParticles;
+    int FieldMode;
+    int AntDiffuseRange;
+    int HasSlimeParticles;
+    float AntFoodDiffuse;
+    float AntFoodDecay;
+    float AntBaseDiffuse;
+    float AntBaseDecay;
+    float SlimeAntFood;
+    float SlimeAntBase;
+    float AntSlime;
+    float AntPaddingFloat;
 }
 
 RWStructuredBuffer<float> Source : register(u0);
@@ -2778,7 +3803,10 @@ RWStructuredBuffer<float4> ParticleDirection : register(u3);
 RWStructuredBuffer<float4> ParticleYAxis : register(u4);
 RWStructuredBuffer<uint> ParticleCounts : register(u5);
 RWStructuredBuffer<uint> DepositFixed : register(u6);
+RWStructuredBuffer<float4> ParticleHome : register(u7);
+RWStructuredBuffer<float> AntBaseDestination : register(u7);
 RWTexture2D<float> DensityPreview : register(u7);
+RWTexture2D<float4> CombinedDensityPreview : register(u7);
 RWTexture2D<float4> ParticlePreview : register(u7);
 RWTexture2D<float4> ParticleTrailPreview : register(u7);
 
@@ -2790,6 +3818,73 @@ StructuredBuffer<float4> GroupColorData : register(t4);
 StructuredBuffer<float4> VoxelBehavior : register(t5);
 StructuredBuffer<float4> VoxelVectors : register(t6);
 StructuredBuffer<float4> VoxelDensityLimits : register(t7);
+StructuredBuffer<float> AntFoodPheromone : register(t8);
+StructuredBuffer<float> AntBasePheromone : register(t9);
+
+int ActivePopulationIndex()
+{
+    return VoxelCount;
+}
+
+int FreePopulationIndex()
+{
+    return VoxelCount + 1;
+}
+
+int GroupPopulationIndex(int groupIndex)
+{
+    return VoxelCount + 4 + groupIndex;
+}
+
+int FreeSlotIndex(int stackIndex)
+{
+    return VoxelCount * 4 + stackIndex;
+}
+
+int ParticleAgeIndex(int particleIndex)
+{
+    return VoxelCount * 4 + ParticleCapacity + particleIndex;
+}
+
+int ParticleDeathNeighbourIndex(int particleIndex)
+{
+    return VoxelCount * 4 + ParticleCapacity * 2 + particleIndex;
+}
+
+int ParticleDivisionNeighbourIndex(int particleIndex)
+{
+    return VoxelCount * 4 + ParticleCapacity * 3 + particleIndex;
+}
+
+int ParticleGenerationIndex(int particleIndex)
+{
+    return VoxelCount * 4 + ParticleCapacity * 4 + particleIndex;
+}
+
+int ParticleAntStateIndex(int particleIndex)
+{
+    return VoxelCount * 4 + ParticleCapacity * 5 + particleIndex;
+}
+
+int AntFoodDepositIndex(int voxelIndex)
+{
+    return VoxelCount + voxelIndex;
+}
+
+int AntBaseDepositIndex(int voxelIndex)
+{
+    return VoxelCount * 2 + voxelIndex;
+}
+
+int FoodRemainingIndex(int voxelIndex)
+{
+    return VoxelCount * 3 + voxelIndex;
+}
+
+bool IsParticleAlive(int particleIndex)
+{
+    return particleIndex >= 0 && particleIndex < ParticleCapacity && ParticlePosition[particleIndex].w >= -0.5;
+}
 
 int FlatIndex(int x, int y, int z)
 {
@@ -2948,13 +4043,77 @@ float SampleDensity(float3 p)
     if (Wrap == 0 && IsBoundary(x, y, z)) return -1.0;
 
     float value = Source[index];
-    float food = VoxelDensityLimits[index].z;
+    float food = DepositFixed[FoodRemainingIndex(index)] / DepositScale;
     if (food > value && food > 0.0)
     {
         value = food;
     }
 
+    if (HasAntParticles != 0)
+    {
+        value += AntFoodPheromone[index] * SlimeAntFood;
+        value += AntBasePheromone[index] * SlimeAntBase;
+    }
+
     return value;
+}
+
+uint AntOrderKey(int particleIndex, uint salt)
+{
+    return Hash((uint)particleIndex + (uint)Iteration * 747796405u + salt);
+}
+
+float SampleAntField(float3 p, bool foundFood, int currentParentIndex, int particleIndex)
+{
+    if (Wrap != 0) p = WrapSensorPosition(p);
+    int index = VoxelIndexFromPosition(p);
+    if (index < 0) return -1.0;
+
+    int x;
+    int y;
+    int z;
+    Coordinates(index, x, y, z);
+    if (Wrap == 0 && IsBoundary(x, y, z)) return -1.0;
+
+    float value = -99.0;
+    float slimeInfluence = HasSlimeParticles != 0 ? Source[index] * AntSlime : 0.0;
+    if (foundFood)
+    {
+        value = AntBasePheromone[index] + slimeInfluence;
+    }
+    else if (currentParentIndex >= 0 && DepositFixed[FoodRemainingIndex(currentParentIndex)] == 0u)
+    {
+        if (AntFoodPheromone[index] > 0.0)
+        {
+            value = AntFoodPheromone[index] + slimeInfluence;
+        }
+        else if (((uint)Iteration + AntOrderKey(particleIndex, 0x51ed270bu)) % 3u == 0u)
+        {
+            value = AntBasePheromone[index] + slimeInfluence;
+        }
+    }
+    else
+    {
+        value = 1.0;
+    }
+
+    return value == -99.0 ? 0.0 : value;
+}
+
+bool TryConsumeFood(int voxelIndex)
+{
+    if (voxelIndex < 0 || voxelIndex >= VoxelCount) return false;
+    uint amount = (uint)round(DepositScale);
+    uint current = DepositFixed[FoodRemainingIndex(voxelIndex)];
+    while (current > 0u)
+    {
+        uint consumed = min(current, amount);
+        uint original;
+        InterlockedCompareExchange(DepositFixed[FoodRemainingIndex(voxelIndex)], current, current - consumed, original);
+        if (original == current) return true;
+        current = original;
+    }
+    return false;
 }
 
 void UpdateBest(float value, int index, inout float minValue, inout float maxValue, inout int bestIndex)
@@ -3128,6 +4287,59 @@ bool CanDepositAtVoxel(int index, float sensorDistance)
            z >= boundaryRange && z < ResZ - boundaryRange;
 }
 
+bool TryRecoverWalkableStep(int currentParentIndex, int particleIndex, float speed, out int recoveredIndex, out float3 recoveredPosition)
+{
+    recoveredIndex = -1;
+    recoveredPosition = 0.0;
+    if (!IsValidVoxelIndex(currentParentIndex)) return false;
+
+    int parentX;
+    int parentY;
+    int parentZ;
+    Coordinates(currentParentIndex, parentX, parentY, parentZ);
+
+    int step = max(1, (int)(speed / max(VoxelSize, 1e-6)));
+    uint selectionKey = AntOrderKey(particleIndex, 0xa511e9b3u);
+    uint candidateCount = 0u;
+
+    [unroll]
+    for (int offsetX = -1; offsetX <= 1; offsetX++)
+    {
+        [unroll]
+        for (int offsetY = -1; offsetY <= 1; offsetY++)
+        {
+            [unroll]
+            for (int offsetZ = -1; offsetZ <= 1; offsetZ++)
+            {
+                int x = parentX + offsetX * step;
+                int y = parentY + offsetY * step;
+                int z = parentZ + offsetZ * step;
+                if (x < 0 || x >= ResX || y < 0 || y >= ResY || z < 0 || z >= ResZ) continue;
+                if (PlanarYZ != 0 && x != 0) continue;
+                if (PlanarXZ != 0 && y != 0) continue;
+                if (PlanarXY != 0 && z != 0) continue;
+
+                int candidateIndex = FlatIndex(x, y, z);
+                if (!IsValidVoxelIndex(candidateIndex) || IsBoundary(x, y, z)) continue;
+
+                candidateCount++;
+                if (Hash(selectionKey + candidateCount * 2246822519u) % candidateCount == 0u)
+                {
+                    recoveredIndex = candidateIndex;
+                    recoveredPosition = float3(
+                        (x + 0.5) * VoxelSize,
+                        (y + 0.5) * VoxelSize,
+                        (z + 0.5) * VoxelSize);
+                }
+            }
+        }
+    }
+
+    if (recoveredIndex < 0) return false;
+    recoveredPosition = ApplyPlanarPosition(recoveredPosition);
+    return true;
+}
+
 [numthreads(256, 1, 1)]
 void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
 {
@@ -3135,6 +4347,7 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
     if (particleIndex >= ParticleCount) return;
 
     float4 posGroup = ParticlePosition[particleIndex];
+    if (posGroup.w < -0.5) return;
     float4 dirParent = ParticleDirection[particleIndex];
     float4 yWrapped = ParticleYAxis[particleIndex];
 
@@ -3147,6 +4360,10 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
 
     float4 group0 = GroupData0[groupIndex];
     float4 group1 = GroupData1[groupIndex];
+    bool isAnt = group1.y > 0.5;
+    uint particleAge = DepositFixed[ParticleAgeIndex(particleIndex)];
+    bool foundFood = isAnt && DepositFixed[ParticleAntStateIndex(particleIndex)] != 0u;
+    float3 homePosition = isAnt ? ParticleHome[particleIndex].xyz : position;
 
     int currentParentIndex = (int)round(dirParent.w);
     if (!IsValidVoxelIndex(currentParentIndex))
@@ -3174,22 +4391,36 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
     sincos(rotationAngle, rotationSin, rotationCos);
     float depositValue = group1.z;
     uint wanderFrequency = max(1u, (uint)round(group1.w));
+    if (DynamicPopulation != 0)
+    {
+        float wander = saturate(group0.w);
+        float groupPopulation = (float)ParticleCounts[GroupPopulationIndex(groupIndex)];
+        wanderFrequency = max(1u, (uint)floor(pow(1.0 - wander, 3.0) * groupPopulation / 40.0));
+    }
+
+    float3 homeOffset = position - homePosition;
+    float homeDistance = length(homeOffset);
+    float3 towardsHome = NormalizeOr(-homeOffset, -x);
 
     float3 leftSensor = position + (x * sensorCos - y * sensorSin) * sensorDistance;
     float3 frontSensor = position + x * sensorDistance;
     float3 rightSensor = position + (x * sensorCos + y * sensorSin) * sensorDistance;
 
-    float value0 = SampleDensity(leftSensor);
-    float value1 = SampleDensity(frontSensor);
-    float value2 = SampleDensity(rightSensor);
+    float value0 = isAnt ? SampleAntField(leftSensor, foundFood, currentParentIndex, particleIndex) : SampleDensity(leftSensor);
+    float value1 = isAnt ? SampleAntField(frontSensor, foundFood, currentParentIndex, particleIndex) : SampleDensity(frontSensor);
+    float value2 = isAnt ? SampleAntField(rightSensor, foundFood, currentParentIndex, particleIndex) : SampleDensity(rightSensor);
     float value3 = -1.0;
     float value4 = -1.0;
 
     if (Tridimensional != 0)
     {
         float3 zAxis = NormalizeOr(cross(y, x), float3(0, 0, 1));
-        value3 = SampleDensity(position + (x * sensorCos + zAxis * sensorSin) * sensorDistance);
-        value4 = SampleDensity(position + (x * sensorCos - zAxis * sensorSin) * sensorDistance);
+        value3 = isAnt
+            ? SampleAntField(position + (x * sensorCos + zAxis * sensorSin) * sensorDistance, foundFood, currentParentIndex, particleIndex)
+            : SampleDensity(position + (x * sensorCos + zAxis * sensorSin) * sensorDistance);
+        value4 = isAnt
+            ? SampleAntField(position + (x * sensorCos - zAxis * sensorSin) * sensorDistance, foundFood, currentParentIndex, particleIndex)
+            : SampleDensity(position + (x * sensorCos - zAxis * sensorSin) * sensorDistance);
     }
 
     int bestIndex = ChooseBestSensor(value0, value1, value2, value3, value4);
@@ -3213,9 +4444,43 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
         }
     }
 
-    float3 moveDirection = NormalizeOr(force + x, x);
+    if (isAnt)
+    {
+        uint antSteeringOrder = AntOrderKey(particleIndex, 0x9e3779b9u);
+        if (particleAge < 15u)
+        {
+            float blend = particleAge / 15.0;
+            float3 target = foundFood ? towardsHome : NormalizeOr(homeOffset, x);
+            force += NormalizeOr(lerp(x, target, blend), x) * 2.0;
+        }
+        if (antSteeringOrder % 7u == 0u)
+        {
+            force += RandomPlanarVector(Hash(antSteeringOrder + (uint)Iteration));
+        }
+        if (particleAge < 30u && homeDistance < sensorDistance * 3.0)
+        {
+            force += NormalizeOr(homeOffset, x) * 10.0;
+        }
+        if (foundFood && antSteeringOrder % wanderFrequency == 0u)
+        {
+            force += towardsHome;
+        }
+        if (!foundFood && particleAge > 100u)
+        {
+            force += towardsHome * (0.01 * particleAge / 100.0);
+        }
+        if (homeDistance <= sensorDistance * 2.0 && particleAge > 30u)
+        {
+            x = towardsHome;
+            y = SafeYAxis(x, y);
+            force += towardsHome;
+        }
+    }
+
+    float3 steeringDirection = NormalizeOr(force, x);
+    float3 moveDirection = NormalizeOr(steeringDirection + x, x);
     uint movementSeed = Hash((uint)particleIndex + (uint)Iteration * 2891336453u);
-    if (wanderFrequency > 0u && movementSeed % wanderFrequency == 0u)
+    if (!isAnt && wanderFrequency > 0u && movementSeed % wanderFrequency == 0u)
     {
         moveDirection = NormalizeOr(moveDirection + RandomPlanarVector(movementSeed) * 1.5, moveDirection);
     }
@@ -3231,12 +4496,19 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
     int parentIndex = VoxelIndexFromPosition(nextPosition);
     if (parentIndex < 0)
     {
-        parentIndex = (int)round(dirParent.w);
-        if (!IsValidVoxelIndex(parentIndex))
+        int recoveredIndex;
+        float3 recoveredPosition;
+        if (TryRecoverWalkableStep(currentParentIndex, particleIndex, speed, recoveredIndex, recoveredPosition))
         {
-            parentIndex = -1;
+            parentIndex = recoveredIndex;
+            nextPosition = recoveredPosition;
         }
-        nextPosition = position;
+        else
+        {
+            parentIndex = currentParentIndex;
+            if (!IsValidVoxelIndex(parentIndex)) parentIndex = -1;
+            nextPosition = position;
+        }
     }
 
     if (parentIndex >= 0 && parentIndex < VoxelCount)
@@ -3244,11 +4516,41 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
         uint previousCount = ParticleCounts[parentIndex];
         if (previousCount == 0u && CanDepositAtVoxel(parentIndex, sensorDistance))
         {
-            uint fixedDeposit = (uint)round(max(0.0, depositValue * DepositScale));
+            float ageT = saturate(particleAge / 99.0);
+            float antMultiplier = foundFood ? lerp(1.0, 0.3, ageT) : lerp(1.0, 0.2, ageT);
+            float antTrailFactor = !foundFood && AntFoodPheromone[parentIndex] > 0.0 ? 1.1 : 0.9;
+            float effectiveDeposit = isAnt ? depositValue * antMultiplier * (foundFood ? 1.0 : antTrailFactor) : depositValue;
+            uint fixedDeposit = (uint)round(max(0.0, effectiveDeposit * DepositScale));
             if (fixedDeposit > 0u)
             {
-                InterlockedAdd(DepositFixed[parentIndex], fixedDeposit);
+                if (isAnt)
+                {
+                    InterlockedAdd(DepositFixed[foundFood ? AntFoodDepositIndex(parentIndex) : AntBaseDepositIndex(parentIndex)], fixedDeposit);
+                }
+                else
+                {
+                    InterlockedAdd(DepositFixed[parentIndex], fixedDeposit);
+                }
             }
+        }
+    }
+
+    uint nextParticleAge = particleAge + 1u;
+    if (isAnt && Iteration > 1)
+    {
+        if (!foundFood && TryConsumeFood(parentIndex))
+        {
+            foundFood = true;
+            nextParticleAge = 1u;
+        }
+
+        // V3 treats every visit inside one movement step as a nest visit. Repeating
+        // the age reset keeps the outward departure force active until the ant exits.
+        float nextHomeDistance = length(nextPosition - homePosition);
+        if (nextHomeDistance < max(speed, 1e-4))
+        {
+            foundFood = false;
+            nextParticleAge = 1u;
         }
     }
 
@@ -3258,6 +4560,8 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
     ParticlePosition[particleIndex] = float4(nextPosition, (float)groupIndex);
     ParticleDirection[particleIndex] = float4(x, (float)parentIndex);
     ParticleYAxis[particleIndex] = float4(y, (float)wrapped);
+    DepositFixed[ParticleAgeIndex(particleIndex)] = nextParticleAge;
+    if (isAnt) DepositFixed[ParticleAntStateIndex(particleIndex)] = foundFood ? 1u : 0u;
 }
 
 [numthreads(256, 1, 1)]
@@ -3266,24 +4570,47 @@ void ApplyDeposits(uint3 id : SV_DispatchThreadID)
     int index = id.x;
     if (index >= VoxelCount) return;
 
-    uint fixedDeposit = DepositFixed[index];
-    if (fixedDeposit == 0u) return;
+    uint fixedDeposit = HasSlimeParticles != 0 ? DepositFixed[index] : 0u;
     if (!IsValidVoxelIndex(index))
     {
         DepositFixed[index] = 0u;
+        if (HasAntParticles != 0)
+        {
+            DepositFixed[AntFoodDepositIndex(index)] = 0u;
+            DepositFixed[AntBaseDepositIndex(index)] = 0u;
+        }
         return;
     }
 
-    Source[index] = ClampDensityLimits(Source[index] + fixedDeposit / DepositScale, index);
+    if (fixedDeposit > 0u)
+    {
+        Source[index] = ClampDensityLimits(Source[index] + fixedDeposit / DepositScale, index);
+    }
     DepositFixed[index] = 0u;
+
+    if (HasAntParticles != 0)
+    {
+        uint foodDeposit = DepositFixed[AntFoodDepositIndex(index)];
+        uint baseDeposit = DepositFixed[AntBaseDepositIndex(index)];
+        if (foodDeposit > 0u) Destination[index] = min(1.0, Destination[index] + foodDeposit / DepositScale);
+        if (baseDeposit > 0u) AntBaseDestination[index] = min(1.0, AntBaseDestination[index] + baseDeposit / DepositScale);
+        DepositFixed[AntFoodDepositIndex(index)] = 0u;
+        DepositFixed[AntBaseDepositIndex(index)] = 0u;
+    }
 }
 
 [numthreads(256, 1, 1)]
 void ClearParticleCounts(uint3 id : SV_DispatchThreadID)
 {
     int index = id.x;
-    if (index >= VoxelCount) return;
-    ParticleCounts[index] = 0u;
+    if (index < VoxelCount)
+    {
+        ParticleCounts[index] = 0u;
+    }
+    if (index < GroupCount)
+    {
+        ParticleCounts[GroupPopulationIndex(index)] = 0u;
+    }
 }
 
 [numthreads(256, 1, 1)]
@@ -3291,12 +4618,273 @@ void CountParticles(uint3 id : SV_DispatchThreadID)
 {
     int index = id.x;
     if (index >= ParticleCount) return;
+    if (!IsParticleAlive(index)) return;
 
     int parentIndex = (int)round(ParticleDirection[index].w);
     if (IsValidVoxelIndex(parentIndex))
     {
         InterlockedAdd(ParticleCounts[parentIndex], 1u);
     }
+
+    int groupIndex = (int)round(ParticlePosition[index].w);
+    if (groupIndex >= 0 && groupIndex < GroupCount)
+    {
+        InterlockedAdd(ParticleCounts[GroupPopulationIndex(groupIndex)], 1u);
+    }
+}
+
+[numthreads(256, 1, 1)]
+void SeedNeighbourCounts(uint3 id : SV_DispatchThreadID)
+{
+    int index = id.x;
+    if (index >= VoxelCount) return;
+    Destination[index] = (float)ParticleCounts[index];
+}
+
+int NeighbourLineCountForAxis(int axis)
+{
+    if (axis == 0) return ResY * ResZ;
+    if (axis == 1) return ResX * ResZ;
+    return ResX * ResY;
+}
+
+int NeighbourLineLength(int axis)
+{
+    if (axis == 0) return ResX;
+    if (axis == 1) return ResY;
+    return ResZ;
+}
+
+int NeighbourLineVoxelIndex(int axis, int lineIndex, int coordinate)
+{
+    if (axis == 0)
+    {
+        int y = lineIndex / ResZ;
+        int z = lineIndex - y * ResZ;
+        return FlatIndex(coordinate, y, z);
+    }
+
+    if (axis == 1)
+    {
+        int x = lineIndex / ResZ;
+        int z = lineIndex - x * ResZ;
+        return FlatIndex(x, coordinate, z);
+    }
+
+    int x = lineIndex / ResY;
+    int y = lineIndex - x * ResY;
+    return FlatIndex(x, y, coordinate);
+}
+
+[numthreads(64, 1, 1)]
+void SumNeighbourAxis(uint3 id : SV_DispatchThreadID)
+{
+    int lineIndex = id.x;
+    int lineCount = NeighbourLineCountForAxis(Axis);
+    if (lineIndex >= lineCount) return;
+
+    int length = NeighbourLineLength(Axis);
+    int radius = max(Range, 0);
+    float sum = 0.0;
+    int initialEnd = min(radius, length - 1);
+    for (int coordinate = 0; coordinate <= initialEnd; coordinate++)
+    {
+        sum += Source[NeighbourLineVoxelIndex(Axis, lineIndex, coordinate)];
+    }
+
+    for (int coordinate = 0; coordinate < length; coordinate++)
+    {
+        Destination[NeighbourLineVoxelIndex(Axis, lineIndex, coordinate)] = sum;
+
+        int removeCoordinate = coordinate - radius;
+        if (removeCoordinate >= 0)
+        {
+            sum -= Source[NeighbourLineVoxelIndex(Axis, lineIndex, removeCoordinate)];
+        }
+
+        int addCoordinate = coordinate + radius + 1;
+        if (addCoordinate < length)
+        {
+            sum += Source[NeighbourLineVoxelIndex(Axis, lineIndex, addCoordinate)];
+        }
+    }
+}
+
+bool TryClaimDeath()
+{
+    uint current = ParticleCounts[ActivePopulationIndex()];
+    uint minimum = (uint)max(MinimumPopulation, 0);
+    [loop]
+    for (int attempt = 0; attempt < 64; attempt++)
+    {
+        if (current <= minimum) return false;
+
+        uint observed;
+        InterlockedCompareExchange(ParticleCounts[ActivePopulationIndex()], current, current - 1u, observed);
+        if (observed == current) return true;
+        current = observed;
+    }
+
+    return false;
+}
+
+[numthreads(256, 1, 1)]
+void ApplyParticleDeath(uint3 id : SV_DispatchThreadID)
+{
+    int particleIndex = id.x;
+    if (particleIndex >= ParticleCapacity || !IsParticleAlive(particleIndex)) return;
+
+    int parentIndex = (int)round(ParticleDirection[particleIndex].w);
+    int neighbourCount = 0;
+    if (parentIndex >= 0 && parentIndex < VoxelCount)
+    {
+        neighbourCount = max(0, (int)round(Source[parentIndex]) - 1);
+    }
+    DepositFixed[ParticleDeathNeighbourIndex(particleIndex)] = (uint)neighbourCount;
+
+    uint age = DepositFixed[ParticleAgeIndex(particleIndex)];
+    bool shouldDie = parentIndex < 0 || parentIndex >= VoxelCount ||
+                     neighbourCount <= DeathMinimumNeighbours ||
+                     neighbourCount >= DeathMaximumNeighbours;
+    if (parentIndex >= 0 && age < (uint)max(DeathMinimumAge, 0) && neighbourCount > 2)
+    {
+        shouldDie = false;
+    }
+
+    if (!shouldDie || !TryClaimDeath()) return;
+
+    float4 position = ParticlePosition[particleIndex];
+    int groupIndex = clamp((int)round(position.w), 0, max(GroupCount - 1, 0));
+    position.w = -1.0;
+    ParticlePosition[particleIndex] = position;
+
+    float4 direction = ParticleDirection[particleIndex];
+    direction.w = -1.0;
+    ParticleDirection[particleIndex] = direction;
+
+    float4 yAxis = ParticleYAxis[particleIndex];
+    yAxis.w = -1.0;
+    ParticleYAxis[particleIndex] = yAxis;
+
+    if (parentIndex >= 0 && parentIndex < VoxelCount)
+    {
+        uint previousCount;
+        InterlockedAdd(ParticleCounts[parentIndex], 0xffffffffu, previousCount);
+    }
+
+    uint ignoredGroupCount;
+    InterlockedAdd(ParticleCounts[GroupPopulationIndex(groupIndex)], 0xffffffffu, ignoredGroupCount);
+
+    uint freeIndex;
+    InterlockedAdd(ParticleCounts[FreePopulationIndex()], 1u, freeIndex);
+    if (freeIndex < (uint)ParticleCapacity)
+    {
+        DepositFixed[FreeSlotIndex((int)freeIndex)] = (uint)particleIndex;
+    }
+}
+
+bool TryClaimBirth(out uint particleSlot)
+{
+    particleSlot = 0u;
+    uint current = ParticleCounts[ActivePopulationIndex()];
+    uint maximum = (uint)min(max(MaximumPopulation, 0), ParticleCapacity);
+    [loop]
+    for (int attempt = 0; attempt < 64; attempt++)
+    {
+        if (current >= maximum) return false;
+
+        uint observed;
+        InterlockedCompareExchange(ParticleCounts[ActivePopulationIndex()], current, current + 1u, observed);
+        if (observed == current)
+        {
+            uint previousFree;
+            uint ignored;
+            InterlockedAdd(ParticleCounts[FreePopulationIndex()], 0xffffffffu, previousFree);
+            if (previousFree == 0u)
+            {
+                InterlockedAdd(ParticleCounts[FreePopulationIndex()], 1u, ignored);
+                InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0xffffffffu, ignored);
+                return false;
+            }
+
+            particleSlot = DepositFixed[FreeSlotIndex((int)previousFree - 1)];
+            if (particleSlot >= (uint)ParticleCapacity)
+            {
+                InterlockedAdd(ParticleCounts[FreePopulationIndex()], 1u, ignored);
+                InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0xffffffffu, ignored);
+                return false;
+            }
+
+            return true;
+        }
+
+        current = observed;
+    }
+
+    return false;
+}
+
+[numthreads(256, 1, 1)]
+void ApplyParticleDivision(uint3 id : SV_DispatchThreadID)
+{
+    int particleIndex = id.x;
+    if (particleIndex >= ParticleCapacity || !IsParticleAlive(particleIndex)) return;
+    if (ParticleYAxis[particleIndex].w < -0.5) return;
+
+    int parentIndex = (int)round(ParticleDirection[particleIndex].w);
+    if (!IsValidVoxelIndex(parentIndex)) return;
+
+    int neighbourCount = max(0, (int)round(Source[parentIndex]) - 1);
+    DepositFixed[ParticleDivisionNeighbourIndex(particleIndex)] = (uint)neighbourCount;
+    uint age = DepositFixed[ParticleAgeIndex(particleIndex)];
+    if ((VoxelDensityLimits[parentIndex].x >= 0.0 && age < (uint)max(DivisionMinimumAge, 0)) ||
+        neighbourCount < DivisionMinimumNeighbours ||
+        neighbourCount > DivisionMaximumNeighbours)
+    {
+        return;
+    }
+
+    uint selectionSeed = Hash((uint)particleIndex + (uint)Iteration * 3266489917u);
+    if ((selectionSeed & 1u) != 0u) return;
+
+    uint childSlot;
+    if (!TryClaimBirth(childSlot)) return;
+
+    float4 parentPosition = ParticlePosition[particleIndex];
+    float4 parentDirection = ParticleDirection[particleIndex];
+    float4 parentYAxis = ParticleYAxis[particleIndex];
+    int groupIndex = clamp((int)round(parentPosition.w), 0, max(GroupCount - 1, 0));
+    float3 x = NormalizeOr(parentDirection.xyz, float3(1, 0, 0));
+    float3 y = SafeYAxis(x, parentYAxis.xyz);
+    float3 childBase = x;
+
+    float splitAngle = GroupData1[groupIndex].x * 0.25;
+    float splitSin;
+    float splitCos;
+    sincos(splitAngle, splitSin, splitCos);
+    float3 parentX = NormalizeOr(RotateForce(2, childBase, y, splitCos, splitSin), x);
+    float3 childX = NormalizeOr(RotateForce(0, childBase, y, splitCos, splitSin), x);
+    float3 childY = SafeYAxis(childX, y);
+
+    ParticleDirection[particleIndex] = float4(parentX, parentDirection.w);
+    ParticleYAxis[particleIndex] = float4(SafeYAxis(parentX, y), parentYAxis.w);
+
+    ParticlePosition[childSlot] = float4(parentPosition.xyz, (float)groupIndex);
+    ParticleDirection[childSlot] = float4(childX, (float)parentIndex);
+    ParticleYAxis[childSlot] = float4(childY, -1.0);
+    ParticleHome[childSlot] = ParticleHome[particleIndex];
+    DepositFixed[ParticleAgeIndex((int)childSlot)] = 0u;
+    DepositFixed[ParticleDeathNeighbourIndex((int)childSlot)] = 0u;
+    DepositFixed[ParticleDivisionNeighbourIndex((int)childSlot)] = 0u;
+    DepositFixed[ParticleGenerationIndex((int)childSlot)] = DepositFixed[ParticleGenerationIndex((int)childSlot)] + 1u;
+    DepositFixed[ParticleAntStateIndex((int)childSlot)] = DepositFixed[ParticleAntStateIndex(particleIndex)];
+
+    uint ignoredVoxelCount;
+    InterlockedAdd(ParticleCounts[parentIndex], 1u, ignoredVoxelCount);
+    InterlockedAdd(DepositFixed[ParticleAgeIndex(particleIndex)], 1u, ignoredVoxelCount);
+
+    uint ignoredGroupCount;
+    InterlockedAdd(ParticleCounts[GroupPopulationIndex(groupIndex)], 1u, ignoredGroupCount);
 }
 
 float ClampPassDensity(float value, int index, int x, int y, int z)
@@ -3484,6 +5072,107 @@ void BuildDensityPreview(uint3 id : SV_DispatchThreadID)
     DensityPreview[int2(u, v)] = lerp(dx0, dx1, fv);
 }
 
+float4 CombinedPreviewVoxel(int index)
+{
+    float slime = HasSlimeParticles != 0 ? max(Source[index], 0.0) : 0.0;
+    float foodPheromone = HasAntParticles != 0 ? max(AntFoodPheromone[index], 0.0) : 0.0;
+    float basePheromone = HasAntParticles != 0 ? max(AntBasePheromone[index], 0.0) : 0.0;
+    float remainingFood = DepositFixed[FoodRemainingIndex(index)] / DepositScale;
+    return float4(slime, foodPheromone, basePheromone, max(remainingFood, 0.0));
+}
+
+[numthreads(16, 16, 1)]
+void BuildCombinedDensityPreview(uint3 id : SV_DispatchThreadID)
+{
+    int u = id.x;
+    int v = id.y;
+    if (u >= PreviewWidth || v >= PreviewHeight) return;
+
+    if (PreviewAxisMode == 3)
+    {
+        int sliceWidth = max(ResX, 1);
+        int sliceHeight = max(ResY, 1);
+        int columns = max(PreviewAtlasColumns, 1);
+        int tileX = u / sliceWidth;
+        int tileY = v / sliceHeight;
+        int z = tileY * columns + tileX;
+        if (z >= ResZ)
+        {
+            CombinedDensityPreview[int2(u, v)] = 0.0;
+            return;
+        }
+
+        int x = u - tileX * sliceWidth;
+        int y = v - tileY * sliceHeight;
+        CombinedDensityPreview[int2(u, v)] = CombinedPreviewVoxel(
+            FlatIndex(clamp(x, 0, ResX - 1), clamp(y, 0, ResY - 1), clamp(z, 0, ResZ - 1)));
+        return;
+    }
+
+    int sourceWidth = PreviewAxisMode == 2 ? ResY : ResX;
+    int sourceHeight = PreviewAxisMode == 0 ? ResY : ResZ;
+    sourceWidth = max(sourceWidth, 1);
+    sourceHeight = max(sourceHeight, 1);
+
+    float sourceU = PreviewWidth <= 1 ? 0.0 : ((float)u / (float)(PreviewWidth - 1)) * (float)(sourceWidth - 1);
+    float sourceV = PreviewHeight <= 1 ? 0.0 : ((float)v / (float)(PreviewHeight - 1)) * (float)(sourceHeight - 1);
+    int u0 = clamp((int)floor(sourceU), 0, sourceWidth - 1);
+    int v0 = clamp((int)floor(sourceV), 0, sourceHeight - 1);
+    int u1 = min(u0 + 1, sourceWidth - 1);
+    int v1 = min(v0 + 1, sourceHeight - 1);
+    float fu = frac(sourceU);
+    float fv = frac(sourceV);
+
+    int x00 = u0;
+    int y00 = v0;
+    int z00 = PreviewSlice;
+    int x10 = u1;
+    int y10 = v0;
+    int z10 = PreviewSlice;
+    int x01 = u0;
+    int y01 = v1;
+    int z01 = PreviewSlice;
+    int x11 = u1;
+    int y11 = v1;
+    int z11 = PreviewSlice;
+
+    if (PreviewAxisMode == 1)
+    {
+        y00 = y10 = y01 = y11 = PreviewSlice;
+        z00 = z10 = v0;
+        z01 = z11 = v1;
+    }
+    else if (PreviewAxisMode == 2)
+    {
+        x00 = x10 = x01 = x11 = PreviewSlice;
+        y00 = y01 = u0;
+        y10 = y11 = u1;
+        z00 = z10 = v0;
+        z01 = z11 = v1;
+    }
+
+    x00 = clamp(x00, 0, ResX - 1);
+    x10 = clamp(x10, 0, ResX - 1);
+    x01 = clamp(x01, 0, ResX - 1);
+    x11 = clamp(x11, 0, ResX - 1);
+    y00 = clamp(y00, 0, ResY - 1);
+    y10 = clamp(y10, 0, ResY - 1);
+    y01 = clamp(y01, 0, ResY - 1);
+    y11 = clamp(y11, 0, ResY - 1);
+    z00 = clamp(z00, 0, ResZ - 1);
+    z10 = clamp(z10, 0, ResZ - 1);
+    z01 = clamp(z01, 0, ResZ - 1);
+    z11 = clamp(z11, 0, ResZ - 1);
+
+    float4 d00 = CombinedPreviewVoxel(FlatIndex(x00, y00, z00));
+    float4 d10 = CombinedPreviewVoxel(FlatIndex(x10, y10, z10));
+    float4 d01 = CombinedPreviewVoxel(FlatIndex(x01, y01, z01));
+    float4 d11 = CombinedPreviewVoxel(FlatIndex(x11, y11, z11));
+    float4 dx0 = lerp(d00, d10, fu);
+    float4 dx1 = lerp(d01, d11, fu);
+    CombinedDensityPreview[int2(u, v)] = lerp(dx0, dx1, fv);
+}
+
 [numthreads(256, 1, 1)]
 void BuildParticlePreview(uint3 id : SV_DispatchThreadID)
 {
@@ -3496,12 +5185,25 @@ void BuildParticlePreview(uint3 id : SV_DispatchThreadID)
     if (posY + 1 >= PreviewHeight) return;
 
     float4 positionGroup = ParticlePosition[particleIndex];
+    if (positionGroup.w < -0.5)
+    {
+        ParticlePreview[int2(texX, posY)] = float4(0.0, 0.0, 0.0, -1.0);
+        ParticlePreview[int2(texX, posY + 1)] = float4(0.0, 0.0, 0.0, 0.0);
+        return;
+    }
     int groupIndex = (int)round(positionGroup.w);
     groupIndex = clamp(groupIndex, 0, max(GroupCount - 1, 0));
     float4 color = float4(1.0, 1.0, 1.0, 1.0);
     if (GroupCount > 0)
     {
         color = GroupColorData[groupIndex];
+        bool isAnt = GroupData1[groupIndex].y > 0.5;
+        bool foundFood = isAnt && DepositFixed[ParticleAntStateIndex(particleIndex)] != 0u;
+        if (foundFood)
+        {
+            color.rgb = saturate(color.rgb * 1.75);
+            color.a = 175.0 / 255.0;
+        }
     }
 
     ParticlePreview[int2(texX, posY)] = positionGroup;
@@ -3525,7 +5227,12 @@ void BuildParticleTrailPreview(uint3 id : SV_DispatchThreadID)
 
     float4 position = ParticlePosition[particleIndex];
     float4 yWrapped = ParticleYAxis[particleIndex];
-    if (yWrapped.w > 0.5)
+    if (position.w < -0.5 && yWrapped.w < -1.5)
+    {
+        return;
+    }
+
+    if (position.w < -0.5 || yWrapped.w < -0.5 || yWrapped.w > 0.5)
     {
         int rowStart = particleRow * trailSize;
         float4 invalidPosition = float4(position.xyz, -1.0);
@@ -3539,6 +5246,16 @@ void BuildParticleTrailPreview(uint3 id : SV_DispatchThreadID)
         }
 
         ParticleTrailPreview[int2(texX, texY)] = position;
+        if (position.w < -0.5)
+        {
+            yWrapped.w = -2.0;
+            ParticleYAxis[particleIndex] = yWrapped;
+        }
+        else if (yWrapped.w < -0.5)
+        {
+            yWrapped.w = 0.0;
+            ParticleYAxis[particleIndex] = yWrapped;
+        }
         return;
     }
 

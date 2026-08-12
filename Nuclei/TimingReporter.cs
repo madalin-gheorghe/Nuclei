@@ -87,12 +87,31 @@ namespace Nuclei3
             double inputsMs,
             double moveMs,
             double diffuseMs,
+            double populationMs,
             double densitySyncMs,
             double outputsMs,
             double setParticlesMs,
             double setVoxelsMs)
         {
-            WriteRawLine(CreateLine("solver_gpu", iteration, samples, particleCount, voxelCount, 0, context, totalMs, settingsMs, inputsMs, 0, moveMs, 0, diffuseMs, 0, 0, outputsMs, densitySyncMs, setParticlesMs, setVoxelsMs, 0, 0, 0, 0, 0, 0, moveMs));
+            WriteRawLine(CreateLine("solver_gpu", iteration, samples, particleCount, voxelCount, 0, context, totalMs, settingsMs, inputsMs, 0, moveMs, 0, diffuseMs, 0, populationMs, outputsMs, densitySyncMs, setParticlesMs, setVoxelsMs, 0, 0, 0, 0, 0, 0, moveMs));
+        }
+
+        public static void WriteGpuReset(
+            string mode,
+            int particleCount,
+            int voxelCount,
+            SolverContext context,
+            double totalMs,
+            double snapshotMs,
+            double restoreMs)
+        {
+            WriteRawLine(CreateLine(
+                "solver_gpu_reset_" + mode,
+                0, 1, particleCount, voxelCount, 0, context,
+                totalMs, 0, snapshotMs,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                restoreMs, 0,
+                0, 0, 0, 0, 0));
         }
 
         public static void WritePreviewAverages(

@@ -494,10 +494,15 @@ namespace Nuclei3
             IntPtr sharedHandle = IntPtr.Zero;
             int width;
             int height;
+            bool colorTexture;
 
             public bool TryUpdate(ID3D11Device device, GpuDensityFieldPreviewFrame frame)
             {
-                if (ShaderResourceView != null && sharedHandle == frame.SharedHandle && width == frame.Width && height == frame.Height)
+                if (ShaderResourceView != null
+                    && sharedHandle == frame.SharedHandle
+                    && width == frame.Width
+                    && height == frame.Height
+                    && colorTexture == frame.ColorTexture)
                 {
                     return true;
                 }
@@ -514,7 +519,7 @@ namespace Nuclei3
                             new ShaderResourceViewDescription(
                                 sharedTexture,
                                 ShaderResourceViewDimension.Texture2D,
-                                Format.R32_Float,
+                                frame.ColorTexture ? Format.R32G32B32A32_Float : Format.R32_Float,
                                 0,
                                 1,
                                 0,
@@ -523,6 +528,7 @@ namespace Nuclei3
                         sharedHandle = frame.SharedHandle;
                         width = frame.Width;
                         height = frame.Height;
+                        colorTexture = frame.ColorTexture;
                         return true;
                     }
                     finally
@@ -546,6 +552,7 @@ namespace Nuclei3
                 sharedHandle = IntPtr.Zero;
                 width = 0;
                 height = 0;
+                colorTexture = false;
             }
         }
 
@@ -636,7 +643,7 @@ cbuffer FieldConstants : register(b0)
     float4 VolumeAtlas;
 };
 
-Texture2D<float> DensityTexture : register(t0);
+Texture2D<float4> DensityTexture : register(t0);
 
 struct VSOutput
 {
@@ -681,6 +688,24 @@ bool InPreviewRange(float value)
     return (allowZero || value > 0.001) && value >= Thresholds.x && value <= Thresholds.y;
 }
 
+bool IsDynamicColorPreview()
+{
+    return Thresholds.w > 5.5;
+}
+
+float PreviewValue(float4 sample)
+{
+    if (!IsDynamicColorPreview()) return sample.r;
+
+    float food = sample.a;
+    if (Thresholds.w < 6.5) return food;
+    if (Thresholds.w < 7.5) return max(food, sample.r);
+    if (Thresholds.w < 8.5) return max(food, sample.g);
+    if (Thresholds.w < 9.5) return max(food, sample.b);
+    if (Thresholds.w < 10.5) return max(food, max(sample.g, sample.b));
+    return max(food, max(sample.r, max(sample.g, sample.b)));
+}
+
 float3 PreviewColor(float value, float n)
 {
     float glow = smoothstep(0.08, 0.95, n);
@@ -697,7 +722,71 @@ float3 PreviewColor(float value, float n)
         return float3(n, n, n);
     }
 
+    if (Thresholds.w < 7.5)
+    {
+        return float3(0.874510, 1.0, 0.482353) * n;
+    }
+
+    if (Thresholds.w < 8.5)
+    {
+        return float3(0.223529, 1.0, 0.666667) * n;
+    }
+
+    if (Thresholds.w < 9.5)
+    {
+        return float3(1.0, 0.0, 0.392157) * n;
+    }
+
     return color;
+}
+
+float3 PreviewSampleColor(float4 sample, float value, float n)
+{
+    if (IsDynamicColorPreview())
+    {
+        float foodVisual = saturate(sample.a * Style.y);
+        float slimeVisual = saturate(sample.r * Style.y);
+        float foodPheromoneVisual = saturate(sample.g * Style.y);
+        float basePheromoneVisual = saturate(sample.b * Style.y);
+        float3 slimeColor = Thresholds.z > 0.5 ? CustomColor.rgb : float3(0.874510, 1.0, 0.482353);
+        float3 foodPheromoneColor = Thresholds.z > 0.5 && Thresholds.w < 8.5 ? CustomColor.rgb : float3(0.223529, 1.0, 0.666667);
+        float3 basePheromoneColor = Thresholds.z > 0.5 && Thresholds.w < 9.5 ? CustomColor.rgb : float3(1.0, 0.0, 0.392157);
+
+        float3 foreground = 0.0;
+        float foregroundStrength = 0.0;
+        if (Thresholds.w > 6.5 && Thresholds.w < 7.5)
+        {
+            foreground = slimeColor * slimeVisual;
+            foregroundStrength = slimeVisual;
+        }
+        else if (Thresholds.w < 8.5 && Thresholds.w > 7.5)
+        {
+            foreground = foodPheromoneColor * foodPheromoneVisual;
+            foregroundStrength = foodPheromoneVisual;
+        }
+        else if (Thresholds.w < 9.5 && Thresholds.w > 8.5)
+        {
+            foreground = basePheromoneColor * basePheromoneVisual;
+            foregroundStrength = basePheromoneVisual;
+        }
+        else if (Thresholds.w < 10.5 && Thresholds.w > 9.5)
+        {
+            foreground = foodPheromoneColor * foodPheromoneVisual + basePheromoneColor * basePheromoneVisual;
+            foregroundStrength = max(foodPheromoneVisual, basePheromoneVisual);
+        }
+        else if (Thresholds.w > 10.5)
+        {
+            foreground = slimeColor * slimeVisual
+                + foodPheromoneColor * foodPheromoneVisual
+                + basePheromoneColor * basePheromoneVisual;
+            foregroundStrength = max(slimeVisual, max(foodPheromoneVisual, basePheromoneVisual));
+        }
+
+        float3 foodBackground = float3(foodVisual, foodVisual, foodVisual) * (1.0 - saturate(foregroundStrength));
+        return saturate(foodBackground + foreground);
+    }
+
+    return PreviewColor(value, n);
 }
 
 float4 RenderPlane(VSOutput input)
@@ -710,7 +799,8 @@ float4 RenderPlane(VSOutput input)
 
     float2 textureSize = max(ViewportAndTexture.zw, float2(1.0, 1.0));
     int2 texel = clamp((int2)floor(saturate(uv) * textureSize), int2(0, 0), (int2)textureSize - int2(1, 1));
-    float value = DensityTexture.Load(int3(texel, 0));
+    float4 sample = DensityTexture.Load(int3(texel, 0));
+    float value = PreviewValue(sample);
     bool inRange = InPreviewRange(value);
     float n = saturate(value * Style.y);
 
@@ -722,8 +812,8 @@ float4 RenderPlane(VSOutput input)
         }
     }
 
-    float3 color = PreviewColor(value, n);
-    if (Thresholds.z > 0.5)
+    float3 color = PreviewSampleColor(sample, value, n);
+    if (Thresholds.z > 0.5 && !IsDynamicColorPreview())
     {
         color = CustomColor.rgb * n;
     }
@@ -770,7 +860,7 @@ bool IntersectVolumeBox(float3 origin, float3 direction, out float enterT, out f
     return exitT > max(enterT, 0.0);
 }
 
-float LoadVolumeAtlasVoxel(int x, int y, int z)
+float4 LoadVolumeAtlasVoxel(int x, int y, int z)
 {
     int resX = max((int)VolumeGrid.x, 1);
     int resY = max((int)VolumeGrid.y, 1);
@@ -792,7 +882,7 @@ float LoadVolumeAtlasVoxel(int x, int y, int z)
     return DensityTexture.Load(int3(column * resX + x, row * resY + y, 0));
 }
 
-float SampleVolumeAtlasNearest(float3 worldPosition)
+float4 SampleVolumeAtlasNearest(float3 worldPosition)
 {
     int resX = max((int)VolumeGrid.x, 1);
     int resY = max((int)VolumeGrid.y, 1);
@@ -805,7 +895,7 @@ float SampleVolumeAtlasNearest(float3 worldPosition)
     return LoadVolumeAtlasVoxel(x, y, z);
 }
 
-float SampleVolumeAtlasTrilinear(float3 worldPosition)
+float4 SampleVolumeAtlasTrilinear(float3 worldPosition)
 {
     int resX = max((int)VolumeGrid.x, 1);
     int resY = max((int)VolumeGrid.y, 1);
@@ -821,21 +911,21 @@ float SampleVolumeAtlasTrilinear(float3 worldPosition)
     int z1 = min(z0 + 1, resZ - 1);
     float3 f = frac(coord);
 
-    float c000 = LoadVolumeAtlasVoxel(x0, y0, z0);
-    float c100 = LoadVolumeAtlasVoxel(x1, y0, z0);
-    float c010 = LoadVolumeAtlasVoxel(x0, y1, z0);
-    float c110 = LoadVolumeAtlasVoxel(x1, y1, z0);
-    float c001 = LoadVolumeAtlasVoxel(x0, y0, z1);
-    float c101 = LoadVolumeAtlasVoxel(x1, y0, z1);
-    float c011 = LoadVolumeAtlasVoxel(x0, y1, z1);
-    float c111 = LoadVolumeAtlasVoxel(x1, y1, z1);
+    float4 c000 = LoadVolumeAtlasVoxel(x0, y0, z0);
+    float4 c100 = LoadVolumeAtlasVoxel(x1, y0, z0);
+    float4 c010 = LoadVolumeAtlasVoxel(x0, y1, z0);
+    float4 c110 = LoadVolumeAtlasVoxel(x1, y1, z0);
+    float4 c001 = LoadVolumeAtlasVoxel(x0, y0, z1);
+    float4 c101 = LoadVolumeAtlasVoxel(x1, y0, z1);
+    float4 c011 = LoadVolumeAtlasVoxel(x0, y1, z1);
+    float4 c111 = LoadVolumeAtlasVoxel(x1, y1, z1);
 
-    float c00 = lerp(c000, c100, f.x);
-    float c10 = lerp(c010, c110, f.x);
-    float c01 = lerp(c001, c101, f.x);
-    float c11 = lerp(c011, c111, f.x);
-    float c0 = lerp(c00, c10, f.y);
-    float c1 = lerp(c01, c11, f.y);
+    float4 c00 = lerp(c000, c100, f.x);
+    float4 c10 = lerp(c010, c110, f.x);
+    float4 c01 = lerp(c001, c101, f.x);
+    float4 c11 = lerp(c011, c111, f.x);
+    float4 c0 = lerp(c00, c10, f.y);
+    float4 c1 = lerp(c01, c11, f.y);
     return lerp(c0, c1, f.z);
 }
 
@@ -854,12 +944,12 @@ float3 EstimateVolumeGradient(float3 worldPosition)
     int resZ = max((int)VolumeGrid.z, 1);
     float3 voxelStep = VolumeBox.xyz / max(float3((float)resX, (float)resY, (float)resZ), float3(1.0, 1.0, 1.0));
 
-    float dx = SampleVolumeAtlasTrilinear(worldPosition + float3(voxelStep.x, 0.0, 0.0))
-        - SampleVolumeAtlasTrilinear(worldPosition - float3(voxelStep.x, 0.0, 0.0));
-    float dy = SampleVolumeAtlasTrilinear(worldPosition + float3(0.0, voxelStep.y, 0.0))
-        - SampleVolumeAtlasTrilinear(worldPosition - float3(0.0, voxelStep.y, 0.0));
-    float dz = SampleVolumeAtlasTrilinear(worldPosition + float3(0.0, 0.0, voxelStep.z))
-        - SampleVolumeAtlasTrilinear(worldPosition - float3(0.0, 0.0, voxelStep.z));
+    float dx = PreviewValue(SampleVolumeAtlasTrilinear(worldPosition + float3(voxelStep.x, 0.0, 0.0)))
+        - PreviewValue(SampleVolumeAtlasTrilinear(worldPosition - float3(voxelStep.x, 0.0, 0.0)));
+    float dy = PreviewValue(SampleVolumeAtlasTrilinear(worldPosition + float3(0.0, voxelStep.y, 0.0)))
+        - PreviewValue(SampleVolumeAtlasTrilinear(worldPosition - float3(0.0, voxelStep.y, 0.0)));
+    float dz = PreviewValue(SampleVolumeAtlasTrilinear(worldPosition + float3(0.0, 0.0, voxelStep.z)))
+        - PreviewValue(SampleVolumeAtlasTrilinear(worldPosition - float3(0.0, 0.0, voxelStep.z)));
 
     return float3(dx, dy, dz);
 }
@@ -922,6 +1012,7 @@ float4 RenderLightningVolume(float3 nearWorld, float3 direction, float startT, f
     float maximumCore = 0.0;
     float maximumDepth = 0.0;
     float3 maximumPosition = nearWorld + direction * startT;
+    float4 maximumSample = 0.0;
     float4 accumulated = float4(0.0, 0.0, 0.0, 0.0);
 
     [loop]
@@ -933,7 +1024,8 @@ float4 RenderLightningVolume(float3 nearWorld, float3 direction, float startT, f
         }
 
         float3 p = nearWorld + direction * t;
-        float value = SampleVolumeAtlasTrilinear(p);
+        float4 sample = SampleVolumeAtlasTrilinear(p);
+        float value = PreviewValue(sample);
         if (InPreviewRange(value))
         {
             float n = saturate(value * Style.y);
@@ -949,13 +1041,16 @@ float4 RenderLightningVolume(float3 nearWorld, float3 direction, float startT, f
                 maximumCore = core;
                 maximumDepth = depthAlongRay;
                 maximumPosition = p;
+                maximumSample = sample;
             }
 
             float depthFade = lerp(1.10, 0.60, depthAlongRay);
             float glowAlpha = glow * glow * 0.92;
             float coreAlpha = core * 2.35;
             float sampleAlpha = saturate((glowAlpha + coreAlpha) * (3.35 / max((float)steps, 1.0)) * VolumeAtlas.z * depthFade);
-            float3 color = LightningColor(value, glow, core, depthAlongRay);
+            float3 color = IsDynamicColorPreview()
+                ? PreviewSampleColor(sample, value, signal)
+                : LightningColor(value, glow, core, depthAlongRay);
 
             accumulated.rgb += (1.0 - accumulated.a) * sampleAlpha * color;
             accumulated.a += (1.0 - accumulated.a) * sampleAlpha;
@@ -970,7 +1065,9 @@ float4 RenderLightningVolume(float3 nearWorld, float3 direction, float startT, f
     }
 
     float edgeStrength = saturate(length(EstimateVolumeGradient(maximumPosition)) * 18.0);
-    float3 coreColor = LightningColor(maximumValue, maximumGlow, maximumCore, maximumDepth);
+    float3 coreColor = IsDynamicColorPreview()
+        ? PreviewSampleColor(maximumSample, maximumValue, saturate(maximumGlow + maximumCore))
+        : LightningColor(maximumValue, maximumGlow, maximumCore, maximumDepth);
     coreColor = ApplyFancyLighting(coreColor, maximumPosition, direction, maximumDepth);
     float3 glowColor = accumulated.a > 0.002 ? accumulated.rgb / max(accumulated.a, 0.001) : coreColor;
 
@@ -1013,6 +1110,7 @@ float4 RenderVolume(VSOutput input)
         float maximumVisual = 0.0;
         float maximumDepth = 0.0;
         float3 maximumPosition = nearWorld + direction * startT;
+        float4 maximumSample = 0.0;
         float4 accumulated = float4(0.0, 0.0, 0.0, 0.0);
 
         [loop]
@@ -1024,7 +1122,8 @@ float4 RenderVolume(VSOutput input)
             }
 
             float3 p = nearWorld + direction * t;
-            float value = SampleVolumeAtlasTrilinear(p);
+            float4 sample = SampleVolumeAtlasTrilinear(p);
+            float value = PreviewValue(sample);
             if (InPreviewRange(value))
             {
                 float n = saturate(value * Style.y);
@@ -1036,12 +1135,13 @@ float4 RenderVolume(VSOutput input)
                     maximumValue = value;
                     maximumDepth = depthAlongRay;
                     maximumPosition = p;
+                    maximumSample = sample;
                 }
 
                 float depthAlpha = lerp(1.12, 0.55, depthAlongRay);
                 float sampleAlpha = saturate(visual * visual * (2.7 / max((float)steps, 1.0)) * VolumeAtlas.z * depthAlpha);
-                float3 volumeColor = PreviewColor(value, visual);
-                if (Thresholds.z > 0.5)
+                float3 volumeColor = PreviewSampleColor(sample, value, visual);
+                if (Thresholds.z > 0.5 && !IsDynamicColorPreview())
                 {
                     volumeColor = CustomColor.rgb * visual;
                 }
@@ -1058,8 +1158,8 @@ float4 RenderVolume(VSOutput input)
             clip(-1.0);
         }
 
-        float3 mipColor = PreviewColor(maximumValue, maximumVisual);
-        if (Thresholds.z > 0.5)
+        float3 mipColor = PreviewSampleColor(maximumSample, maximumValue, maximumVisual);
+        if (Thresholds.z > 0.5 && !IsDynamicColorPreview())
         {
             mipColor = CustomColor.rgb * maximumVisual;
         }
@@ -1086,12 +1186,13 @@ float4 RenderVolume(VSOutput input)
         }
 
         float3 p = nearWorld + direction * t;
-        float value = SampleVolumeAtlasNearest(p);
+        float4 sample = SampleVolumeAtlasNearest(p);
+        float value = PreviewValue(sample);
         if (InPreviewRange(value))
         {
             float n = saturate(value * Style.y);
             float sampleAlpha = saturate(n * (2.35 / max((float)steps, 1.0)) * VolumeAtlas.z);
-            float3 color = PreviewColor(value, n);
+            float3 color = PreviewSampleColor(sample, value, n);
             accumulated.rgb += (1.0 - accumulated.a) * sampleAlpha * color;
             accumulated.a += (1.0 - accumulated.a) * sampleAlpha;
         }

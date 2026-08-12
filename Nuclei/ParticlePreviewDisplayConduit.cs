@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
-
 using Rhino.Display;
 using Rhino.Geometry;
 
@@ -64,12 +62,25 @@ namespace Nuclei3
 
         protected override void PostDrawObjects(DrawEventArgs e)
         {
-            RhinoWipD3DPreviewProbe.TryWriteProbe(e.Display, e.Viewport);
+            if (NucleiGpuDisplayManager.HasActivePlanarVoxelDensityPreview())
+            {
+                return;
+            }
 
+            RhinoWipD3DPreviewProbe.TryWriteProbe(e.Display, e.Viewport);
+            DrawRegisteredPreviews(e);
+        }
+
+        internal static void DrawRegisteredPreviews(DrawEventArgs e)
+        {
+            instance.DrawRegisteredPreviewsInternal(e);
+        }
+
+        void DrawRegisteredPreviewsInternal(DrawEventArgs e)
+        {
             Preview_Particle[] snapshot = Snapshot();
             if (snapshot.Length == 0) return;
 
-            bool drewBackground = false;
             for (int i = 0; i < snapshot.Length; i++)
             {
                 Preview_Particle preview = snapshot[i];
@@ -80,12 +91,6 @@ namespace Nuclei3
                 if (frame == null)
                 {
                     continue;
-                }
-
-                if (!Globals.tridimensional && !drewBackground)
-                {
-                    e.Display.DrawPolygon(Globals.bgPolygon, Color.Black, true);
-                    drewBackground = true;
                 }
 
                 if (ParticlePreviewD3DRenderer.TryDraw(preview.InstanceGuid, e, frame))

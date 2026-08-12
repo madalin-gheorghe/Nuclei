@@ -14,8 +14,8 @@ namespace Nuclei3
         /// Initializes a new instance of the DeathSettings class.
         /// </summary>
         public Preview_Particle()
-          : base("Particle Preview Settings", "Particle Preview",
-              "Sets Up Dynamic Particle Preview Settings",
+          : base("Particle Preview", "Particle Preview",
+              "Displays particles in the Rhino viewport",
               "Nuclei4", "Preview")
         {
         }
