@@ -28,23 +28,15 @@ namespace Nuclei3
                 return new List<Particle>();
             }
 
-            int[] walkableIndices = voxelData.MayContainBlockedMaxDensity()
-                ? voxelData.BuildWalkableActiveFlatIndices()
-                : null;
-            int voxelCount = walkableIndices != null ? walkableIndices.Length : voxelData.ActiveCount;
-            if (voxelCount <= 0)
-            {
-                return new List<Particle>();
-            }
-
             Particle[] particles = new Particle[count];
+            int voxelCount = voxelData.ActiveCount;
             int offset = (int)(Hash((uint)voxelCount ^ 0x4A7C15D1u) % (uint)voxelCount);
             int stride = FindCoprimeStride(voxelCount, Hash((uint)count ^ 0xB5297A4Du));
 
             for (int i = 0; i < count; i++)
             {
                 int ordinal = (int)(((long)offset + (long)(i % voxelCount) * stride) % voxelCount);
-                int flatIndex = walkableIndices != null ? walkableIndices[ordinal] : voxelData.ActiveFlatIndexAt(ordinal);
+                int flatIndex = voxelData.ActiveFlatIndexAt(ordinal);
                 uint seed = Hash((uint)i ^ (uint)flatIndex ^ 0x9E3779B9u);
                 particles[i] = CreateParticle(voxelData.CenterPoint(flatIndex), group, seed);
             }

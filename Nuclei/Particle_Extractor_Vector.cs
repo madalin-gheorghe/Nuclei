@@ -13,7 +13,7 @@ namespace Nuclei3
         public Particle_Extractor_Vector()
           : base("Extract Particle Vectors", "Particle Vectors",
               "Extract Particle Directions",
-              "Nuclei4", " Particles")
+              "Nuclei3", " Particles")
         {
         }
 
@@ -89,7 +89,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("59e6dba6-2cec-4873-8b54-9f099d3599c2"); }
+            get { return new Guid("d4823374-1bd9-5b9e-a09b-bd9dbd9bf598"); }
         }
     }
 }

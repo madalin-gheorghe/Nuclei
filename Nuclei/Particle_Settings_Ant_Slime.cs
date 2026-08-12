@@ -15,7 +15,7 @@ namespace Nuclei3
         public Particle_Settings_Ant_Slime()
           : base("Particle Settings Slime Ant Interaction", "Ant and Slime Particle Interaction Settings",
               "Sets Up Species Interaction Settings",
-              "Nuclei4", " Particles")
+              "Nuclei3", " Particles")
         {
         }
 
@@ -92,7 +92,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("9c28782b-f3db-40e3-8bd7-f099d8b62ae3"); }
+            get { return new Guid("1809334f-d4f6-5562-be52-001b2f91a766"); }
         }
     }
 }

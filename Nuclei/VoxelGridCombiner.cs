@@ -33,49 +33,24 @@ namespace Nuclei3
             VoxelGridData first = inputs[0];
             bool[] activeMask = new bool[first.Count];
 
-            if (union)
+            for (int flatIndex = 0; flatIndex < first.Count; flatIndex++)
             {
-                for (int inputIndex = 0; inputIndex < inputs.Count; inputIndex++)
+                int activeCount = 0;
+                for (int i = 0; i < inputs.Count; i++)
                 {
-                    VoxelGridData data = inputs[inputIndex];
-                    if (!SameGrid(first, data))
+                    VoxelGridData data = inputs[i];
+                    if (data.Count != first.Count)
                     {
                         continue;
                     }
 
-                    for (int ordinal = 0; ordinal < data.ActiveCount; ordinal++)
+                    if (data.IsActive(flatIndex))
                     {
-                        int flatIndex = data.ActiveFlatIndexAt(ordinal);
-                        if (flatIndex >= 0 && flatIndex < activeMask.Length)
-                        {
-                            activeMask[flatIndex] = true;
-                        }
+                        activeCount++;
                     }
                 }
-            }
-            else
-            {
-                for (int ordinal = 0; ordinal < first.ActiveCount; ordinal++)
-                {
-                    int flatIndex = first.ActiveFlatIndexAt(ordinal);
-                    if (flatIndex < 0 || flatIndex >= activeMask.Length)
-                    {
-                        continue;
-                    }
 
-                    bool activeInAllInputs = true;
-                    for (int inputIndex = 1; inputIndex < inputs.Count; inputIndex++)
-                    {
-                        VoxelGridData data = inputs[inputIndex];
-                        if (!SameGrid(first, data) || !data.IsActive(flatIndex))
-                        {
-                            activeInAllInputs = false;
-                            break;
-                        }
-                    }
-
-                    activeMask[flatIndex] = activeInAllInputs;
-                }
+                activeMask[flatIndex] = union ? activeCount > 0 : activeCount == inputs.Count;
             }
 
             VoxelGridData result = first.WithActiveMask(activeMask);
@@ -89,15 +64,6 @@ namespace Nuclei3
             result.Vectors = BuildVectorMap(result, inputs);
             result.Frequencies = BuildFrequencyMap(result, inputs, mode);
             return result;
-        }
-
-        static bool SameGrid(VoxelGridData first, VoxelGridData other)
-        {
-            return other != null &&
-                   other.ResX == first.ResX &&
-                   other.ResY == first.ResY &&
-                   other.ResZ == first.ResZ &&
-                   other.Count == first.Count;
         }
 
         static VoxelScalarMap BuildScalarMap(VoxelGridData result, IList<VoxelGridData> inputs, VoxelGridMergeMode mode, int fieldIndex, double defaultValue)
@@ -115,7 +81,7 @@ namespace Nuclei3
                 for (int inputIndex = 0; inputIndex < inputs.Count; inputIndex++)
                 {
                     VoxelGridData input = inputs[inputIndex];
-                    if (!SameGrid(result, input) || !input.IsActive(flatIndex))
+                    if (flatIndex >= input.Count || !input.IsActive(flatIndex))
                     {
                         continue;
                     }
@@ -166,7 +132,7 @@ namespace Nuclei3
                 for (int inputIndex = 0; inputIndex < inputs.Count; inputIndex++)
                 {
                     VoxelGridData input = inputs[inputIndex];
-                    if (!SameGrid(result, input) || !input.IsActive(flatIndex))
+                    if (flatIndex >= input.Count || !input.IsActive(flatIndex))
                     {
                         continue;
                     }
@@ -204,7 +170,7 @@ namespace Nuclei3
                 for (int inputIndex = 0; inputIndex < inputs.Count; inputIndex++)
                 {
                     VoxelGridData input = inputs[inputIndex];
-                    if (!SameGrid(result, input) || !input.IsActive(flatIndex))
+                    if (flatIndex >= input.Count || !input.IsActive(flatIndex))
                     {
                         continue;
                     }

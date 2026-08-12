@@ -37,19 +37,8 @@ namespace Nuclei3
         const float DepositScale = 1024.0f;
         const int PreviewReadbackBufferCount = 3;
         const int MaxSharedPreviewTextureDimension = 16384;
-        const long MaxSharedDensityPreviewTexturePixels = 33554432;
-        const int MaxParticleTrailPreviewTexels = 33554432;
         const string SharedDensityPreviewStatusPath = @"C:\Nuclei\BenchmarkSuite1\NucleiGpuDensityFieldSource.txt";
         const string SharedParticlePreviewStatusPath = @"C:\Nuclei\BenchmarkSuite1\NucleiGpuParticlePreviewSource.txt";
-        static readonly int[,] TridimensionalDiffusionAxisOrders = new int[,]
-        {
-            { 0, 1, 2 },
-            { 1, 2, 0 },
-            { 2, 0, 1 },
-            { 2, 1, 0 },
-            { 1, 0, 2 },
-            { 0, 2, 1 }
-        };
 
         ID3D11Device device;
         ID3D11DeviceContext context;
@@ -61,7 +50,6 @@ namespace Nuclei3
         ID3D11ComputeShader decayShader;
         ID3D11ComputeShader densityPreviewShader;
         ID3D11ComputeShader particlePreviewShader;
-        ID3D11ComputeShader particleTrailPreviewShader;
 
         ID3D11Buffer densityA;
         ID3D11Buffer densityB;
@@ -87,9 +75,6 @@ namespace Nuclei3
         ID3D11Texture2D densityPreviewTexture;
         readonly ID3D11Texture2D[] staticFieldPreviewTextures = new ID3D11Texture2D[VoxelPreviewField.StaticFieldCount];
         ID3D11Texture2D particlePreviewTexture;
-        ID3D11Texture2D particleTrailPreviewTexture;
-        IDXGIKeyedMutex particleTrailPreviewMutex;
-        readonly int[] diffusionAxisScratch = new int[3];
 
         ID3D11UnorderedAccessView densityAView;
         ID3D11UnorderedAccessView densityBView;
@@ -108,7 +93,6 @@ namespace Nuclei3
         ID3D11ShaderResourceView weightsView;
         ID3D11UnorderedAccessView densityPreviewTextureView;
         ID3D11UnorderedAccessView particlePreviewTextureView;
-        ID3D11UnorderedAccessView particleTrailPreviewTextureView;
 
         readonly int resX;
         readonly int resY;
@@ -119,7 +103,6 @@ namespace Nuclei3
         readonly float voxelSize;
         bool enableSharedDensityPreview;
         bool enableSharedParticlePreview;
-        bool enableSharedParticleTrailPreview;
         readonly float dimX;
         readonly float dimY;
         readonly float dimZ;
@@ -162,17 +145,8 @@ namespace Nuclei3
         int particlePreviewWidth;
         int particlePreviewHeight;
         long particlePreviewVersion = 0;
-        IntPtr particleTrailPreviewSharedHandle = IntPtr.Zero;
-        int particleTrailPreviewWidth;
-        int particleTrailPreviewHeight;
-        int particleTrailPreviewTrailSize;
-        int particleTrailPreviewHeadIndex;
-        int particleTrailPreviewValidCount;
-        int particleTrailPreviewLastDispatchIteration = -1;
-        float[] particleTrailPreviewGroupColorData;
-        long particleTrailPreviewVersion = 0;
 
-        public GpuFullSlimeSolverEngine(SolverGpuInputSnapshot snapshot, bool enableSharedDensityPreview, bool enableSharedParticlePreview, bool enableSharedParticleTrailPreview, int particleTrailSize, int densityPreviewScale)
+        public GpuFullSlimeSolverEngine(SolverGpuInputSnapshot snapshot, bool enableSharedDensityPreview, bool enableSharedParticlePreview, int densityPreviewScale)
         {
             if (snapshot == null)
             {
@@ -185,13 +159,10 @@ namespace Nuclei3
             voxelCount = Math.Max(0, resX * resY * resZ);
             particleCount = Math.Max(0, snapshot.ParticleCount);
             groupCount = Math.Max(0, snapshot.GroupCount);
-            particleTrailPreviewGroupColorData = snapshot.GroupColorData;
             voxelSize = snapshot.VoxelSize > 0 ? snapshot.VoxelSize : 1.0f;
             this.densityPreviewScale = NormalizeDensityPreviewScale(densityPreviewScale);
             this.enableSharedDensityPreview = enableSharedDensityPreview;
             this.enableSharedParticlePreview = enableSharedParticlePreview;
-            this.enableSharedParticleTrailPreview = enableSharedParticleTrailPreview;
-            particleTrailPreviewTrailSize = ClampTrailPreviewSizeForParticleCount(particleTrailSize);
             dimX = resX * voxelSize;
             dimY = resY * voxelSize;
             dimZ = resZ * voxelSize;
@@ -220,10 +191,6 @@ namespace Nuclei3
             {
                 CreateParticlePreviewTexture();
             }
-            if (enableSharedParticleTrailPreview)
-            {
-                CreateParticleTrailPreviewTexture(particleTrailPreviewTrailSize);
-            }
             CreateVoxelFlagBuffer(snapshot.VoxelFlags);
             CreateVoxelBehaviorBuffers(snapshot);
             CreateParticleBuffers(snapshot);
@@ -235,47 +202,11 @@ namespace Nuclei3
             {
                 DispatchParticlePreviewPass(new SolverGpuSettings(), SolverGpuDimensionMode.FromResolution(resX, resY, resZ), 0);
             }
-            if (enableSharedParticleTrailPreview)
-            {
-                DispatchParticleTrailPreviewPass(new SolverGpuSettings { TrailSize = particleTrailPreviewTrailSize, TrailFreq = 1 }, SolverGpuDimensionMode.FromResolution(resX, resY, resZ), 0);
-            }
         }
 
         public bool Matches(int x, int y, int z, int particles)
         {
             return resX == x && resY == y && resZ == z && particleCount == particles;
-        }
-
-        static int DiffusionOrderIndex(int iteration)
-        {
-            int index = (iteration - 1) % 6;
-            return index < 0 ? 0 : index;
-        }
-
-        static int GetDiffusionAxisOrder(SolverGpuDimensionMode dimensionMode, int iteration, int[] axes)
-        {
-            if (dimensionMode.Tridimensional)
-            {
-                int orderIndex = DiffusionOrderIndex(iteration);
-                axes[0] = TridimensionalDiffusionAxisOrders[orderIndex, 0];
-                axes[1] = TridimensionalDiffusionAxisOrders[orderIndex, 1];
-                axes[2] = TridimensionalDiffusionAxisOrders[orderIndex, 2];
-                return 3;
-            }
-
-            int count = 0;
-            if (!dimensionMode.PlanarYZ) axes[count++] = 0;
-            if (!dimensionMode.PlanarXZ) axes[count++] = 1;
-            if (!dimensionMode.PlanarXY) axes[count++] = 2;
-
-            if (count == 2 && (DiffusionOrderIndex(iteration) & 1) == 1)
-            {
-                int first = axes[0];
-                axes[0] = axes[1];
-                axes[1] = first;
-            }
-
-            return count;
         }
 
         public void SetSharedDensityPreviewEnabled(bool enabled, SolverGpuDimensionMode dimensionMode, int previewScale)
@@ -301,23 +232,6 @@ namespace Nuclei3
             return scale >= 10 ? 10 : 1;
         }
 
-        static int NormalizeTrailPreviewSize(int trailSize)
-        {
-            if (trailSize < 2) return 0;
-            if (trailSize > 512) return 512;
-            return trailSize;
-        }
-
-        int ClampTrailPreviewSizeForParticleCount(int trailSize)
-        {
-            trailSize = NormalizeTrailPreviewSize(trailSize);
-            if (trailSize <= 1 || particleCount <= 0) return 0;
-
-            int maxSamplesForParticles = MaxParticleTrailPreviewTexels / Math.Max(1, particleCount);
-            if (maxSamplesForParticles < 2) return 0;
-            return Math.Min(trailSize, maxSamplesForParticles);
-        }
-
         public void SetSharedParticlePreviewEnabled(bool enabled)
         {
             enableSharedParticlePreview = enabled;
@@ -327,38 +241,6 @@ namespace Nuclei3
             }
 
             CreateParticlePreviewTexture();
-        }
-
-        public void SetSharedParticleTrailPreviewEnabled(bool enabled, int trailSize)
-        {
-            bool wasEnabled = enableSharedParticleTrailPreview;
-            int normalizedTrailSize = ClampTrailPreviewSizeForParticleCount(trailSize);
-            if (particleTrailPreviewTrailSize != normalizedTrailSize)
-            {
-                DisposeParticleTrailPreviewTexture();
-                particleTrailPreviewTrailSize = normalizedTrailSize;
-            }
-
-            enableSharedParticleTrailPreview = enabled && normalizedTrailSize > 1;
-            if (wasEnabled != enableSharedParticleTrailPreview)
-            {
-                ResetParticleTrailPreviewHistory();
-            }
-
-            if (!enableSharedParticleTrailPreview || particleTrailPreviewTexture != null)
-            {
-                return;
-            }
-
-            CreateParticleTrailPreviewTexture(normalizedTrailSize);
-        }
-
-        void ResetParticleTrailPreviewHistory()
-        {
-            particleTrailPreviewHeadIndex = 0;
-            particleTrailPreviewValidCount = 0;
-            particleTrailPreviewLastDispatchIteration = -1;
-            particleTrailPreviewVersion++;
         }
 
         public GpuFullSolverStepResult Step(
@@ -393,10 +275,23 @@ namespace Nuclei3
             stage.Restart();
             if (settings.Diffuse > 0)
             {
-                int axisCount = GetDiffusionAxisOrder(dimensionMode, iteration, diffusionAxisScratch);
-                for (int i = 0; i < axisCount; i++)
+                if (!dimensionMode.PlanarYZ)
                 {
-                    DispatchDiffusionPass(diffusionAxisScratch[i], settings, dimensionMode, iteration);
+                    DispatchDiffusionPass(0, settings, dimensionMode, iteration);
+                    SwapDensityBuffers();
+                    passCount++;
+                }
+
+                if (!dimensionMode.PlanarXZ)
+                {
+                    DispatchDiffusionPass(1, settings, dimensionMode, iteration);
+                    SwapDensityBuffers();
+                    passCount++;
+                }
+
+                if (!dimensionMode.PlanarXY)
+                {
+                    DispatchDiffusionPass(2, settings, dimensionMode, iteration);
                     SwapDensityBuffers();
                     passCount++;
                 }
@@ -412,10 +307,6 @@ namespace Nuclei3
             if (enableSharedParticlePreview)
             {
                 DispatchParticlePreviewPass(settings, dimensionMode, iteration);
-            }
-            if (enableSharedParticleTrailPreview)
-            {
-                DispatchParticleTrailPreviewPass(settings, dimensionMode, iteration);
             }
             stage.Stop();
             double diffusionMs = stage.Elapsed.TotalMilliseconds;
@@ -618,123 +509,6 @@ namespace Nuclei3
             particlePreviewVersion++;
         }
 
-        void DispatchParticleTrailPreviewPass(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
-        {
-            if (particleCount <= 0 || particleTrailPreviewShader == null || particleTrailPreviewTextureView == null || parameterBuffer == null)
-            {
-                return;
-            }
-
-            int trailSize = ClampTrailPreviewSizeForParticleCount(settings.TrailSize);
-            if (trailSize <= 1)
-            {
-                return;
-            }
-
-            if (particleTrailPreviewTexture == null || particleTrailPreviewTrailSize != trailSize)
-            {
-                SetSharedParticleTrailPreviewEnabled(true, trailSize);
-                if (particleTrailPreviewTexture == null || particleTrailPreviewTextureView == null)
-                {
-                    return;
-                }
-            }
-
-            if (particleTrailPreviewLastDispatchIteration >= 0
-                && iteration != particleTrailPreviewLastDispatchIteration + 1)
-            {
-                ResetParticleTrailPreviewHistory();
-            }
-            particleTrailPreviewLastDispatchIteration = iteration;
-
-            if (!TryAcquireParticleTrailPreviewMutex(8))
-            {
-                return;
-            }
-
-            try
-            {
-                bool sampleTrail = settings.TrailFreq <= 1 || iteration % settings.TrailFreq == 0;
-                if (sampleTrail)
-                {
-                    if (particleTrailPreviewValidCount == 0)
-                    {
-                        particleTrailPreviewHeadIndex = 0;
-                        particleTrailPreviewValidCount = 1;
-                    }
-                    else
-                    {
-                        particleTrailPreviewHeadIndex = (particleTrailPreviewHeadIndex + trailSize - 1) % trailSize;
-                        if (particleTrailPreviewValidCount < trailSize)
-                        {
-                            particleTrailPreviewValidCount++;
-                        }
-                    }
-                }
-                else if (particleTrailPreviewValidCount == 0)
-                {
-                    particleTrailPreviewHeadIndex = 0;
-                    particleTrailPreviewValidCount = 1;
-                }
-
-                FullSolverParameters parameters = CreateParameters(0, settings, dimensionMode, iteration);
-                parameters.PreviewWidth = particleTrailPreviewWidth;
-                parameters.PreviewHeight = particleTrailPreviewHeight;
-                parameters.PreviewSlice = particleTrailPreviewHeadIndex;
-                parameters.PreviewAtlasColumns = trailSize;
-                parameters.PreviewAtlasRows = particleTrailPreviewValidCount;
-                UpdateParameters(parameters);
-
-                context.CSSetShader(particleTrailPreviewShader);
-                context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
-                context.CSSetUnorderedAccessView(2, particlePositionView, -1);
-                context.CSSetUnorderedAccessView(4, particleYAxisView, -1);
-                context.CSSetUnorderedAccessView(7, particleTrailPreviewTextureView, -1);
-                context.Dispatch(DispatchGroupCount(particleCount), 1, 1);
-                UnbindComputeResources();
-                context.Flush();
-                particleTrailPreviewVersion++;
-            }
-            finally
-            {
-                ReleaseParticleTrailPreviewMutex();
-            }
-        }
-
-        bool TryAcquireParticleTrailPreviewMutex(int timeoutMilliseconds)
-        {
-            if (particleTrailPreviewMutex == null)
-            {
-                return true;
-            }
-
-            try
-            {
-                particleTrailPreviewMutex.AcquireSync(0, timeoutMilliseconds);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        void ReleaseParticleTrailPreviewMutex()
-        {
-            if (particleTrailPreviewMutex == null)
-            {
-                return;
-            }
-
-            try
-            {
-                particleTrailPreviewMutex.ReleaseSync(0);
-            }
-            catch
-            {
-            }
-        }
-
         FullSolverParameters CreateParameters(int axis, SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
         {
             FullSolverParameters parameters = new FullSolverParameters();
@@ -803,7 +577,6 @@ namespace Nuclei3
             context.UpdateSubresourceSafe(groupData0, groupData0Buffer, 0, 0, 0, 0, false);
             context.UpdateSubresourceSafe(groupData1, groupData1Buffer, 0, 0, 0, 0, false);
             context.UpdateSubresourceSafe(groupColorData, groupColorDataBuffer, 0, 0, 0, 0, false);
-            particleTrailPreviewGroupColorData = groupColorData;
             return true;
         }
 
@@ -950,42 +723,6 @@ namespace Nuclei3
                 ResZ = resZ,
                 VoxelSize = voxelSize,
                 Version = particlePreviewVersion
-            };
-        }
-
-        public GpuParticleTrailPreviewFrame CreateParticleTrailPreviewFrame()
-        {
-            if (!enableSharedParticleTrailPreview)
-            {
-                return null;
-            }
-
-            if (particleTrailPreviewSharedHandle == IntPtr.Zero
-                || particleTrailPreviewTexture == null
-                || particleTrailPreviewWidth <= 0
-                || particleTrailPreviewHeight <= 0
-                || particleTrailPreviewTrailSize <= 1
-                || particleTrailPreviewValidCount <= 1)
-            {
-                return null;
-            }
-
-            return new GpuParticleTrailPreviewFrame
-            {
-                SharedHandle = particleTrailPreviewSharedHandle,
-                TextureWidth = particleTrailPreviewWidth,
-                TextureHeight = particleTrailPreviewHeight,
-                ParticleCount = particleCount,
-                TrailSize = particleTrailPreviewTrailSize,
-                ValidTrailCount = particleTrailPreviewValidCount,
-                HeadIndex = particleTrailPreviewHeadIndex,
-                ResX = resX,
-                ResY = resY,
-                ResZ = resZ,
-                VoxelSize = voxelSize,
-                GroupCount = groupCount,
-                GroupColorData = particleTrailPreviewGroupColorData,
-                Version = particleTrailPreviewVersion
             };
         }
 
@@ -1540,15 +1277,6 @@ namespace Nuclei3
             {
                 return false;
             }
-            if (!CanCreateSharedDensityPreviewTexture(width, height))
-            {
-                WriteSharedDensityPreviewStatus(
-                    "static_field_texture_skip_too_large field=" + fieldIndex
-                    + " width=" + width
-                    + " height=" + height
-                    + " pixels=" + ((long)width * height));
-                return false;
-            }
 
             if (staticFieldPreviewTextures[fieldIndex] != null
                 && staticFieldPreviewWidths[fieldIndex] == width
@@ -1849,35 +1577,6 @@ namespace Nuclei3
             densityPreviewVersion++;
         }
 
-        void DisposeParticleTrailPreviewTexture()
-        {
-            if (particleTrailPreviewMutex != null)
-            {
-                particleTrailPreviewMutex.Dispose();
-                particleTrailPreviewMutex = null;
-            }
-
-            if (particleTrailPreviewTextureView != null)
-            {
-                particleTrailPreviewTextureView.Dispose();
-                particleTrailPreviewTextureView = null;
-            }
-
-            if (particleTrailPreviewTexture != null)
-            {
-                particleTrailPreviewTexture.Dispose();
-                particleTrailPreviewTexture = null;
-            }
-
-            particleTrailPreviewSharedHandle = IntPtr.Zero;
-            particleTrailPreviewWidth = 0;
-            particleTrailPreviewHeight = 0;
-            particleTrailPreviewHeadIndex = 0;
-            particleTrailPreviewValidCount = 0;
-            particleTrailPreviewLastDispatchIteration = -1;
-            particleTrailPreviewVersion++;
-        }
-
         void CreateDensityPreviewTexture(SolverGpuDimensionMode dimensionMode)
         {
             ResolveDensityPreviewLayout(
@@ -1895,16 +1594,6 @@ namespace Nuclei3
             if (densityPreviewWidth <= 0 || densityPreviewHeight <= 0)
             {
                 WriteSharedDensityPreviewStatus("skip invalid_layout");
-                return;
-            }
-            if (!CanCreateSharedDensityPreviewTexture(densityPreviewWidth, densityPreviewHeight))
-            {
-                WriteSharedDensityPreviewStatus(
-                    "skip texture_too_large width=" + densityPreviewWidth
-                    + " height=" + densityPreviewHeight
-                    + " pixels=" + ((long)densityPreviewWidth * densityPreviewHeight));
-                densityPreviewWidth = 0;
-                densityPreviewHeight = 0;
                 return;
             }
 
@@ -1962,30 +1651,8 @@ namespace Nuclei3
                 return;
             }
 
-            long scaledWidth = (long)width * scale;
-            long scaledHeight = (long)height * scale;
-            if (!CanCreateSharedDensityPreviewTexture(scaledWidth, scaledHeight))
-            {
-                return;
-            }
-
-            width = (int)scaledWidth;
-            height = (int)scaledHeight;
-        }
-
-        static bool CanCreateSharedDensityPreviewTexture(long width, long height)
-        {
-            if (width <= 0 || height <= 0)
-            {
-                return false;
-            }
-
-            if (width > MaxSharedPreviewTextureDimension || height > MaxSharedPreviewTextureDimension)
-            {
-                return false;
-            }
-
-            return width * height <= MaxSharedDensityPreviewTexturePixels;
+            width = Math.Min(MaxSharedPreviewTextureDimension, Math.Max(1, width * scale));
+            height = Math.Min(MaxSharedPreviewTextureDimension, Math.Max(1, height * scale));
         }
 
         void CreateParticlePreviewTexture()
@@ -2033,94 +1700,6 @@ namespace Nuclei3
             WriteSharedParticlePreviewStatus("shared_handle=0x" + particlePreviewSharedHandle.ToInt64().ToString("X"));
         }
 
-        void CreateParticleTrailPreviewTexture(int trailSize)
-        {
-            trailSize = ClampTrailPreviewSizeForParticleCount(trailSize);
-            if (particleCount <= 0 || trailSize <= 1)
-            {
-                return;
-            }
-
-            ResolveParticleTrailPreviewLayout(trailSize, out particleTrailPreviewWidth, out particleTrailPreviewHeight);
-            particleTrailPreviewTrailSize = trailSize;
-            particleTrailPreviewHeadIndex = 0;
-            particleTrailPreviewValidCount = 0;
-            particleTrailPreviewLastDispatchIteration = -1;
-
-            bool createdWithKeyedMutex = true;
-            Texture2DDescription description = new Texture2DDescription(
-                Format.R32G32B32A32_Float,
-                particleTrailPreviewWidth,
-                particleTrailPreviewHeight,
-                1,
-                1,
-                BindFlags.UnorderedAccess | BindFlags.ShaderResource,
-                ResourceUsage.Default,
-                CpuAccessFlags.None,
-                1,
-                0,
-                ResourceOptionFlags.SharedKeyedMutex);
-
-            try
-            {
-                particleTrailPreviewTexture = device.CreateTexture2D(description, null);
-            }
-            catch
-            {
-                createdWithKeyedMutex = false;
-                description = new Texture2DDescription(
-                    Format.R32G32B32A32_Float,
-                    particleTrailPreviewWidth,
-                    particleTrailPreviewHeight,
-                    1,
-                    1,
-                    BindFlags.UnorderedAccess | BindFlags.ShaderResource,
-                    ResourceUsage.Default,
-                    CpuAccessFlags.None,
-                    1,
-                    0,
-                    ResourceOptionFlags.Shared);
-                particleTrailPreviewTexture = device.CreateTexture2D(description, null);
-            }
-
-            particleTrailPreviewTextureView = device.CreateUnorderedAccessView(
-                particleTrailPreviewTexture,
-                new UnorderedAccessViewDescription(
-                    particleTrailPreviewTexture,
-                    UnorderedAccessViewDimension.Texture2D,
-                    Format.R32G32B32A32_Float,
-                    0,
-                    0,
-                    0));
-
-            using (IDXGIResource resource = particleTrailPreviewTexture.QueryInterface<IDXGIResource>())
-            {
-                particleTrailPreviewSharedHandle = resource.SharedHandle;
-            }
-
-            if (createdWithKeyedMutex)
-            {
-                try
-                {
-                    particleTrailPreviewMutex = particleTrailPreviewTexture.QueryInterface<IDXGIKeyedMutex>();
-                }
-                catch
-                {
-                    particleTrailPreviewMutex = null;
-                }
-            }
-            else
-            {
-                particleTrailPreviewMutex = null;
-            }
-
-            WriteSharedParticlePreviewStatus("trail_shared_handle=0x" + particleTrailPreviewSharedHandle.ToInt64().ToString("X")
-                + " width=" + particleTrailPreviewWidth
-                + " height=" + particleTrailPreviewHeight
-                + " trail_size=" + trailSize
-                + " keyed_mutex=" + (particleTrailPreviewMutex != null));
-        }
-
         void ResolveParticlePreviewLayout(out int width, out int height)
         {
             int maxRows = MaxSharedPreviewTextureDimension / 2;
@@ -2139,30 +1718,6 @@ namespace Nuclei3
             }
 
             height = Math.Max(2, rows * 2);
-        }
-
-        void ResolveParticleTrailPreviewLayout(int trailSize, out int width, out int height)
-        {
-            int maxParticleRows = Math.Max(1, MaxSharedPreviewTextureDimension / Math.Max(2, trailSize));
-            width = Math.Min(MaxSharedPreviewTextureDimension, Math.Max(1, particleCount));
-            int particleRows = (particleCount + width - 1) / width;
-
-            if (particleRows > maxParticleRows)
-            {
-                width = (particleCount + maxParticleRows - 1) / maxParticleRows;
-                if (width > MaxSharedPreviewTextureDimension)
-                {
-                    throw new InvalidOperationException("Particle trail preview texture would exceed Direct3D texture limits.");
-                }
-
-                particleRows = (particleCount + width - 1) / width;
-            }
-
-            height = Math.Max(trailSize, particleRows * trailSize);
-            if (height > MaxSharedPreviewTextureDimension)
-            {
-                throw new InvalidOperationException("Particle trail preview texture would exceed Direct3D texture limits.");
-            }
         }
 
         void ResolveDensityPreviewLayout(
@@ -2449,7 +2004,6 @@ namespace Nuclei3
             using (Blob decayBytecode = CompileShader(FullSolverShaderSource, "ApplyDecay"))
             using (Blob densityPreviewBytecode = CompileShader(FullSolverShaderSource, "BuildDensityPreview"))
             using (Blob particlePreviewBytecode = CompileShader(FullSolverShaderSource, "BuildParticlePreview"))
-            using (Blob particleTrailPreviewBytecode = CompileShader(FullSolverShaderSource, "BuildParticleTrailPreview"))
             {
                 moveShader = device.CreateComputeShader(moveBytecode, null);
                 applyDepositsShader = device.CreateComputeShader(applyDepositsBytecode, null);
@@ -2459,7 +2013,6 @@ namespace Nuclei3
                 decayShader = device.CreateComputeShader(decayBytecode, null);
                 densityPreviewShader = device.CreateComputeShader(densityPreviewBytecode, null);
                 particlePreviewShader = device.CreateComputeShader(particlePreviewBytecode, null);
-                particleTrailPreviewShader = device.CreateComputeShader(particleTrailPreviewBytecode, null);
             }
         }
 
@@ -2585,8 +2138,6 @@ namespace Nuclei3
             }
             if (densityPreviewTextureView != null) densityPreviewTextureView.Dispose();
             if (particlePreviewTextureView != null) particlePreviewTextureView.Dispose();
-            if (particleTrailPreviewTextureView != null) particleTrailPreviewTextureView.Dispose();
-            if (particleTrailPreviewMutex != null) particleTrailPreviewMutex.Dispose();
             if (densityAView != null) densityAView.Dispose();
             if (densityBView != null) densityBView.Dispose();
             if (particlePositionView != null) particlePositionView.Dispose();
@@ -2605,7 +2156,6 @@ namespace Nuclei3
             if (densityB != null) densityB.Dispose();
             if (densityPreviewTexture != null) densityPreviewTexture.Dispose();
             if (particlePreviewTexture != null) particlePreviewTexture.Dispose();
-            if (particleTrailPreviewTexture != null) particleTrailPreviewTexture.Dispose();
             if (densityReadbackBuffer != null) densityReadbackBuffer.Dispose();
             if (particlePositionBuffer != null) particlePositionBuffer.Dispose();
             if (particleDirectionBuffer != null) particleDirectionBuffer.Dispose();
@@ -2639,7 +2189,6 @@ namespace Nuclei3
             if (decayShader != null) decayShader.Dispose();
             if (densityPreviewShader != null) densityPreviewShader.Dispose();
             if (particlePreviewShader != null) particlePreviewShader.Dispose();
-            if (particleTrailPreviewShader != null) particleTrailPreviewShader.Dispose();
             if (context != null) context.Dispose();
             if (device != null) device.Dispose();
         }
@@ -2780,7 +2329,6 @@ RWStructuredBuffer<uint> ParticleCounts : register(u5);
 RWStructuredBuffer<uint> DepositFixed : register(u6);
 RWTexture2D<float> DensityPreview : register(u7);
 RWTexture2D<float4> ParticlePreview : register(u7);
-RWTexture2D<float4> ParticleTrailPreview : register(u7);
 
 StructuredBuffer<float> Weights : register(t0);
 StructuredBuffer<float4> GroupData0 : register(t1);
@@ -3232,10 +2780,6 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
     if (parentIndex < 0)
     {
         parentIndex = (int)round(dirParent.w);
-        if (!IsValidVoxelIndex(parentIndex))
-        {
-            parentIndex = -1;
-        }
         nextPosition = position;
     }
 
@@ -3293,7 +2837,7 @@ void CountParticles(uint3 id : SV_DispatchThreadID)
     if (index >= ParticleCount) return;
 
     int parentIndex = (int)round(ParticleDirection[index].w);
-    if (IsValidVoxelIndex(parentIndex))
+    if (parentIndex >= 0 && parentIndex < VoxelCount)
     {
         InterlockedAdd(ParticleCounts[parentIndex], 1u);
     }
@@ -3506,43 +3050,6 @@ void BuildParticlePreview(uint3 id : SV_DispatchThreadID)
 
     ParticlePreview[int2(texX, posY)] = positionGroup;
     ParticlePreview[int2(texX, posY + 1)] = color;
-}
-
-[numthreads(256, 1, 1)]
-void BuildParticleTrailPreview(uint3 id : SV_DispatchThreadID)
-{
-    int particleIndex = id.x;
-    if (particleIndex >= ParticleCount) return;
-
-    int textureWidth = max(PreviewWidth, 1);
-    int trailSize = max(PreviewAtlasColumns, 2);
-    int headIndex = clamp(PreviewSlice, 0, trailSize - 1);
-
-    int texX = particleIndex % textureWidth;
-    int particleRow = particleIndex / textureWidth;
-    int texY = particleRow * trailSize + headIndex;
-    if (texY >= PreviewHeight) return;
-
-    float4 position = ParticlePosition[particleIndex];
-    float4 yWrapped = ParticleYAxis[particleIndex];
-    if (yWrapped.w > 0.5)
-    {
-        int rowStart = particleRow * trailSize;
-        float4 invalidPosition = float4(position.xyz, -1.0);
-        for (int sample = 0; sample < trailSize; sample++)
-        {
-            int clearY = rowStart + sample;
-            if (clearY < PreviewHeight)
-            {
-                ParticleTrailPreview[int2(texX, clearY)] = invalidPosition;
-            }
-        }
-
-        ParticleTrailPreview[int2(texX, texY)] = position;
-        return;
-    }
-
-    ParticleTrailPreview[int2(texX, texY)] = position;
 }";
     }
 }

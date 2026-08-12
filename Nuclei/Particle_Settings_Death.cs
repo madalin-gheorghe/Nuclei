@@ -14,7 +14,7 @@ namespace Nuclei3
         public Particle_Settings_Death()
           : base("Particle Death Settings", "Death Settings",
               "Sets Up Dynamic Population Death Settings. Dies if Neighbour Count is OUTSIDE Range",
-              "Nuclei4", " Particles")
+              "Nuclei3", " Particles")
         {
         }
 
@@ -95,7 +95,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("b8f690ec-1e23-46c8-8fa4-4d3369cacfdf"); }
+            get { return new Guid("7d3b2b62-1694-5636-ae54-e5a682bb9dd5"); }
         }
     }
 }

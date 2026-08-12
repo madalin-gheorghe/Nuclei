@@ -220,11 +220,6 @@ namespace Nuclei3
                             continue;
                         }
 
-                        if (FlatIndexFromPosition(particle.pPlane.Origin) < 0)
-                        {
-                            continue;
-                        }
-
                         if (particle.parentParticleGroup == null)
                         {
                             particle.parentParticleGroup = group;
@@ -266,12 +261,6 @@ namespace Nuclei3
 
                     Plane plane = particle.pPlane;
                     Point3d origin = plane.Origin;
-                    int parentFlatIndex = FlatIndexFromPosition(origin);
-                    if (parentFlatIndex < 0)
-                    {
-                        continue;
-                    }
-
                     Vector3d xAxis = plane.XAxis;
                     Vector3d yAxis = plane.YAxis;
                     NormalizeParticleAxes(ref xAxis, ref yAxis);
@@ -286,7 +275,7 @@ namespace Nuclei3
                     ParticleYAxesXyz[particleIndex * 3 + 1] = (float)yAxis.Y;
                     ParticleYAxesXyz[particleIndex * 3 + 2] = (float)yAxis.Z;
                     ParticleGroupIndices[particleIndex] = groupIndex;
-                    ParticleParentIndices[particleIndex] = parentFlatIndex;
+                    ParticleParentIndices[particleIndex] = FlatIndexFromPosition(origin);
 
                     particleIndex++;
                 }

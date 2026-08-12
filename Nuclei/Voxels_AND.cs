@@ -36,7 +36,7 @@ namespace Nuclei3
         public Voxels_AND()
            : base("Voxel Selection Intersection", "Voxel Selection Intersection",
               "Perform Intersection on Voxel Selection (AND)",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
             DataTest = "";
         }
@@ -876,75 +876,15 @@ namespace Nuclei3
                 return false;
             }
 
-            VoxelGridMergeMode mergeMode = currentMergeMode();
-            long[] inputSignatures = captureInputSignatures(inputs);
-            if (canReuseCachedSidecarOutput(inputs, inputSignatures, mergeMode))
-            {
-                voxels = cachedSidecarOutputVoxels;
-                VoxelGridRegistry.Set(voxels, cachedSidecarOutputData);
-                DA.SetData(0, voxels);
-
-                if (min) this.Message = "Minimum";
-                if (max) this.Message = "Maximum";
-                if (average) this.Message = "Average";
-                return true;
-            }
-
-            VoxelGridData outputData = VoxelGridCombiner.Intersection(inputs, mergeMode);
+            VoxelGridData outputData = VoxelGridCombiner.Intersection(inputs, currentMergeMode());
             voxels = outputData.ToVoxelArray(true);
             VoxelGridRegistry.Set(voxels, outputData);
-            cacheSidecarOutput(inputs, inputSignatures, mergeMode, voxels, outputData);
             DA.SetData(0, voxels);
 
             if (min) this.Message = "Minimum";
             if (max) this.Message = "Maximum";
             if (average) this.Message = "Average";
             return true;
-        }
-
-        static long[] captureInputSignatures(List<VoxelGridData> inputs)
-        {
-            long[] signatures = new long[inputs.Count];
-            for (int i = 0; i < inputs.Count; i++)
-            {
-                signatures[i] = inputs[i] != null ? inputs[i].ContentSignature() : 0;
-            }
-
-            return signatures;
-        }
-
-        bool canReuseCachedSidecarOutput(List<VoxelGridData> inputs, long[] inputSignatures, VoxelGridMergeMode mergeMode)
-        {
-            if (cachedSidecarOutputVoxels == null ||
-                cachedSidecarOutputData == null ||
-                cachedSidecarInputData == null ||
-                cachedSidecarInputSignatures == null ||
-                cachedSidecarMergeMode != mergeMode ||
-                cachedSidecarInputData.Length != inputs.Count ||
-                cachedSidecarInputSignatures.Length != inputSignatures.Length)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < inputs.Count; i++)
-            {
-                if (!object.ReferenceEquals(cachedSidecarInputData[i], inputs[i]) &&
-                    cachedSidecarInputSignatures[i] != inputSignatures[i])
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        void cacheSidecarOutput(List<VoxelGridData> inputs, long[] inputSignatures, VoxelGridMergeMode mergeMode, Voxel[,,] outputVoxels, VoxelGridData outputData)
-        {
-            cachedSidecarInputData = inputs.ToArray();
-            cachedSidecarInputSignatures = inputSignatures;
-            cachedSidecarMergeMode = mergeMode;
-            cachedSidecarOutputVoxels = outputVoxels;
-            cachedSidecarOutputData = outputData;
         }
 
         VoxelGridMergeMode currentMergeMode()
@@ -967,11 +907,6 @@ namespace Nuclei3
 
         //outputs
         Voxel[,,] voxels;
-        VoxelGridData[] cachedSidecarInputData;
-        long[] cachedSidecarInputSignatures;
-        VoxelGridMergeMode cachedSidecarMergeMode;
-        Voxel[,,] cachedSidecarOutputVoxels;
-        VoxelGridData cachedSidecarOutputData;
 
         //-------------------------------------------------------------------
 
@@ -1065,7 +1000,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("e1c26fa2-35ea-4c83-8f1b-df7d90280196"); }
+            get { return new Guid("720ea336-1957-5986-a2b1-53acb0c79049"); }
         }
     }
 }

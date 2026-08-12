@@ -1,4 +1,4 @@
-using Grasshopper.Kernel;
+﻿using Grasshopper.Kernel;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,9 +13,9 @@ namespace Nuclei3
         /// Initializes a new instance of the Particle_Settings_Trail class.
         /// </summary>
         public Iterations()
-          : base("Nuclei4 Solver Iterations", "Iterations",
+          : base("Nuclei3 Solver Iterations", "Iterations",
               "Defines the maximum number of iterations",
-              "Nuclei4", " Solver")
+              "Nuclei3", " Solver")
         {
         }
 
@@ -82,7 +82,8 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("117cfcd7-ca25-4b01-8d76-688e2661ebb6"); }
+            get { return new Guid("979d61dd-324c-665b-7cc6-71459cc120e0"); }
         }
     }
 }
+

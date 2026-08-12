@@ -14,7 +14,7 @@ namespace Nuclei3
         public Particle_Settings_Division()
           : base("Particle Division Settings", "Division Settings",
               "Sets Up Dynamic Population Division Settings. Divides if Neighbour Count is INSIDE Range",
-              "Nuclei4", " Particles")
+              "Nuclei3", " Particles")
         {
         }
 
@@ -95,7 +95,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("7e505abb-dc4f-4226-a922-f92e25ab70da"); }
+            get { return new Guid("e5f74d55-8425-5cce-bd51-d671e1066d63"); }
         }
     }
 }

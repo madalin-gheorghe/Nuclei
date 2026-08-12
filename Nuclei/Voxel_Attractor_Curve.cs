@@ -19,7 +19,7 @@ namespace Nuclei3
         public Voxel_Attractor_Curve()
           : base("Curve Attractor for Voxels", "Curve Attractor",
               "Use Curves as Attractors for Voxel Centers",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
         }
 
@@ -802,7 +802,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("59741edd-30fb-42a7-93cb-26f7dee3e03b"); }
+            get { return new Guid("f618a21c-b7b3-533b-96b8-8130db1882c2"); }
         }
     }
 }

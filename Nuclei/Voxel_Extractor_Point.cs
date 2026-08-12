@@ -1,4 +1,4 @@
-using Grasshopper.Kernel;
+﻿using Grasshopper.Kernel;
 using Rhino.Geometry;
 using System;
 using System.Collections.Generic;
@@ -16,7 +16,7 @@ namespace Nuclei3
         public Voxel_Extractor_Point()
           : base("Extract Voxel Positions", "Voxel Centers",
               "Extract Voxel Positions",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
         }
 
@@ -107,7 +107,8 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("deb55383-1cb3-4b17-8d01-cc05d1b9c635"); }
+            get { return new Guid("dade8c20-c2ca-0331-075b-b7e67093f5e8"); }
         }
     }
 }
+

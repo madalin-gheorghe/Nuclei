@@ -20,7 +20,7 @@ namespace Nuclei3
         public Voxel_Attractor_Point()
           : base("Point Attractor for Voxels", "Point Attractor",
               "Use Points as Attractors for Voxel Centers",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
         }
 
@@ -586,7 +586,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("a0ac8ea3-c26e-4852-8e48-e507d0cc6132"); }
+            get { return new Guid("318aa2ba-2e50-5abb-85fd-c23de2f9197c"); }
         }
     }
 }

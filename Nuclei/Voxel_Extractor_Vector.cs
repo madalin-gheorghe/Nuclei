@@ -13,7 +13,7 @@ namespace Nuclei3
         public Voxel_Extractor_Vector()
           : base("Extract Voxel Vector", "Voxel Vectors",
               "Extract Voxel Vectorfield",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
         }
 
@@ -99,7 +99,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("8f334745-181f-4bf2-a60f-4b11bbdfcc8b"); }
+            get { return new Guid("5d49b879-ba1e-5cc3-b7ce-8513a7be307b"); }
         }
     }
 }

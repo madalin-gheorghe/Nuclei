@@ -69,7 +69,6 @@ namespace Nuclei3
             Preview_Particle[] snapshot = Snapshot();
             if (snapshot.Length == 0) return;
 
-            bool drewBackground = false;
             for (int i = 0; i < snapshot.Length; i++)
             {
                 Preview_Particle preview = snapshot[i];
@@ -80,12 +79,6 @@ namespace Nuclei3
                 if (frame == null)
                 {
                     continue;
-                }
-
-                if (!Globals.tridimensional && !drewBackground)
-                {
-                    e.Display.DrawPolygon(Globals.bgPolygon, Color.Black, true);
-                    drewBackground = true;
                 }
 
                 if (ParticlePreviewD3DRenderer.TryDraw(preview.InstanceGuid, e, frame))

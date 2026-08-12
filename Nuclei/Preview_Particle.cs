@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -14,9 +14,9 @@ namespace Nuclei3
         /// Initializes a new instance of the DeathSettings class.
         /// </summary>
         public Preview_Particle()
-          : base("Particle Preview Settings", "Particle Preview",
-              "Sets Up Dynamic Particle Preview Settings",
-              "Nuclei4", "Preview")
+          : base("Particle Preview", "Particle Preview",
+              "Displays particles in the Rhino viewport",
+              "Nuclei3", "Preview")
         {
         }
 
@@ -319,7 +319,8 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("60649521-0784-4a2e-8dfa-27e4a04600ac"); }
+            get { return new Guid("bd0659ad-1006-f5ac-3d9e-a20cb579ab36"); }
         }
     }
 }
+

@@ -79,8 +79,6 @@ namespace Nuclei3
         public VoxelScalarMap Food = new VoxelScalarMap(-1);
         public Vector3d[] Vectors;
         public int[] Frequencies;
-        bool hasContentSignature;
-        long contentSignature;
 
         VoxelGridData(int resX, int resY, int resZ, double voxelSize, bool allVoxelsActive, bool[] activeMask, int[] activeIndices, int activeCount)
         {
@@ -100,12 +98,6 @@ namespace Nuclei3
         public static VoxelGridData CreateFullDomain(int resX, int resY, int resZ, double voxelSize)
         {
             return new VoxelGridData(resX, resY, resZ, voxelSize, true, null, null, resX * resY * resZ);
-        }
-
-        public static VoxelGridData CreateEmptyDomain(int resX, int resY, int resZ, double voxelSize)
-        {
-            int count = resX * resY * resZ;
-            return new VoxelGridData(resX, resY, resZ, voxelSize, false, new bool[count], new int[0], 0);
         }
 
         public static VoxelGridData Capture(Voxel[,,] voxels, double fallbackVoxelSize)
@@ -188,7 +180,7 @@ namespace Nuclei3
             VoxelGridData data;
             if (active.Count == 0)
             {
-                data = CreateEmptyDomain(resX, resY, resZ, voxelSize);
+                data = CreateFullDomain(resX, resY, resZ, voxelSize);
             }
             else if (active.Count == count)
             {
@@ -450,105 +442,6 @@ namespace Nuclei3
             return AllVoxelsActive ? ordinal : ActiveIndices[ordinal];
         }
 
-        public long ContentSignature()
-        {
-            if (hasContentSignature)
-            {
-                return contentSignature;
-            }
-
-            long hash = 1469598103934665603L;
-            hash = HashInt(hash, ResX);
-            hash = HashInt(hash, ResY);
-            hash = HashInt(hash, ResZ);
-            hash = HashDouble(hash, VoxelSize);
-            hash = HashInt(hash, ActiveCount);
-            hash = HashInt(hash, AllVoxelsActive ? 1 : 0);
-
-            for (int ordinal = 0; ordinal < ActiveCount; ordinal++)
-            {
-                int flatIndex = ActiveFlatIndexAt(ordinal);
-                if (flatIndex < 0 || flatIndex >= Count)
-                {
-                    continue;
-                }
-
-                hash = HashInt(hash, flatIndex);
-                hash = HashDouble(hash, Density.Get(flatIndex));
-                hash = HashDouble(hash, MinimumDensity.Get(flatIndex));
-                hash = HashDouble(hash, MaximumDensity.Get(flatIndex));
-                hash = HashDouble(hash, Speed.Get(flatIndex));
-                hash = HashDouble(hash, SensorDistance.Get(flatIndex));
-                hash = HashDouble(hash, SensorAngle.Get(flatIndex));
-                hash = HashDouble(hash, RotationAngle.Get(flatIndex));
-                hash = HashDouble(hash, Food.Get(flatIndex));
-
-                Vector3d vector = Vectors != null ? Vectors[flatIndex] : Vector3d.Zero;
-                hash = HashDouble(hash, vector.X);
-                hash = HashDouble(hash, vector.Y);
-                hash = HashDouble(hash, vector.Z);
-                hash = HashInt(hash, Frequencies != null ? Frequencies[flatIndex] : 3);
-            }
-
-            contentSignature = hash;
-            hasContentSignature = true;
-            return contentSignature;
-        }
-
-        static long HashInt(long hash, int value)
-        {
-            return HashLong(hash, value);
-        }
-
-        static long HashDouble(long hash, double value)
-        {
-            return HashLong(hash, BitConverter.DoubleToInt64Bits(value));
-        }
-
-        static long HashLong(long hash, long value)
-        {
-            unchecked
-            {
-                hash ^= value;
-                hash *= 1099511628211L;
-                return hash;
-            }
-        }
-
-        public int[] BuildWalkableActiveFlatIndices()
-        {
-            if (ActiveCount <= 0)
-            {
-                return new int[0];
-            }
-
-            List<int> walkable = new List<int>(ActiveCount);
-            for (int ordinal = 0; ordinal < ActiveCount; ordinal++)
-            {
-                int flatIndex = ActiveFlatIndexAt(ordinal);
-                if (flatIndex >= 0 && IsWalkableFlatIndex(flatIndex))
-                {
-                    walkable.Add(flatIndex);
-                }
-            }
-
-            return walkable.ToArray();
-        }
-
-        public bool MayContainBlockedMaxDensity()
-        {
-            return MaximumDensity.Values != null || VoxelOccupancy.IsBlockedMaxDensity(MaximumDensity.DefaultValue);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool IsWalkableFlatIndex(int flatIndex)
-        {
-            return flatIndex >= 0 &&
-                   flatIndex < Count &&
-                   IsActive(flatIndex) &&
-                   !VoxelOccupancy.IsBlockedMaxDensity(MaximumDensity.Get(flatIndex));
-        }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int FlatIndex(int x, int y, int z)
         {
@@ -557,9 +450,7 @@ namespace Nuclei3
 
         public bool IsActive(int flatIndex)
         {
-            return flatIndex >= 0 &&
-                   flatIndex < Count &&
-                   (AllVoxelsActive || (ActiveMask != null && flatIndex < ActiveMask.Length && ActiveMask[flatIndex]));
+            return AllVoxelsActive || (ActiveMask != null && flatIndex >= 0 && flatIndex < ActiveMask.Length && ActiveMask[flatIndex]);
         }
 
         public int ActiveOrdinalFromFlatIndex(int flatIndex)

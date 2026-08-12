@@ -14,7 +14,7 @@ namespace Nuclei3
         public EnivronmentSettings_Ant()
           : base("Voxel Settings Ant", "Voxel Settings Ant",
               "Sets Up How The Environment Data Is Interpreted for Ant Particles",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
         }
 
@@ -109,7 +109,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("3486cda4-b3f3-47a1-886b-f047d6d7a13a"); }
+            get { return new Guid("a0acc69f-9759-57ab-9f35-ca254d4fbaa8"); }
         }
     }
 }

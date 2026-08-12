@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 using Grasshopper;
@@ -31,9 +31,9 @@ public class Solver : GH_Component
         /// Initializes a new instance of the Solver class.
         /// </summary>
         public Solver()
-          : base("Nuclei4 Solver", "Solver",
+          : base("Nuclei3 Solver", "Solver",
               "Where the magic happens",
-              "Nuclei4", " Solver")
+              "Nuclei3", " Solver")
         {
         }
 
@@ -71,7 +71,7 @@ public class Solver : GH_Component
 
         public override GH_Exposure Exposure
         {
-            get { return GH_Exposure.hidden; }
+            get { return GH_Exposure.primary; }
         }
 
         /// <summary>
@@ -118,10 +118,6 @@ public class Solver : GH_Component
                 particles = new ParticleList();
 
                 inheritParticleGroups();
-                if (antParticles && scalarDensityStore != null)
-                {
-                    scalarDensityStore.EnsureAntPheromoneArrays(voxelFlat != null ? voxelFlat.Length : 0);
-                }
                 particleCheckParentVoxel();
 
                 //global colors
@@ -700,7 +696,6 @@ public class Solver : GH_Component
             scalarVoxelDensity = new double[voxelCount];
             scalarVoxelScratch = new double[voxelCount];
             scalarDensityStore = new VoxelDensityStore(scalarVoxelDensity);
-            scalarDensityStore.AttachStaticMaps(inputData);
             scalarVoxelDensityAuthoritative = true;
             scalarVoxelDensityDirtyForOutput = false;
             voxelHasPositiveFood = false;
@@ -868,7 +863,8 @@ public class Solver : GH_Component
                    !antParticles &&
                    !voxelHasPositiveFood &&
                    scalarVoxelDensity != null &&
-                   scalarVoxelScratch != null;
+                   scalarVoxelScratch != null &&
+                   (densityLimitsDisabled || densityLimitsOnlyBoundaryVoxels);
         }
 
         void syncScalarDensityToVoxelsIfNeeded()
@@ -1190,7 +1186,7 @@ public class Solver : GH_Component
                 Parallel.For(0, density.Length, i =>
                 {
                     double value = density[i] - densityDecay;
-                    density[i] = clampScalarDensityAtIndex(value > 0 ? value : 0, i);
+                    density[i] = value > 0 ? value : 0;
                 });
             }
             else if (planarYZ)
@@ -1211,7 +1207,7 @@ public class Solver : GH_Component
                         else
                         {
                             double value = density[index] - densityDecay;
-                            density[index] = clampScalarDensityAtIndex(value > 0 ? value : 0, index);
+                            density[index] = value > 0 ? value : 0;
                         }
                     }
                 });
@@ -1253,7 +1249,7 @@ public class Solver : GH_Component
                             else
                             {
                                 double value = density[index] - densityDecay;
-                                density[index] = clampScalarDensityAtIndex(value > 0 ? value : 0, index);
+                                density[index] = value > 0 ? value : 0;
                             }
                         }
                     }
@@ -1540,7 +1536,7 @@ public class Solver : GH_Component
             for (int i = 0; i < prefixLength; i++)
             {
                 int x = wrap ? wrapLineIndex(coordinateStart + i, xCount) : i;
-                double density = scalarSourceDensity(source, baseIndex + x * strideX);
+                double density = source[baseIndex + x * strideX];
                 int next = i + 1;
                 sumPrefix[next] = sumPrefix[i] + density;
                 cosPrefix[next] = cosPrefix[i] + density * cosTable[i];
@@ -1561,7 +1557,7 @@ public class Solver : GH_Component
 
                 int index = baseIndex + x * strideX;
                 double value = source[index] * keep + diffuseAmount * weightedSum;
-                destination[index] = clampScalarDensity(value, index, x, y, z);
+                destination[index] = clampScalarDensity(value, x, y, z);
             }
         }
 
@@ -1583,7 +1579,7 @@ public class Solver : GH_Component
             for (int i = 0; i < prefixLength; i++)
             {
                 int y = wrap ? wrapLineIndex(coordinateStart + i, yCount) : i;
-                double density = scalarSourceDensity(source, baseIndex + y * strideY);
+                double density = source[baseIndex + y * strideY];
                 int next = i + 1;
                 sumPrefix[next] = sumPrefix[i] + density;
                 cosPrefix[next] = cosPrefix[i] + density * cosTable[i];
@@ -1604,7 +1600,7 @@ public class Solver : GH_Component
 
                 int index = baseIndex + y * strideY;
                 double value = source[index] * keep + diffuseAmount * weightedSum;
-                destination[index] = clampScalarDensity(value, index, x, y, z);
+                destination[index] = clampScalarDensity(value, x, y, z);
             }
         }
 
@@ -1626,7 +1622,7 @@ public class Solver : GH_Component
             for (int i = 0; i < prefixLength; i++)
             {
                 int z = wrap ? wrapLineIndex(coordinateStart + i, zCount) : i;
-                double density = scalarSourceDensity(source, baseIndex + z);
+                double density = source[baseIndex + z];
                 int next = i + 1;
                 sumPrefix[next] = sumPrefix[i] + density;
                 cosPrefix[next] = cosPrefix[i] + density * cosTable[i];
@@ -1647,7 +1643,7 @@ public class Solver : GH_Component
 
                 int index = baseIndex + z;
                 double value = source[index] * keep + diffuseAmount * weightedSum;
-                destination[index] = clampScalarDensity(value, index, x, y, z);
+                destination[index] = clampScalarDensity(value, x, y, z);
             }
         }
 
@@ -1662,24 +1658,24 @@ public class Solver : GH_Component
             for (int x = 0; x < xCount; x++)
             {
                 int index = baseIndex + x * strideX;
-                double centerDensity = scalarSourceDensity(source, index);
+                double centerDensity = source[index];
                 double sum;
 
                 if (wrap)
                 {
                     int leftIndex = x == 0 ? baseIndex + lastX * strideX : index - strideX;
                     int rightIndex = x == lastX ? baseIndex : index + strideX;
-                    sum = scalarSourceDensity(source, leftIndex) * leftWeight + centerDensity * centerWeight + scalarSourceDensity(source, rightIndex) * rightWeight;
+                    sum = source[leftIndex] * leftWeight + centerDensity * centerWeight + source[rightIndex] * rightWeight;
                 }
                 else
                 {
                     sum = centerDensity * centerWeight;
-                    if (x > 0) sum += scalarSourceDensity(source, index - strideX) * leftWeight;
-                    if (x < lastX) sum += scalarSourceDensity(source, index + strideX) * rightWeight;
+                    if (x > 0) sum += source[index - strideX] * leftWeight;
+                    if (x < lastX) sum += source[index + strideX] * rightWeight;
                 }
 
                 double value = centerDensity * keep + diffuseAmount * sum;
-                destination[index] = clampScalarDensity(value, index, x, y, z);
+                destination[index] = clampScalarDensity(value, x, y, z);
             }
         }
 
@@ -1694,24 +1690,24 @@ public class Solver : GH_Component
             for (int y = 0; y < yCount; y++)
             {
                 int index = baseIndex + y * strideY;
-                double centerDensity = scalarSourceDensity(source, index);
+                double centerDensity = source[index];
                 double sum;
 
                 if (wrap)
                 {
                     int leftIndex = y == 0 ? baseIndex + lastY * strideY : index - strideY;
                     int rightIndex = y == lastY ? baseIndex : index + strideY;
-                    sum = scalarSourceDensity(source, leftIndex) * leftWeight + centerDensity * centerWeight + scalarSourceDensity(source, rightIndex) * rightWeight;
+                    sum = source[leftIndex] * leftWeight + centerDensity * centerWeight + source[rightIndex] * rightWeight;
                 }
                 else
                 {
                     sum = centerDensity * centerWeight;
-                    if (y > 0) sum += scalarSourceDensity(source, index - strideY) * leftWeight;
-                    if (y < lastY) sum += scalarSourceDensity(source, index + strideY) * rightWeight;
+                    if (y > 0) sum += source[index - strideY] * leftWeight;
+                    if (y < lastY) sum += source[index + strideY] * rightWeight;
                 }
 
                 double value = centerDensity * keep + diffuseAmount * sum;
-                destination[index] = clampScalarDensity(value, index, x, y, z);
+                destination[index] = clampScalarDensity(value, x, y, z);
             }
         }
 
@@ -1726,71 +1722,29 @@ public class Solver : GH_Component
             for (int z = 0; z < zCount; z++)
             {
                 int index = baseIndex + z;
-                double centerDensity = scalarSourceDensity(source, index);
+                double centerDensity = source[index];
                 double sum;
 
                 if (wrap)
                 {
                     int leftIndex = z == 0 ? baseIndex + lastZ : index - 1;
                     int rightIndex = z == lastZ ? baseIndex : index + 1;
-                    sum = scalarSourceDensity(source, leftIndex) * leftWeight + centerDensity * centerWeight + scalarSourceDensity(source, rightIndex) * rightWeight;
+                    sum = source[leftIndex] * leftWeight + centerDensity * centerWeight + source[rightIndex] * rightWeight;
                 }
                 else
                 {
                     sum = centerDensity * centerWeight;
-                    if (z > 0) sum += scalarSourceDensity(source, index - 1) * leftWeight;
-                    if (z < lastZ) sum += scalarSourceDensity(source, index + 1) * rightWeight;
+                    if (z > 0) sum += source[index - 1] * leftWeight;
+                    if (z < lastZ) sum += source[index + 1] * rightWeight;
                 }
 
                 double value = centerDensity * keep + diffuseAmount * sum;
-                destination[index] = clampScalarDensity(value, index, x, y, z);
+                destination[index] = clampScalarDensity(value, x, y, z);
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        double scalarSourceDensity(double[] source, int index)
-        {
-            return isBlockedScalarIndex(index) ? 0 : source[index];
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        bool isBlockedScalarIndex(int index)
-        {
-            VoxelDensityStore store = scalarDensityStore;
-            double[] maxDensity = store != null ? store.MaxDensity : null;
-            return maxDensity != null &&
-                   index >= 0 &&
-                   index < maxDensity.Length &&
-                   VoxelOccupancy.IsBlockedMaxDensity(maxDensity[index]);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        double clampScalarDensityAtIndex(double value, int index)
-        {
-            if (value <= 0) return 0;
-            if (value > 1) value = 1;
-
-            VoxelDensityStore store = scalarDensityStore;
-            double[] maxValues = store != null ? store.MaxDensity : null;
-            if (maxValues != null && index >= 0 && index < maxValues.Length)
-            {
-                double maxDensity = maxValues[index];
-                if (VoxelOccupancy.IsBlockedMaxDensity(maxDensity)) return 0;
-                if (maxDensity != -1 && value > maxDensity) value = maxDensity;
-            }
-
-            double[] minValues = store != null ? store.MinDensity : null;
-            if (minValues != null && index >= 0 && index < minValues.Length)
-            {
-                double minDensity = minValues[index];
-                if (minDensity != -1 && value > 0 && minDensity > value) value = minDensity;
-            }
-
-            return value;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        double clampScalarDensity(double value, int index, int x, int y, int z)
+        double clampScalarDensity(double value, int x, int y, int z)
         {
             if (value > 1) value = 1;
 
@@ -1799,7 +1753,7 @@ public class Solver : GH_Component
                 value = 0.01;
             }
 
-            return clampScalarDensityAtIndex(value, index);
+            return value;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -4148,7 +4102,7 @@ public class Solver : GH_Component
                         {
                             initialP.parentVoxel = voxels[xID, yID, zID];
                             initialP.die = false;
-                            if (initialP.parentVoxel.maxDensity == VoxelOccupancy.BlockedMaxDensityThreshold) initialP.die = true;
+                            if (initialP.parentVoxel.maxDensity == 0.01) initialP.die = true;
                         }
                         else
                         {
@@ -4381,14 +4335,6 @@ public class Solver : GH_Component
 
                     if (parentVoxel != null)
                     {
-                        if (VoxelOccupancy.IsBlockedMaxDensity(parentVoxel.maxDensity))
-                        {
-                            P.parentVoxel = null;
-                            P.die = true;
-                            setWorkingDensity(parentVoxel, 0);
-                            return localPreviewCache;
-                        }
-
                         P.parentVoxel = parentVoxel;
                         particleCountTouchedVoxels[i] = parentVoxel;
                         System.Threading.Interlocked.Increment(ref parentVoxel.particleCount);
@@ -4417,12 +4363,16 @@ public class Solver : GH_Component
                             }
                         }
 
+                        if (VoxelOccupancy.IsBlockedMaxDensity(parentVoxel.maxDensity))
+                        {
+                            P.die = true;
+                            setWorkingDensity(parentVoxel, 0);
+                        }
                     }
                     else
                     {
                         P.parentVoxel = null;
                         P.die = true;
-                        return localPreviewCache;
                     }
 
                     if (localPreviewCache != null)
@@ -4446,7 +4396,6 @@ public class Solver : GH_Component
                 previewCache.CompleteBuild();
             }
 
-            particles.RemoveAll(p => p.die == true && p.parentVoxel == null);
             particleCountTouchedCount = particleCount;
         }
 
@@ -4712,12 +4661,6 @@ public class Solver : GH_Component
                 Particle P = particles[p];
                 Voxel parentVoxel = P.parentVoxel;
                 if (parentVoxel == null) return;
-                if (VoxelOccupancy.IsBlockedMaxDensity(parentVoxel.maxDensity))
-                {
-                    P.parentVoxel = null;
-                    P.die = true;
-                    return;
-                }
 
                 ParticleGroup parentGroup = P.parentParticleGroup;
                 bool ant = parentGroup.ant;
@@ -4806,12 +4749,6 @@ public class Solver : GH_Component
                 Particle P = particles[p];
                 Voxel parentVoxel = P.parentVoxel;
                 if (parentVoxel == null) return;
-                if (VoxelOccupancy.IsBlockedMaxDensity(parentVoxel.maxDensity))
-                {
-                    P.parentVoxel = null;
-                    P.die = true;
-                    return;
-                }
 
                 ParticleGroup parentGroup = P.parentParticleGroup;
 
@@ -4890,7 +4827,7 @@ public class Solver : GH_Component
         double sampleSlimeSensorValue(Point3d potPos)
         {
             Voxel potentialVoxel = getParentVoxel(potPos.X, potPos.Y, potPos.Z);
-            if (!VoxelOccupancy.IsWalkable(potentialVoxel)) return -1;
+            if (potentialVoxel == null || VoxelOccupancy.IsBlockedMaxDensity(potentialVoxel.maxDensity)) return -1;
             if (!wrapBoundaries && potentialVoxel.boundary) return -1;
 
             double voxelValue = potentialVoxel.density;
@@ -5179,13 +5116,6 @@ public class Solver : GH_Component
                 Voxel parentVoxel = P.parentVoxel;
                 if (parentVoxel != null)
                 {
-                    if (VoxelOccupancy.IsBlockedMaxDensity(parentVoxel.maxDensity))
-                    {
-                        P.parentVoxel = null;
-                        P.die = true;
-                        return;
-                    }
-
                     ParticleGroup parentGroup = P.parentParticleGroup;
   
                     Vector3d xVector = P.pPlane.XAxis;
@@ -5267,7 +5197,7 @@ public class Solver : GH_Component
                     //find parent voxel for new location
                     Voxel nextVoxel = getParentVoxel(nextLoc.X, nextLoc.Y, nextLoc.Z);
 
-                    //account for blocked maxDensity values
+                    //account for maxDensity == 0
                     if (nextVoxel != null)
                     {
                         if (VoxelOccupancy.IsBlockedMaxDensity(nextVoxel.maxDensity)) nextVoxel = null;
@@ -6219,7 +6149,7 @@ public class Solver : GH_Component
                                                 if (voxels[P.parentVoxel.idX + u, 0, P.parentVoxel.idZ + w] != null)
                                                 {
                                                     Voxel neighbourV = voxels[P.parentVoxel.idX + u, 0, P.parentVoxel.idZ + w];
-                                                    if (neighbourV.particleCount == 0 && VoxelOccupancy.IsWalkable(neighbourV))
+                                                    if (neighbourV.particleCount == 0)
                                                     {
                                                         emptyNeighbours.Add(neighbourV);
                                                     }
@@ -6253,7 +6183,7 @@ public class Solver : GH_Component
                                                 if (voxels[0, P.parentVoxel.idY + v, P.parentVoxel.idZ + w] != null)
                                                 {
                                                     Voxel neighbourV = voxels[0, P.parentVoxel.idY + v, P.parentVoxel.idZ + w];
-                                                    if (neighbourV.particleCount == 0 && VoxelOccupancy.IsWalkable(neighbourV))
+                                                    if (neighbourV.particleCount == 0)
                                                     {
                                                         emptyNeighbours.Add(neighbourV);
                                                     }
@@ -6763,7 +6693,9 @@ public class Solver : GH_Component
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("fb3d6e25-19b6-4673-accb-15c99b8ac33f"); }
+            get { return new Guid("c83ed292-a692-8d9a-a549-77e3391bd022"); }
         }
     }
 }
+
+

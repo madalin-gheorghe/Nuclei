@@ -13,7 +13,7 @@ namespace Nuclei3
         public Voxel_Extractor_Box()
           : base("Extract Voxel Bounding Box", "Voxel Box",
               "Extract Voxel Design Space Bounding Box",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
         }
 
@@ -82,7 +82,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("f02270d9-89f0-4465-93ac-750061478aed"); }
+            get { return new Guid("65bed543-3aed-593f-bf4f-4a2a6a57e41d"); }
         }
     }
 }

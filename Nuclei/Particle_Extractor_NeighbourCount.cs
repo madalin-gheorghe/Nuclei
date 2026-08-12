@@ -13,7 +13,7 @@ namespace Nuclei3
         public Particle_Extractor_NeighbourCount()
           : base("Extract Particle Neighbour Count", "Particle Neighbour Count",
               "Extract Particle Neighbour Count",
-              "Nuclei4", " Particles")
+              "Nuclei3", " Particles")
         {
         }
 
@@ -89,7 +89,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("d077c7a9-1db6-410c-87f9-917a0c3a353d"); }
+            get { return new Guid("ae909d38-0792-5e06-b003-3b28b1b88f3e"); }
         }
     }
 }

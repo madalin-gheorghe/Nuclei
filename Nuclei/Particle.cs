@@ -215,7 +215,6 @@ namespace Nuclei3
     {
         public ParticlePreviewCache PreviewCache = new ParticlePreviewCache();
         internal Func<GpuParticlePreviewFrame> GpuPreviewFrameProvider;
-        internal Func<GpuParticleTrailPreviewFrame> GpuTrailPreviewFrameProvider;
 
         public ParticleList()
         {
@@ -229,11 +228,6 @@ namespace Nuclei3
         internal GpuParticlePreviewFrame GetGpuPreviewFrame()
         {
             return GpuPreviewFrameProvider != null ? GpuPreviewFrameProvider() : null;
-        }
-
-        internal GpuParticleTrailPreviewFrame GetGpuTrailPreviewFrame()
-        {
-            return GpuTrailPreviewFrameProvider != null ? GpuTrailPreviewFrameProvider() : null;
         }
     }
 
@@ -501,7 +495,7 @@ namespace Nuclei3
     public class ParticleParameter : GH_PersistentParam <ParticleGoo>
     {
         public ParticleParameter()
-            : base(new GH_InstanceDescription("Particle List", "Particle List", "Particle List", "Nuclei4", "Parameters"))
+            : base(new GH_InstanceDescription("Particle List", "Particle List", "Particle List", "Nuclei3", "Parameters"))
         {
         }
 
@@ -525,7 +519,7 @@ namespace Nuclei3
         {
             get 
             { 
-                return new Guid("9247c2b8-6a33-4f72-b385-ddd1a1e25323"); 
+                return new Guid("ce94fc36-4460-55c6-a41a-4c9c3f9c1e10"); 
             }
         }
 

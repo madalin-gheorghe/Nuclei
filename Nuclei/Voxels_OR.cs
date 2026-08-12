@@ -38,7 +38,7 @@ namespace Nuclei3
         public Voxels_OR()
               : base("Voxel Selection Union", "Voxel Selection Union",
               "Perform Union on Two or More Voxel Values (OR)",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
             DataTest = "";
         }
@@ -1056,7 +1056,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("0e3c0d1c-1057-4f08-9368-a0078a3d9d35"); }
+            get { return new Guid("e77e3067-0a34-5b11-89b2-e9725a510eb8"); }
         }
     }
 }

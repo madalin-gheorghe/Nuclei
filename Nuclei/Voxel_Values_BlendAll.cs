@@ -16,7 +16,7 @@ namespace Nuclei3
         public Voxel_Values_BlendAll()
           : base("Voxel Values Blend", "Blend Values",
               "Blend All Values",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
         }
 
@@ -391,7 +391,7 @@ namespace Nuclei3
                             {
                                 Voxel neighbour = voxels[d_xID, V.idY, V.idZ];
 
-                                if (VoxelOccupancy.IsWalkable(neighbour))
+                                if (neighbour.maxDensity != 0)
                                 {
                                     switch (type)
                                     {
@@ -472,7 +472,7 @@ namespace Nuclei3
                                 {
                                     Voxel neighbour = voxels[d_xID, V.idY, 0];
 
-                                    if (VoxelOccupancy.IsWalkable(neighbour))
+                                    if (neighbour.maxDensity != 0)
                                     {
                                         switch (type)
                                         {
@@ -551,7 +551,7 @@ namespace Nuclei3
                                 {
                                     Voxel neighbour = voxels[d_xID, 0, V.idZ];
 
-                                    if (VoxelOccupancy.IsWalkable(neighbour))
+                                    if (neighbour.maxDensity != 0)
                                     {
                                         switch (type)
                                         {
@@ -695,7 +695,7 @@ namespace Nuclei3
                             {
                                 Voxel neighbour = voxels[V.idX, d_yID, V.idZ];
 
-                                if (VoxelOccupancy.IsWalkable(neighbour))
+                                if (neighbour.maxDensity != 0)
                                 {
                                     switch (type)
                                     {
@@ -776,7 +776,7 @@ namespace Nuclei3
                                 {
                                     Voxel neighbour = voxels[V.idX, d_yID, 0];
 
-                                    if (VoxelOccupancy.IsWalkable(neighbour))
+                                    if (neighbour.maxDensity != 0)
                                     {
                                         switch (type)
                                         {
@@ -855,7 +855,7 @@ namespace Nuclei3
                                 {
                                     Voxel neighbour = voxels[0, d_yID, V.idZ];
 
-                                    if (VoxelOccupancy.IsWalkable(neighbour))
+                                    if (neighbour.maxDensity != 0)
                                     {
                                         switch (type)
                                         {
@@ -998,7 +998,7 @@ namespace Nuclei3
                             {
                                 Voxel neighbour = voxels[V.idX, V.idY, d_zID];
 
-                                if (VoxelOccupancy.IsWalkable(neighbour))
+                                if (neighbour.maxDensity != 0)
                                 {
                                     switch (type)
                                     {
@@ -1079,7 +1079,7 @@ namespace Nuclei3
                                 {
                                     Voxel neighbour = voxels[V.idX, 0, d_zID];
 
-                                    if (VoxelOccupancy.IsWalkable(neighbour))
+                                    if (neighbour.maxDensity != 0)
                                     {
                                         switch (type)
                                         {
@@ -1158,7 +1158,7 @@ namespace Nuclei3
                                 {
                                     Voxel neighbour = voxels[0, V.idY, d_zID];
 
-                                    if (VoxelOccupancy.IsWalkable(neighbour))
+                                    if (neighbour.maxDensity != 0)
                                     {
                                         switch (type)
                                         {
@@ -1369,7 +1369,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("0a968da4-646c-41fb-b48c-7e1d6c258d94"); }
+            get { return new Guid("a8c1c617-ce15-5e8b-a4d9-f7322e1d5d61"); }
         }
     }
 }

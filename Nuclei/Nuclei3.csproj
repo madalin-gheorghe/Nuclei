@@ -9,7 +9,7 @@
 		<UseWindowsForms>true</UseWindowsForms>
 		<GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
 		
-		<AssemblyName>Nuclei4</AssemblyName>
+		<AssemblyName>Nuclei3</AssemblyName>
 		<RootNamespace>Nuclei3</RootNamespace>
 
 		<TargetExt>.gha</TargetExt>

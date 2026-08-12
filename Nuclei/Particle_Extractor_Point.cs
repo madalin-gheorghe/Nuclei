@@ -14,7 +14,7 @@ namespace Nuclei3
         public Particle_Extractor_Point()
           : base("Extract Particle Positions", "Particle Positions",
               "Extract Particle Positions",
-              "Nuclei4", " Particles")
+              "Nuclei3", " Particles")
         {
         }
 
@@ -106,7 +106,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("f11f6319-1d69-4c97-8734-17c3f6a13b4a"); }
+            get { return new Guid("311bd82d-56cc-592b-aae4-69f8824a0a3b"); }
         }
     }
 }

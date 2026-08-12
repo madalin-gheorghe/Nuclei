@@ -1,4 +1,4 @@
-using Grasshopper.Kernel;
+﻿using Grasshopper.Kernel;
 using Rhino.Geometry;
 using Grasshopper.Kernel.Types;
 using System;
@@ -24,7 +24,7 @@ namespace Nuclei3
         }
 
         protected Preview_Voxel(string name, string nickname, string description)
-          : base(name, nickname, description, "Nuclei4", "Preview")
+          : base(name, nickname, description, "Nuclei3", "Preview")
         {
         }
 
@@ -57,38 +57,6 @@ namespace Nuclei3
         {
         }
 
-        #region menu items
-
-        public override bool Write(GH_IWriter writer)
-        {
-            writer.SetBoolean("HighResolutionDisplay", highResolutionDisplay);
-            return base.Write(writer);
-        }
-
-        public override bool Read(GH_IReader reader)
-        {
-            highResolutionDisplay = false;
-            reader.TryGetBoolean("HighResolutionDisplay", ref highResolutionDisplay);
-            return base.Read(reader);
-        }
-
-        protected override void AppendAdditionalComponentMenuItems(ToolStripDropDown menu)
-        {
-            base.AppendAdditionalComponentMenuItems(menu);
-
-            var highResToggle = Menu_AppendItem(menu, "High Res Display", highResolutionDisplayHandler, true, highResolutionDisplay);
-            highResToggle.ToolTipText = "Display small 2D Slime Chemoattractants fields with a 10x interpolated GPU texture. Large fields stay at native resolution.";
-        }
-
-        void highResolutionDisplayHandler(object sender, EventArgs e)
-        {
-            highResolutionDisplay = !highResolutionDisplay;
-            disableGpuDensityPreview();
-            ExpireSolution(true);
-        }
-
-        #endregion
-       
         /// <summary>
         /// This is the method that actually does the work.
         /// </summary>
@@ -133,6 +101,8 @@ namespace Nuclei3
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Chemoattractants", "7"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food Pheromones", "8"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Base Pheromones", "9"));
+                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Pheromones", "10"));
+                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ants and Slime", "11"));
 
                 vallist.ListItems.AddRange(items);
                 // Until now, the slider is a hypothetical object.
@@ -142,6 +112,8 @@ namespace Nuclei3
                 Component.Params.Input[1].AddSource(vallist);
                 Component.Params.Input[1].CollectData();
             }
+
+            ensureCombinedPreviewChoices();
 
             //DA.GetData("Display", ref display);
             min = 0;
@@ -162,11 +134,6 @@ namespace Nuclei3
 
             initializeGlobalVoxelColors();
             initializeCustomColour();
-
-            if (tryUseGpuDensityPreview())
-            {
-                return;
-            }
 
             disableGpuDensityPreview();
 
@@ -230,16 +197,115 @@ namespace Nuclei3
                     invalidateStaticPreviewCache();
                 }
 
-                VoxelGridData previewData = VoxelGridRegistry.GetOrCapture(voxel, voxelSize);
-                if (!tridimensional && buildPlanarPreviewMesh(previewData))
-                {
-                    clearPointCloudOnly();
-                    updateClippingBox();
-                    rememberStaticPreviewCache(resX, resY, resZ);
-                    return;
-                }
+                ConcurrentBag<VoxelPreviewSample> voxelSamplesConcurrent = new ConcurrentBag<VoxelPreviewSample>();
 
-                buildSampledPointCloud(previewData, resX, resY, resZ);
+                maxExistingVoxelValue = 1;
+
+                //get positions and values
+                Parallel.For(0, resZ, k =>
+                {
+                    for (int i = 0; i < resX; i++)
+                    {
+                        for (int j = 0; j < resY; j++)
+                        {
+                            if (voxel[i, j, k] != null)
+                            {
+                                Voxel V = voxel[i, j, k];
+
+                                if (valueIndex == 0)
+                                {
+                                    if (V.minDensity >= 0)
+                                    {
+                                        if (min <= V.minDensity && V.minDensity <= max)
+                                        {
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.minDensity, voxelSize / 12);
+                                        }
+                                    }
+                                }
+
+                                if (valueIndex == 1)
+                                {
+                                    if (V.maxDensity >= 0)
+                                    {
+                                        if (min <= V.maxDensity && V.maxDensity <= max)
+                                        {
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.maxDensity, voxelSize / 11);
+                                        }
+                                    }
+                                }
+
+                                if (valueIndex == 2)
+                                {
+                                    if (V.speedMultiplier >= 0)
+                                    {
+                                        if (min <= V.speedMultiplier && V.speedMultiplier <= max)
+                                        {
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.speedMultiplier, voxelSize / 10);
+                                        }
+                                    }
+                                }
+
+                                if (valueIndex == 3)
+                                {
+                                    if (V.sensorDistanceMultiplier >= 0)
+                                    {
+                                        if (min <= V.sensorDistanceMultiplier && V.sensorDistanceMultiplier <= max)
+                                        {
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.sensorDistanceMultiplier, voxelSize / 9);
+                                        }
+                                    }
+                                }
+
+                                if (valueIndex == 4)
+                                {
+                                    if (V.sensorAngleMultiplier >= 0)
+                                    {
+                                        if (min <= V.sensorAngleMultiplier && V.sensorAngleMultiplier <= max)
+                                        {
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.sensorAngleMultiplier, voxelSize / 8);
+                                        }
+                                    }
+                                }
+
+                                if (valueIndex == 5)
+                                {
+                                    if (V.rotationAngleMultiplier >= 0)
+                                    {
+                                        if (min <= V.rotationAngleMultiplier && V.rotationAngleMultiplier <= max)
+                                        {
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.rotationAngleMultiplier, voxelSize / 7);
+                                        }
+                                    }
+                                }
+
+                                if (valueIndex == 6)
+                                {
+                                    if (V.food >= 0)
+                                    {
+                                        if (min <= V.food && V.food <= max)
+                                        {
+                                            addPreviewSample(voxelSamplesConcurrent, V, V.food, voxelSize / 2.5);
+                                        }
+                                    }
+                                }
+
+                                if (valueIndex >= VoxelPreviewField.SlimeChemoattractants
+                                    && valueIndex <= VoxelPreviewField.AntsAndSlime)
+                                {
+                                    double dynamicValue;
+                                    if (tryGetDynamicPreviewValue(V, out dynamicValue))
+                                    {
+                                        addPreviewSample(voxelSamplesConcurrent, V, dynamicValue, previewPlanarOffset());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                );
+
+                buildCachedPointCloud(voxelSamplesConcurrent);
+                buildPlanarPreviewMesh();
                 updateClippingBox();
                 rememberStaticPreviewCache(resX, resY, resZ);
             }
@@ -255,11 +321,7 @@ namespace Nuclei3
 
             if (gpuDensityPreviewActive) return;
 
-            if (Hidden || Locked) return;
-
-            bool hasPlanarMesh = planarPreviewMesh != null && planarPreviewMesh.Faces.Count > 0;
-            bool hasPointCloud = voxelPointCloud != null && voxelPointCloud.Count > 0;
-            if (!hasPlanarMesh && !hasPointCloud) return;
+            if (Hidden || Locked || voxelPointCloud == null || voxelPointCloud.Count == 0) return;
 
             //draw background polygon
             if (!Globals.tridimensional)
@@ -267,7 +329,7 @@ namespace Nuclei3
                 args.Display.DrawPolygon(Globals.bgPolygon, Color.Black, true);
             }
 
-            if (!Globals.tridimensional && hasPlanarMesh)
+            if (!Globals.tridimensional && planarPreviewMesh != null && planarPreviewMesh.Faces.Count > 0)
             {
                 args.Display.DrawMeshFalseColors(planarPreviewMesh);
                 return;
@@ -279,10 +341,7 @@ namespace Nuclei3
                 return;
             }
 
-            if (hasPointCloud)
-            {
-                args.Display.DrawPointCloud(voxelPointCloud, 3);
-            }
+            args.Display.DrawPointCloud(voxelPointCloud, 3);
         }
 
         public override BoundingBox ClippingBox
@@ -306,34 +365,27 @@ namespace Nuclei3
 
         internal bool WantsGpuDensityPreview
         {
-            get { return WantsGpuDynamicDensityPreview; }
+            get { return false; }
         }
 
         internal bool WantsGpuDynamicDensityPreview
         {
-            get { return Rhino.RhinoApp.ExeVersion >= 9 && !Hidden && !Locked && CurrentValueIndex() == VoxelPreviewField.SlimeChemoattractants; }
+            get { return false; }
         }
 
         internal int GpuDensityPreviewScale
         {
-            get { return safeGpuDensityPreviewScale(); }
+            get { return 1; }
         }
 
         internal bool WantsGpuVoxelPreview
         {
-            get { return WantsGpuDynamicDensityPreview; }
+            get { return false; }
         }
 
         internal bool WantsSolverVoxelOutput
         {
-            get
-            {
-                int currentValueIndex = CurrentValueIndex();
-                return !Hidden
-                    && !Locked
-                    && !WantsGpuVoxelPreview
-                    && VoxelPreviewField.IsDynamicDensity(currentValueIndex);
-            }
+            get { return !Hidden && !Locked; }
         }
 
         internal GpuDensityFieldPreviewFrame GetGpuDensityFieldPreviewFrame()
@@ -448,84 +500,6 @@ namespace Nuclei3
             return (float)value;
         }
 
-        const int HighResolutionDensityPreviewScale = 10;
-        const int MaxSharedPreviewTextureDimension = 16384;
-        const long MaxHighResolutionDensityPreviewPixels = 33554432;
-
-        int safeGpuDensityPreviewScale()
-        {
-            if (!highResolutionDisplay || voxel == null)
-            {
-                return 1;
-            }
-
-            int width;
-            int height;
-            if (!tryGetPlanarDensityPreviewBaseSize(out width, out height))
-            {
-                return 1;
-            }
-
-            long basePixels = (long)width * height;
-            if (basePixels <= 0)
-            {
-                return 1;
-            }
-
-            long scaledWidth = (long)width * HighResolutionDensityPreviewScale;
-            long scaledHeight = (long)height * HighResolutionDensityPreviewScale;
-            long scaledPixels = scaledWidth * scaledHeight;
-            if (scaledWidth > MaxSharedPreviewTextureDimension
-                || scaledHeight > MaxSharedPreviewTextureDimension
-                || scaledPixels > MaxHighResolutionDensityPreviewPixels)
-            {
-                return 1;
-            }
-
-            return HighResolutionDensityPreviewScale;
-        }
-
-        bool tryGetPlanarDensityPreviewBaseSize(out int width, out int height)
-        {
-            width = 0;
-            height = 0;
-            if (voxel == null)
-            {
-                return false;
-            }
-
-            int x = voxel.GetLength(0);
-            int y = voxel.GetLength(1);
-            int z = voxel.GetLength(2);
-            if (x <= 0 || y <= 0 || z <= 0)
-            {
-                return false;
-            }
-
-            if (x > 1 && y > 1 && z == 1)
-            {
-                width = x;
-                height = y;
-                return true;
-            }
-
-            if (x > 1 && y == 1 && z > 1)
-            {
-                width = x;
-                height = z;
-                return true;
-            }
-
-            if (x == 1 && y > 1 && z > 1)
-            {
-                width = y;
-                height = z;
-                return true;
-            }
-
-            return false;
-        }
-
         void disableGpuDensityPreview()
         {
             if (gpuDensityPreviewActive)
@@ -569,6 +543,37 @@ namespace Nuclei3
             return valueIndex;
         }
 
+        void ensureCombinedPreviewChoices()
+        {
+            if (Params == null || Params.Input == null || Params.Input.Count < 2 || Params.Input[1].SourceCount != 1)
+            {
+                return;
+            }
+
+            Grasshopper.Kernel.Special.GH_ValueList valueList = Params.Input[1].Sources[0] as Grasshopper.Kernel.Special.GH_ValueList;
+            if (valueList == null)
+            {
+                return;
+            }
+
+            bool nucleiDynamicFields = valueList.ListItems.Any(item => item.Expression == "7" && item.Name == "Slime Chemoattractants")
+                && valueList.ListItems.Any(item => item.Expression == "8" && item.Name == "Ant Food Pheromones")
+                && valueList.ListItems.Any(item => item.Expression == "9" && item.Name == "Ant Base Pheromones");
+            if (!nucleiDynamicFields)
+            {
+                return;
+            }
+
+            if (!valueList.ListItems.Any(item => item.Expression == "10"))
+            {
+                valueList.ListItems.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Pheromones", "10"));
+            }
+            if (!valueList.ListItems.Any(item => item.Expression == "11"))
+            {
+                valueList.ListItems.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ants and Slime", "11"));
+            }
+        }
+
         void updateClippingBox()
         {
             clippingBox = BoundingBox.Empty;
@@ -605,14 +610,6 @@ namespace Nuclei3
             planarPreviewMesh = null;
             clippingBox = BoundingBox.Empty;
             invalidateStaticPreviewCache();
-        }
-
-        void clearPointCloudOnly()
-        {
-            voxelPoints = null;
-            voxelValues = null;
-            voxelPointCloud = null;
-            stablePointBuckets = null;
         }
 
         bool tryReuseStaticPreviewCache(int resX, int resY, int resZ)
@@ -692,14 +689,72 @@ namespace Nuclei3
             staticPreviewCachePointCount = 0;
         }
 
-        const int MaxPlanarPreviewMeshVertices = 400000;
-        const int MaxPointCloudPreviewSamples = 300000;
+        void addPreviewSample(ConcurrentBag<VoxelPreviewSample> samples, Voxel V, double value, double planarOffset)
+        {
+            Point3d loc = V.loc;
+            if (planarXY) loc.Z = planarOffset;
+            if (planarXZ) loc.Y = planarOffset;
+            if (planarYZ) loc.X = planarOffset;
+            samples.Add(new VoxelPreviewSample(loc, value, V));
+        }
 
-        bool buildPlanarPreviewMesh(VoxelGridData previewData)
+        void buildCachedPointCloud(ConcurrentBag<VoxelPreviewSample> samples)
+        {
+            voxelPoints = new List<Point3d>(samples.Count);
+            voxelValues = new List<double>(samples.Count);
+            voxelPointCloud = new PointCloud();
+            stablePointBuckets = !tridimensional ? new List<StablePointBucket>() : null;
+            minExistingVoxelValue = double.PositiveInfinity;
+            maxExistingVoxelValue = double.NegativeInfinity;
+
+            foreach (VoxelPreviewSample sample in samples)
+            {
+                if (double.IsNaN(sample.Value) || double.IsInfinity(sample.Value)) continue;
+                if (sample.Value < minExistingVoxelValue) minExistingVoxelValue = sample.Value;
+                if (sample.Value > maxExistingVoxelValue) maxExistingVoxelValue = sample.Value;
+            }
+
+            if (double.IsPositiveInfinity(minExistingVoxelValue) || double.IsNegativeInfinity(maxExistingVoxelValue))
+            {
+                if (automaticPreviewDomain)
+                {
+                    minExistingVoxelValue = 0;
+                    maxExistingVoxelValue = 1;
+                }
+                else
+                {
+                    minExistingVoxelValue = min;
+                    maxExistingVoxelValue = max;
+                }
+            }
+
+            if (automaticPreviewDomain)
+            {
+                currentPreviewDomain = new Interval(minExistingVoxelValue, maxExistingVoxelValue);
+            }
+
+            updatePreviewDomainMessage();
+
+            foreach (VoxelPreviewSample sample in samples)
+            {
+                Color sampleColor = retrieveVoxelColor(sample);
+                voxelPoints.Add(sample.Point);
+                voxelValues.Add(sample.Value);
+                voxelPointCloud.Add(sample.Point, sampleColor);
+
+                if (stablePointBuckets != null)
+                {
+                    addStablePoint(sample.Point, sampleColor);
+                }
+            }
+        }
+
+        const int MaxPlanarPreviewMeshVertices = 1500000;
+
+        void buildPlanarPreviewMesh()
         {
             planarPreviewMesh = null;
-            stablePointBuckets = null;
-            if (voxel == null || tridimensional) return false;
+            if (voxel == null || tridimensional) return;
 
             int resX = voxel.GetLength(0);
             int resY = voxel.GetLength(1);
@@ -724,66 +779,43 @@ namespace Nuclei3
             }
             else
             {
-                return false;
+                return;
             }
 
-            if (uCount < 2 || vCount < 2) return false;
-
-            int sampleUCount;
-            int sampleVCount;
-            resolvePlanarSampleCounts(uCount, vCount, out sampleUCount, out sampleVCount);
-            if (sampleUCount < 2 || sampleVCount < 2) return false;
-
-            int vertexCount = sampleUCount * sampleVCount;
-            double[] values = new double[vertexCount];
-            bool[] hasValues = new bool[vertexCount];
-            minExistingVoxelValue = double.PositiveInfinity;
-            maxExistingVoxelValue = double.NegativeInfinity;
+            if (uCount < 2 || vCount < 2) return;
+            if ((long)uCount * vCount > MaxPlanarPreviewMeshVertices) return;
 
             Mesh mesh = new Mesh();
-            mesh.Vertices.Capacity = vertexCount;
-            mesh.Faces.Capacity = (sampleUCount - 1) * (sampleVCount - 1);
+            mesh.Vertices.Capacity = uCount * vCount;
+            mesh.Faces.Capacity = (uCount - 1) * (vCount - 1);
 
-            for (int su = 0; su < sampleUCount; su++)
+            for (int u = 0; u < uCount; u++)
             {
-                int u = sampleIndexToSourceIndex(su, sampleUCount, uCount);
-                for (int sv = 0; sv < sampleVCount; sv++)
+                for (int v = 0; v < vCount; v++)
                 {
-                    int v = sampleIndexToSourceIndex(sv, sampleVCount, vCount);
-                    int vertexIndex = su * sampleVCount + sv;
+                    Voxel V = planarVoxelAt(u, v);
+                    Point3d point = V != null ? planarPreviewPoint(V) : Point3d.Unset;
+                    if (!point.IsValid)
+                    {
+                        point = fallbackPlanarPoint(u, v);
+                    }
 
-                    int x;
-                    int y;
-                    int z;
-                    planarCoordinates(u, v, out x, out y, out z);
-                    mesh.Vertices.Add(previewPointAt(previewData, x, y, z));
+                    mesh.Vertices.Add(point);
 
                     double value;
-                    if (tryGetPreviewValueAt(previewData, x, y, z, out value))
-                    {
-                        values[vertexIndex] = value;
-                        hasValues[vertexIndex] = true;
-                        if (value < minExistingVoxelValue) minExistingVoxelValue = value;
-                        if (value > maxExistingVoxelValue) maxExistingVoxelValue = value;
-                    }
+                    Color color = tryGetPreviewValue(V, out value) ? retrieveVoxelColor(V, value) : Color.Black;
+                    mesh.VertexColors.Add(color);
                 }
             }
 
-            applyPreviewDomainFromSamples();
-
-            for (int i = 0; i < vertexCount; i++)
+            for (int u = 0; u < uCount - 1; u++)
             {
-                mesh.VertexColors.Add(hasValues[i] ? retrieveVoxelColor(values[i]) : Color.Black);
-            }
-
-            for (int su = 0; su < sampleUCount - 1; su++)
-            {
-                for (int sv = 0; sv < sampleVCount - 1; sv++)
+                for (int v = 0; v < vCount - 1; v++)
                 {
-                    int a = su * sampleVCount + sv;
-                    int b = (su + 1) * sampleVCount + sv;
-                    int c = (su + 1) * sampleVCount + sv + 1;
-                    int d = su * sampleVCount + sv + 1;
+                    int a = u * vCount + v;
+                    int b = (u + 1) * vCount + v;
+                    int c = (u + 1) * vCount + v + 1;
+                    int d = u * vCount + v + 1;
                     mesh.Faces.AddFace(a, b, c, d);
                 }
             }
@@ -791,171 +823,18 @@ namespace Nuclei3
             mesh.Normals.ComputeNormals();
             mesh.Compact();
             planarPreviewMesh = mesh;
-            return true;
         }
 
-        void buildSampledPointCloud(VoxelGridData previewData, int resX, int resY, int resZ)
+        Voxel planarVoxelAt(int u, int v)
         {
-            planarPreviewMesh = null;
-            stablePointBuckets = null;
-            List<VoxelPreviewSample> samples = new List<VoxelPreviewSample>();
-            minExistingVoxelValue = double.PositiveInfinity;
-            maxExistingVoxelValue = double.NegativeInfinity;
-
-            int step = previewSampleStep(resX, resY, resZ, MaxPointCloudPreviewSamples);
-            for (int x = 0; x < resX; x += step)
-            {
-                for (int y = 0; y < resY; y += step)
-                {
-                    for (int z = 0; z < resZ; z += step)
-                    {
-                        double value;
-                        if (!tryGetPreviewValueAt(previewData, x, y, z, out value))
-                        {
-                            continue;
-                        }
-
-                        Point3d point = previewPointAt(previewData, x, y, z);
-                        samples.Add(new VoxelPreviewSample(point, value));
-                        if (value < minExistingVoxelValue) minExistingVoxelValue = value;
-                        if (value > maxExistingVoxelValue) maxExistingVoxelValue = value;
-                    }
-                }
-            }
-
-            applyPreviewDomainFromSamples();
-
-            voxelPoints = new List<Point3d>(samples.Count);
-            voxelValues = new List<double>(samples.Count);
-            voxelPointCloud = new PointCloud();
-            for (int i = 0; i < samples.Count; i++)
-            {
-                VoxelPreviewSample sample = samples[i];
-                Color sampleColor = retrieveVoxelColor(sample.Value);
-                voxelPoints.Add(sample.Point);
-                voxelValues.Add(sample.Value);
-                voxelPointCloud.Add(sample.Point, sampleColor);
-            }
+            if (planarXY) return voxel[u, v, 0];
+            if (planarXZ) return voxel[u, 0, v];
+            return voxel[0, u, v];
         }
 
-        void applyPreviewDomainFromSamples()
+        Point3d planarPreviewPoint(Voxel V)
         {
-            if (double.IsPositiveInfinity(minExistingVoxelValue) || double.IsNegativeInfinity(maxExistingVoxelValue))
-            {
-                if (automaticPreviewDomain)
-                {
-                    minExistingVoxelValue = 0;
-                    maxExistingVoxelValue = 1;
-                }
-                else
-                {
-                    minExistingVoxelValue = min;
-                    maxExistingVoxelValue = max;
-                }
-            }
-
-            if (automaticPreviewDomain)
-            {
-                currentPreviewDomain = new Interval(minExistingVoxelValue, maxExistingVoxelValue);
-            }
-
-            updatePreviewDomainMessage();
-        }
-
-        void resolvePlanarSampleCounts(int uCount, int vCount, out int sampleUCount, out int sampleVCount)
-        {
-            sampleUCount = uCount;
-            sampleVCount = vCount;
-            long fullCount = (long)uCount * vCount;
-            if (fullCount <= MaxPlanarPreviewMeshVertices)
-            {
-                return;
-            }
-
-            double scale = Math.Sqrt(MaxPlanarPreviewMeshVertices / (double)fullCount);
-            sampleUCount = Math.Max(2, (int)Math.Floor(uCount * scale));
-            sampleVCount = Math.Max(2, (int)Math.Floor(vCount * scale));
-
-            while ((long)sampleUCount * sampleVCount > MaxPlanarPreviewMeshVertices)
-            {
-                if (sampleUCount >= sampleVCount && sampleUCount > 2)
-                {
-                    sampleUCount--;
-                }
-                else if (sampleVCount > 2)
-                {
-                    sampleVCount--;
-                }
-                else
-                {
-                    break;
-                }
-            }
-        }
-
-        static int sampleIndexToSourceIndex(int sampleIndex, int sampleCount, int sourceCount)
-        {
-            if (sourceCount <= 1) return 0;
-            if (sampleCount <= 1) return 0;
-            int value = (int)Math.Round(sampleIndex * (sourceCount - 1) / (double)(sampleCount - 1));
-            if (value < 0) return 0;
-            if (value >= sourceCount) return sourceCount - 1;
-            return value;
-        }
-
-        static int previewSampleStep(int resX, int resY, int resZ, int maxSamples)
-        {
-            long count = (long)Math.Max(1, resX) * Math.Max(1, resY) * Math.Max(1, resZ);
-            if (count <= maxSamples) return 1;
-
-            int step = 1;
-            while (sampledCount(resX, resY, resZ, step) > maxSamples)
-            {
-                step++;
-            }
-
-            return step;
-        }
-
-        static long sampledCount(int resX, int resY, int resZ, int step)
-        {
-            return ((resX + step - 1L) / step)
-                * ((resY + step - 1L) / step)
-                * ((resZ + step - 1L) / step);
-        }
-
-        void planarCoordinates(int u, int v, out int x, out int y, out int z)
-        {
-            if (planarXY)
-            {
-                x = u;
-                y = v;
-                z = 0;
-                return;
-            }
-
-            if (planarXZ)
-            {
-                x = u;
-                y = 0;
-                z = v;
-                return;
-            }
-
-            x = 0;
-            y = u;
-            z = v;
-        }
-
-        Point3d previewPointAt(VoxelGridData previewData, int x, int y, int z)
-        {
-            Voxel V = voxelAt(x, y, z);
-            Point3d loc = V != null
-                ? V.loc
-                : previewData != null
-                    ? previewData.CenterPoint(previewData.FlatIndex(x, y, z))
-                    : fallbackPoint(x, y, z);
-
+            Point3d loc = V.loc;
             double offset = previewPlanarOffset();
             if (planarXY) loc.Z = offset;
             if (planarXZ) loc.Y = offset;
@@ -963,24 +842,13 @@ namespace Nuclei3
             return loc;
         }
 
-        Point3d fallbackPoint(int x, int y, int z)
+        Point3d fallbackPlanarPoint(int u, int v)
         {
             double size = voxelSize > 0 ? voxelSize : 1.0;
-            return new Point3d(x * size + size / 2, y * size + size / 2, z * size + size / 2);
-        }
-
-        Voxel voxelAt(int x, int y, int z)
-        {
-            if (voxel == null
-                || x < 0 || y < 0 || z < 0
-                || x >= voxel.GetLength(0)
-                || y >= voxel.GetLength(1)
-                || z >= voxel.GetLength(2))
-            {
-                return null;
-            }
-
-            return voxel[x, y, z];
+            double offset = previewPlanarOffset();
+            if (planarXY) return new Point3d(u * size, v * size, offset);
+            if (planarXZ) return new Point3d(u * size, offset, v * size);
+            return new Point3d(offset, u * size, v * size);
         }
 
         double previewPlanarOffset()
@@ -997,66 +865,53 @@ namespace Nuclei3
                 case 7: return voxelSize / 4;
                 case 8: return voxelSize / 3;
                 case 9: return voxelSize / 5;
+                case 10: return voxelSize / 4;
+                case 11: return voxelSize / 4;
                 default: return voxelSize / 12;
             }
         }
 
-        bool tryGetPreviewValueAt(VoxelGridData previewData, int x, int y, int z, out double value)
+        bool tryGetPreviewValue(Voxel V, out double value)
         {
             value = 0;
-            int flatIndex = -1;
-            if (previewData != null)
-            {
-                flatIndex = previewData.FlatIndex(x, y, z);
-                if (!previewData.IsActive(flatIndex)) return false;
-            }
-
-            Voxel V = voxelAt(x, y, z);
+            if (V == null) return false;
 
             switch (valueIndex)
             {
                 case 0:
-                    value = previewData != null ? previewData.MinimumDensity.Get(flatIndex) : V != null ? V.minDensity : -1;
+                    value = V.minDensity;
                     if (value < 0) return false;
                     break;
                 case 1:
-                    value = previewData != null ? previewData.MaximumDensity.Get(flatIndex) : V != null ? V.maxDensity : -1;
+                    value = V.maxDensity;
                     if (value < 0) return false;
                     break;
                 case 2:
-                    value = previewData != null ? previewData.Speed.Get(flatIndex) : V != null ? V.speedMultiplier : -1;
+                    value = V.speedMultiplier;
                     if (value < 0) return false;
                     break;
                 case 3:
-                    value = previewData != null ? previewData.SensorDistance.Get(flatIndex) : V != null ? V.sensorDistanceMultiplier : -1;
+                    value = V.sensorDistanceMultiplier;
                     if (value < 0) return false;
                     break;
                 case 4:
-                    value = previewData != null ? previewData.SensorAngle.Get(flatIndex) : V != null ? V.sensorAngleMultiplier : -1;
+                    value = V.sensorAngleMultiplier;
                     if (value < 0) return false;
                     break;
                 case 5:
-                    value = previewData != null ? previewData.RotationAngle.Get(flatIndex) : V != null ? V.rotationAngleMultiplier : -1;
+                    value = V.rotationAngleMultiplier;
                     if (value < 0) return false;
                     break;
                 case 6:
-                    value = previewData != null ? previewData.Food.Get(flatIndex) : V != null ? V.food : -1;
+                    value = V.food;
                     if (value < 0) return false;
                     break;
                 case 7:
-                    value = V != null ? V.density : previewData != null ? previewData.Density.Get(flatIndex) : 0;
-                    if (value <= 0.01) return false;
-                    break;
                 case 8:
-                    if (V == null) return false;
-                    value = V.towardsFoodPheromone;
-                    if (value <= 0.01) return false;
-                    break;
                 case 9:
-                    if (V == null) return false;
-                    value = V.towardsBasePheromone;
-                    if (value <= 0.01) return false;
-                    break;
+                case 10:
+                case 11:
+                    return tryGetDynamicPreviewValue(V, out value);
                 default:
                     return false;
             }
@@ -1138,7 +993,6 @@ namespace Nuclei3
         bool gpuDensityPreviewActive = false;
         SolverGPU gpuDensitySolver;
         BoundingBox gpuDensityClippingBox = BoundingBox.Empty;
-        bool highResolutionDisplay = true;
         bool staticPreviewCacheValid;
         Voxel[,,] staticPreviewCacheVoxels;
         VoxelGridData staticPreviewCacheData;
@@ -1156,14 +1010,22 @@ namespace Nuclei3
 
         struct VoxelPreviewSample
         {
-            public VoxelPreviewSample(Point3d point, double value)
+            public VoxelPreviewSample(Point3d point, double value, Voxel voxel)
             {
                 Point = point;
                 Value = value;
+                Food = voxel != null ? voxel.food : 0;
+                Slime = voxel != null ? voxel.density : 0;
+                FoodPheromone = voxel != null ? voxel.towardsFoodPheromone : 0;
+                BasePheromone = voxel != null ? voxel.towardsBasePheromone : 0;
             }
 
             public Point3d Point;
             public double Value;
+            public double Food;
+            public double Slime;
+            public double FoodPheromone;
+            public double BasePheromone;
         }
 
         class StablePointBucket
@@ -1227,13 +1089,138 @@ namespace Nuclei3
             //in case max density is blocked
             if (valueIndex == 1)
             {
-                if (d < VoxelOccupancy.BlockedMaxDensityThreshold)
+                if (d < 0.01)
                 {
                     voxelColor = System.Drawing.Color.FromArgb(255, 29, 19, 53);
                 }
             }
 
             return voxelColor;
+        }
+
+        Color retrieveVoxelColor(VoxelPreviewSample sample)
+        {
+            if (valueIndex < VoxelPreviewField.SlimeChemoattractants)
+            {
+                return retrieveVoxelColor(sample.Value);
+            }
+
+            return retrieveDynamicVoxelColor(
+                sample.Food,
+                sample.Slime,
+                sample.FoodPheromone,
+                sample.BasePheromone);
+        }
+
+        Color retrieveVoxelColor(Voxel V, double value)
+        {
+            if (valueIndex < VoxelPreviewField.SlimeChemoattractants || V == null)
+            {
+                return retrieveVoxelColor(value);
+            }
+
+            return retrieveDynamicVoxelColor(V.food, V.density, V.towardsFoodPheromone, V.towardsBasePheromone);
+        }
+
+        Color retrieveDynamicVoxelColor(double food, double slime, double foodPheromone, double basePheromone)
+        {
+            double foodVisual = previewValueToNormalized(food);
+            double slimeVisual = previewValueToNormalized(slime);
+            double foodPheromoneVisual = previewValueToNormalized(foodPheromone);
+            double basePheromoneVisual = previewValueToNormalized(basePheromone);
+
+            Color slimeColor = valueIndex == VoxelPreviewField.SlimeChemoattractants && hasCustomColour()
+                ? colour
+                : Color.FromArgb(255, 223, 255, 123);
+            Color foodPheromoneColor = valueIndex == VoxelPreviewField.AntFoodPheromones && hasCustomColour()
+                ? colour
+                : Color.FromArgb(255, 57, 255, 170);
+            Color basePheromoneColor = valueIndex == VoxelPreviewField.AntBasePheromones && hasCustomColour()
+                ? colour
+                : Color.FromArgb(255, 255, 0, 100);
+
+            double red = 0;
+            double green = 0;
+            double blue = 0;
+            double foregroundStrength = 0;
+
+            if (valueIndex == VoxelPreviewField.SlimeChemoattractants || valueIndex == VoxelPreviewField.AntsAndSlime)
+            {
+                addColor(ref red, ref green, ref blue, slimeColor, slimeVisual);
+                foregroundStrength = Math.Max(foregroundStrength, slimeVisual);
+            }
+            if (valueIndex == VoxelPreviewField.AntFoodPheromones
+                || valueIndex == VoxelPreviewField.AntPheromones
+                || valueIndex == VoxelPreviewField.AntsAndSlime)
+            {
+                addColor(ref red, ref green, ref blue, foodPheromoneColor, foodPheromoneVisual);
+                foregroundStrength = Math.Max(foregroundStrength, foodPheromoneVisual);
+            }
+            if (valueIndex == VoxelPreviewField.AntBasePheromones
+                || valueIndex == VoxelPreviewField.AntPheromones
+                || valueIndex == VoxelPreviewField.AntsAndSlime)
+            {
+                addColor(ref red, ref green, ref blue, basePheromoneColor, basePheromoneVisual);
+                foregroundStrength = Math.Max(foregroundStrength, basePheromoneVisual);
+            }
+
+            double foodBackground = 255.0 * foodVisual * (1.0 - foregroundStrength);
+            return Color.FromArgb(
+                255,
+                clampColorChannel(red + foodBackground),
+                clampColorChannel(green + foodBackground),
+                clampColorChannel(blue + foodBackground));
+        }
+
+        bool tryGetDynamicPreviewValue(Voxel V, out double value)
+        {
+            double food = Math.Max(0, V.food);
+            double slime = Math.Max(0, V.density);
+            double foodPheromone = Math.Max(0, V.towardsFoodPheromone);
+            double basePheromone = Math.Max(0, V.towardsBasePheromone);
+
+            switch (valueIndex)
+            {
+                case VoxelPreviewField.SlimeChemoattractants:
+                    value = Math.Max(food, slime);
+                    break;
+                case VoxelPreviewField.AntFoodPheromones:
+                    value = Math.Max(food, foodPheromone);
+                    break;
+                case VoxelPreviewField.AntBasePheromones:
+                    value = Math.Max(food, basePheromone);
+                    break;
+                case VoxelPreviewField.AntPheromones:
+                    value = Math.Max(food, Math.Max(foodPheromone, basePheromone));
+                    break;
+                case VoxelPreviewField.AntsAndSlime:
+                    value = Math.Max(food, Math.Max(slime, Math.Max(foodPheromone, basePheromone)));
+                    break;
+                default:
+                    value = 0;
+                    return false;
+            }
+
+            return value > 0.01 && min <= value && value <= max;
+        }
+
+        bool hasCustomColour()
+        {
+            return colour.R != 0 || colour.G != 0 || colour.B != 0;
+        }
+
+        static void addColor(ref double red, ref double green, ref double blue, Color color, double strength)
+        {
+            red += color.R * strength;
+            green += color.G * strength;
+            blue += color.B * strength;
+        }
+
+        static int clampColorChannel(double value)
+        {
+            if (value <= 0) return 0;
+            if (value >= 255) return 255;
+            return (int)Math.Round(value);
         }
 
         //-------------------------------------------------------------------
@@ -1281,22 +1268,22 @@ namespace Nuclei3
 
         int previewValueToColorIndex(double value)
         {
-            double range = currentPreviewDomain.T1 - currentPreviewDomain.T0;
-            double normalized;
-
-            if (range > 1e-12)
-            {
-                normalized = (value - currentPreviewDomain.T0) / range;
-            }
-            else
-            {
-                normalized = value > 0 ? 1.0 : 0.0;
-            }
-
+            double normalized = previewValueToNormalized(value);
             int index = (int)Math.Round(normalized * 255);
             if (index < 0) return 0;
             if (index > 255) return 255;
             return index;
+        }
+
+        double previewValueToNormalized(double value)
+        {
+            double range = currentPreviewDomain.T1 - currentPreviewDomain.T0;
+            double normalized = range > 1e-12
+                ? (value - currentPreviewDomain.T0) / range
+                : value > 0 ? 1.0 : 0.0;
+            if (normalized <= 0) return 0;
+            if (normalized >= 1) return 1;
+            return normalized;
         }
 
         //-------------------------------------------------------------------
@@ -1319,8 +1306,9 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("fb2ea9fc-5963-4587-b09b-0422f61174db"); }
+            get { return new Guid("2f97ab1f-8665-65dc-e43f-7a91cc981668"); }
         }
     }
 
 }
+

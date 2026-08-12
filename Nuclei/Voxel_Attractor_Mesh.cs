@@ -17,7 +17,7 @@ namespace Nuclei3
         public Voxel_Attractor_Mesh()
           : base("Mesh Attractor for Voxel", "Mesh Attractor",
               "Use Meshes as Attractors for Voxel Centers",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
         }
 
@@ -743,7 +743,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("6bb5c231-45a2-4fd8-8698-93da2b8631aa"); }
+            get { return new Guid("7efffca4-5124-5bd1-b5dc-de9a3c9cbe3c"); }
         }
     }
 }

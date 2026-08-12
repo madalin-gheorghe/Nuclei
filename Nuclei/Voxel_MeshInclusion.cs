@@ -15,7 +15,7 @@ namespace Nuclei3
         public Voxel_MeshInclusion()
           : base("Voxel Inclusion in Mesh", "Mesh Inclusion",
               "Test if a Voxel Center is Inside a Mesh",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
         }
 
@@ -376,7 +376,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("74684ab4-cbf5-4cc1-a75a-4253eb83599b"); }
+            get { return new Guid("75c987f0-57a0-56c9-bf9f-f4ef4f3ebfed"); }
         }
     }
 }

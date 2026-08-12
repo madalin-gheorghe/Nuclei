@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 using Grasshopper.Kernel;
@@ -14,7 +14,7 @@ namespace Nuclei3
         public EnivronmentSettings()
           : base("Voxel Settings Slime", "Voxel Settings Slime",
               "Sets Up How The Environment Data Is Interpreted for Slime Particles",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
         }
 
@@ -91,7 +91,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("dc1f1c7b-2376-487d-a4ac-d14d9cad856d"); }
+            get { return new Guid("343df7f6-ca68-637f-39db-c1318f2faf45"); }
         }
     }
 }

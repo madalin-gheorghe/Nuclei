@@ -14,7 +14,7 @@ namespace Nuclei3
         public Voxel_Vectors_Discretize()
           : base("Define Discrete Vectors", "Voxel Discrete Vectors",
               "Define Voxel Discrete Vectors",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
         }
 
@@ -89,7 +89,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("c4f37772-d03a-44a5-bd50-755442b1c5f3"); }
+            get { return new Guid("78272e15-9001-5093-ac07-1d95c974886e"); }
         }
     }
 }

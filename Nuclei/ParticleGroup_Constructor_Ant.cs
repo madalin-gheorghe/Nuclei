@@ -19,7 +19,7 @@ namespace Nuclei3
         public ParticleGroup_Constructor_Ant()
           : base("Construct Ant Particles", "Ant Particles",
               "Construct and Define Ant Particle Properties",
-              "Nuclei4", " Particles")
+              "Nuclei3", " Particles")
         {
         }
 
@@ -162,7 +162,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("3eab04d8-68ed-476d-b33d-a8633418ab12"); }
+            get { return new Guid("c0609c94-26cb-5275-8da2-1b67ba5d05ee"); }
         }
     }
 }

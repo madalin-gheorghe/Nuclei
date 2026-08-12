@@ -14,7 +14,7 @@ namespace Nuclei3
         public Voxel_Vectors_BlendAll()
           : base("Voxel Vectors Blend", "Blend Vectorfield",
               "Blend All Vectors By Averaging Their Neighbours",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
         }
 
@@ -308,7 +308,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("ee2dadbd-e610-457d-8a08-e603062c4a45"); }
+            get { return new Guid("016236fa-462e-56db-b176-5d55cc9b80fc"); }
         }
     }
 }

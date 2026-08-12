@@ -14,7 +14,7 @@ namespace Nuclei3
         public Voxel_Vectors()
           : base("Define Voxel Vectors", "Voxel Vectors",
               "Define Voxel Vector Field",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
         }
 
@@ -100,7 +100,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("fd6a6fc7-5500-464d-9c1f-94de266ab994"); }
+            get { return new Guid("a7c860c9-1406-519a-b581-af729a8e79f8"); }
         }
     }
 }

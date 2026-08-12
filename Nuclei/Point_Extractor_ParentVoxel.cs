@@ -21,7 +21,7 @@ namespace Nuclei3
         public Point_Extractor_ParentVoxel()
           : base("Extract Parent Voxel", "Extract Parent Voxel",
               "Extract The Voxel in which The Point Is Contained",
-              "Nuclei4", "Utility")
+              "Nuclei3", "Utility")
         {
         }
 
@@ -244,7 +244,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("f4f3534c-1921-448d-b785-dd0854bc8bed"); }
+            get { return new Guid("e802dc19-0a69-5aaa-9be9-22ff70a2b731"); }
         }
     }
 }

@@ -1,4 +1,4 @@
-using Grasshopper.Kernel;
+﻿using Grasshopper.Kernel;
 using Rhino.Geometry;
 
 using System;
@@ -17,7 +17,7 @@ namespace Nuclei3
         public Particle_Extractor_TrailPoints()
           : base("Extract Particle Trails", "Trail Points",
               "Extract Particle Trail Points",
-              "Nuclei4", " Particles")
+              "Nuclei3", " Particles")
         {
         }
 
@@ -56,15 +56,14 @@ namespace Nuclei3
             for (int i = 0; i < particles.Count; i++)
             {
                 Particle P = particles[i];
-                if (P == null || P.trails == null || P.trails.Count == 0)
-                {
-                    continue;
-                }
-
-                Grasshopper.Kernel.Data.GH_Path path = new Grasshopper.Kernel.Data.GH_Path(retrieveIndex(P), i);
                 for (int j = 0; j < P.trails.Count; j++)
                 {
-                    outputParticleTrails.Add(P.trails[j], path);
+
+                    if (P.trails.Count > 0)
+                    {
+                        Point3d pt = P.trails[j];
+                        outputParticleTrails.Add(pt, new Grasshopper.Kernel.Data.GH_Path(retrieveIndex(P), i));
+                    }
                 }
             }
 
@@ -116,7 +115,7 @@ namespace Nuclei3
         /// </summary>
         public override Guid ComponentGuid
         {
-            get { return new Guid("0a97c625-4da3-4143-89c6-d88249de8741"); }
+            get { return new Guid("f778b939-e82f-86a7-e00b-c2ec18e0e5d5"); }
         }
     }
 }

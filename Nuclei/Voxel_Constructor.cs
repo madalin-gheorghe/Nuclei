@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Collections.Concurrent;
@@ -20,7 +20,7 @@ namespace Nuclei3
         public VoxelConstructor()
           : base("Construct Voxels", "Construct Voxels",
               "Construct Empty Voxel Field Environment",
-              "Nuclei4", " Environment")
+              "Nuclei3", " Environment")
         {
         }
 
@@ -90,20 +90,10 @@ namespace Nuclei3
 
             Globals.voxelSize = voxelSize;
 
-            bool sameGrid = voxel != null
-                && voxel.GetLength(0) == resX
-                && voxel.GetLength(1) == resY
-                && voxel.GetLength(2) == resZ
-                && Math.Abs(cachedVoxelSize - voxelSize) < 1e-12;
+            //createVoxels();
 
-            if (!sameGrid)
-            {
-                voxel = new Voxel[resX, resY, resZ];
-                cachedVoxelData = VoxelGridData.CreateFullDomain(resX, resY, resZ, voxelSize);
-                cachedVoxelSize = voxelSize;
-            }
-
-            VoxelGridRegistry.Set(voxel, cachedVoxelData ?? VoxelGridData.CreateFullDomain(resX, resY, resZ, voxelSize));
+            voxel = new Voxel[resX, resY, resZ];
+            VoxelGridRegistry.Set(voxel, VoxelGridData.CreateFullDomain(resX, resY, resZ, voxelSize));
             DA.SetData(0, voxel);
 
             initializeBGPolygon();
@@ -124,10 +114,8 @@ namespace Nuclei3
 
         //inputs
         double voxelSize;
-        double cachedVoxelSize = double.NaN;
         int resX, resY, resZ = 1;
         Voxel[,,] voxel;
-        VoxelGridData cachedVoxelData;
 
         //-------------------------------------------------------------------
 
@@ -265,7 +253,8 @@ namespace Nuclei3
 
         public override Guid ComponentGuid
         {
-            get { return new Guid("a3940a4d-9015-411c-9ffa-e38ecc90d394"); }
+            get { return new Guid("feb0993f-6d5f-bfcf-76ae-1377559f335a"); }
         }
     }
 }
+
