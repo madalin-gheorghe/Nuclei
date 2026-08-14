@@ -152,6 +152,10 @@ namespace Nuclei3
                 if (GpuDensityFieldD3DRenderer.TryDraw(preview.InstanceGuid, e, frame))
                 {
                     preview.RecordGpuDensityFieldPreviewDrawTiming(Stopwatch.GetTimestamp() - drawStart);
+                    if (frame.FancyRender && GpuDensityFieldD3DRenderer.NeedsFancyRefinement(preview.InstanceGuid))
+                    {
+                        e.Display.Viewport.ParentView.Redraw();
+                    }
                 }
             }
 

@@ -66,6 +66,7 @@ namespace Nuclei3
         ID3D11ComputeShader decayShader;
         ID3D11ComputeShader densityPreviewShader;
         ID3D11ComputeShader combinedDensityPreviewShader;
+        ID3D11ComputeShader densityGradientPreviewShader;
         ID3D11ComputeShader particlePreviewShader;
         ID3D11ComputeShader particleTrailPreviewShader;
 
@@ -104,6 +105,7 @@ namespace Nuclei3
         ID3D11Buffer weightsBuffer;
         ID3D11Buffer antWeightsBuffer;
         ID3D11Texture2D densityPreviewTexture;
+        ID3D11Texture2D densityGradientPreviewTexture;
         readonly ID3D11Texture2D[] staticFieldPreviewTextures = new ID3D11Texture2D[VoxelPreviewField.StaticFieldCount];
         ID3D11Texture2D particlePreviewTexture;
         ID3D11Texture2D particleTrailPreviewTexture;
@@ -138,6 +140,8 @@ namespace Nuclei3
         ID3D11ShaderResourceView weightsView;
         ID3D11ShaderResourceView antWeightsView;
         ID3D11UnorderedAccessView densityPreviewTextureView;
+        ID3D11ShaderResourceView densityPreviewTextureResourceView;
+        ID3D11UnorderedAccessView densityGradientPreviewTextureView;
         ID3D11UnorderedAccessView particlePreviewTextureView;
         ID3D11UnorderedAccessView particleTrailPreviewTextureView;
 
@@ -183,6 +187,7 @@ namespace Nuclei3
         int previewReadbackSequenceCounter = 0;
         int previewReadbackCompletedSequence = 0;
         IntPtr densityPreviewSharedHandle = IntPtr.Zero;
+        IntPtr densityGradientPreviewSharedHandle = IntPtr.Zero;
         int densityPreviewWidth;
         int densityPreviewHeight;
         int densityPreviewAxisMode;
@@ -191,6 +196,7 @@ namespace Nuclei3
         int densityPreviewAtlasRows = 1;
         int densityPreviewScale = 1;
         long densityPreviewVersion = 0;
+        long densityGradientSourceVersion = -1;
         int densityPreviewValueIndex = VoxelPreviewField.SlimeChemoattractants;
         bool densityPreviewColorTexture;
         readonly IntPtr[] staticFieldPreviewSharedHandles = new IntPtr[VoxelPreviewField.StaticFieldCount];
@@ -1035,6 +1041,43 @@ namespace Nuclei3
             DispatchDensityPreviewPass(settings, dimensionMode, iteration, source);
         }
 
+        bool EnsureDensityGradientPreview()
+        {
+            if (densityPreviewAxisMode != 3
+                || densityPreviewTextureResourceView == null
+                || densityGradientPreviewShader == null
+                || densityPreviewWidth <= 0
+                || densityPreviewHeight <= 0)
+            {
+                return false;
+            }
+
+            if (densityGradientPreviewTexture == null)
+            {
+                CreateDensityGradientPreviewTexture();
+            }
+
+            if (densityGradientPreviewTextureView == null || densityGradientPreviewSharedHandle == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            if (densityGradientSourceVersion == densityPreviewVersion)
+            {
+                return true;
+            }
+
+            context.CSSetShader(densityGradientPreviewShader);
+            context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+            context.CSSetShaderResource(10, densityPreviewTextureResourceView);
+            context.CSSetUnorderedAccessView(7, densityGradientPreviewTextureView, -1);
+            context.Dispatch((densityPreviewWidth + 15) / 16, (densityPreviewHeight + 15) / 16, 1);
+            UnbindComputeResources();
+            context.Flush();
+            densityGradientSourceVersion = densityPreviewVersion;
+            return true;
+        }
+
         void DispatchParticlePreviewPass(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
         {
             if (particleCapacity <= 0 || particlePreviewShader == null || particlePreviewTextureView == null || parameterBuffer == null || groupColorDataView == null)
@@ -1407,6 +1450,9 @@ namespace Nuclei3
 
         public GpuDensityFieldPreviewFrame CreateVoxelFieldPreviewFrame(int valueIndex, SolverGpuDimensionMode dimensionMode, float minimumThreshold, float maximumThreshold, int previewScale)
         {
+            bool wantsGradientPreview = valueIndex == VoxelPreviewField.SlimeChemoattractants
+                || valueIndex == VoxelPreviewField.SlimeChemoattractantsV2;
+            valueIndex = VoxelPreviewField.SourceField(valueIndex);
             if (VoxelPreviewField.IsDynamicDensity(valueIndex))
             {
                 if (valueIndex == VoxelPreviewField.SlimeChemoattractants && !hasSlimeParticles)
@@ -1437,7 +1483,12 @@ namespace Nuclei3
                     DispatchSelectedDensityPreviewPass(new SolverGpuSettings(), dimensionMode, 0);
                 }
 
-                return CreateDynamicDensityFieldPreviewFrame(valueIndex);
+                GpuDensityFieldPreviewFrame frame = CreateDynamicDensityFieldPreviewFrame(valueIndex);
+                if (wantsGradientPreview && frame != null && frame.VolumeMode && EnsureDensityGradientPreview())
+                {
+                    frame.GradientSharedHandle = densityGradientPreviewSharedHandle;
+                }
+                return frame;
             }
 
             if (!VoxelPreviewField.IsStatic(valueIndex))
@@ -2609,6 +2660,14 @@ namespace Nuclei3
 
         void DisposeDensityPreviewTexture()
         {
+            DisposeDensityGradientPreviewTexture();
+
+            if (densityPreviewTextureResourceView != null)
+            {
+                densityPreviewTextureResourceView.Dispose();
+                densityPreviewTextureResourceView = null;
+            }
+
             if (densityPreviewTextureView != null)
             {
                 densityPreviewTextureView.Dispose();
@@ -2629,6 +2688,24 @@ namespace Nuclei3
             densityPreviewAtlasColumns = 1;
             densityPreviewAtlasRows = 1;
             densityPreviewVersion++;
+        }
+
+        void DisposeDensityGradientPreviewTexture()
+        {
+            if (densityGradientPreviewTextureView != null)
+            {
+                densityGradientPreviewTextureView.Dispose();
+                densityGradientPreviewTextureView = null;
+            }
+
+            if (densityGradientPreviewTexture != null)
+            {
+                densityGradientPreviewTexture.Dispose();
+                densityGradientPreviewTexture = null;
+            }
+
+            densityGradientPreviewSharedHandle = IntPtr.Zero;
+            densityGradientSourceVersion = -1;
         }
 
         void DisposeParticleTrailPreviewTexture()
@@ -2727,6 +2804,17 @@ namespace Nuclei3
                     0));
             WriteSharedDensityPreviewStatus("create_uav_ok");
 
+            densityPreviewTextureResourceView = device.CreateShaderResourceView(
+                densityPreviewTexture,
+                new ShaderResourceViewDescription(
+                    densityPreviewTexture,
+                    ShaderResourceViewDimension.Texture2D,
+                    previewFormat,
+                    0,
+                    1,
+                    0,
+                    1));
+
             using (IDXGIResource resource = densityPreviewTexture.QueryInterface<IDXGIResource>())
             {
                 densityPreviewSharedHandle = resource.SharedHandle;
@@ -2735,6 +2823,46 @@ namespace Nuclei3
             WriteSharedDensityPreviewStatus("shared_handle=0x" + densityPreviewSharedHandle.ToInt64().ToString("X"));
             DispatchSelectedDensityPreviewPass(new SolverGpuSettings(), dimensionMode, 0);
             WriteSharedDensityPreviewStatus("initial_dispatch_ok");
+        }
+
+        void CreateDensityGradientPreviewTexture()
+        {
+            DisposeDensityGradientPreviewTexture();
+            if (densityPreviewWidth <= 0 || densityPreviewHeight <= 0 || densityPreviewAxisMode != 3)
+            {
+                return;
+            }
+
+            const Format gradientFormat = Format.R16G16B16A16_Float;
+            Texture2DDescription description = new Texture2DDescription(
+                gradientFormat,
+                densityPreviewWidth,
+                densityPreviewHeight,
+                1,
+                1,
+                BindFlags.UnorderedAccess | BindFlags.ShaderResource,
+                ResourceUsage.Default,
+                CpuAccessFlags.None,
+                1,
+                0,
+                ResourceOptionFlags.Shared);
+
+            densityGradientPreviewTexture = device.CreateTexture2D(description, null);
+            densityGradientPreviewTextureView = device.CreateUnorderedAccessView(
+                densityGradientPreviewTexture,
+                new UnorderedAccessViewDescription(
+                    densityGradientPreviewTexture,
+                    UnorderedAccessViewDimension.Texture2D,
+                    gradientFormat,
+                    0,
+                    0,
+                    0));
+
+            using (IDXGIResource resource = densityGradientPreviewTexture.QueryInterface<IDXGIResource>())
+            {
+                densityGradientPreviewSharedHandle = resource.SharedHandle;
+            }
+            densityGradientSourceVersion = -1;
         }
 
         void ApplyDensityPreviewScale(ref int width, ref int height)
@@ -3354,6 +3482,7 @@ namespace Nuclei3
             decayShader = CreateComputeShader("ApplyDecay");
             densityPreviewShader = CreateComputeShader("BuildDensityPreview");
             combinedDensityPreviewShader = CreateComputeShader("BuildCombinedDensityPreview");
+            densityGradientPreviewShader = CreateComputeShader("BuildDensityGradientPreview");
             particlePreviewShader = CreateComputeShader("BuildParticlePreview");
             particleTrailPreviewShader = CreateComputeShader("BuildParticleTrailPreview");
         }
@@ -3462,7 +3591,7 @@ namespace Nuclei3
                 context.CSSetUnorderedAccessView(i, null, -1);
             }
 
-            for (int i = 0; i <= 9; i++)
+            for (int i = 0; i <= 10; i++)
             {
                 context.CSSetShaderResource(i, null);
             }
@@ -3512,6 +3641,8 @@ namespace Nuclei3
                 DisposeStaticFieldPreviewTexture(i);
             }
             if (densityPreviewTextureView != null) densityPreviewTextureView.Dispose();
+            if (densityPreviewTextureResourceView != null) densityPreviewTextureResourceView.Dispose();
+            if (densityGradientPreviewTextureView != null) densityGradientPreviewTextureView.Dispose();
             if (particlePreviewTextureView != null) particlePreviewTextureView.Dispose();
             if (particleTrailPreviewTextureView != null) particleTrailPreviewTextureView.Dispose();
             if (particleTrailPreviewMutex != null) particleTrailPreviewMutex.Dispose();
@@ -3550,6 +3681,7 @@ namespace Nuclei3
             if (antBaseReadbackBuffer != null) antBaseReadbackBuffer.Dispose();
             if (antFoodRemainingReadbackBuffer != null) antFoodRemainingReadbackBuffer.Dispose();
             if (densityPreviewTexture != null) densityPreviewTexture.Dispose();
+            if (densityGradientPreviewTexture != null) densityGradientPreviewTexture.Dispose();
             if (particlePreviewTexture != null) particlePreviewTexture.Dispose();
             if (particleTrailPreviewTexture != null) particleTrailPreviewTexture.Dispose();
             if (densityReadbackBuffer != null) densityReadbackBuffer.Dispose();
@@ -3594,6 +3726,7 @@ namespace Nuclei3
             if (decayShader != null) decayShader.Dispose();
             if (densityPreviewShader != null) densityPreviewShader.Dispose();
             if (combinedDensityPreviewShader != null) combinedDensityPreviewShader.Dispose();
+            if (densityGradientPreviewShader != null) densityGradientPreviewShader.Dispose();
             if (particlePreviewShader != null) particlePreviewShader.Dispose();
             if (particleTrailPreviewShader != null) particleTrailPreviewShader.Dispose();
             if (context != null) context.Dispose();
@@ -3807,6 +3940,7 @@ RWStructuredBuffer<float4> ParticleHome : register(u7);
 RWStructuredBuffer<float> AntBaseDestination : register(u7);
 RWTexture2D<float> DensityPreview : register(u7);
 RWTexture2D<float4> CombinedDensityPreview : register(u7);
+RWTexture2D<float4> DensityGradientPreview : register(u7);
 RWTexture2D<float4> ParticlePreview : register(u7);
 RWTexture2D<float4> ParticleTrailPreview : register(u7);
 
@@ -3820,6 +3954,7 @@ StructuredBuffer<float4> VoxelVectors : register(t6);
 StructuredBuffer<float4> VoxelDensityLimits : register(t7);
 StructuredBuffer<float> AntFoodPheromone : register(t8);
 StructuredBuffer<float> AntBasePheromone : register(t9);
+Texture2D<float4> DensityPreviewSource : register(t10);
 
 int ActivePopulationIndex()
 {
@@ -5171,6 +5306,64 @@ void BuildCombinedDensityPreview(uint3 id : SV_DispatchThreadID)
     float4 dx0 = lerp(d00, d10, fu);
     float4 dx1 = lerp(d01, d11, fu);
     CombinedDensityPreview[int2(u, v)] = lerp(dx0, dx1, fv);
+}
+
+int2 DensityAtlasPixel(int x, int y, int z)
+{
+    int columns = max(PreviewAtlasColumns, 1);
+    int column = z % columns;
+    int row = z / columns;
+    return int2(column * max(ResX, 1) + x, row * max(ResY, 1) + y);
+}
+
+float DensityAtlasValue(int x, int y, int z)
+{
+    x = clamp(x, 0, max(ResX - 1, 0));
+    y = clamp(y, 0, max(ResY - 1, 0));
+    z = clamp(z, 0, max(ResZ - 1, 0));
+    return max(DensityPreviewSource.Load(int3(DensityAtlasPixel(x, y, z), 0)).r, 0.0);
+}
+
+[numthreads(16, 16, 1)]
+void BuildDensityGradientPreview(uint3 id : SV_DispatchThreadID)
+{
+    int u = id.x;
+    int v = id.y;
+    if (u >= PreviewWidth || v >= PreviewHeight) return;
+
+    if (PreviewAxisMode != 3)
+    {
+        DensityGradientPreview[int2(u, v)] = 0.0;
+        return;
+    }
+
+    int sliceWidth = max(ResX, 1);
+    int sliceHeight = max(ResY, 1);
+    int columns = max(PreviewAtlasColumns, 1);
+    int tileX = u / sliceWidth;
+    int tileY = v / sliceHeight;
+    int z = tileY * columns + tileX;
+    if (z >= ResZ)
+    {
+        DensityGradientPreview[int2(u, v)] = 0.0;
+        return;
+    }
+
+    int x = clamp(u - tileX * sliceWidth, 0, ResX - 1);
+    int y = clamp(v - tileY * sliceHeight, 0, ResY - 1);
+    float dxNear = 0.5 * (DensityAtlasValue(x + 1, y, z) - DensityAtlasValue(x - 1, y, z));
+    float dyNear = 0.5 * (DensityAtlasValue(x, y + 1, z) - DensityAtlasValue(x, y - 1, z));
+    float dzNear = 0.5 * (DensityAtlasValue(x, y, z + 1) - DensityAtlasValue(x, y, z - 1));
+    float dxFar = 0.25 * (DensityAtlasValue(x + 2, y, z) - DensityAtlasValue(x - 2, y, z));
+    float dyFar = 0.25 * (DensityAtlasValue(x, y + 2, z) - DensityAtlasValue(x, y - 2, z));
+    float dzFar = 0.25 * (DensityAtlasValue(x, y, z + 2) - DensityAtlasValue(x, y, z - 2));
+    float dx = lerp(dxNear, dxFar, 0.68);
+    float dy = lerp(dyNear, dyFar, 0.68);
+    float dz = lerp(dzNear, dzFar, 0.68);
+    float3 gradient = float3(dx, dy, dz);
+    float magnitude = length(gradient);
+    float3 normal = magnitude > 0.000001 ? gradient / magnitude : 0.0;
+    DensityGradientPreview[int2(u, v)] = float4(normal, magnitude);
 }
 
 [numthreads(256, 1, 1)]

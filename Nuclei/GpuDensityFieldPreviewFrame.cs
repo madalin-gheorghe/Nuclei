@@ -7,6 +7,7 @@ namespace Nuclei3
     internal sealed class GpuDensityFieldPreviewFrame
     {
         public IntPtr SharedHandle;
+        public IntPtr GradientSharedHandle;
         public int Width;
         public int Height;
         public int ResX;
@@ -25,7 +26,8 @@ namespace Nuclei3
         public float VolumeOpacity = 0.8f;
         public float VolumeContrast = 1.5f;
         public int VolumeSampleCount = 0;
-        public int VolumeRenderMode = 0;
+        public int VolumeRendererVersion = 1;
+        public bool FancyRender;
         public float ColorR = 0;
         public float ColorG = 0;
         public float ColorB = 0;
@@ -35,6 +37,11 @@ namespace Nuclei3
         public bool ColorTexture
         {
             get { return VoxelPreviewField.IsDynamicDensity(ValueIndex); }
+        }
+
+        public bool HasGradientTexture
+        {
+            get { return GradientSharedHandle != IntPtr.Zero; }
         }
 
         public bool IsValid

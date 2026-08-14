@@ -23,7 +23,7 @@ This repository tracks the source code, reconstructed optimization history, and 
 - [`main`](../../tree/main) and [`v4.x`](../../tree/v4.x) contain the current V4 GPU development checkpoint for Rhino 9 on Windows.
 - [`v3.x`](../../tree/v3.x) contains the current V3.3 CPU checkpoint for Rhino 8 compatibility and behavior comparison.
 
-The current V4 checkpoint includes the Direct3D 11 compute-shader solver, GPU-resident particle and voxel previews, ordered GPU particle trails, live voxel behavior maps, internal particle generation, dynamic particle division and death, and ant food/pheromone behavior. The V3.x CPU solver remains the behavioral reference when features are translated to the GPU. Known implementation differences are documented in [CPU to GPU Behavior Parity](docs/GPU_BEHAVIOR_PARITY.md).
+The current V4 checkpoint includes the Direct3D 11 compute-shader solver, GPU-resident particle and voxel previews, ordered GPU particle trails, live voxel behavior maps, internal particle generation, dynamic particle division and death, and ant food/pheromone behavior. Its voxel preview pipeline now includes a refined 3D volumetric density renderer with gradient-aware lighting, adaptive sampling, stable viewport compositing, and automatic high-resolution display where GPU limits allow. The V3.x CPU solver remains the behavioral reference when features are translated to the GPU. Known implementation differences are documented in [CPU to GPU Behavior Parity](docs/GPU_BEHAVIOR_PARITY.md).
 
 ## Performance Evidence
 

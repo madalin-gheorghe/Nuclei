@@ -14,6 +14,7 @@ namespace Nuclei3
         public const int AntBasePheromones = 9;
         public const int AntPheromones = 10;
         public const int AntsAndSlime = 11;
+        public const int SlimeChemoattractantsV2 = 12;
 
         public const int StaticFieldCount = 6;
 
@@ -29,7 +30,8 @@ namespace Nuclei3
                 || valueIndex == AntFoodPheromones
                 || valueIndex == AntBasePheromones
                 || valueIndex == AntPheromones
-                || valueIndex == AntsAndSlime;
+                || valueIndex == AntsAndSlime
+                || valueIndex == SlimeChemoattractantsV2;
         }
 
         public static bool IsCombinedDynamicDensity(int valueIndex)
@@ -40,6 +42,11 @@ namespace Nuclei3
         public static bool IsGpuSupported(int valueIndex)
         {
             return IsStatic(valueIndex) || IsDynamicDensity(valueIndex);
+        }
+
+        public static int SourceField(int valueIndex)
+        {
+            return valueIndex == SlimeChemoattractantsV2 ? SlimeChemoattractants : valueIndex;
         }
     }
 }

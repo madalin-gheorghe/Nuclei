@@ -5,15 +5,16 @@ using SharpGen.Runtime;
 using Vortice.D3DCompiler;
 using Vortice.Direct3D;
 
-if (args.Length != 2)
+if (args.Length != 3)
 {
-    Console.Error.WriteLine("Usage: Nuclei.ShaderCompiler <GpuFullSlimeSolverEngine.cs> <output-directory>");
+    Console.Error.WriteLine("Usage: Nuclei.ShaderCompiler <GpuFullSlimeSolverEngine.cs> <GpuDensityFieldD3DRenderer.cs> <output-directory>");
     return 2;
 }
 
-string sourcePath = Path.GetFullPath(args[0]);
-string outputDirectory = Path.GetFullPath(args[1]);
-string shaderSource = ExtractVerbatimString(sourcePath, "FullSolverShaderSource");
+string solverSourcePath = Path.GetFullPath(args[0]);
+string rendererSourcePath = Path.GetFullPath(args[1]);
+string outputDirectory = Path.GetFullPath(args[2]);
+string solverShaderSource = ExtractVerbatimString(solverSourcePath, "FullSolverShaderSource");
 string[] entryPoints =
 {
     "MoveParticlesAndDeposit",
@@ -28,6 +29,7 @@ string[] entryPoints =
     "ApplyDecay",
     "BuildDensityPreview",
     "BuildCombinedDensityPreview",
+    "BuildDensityGradientPreview",
     "BuildParticlePreview",
     "BuildParticleTrailPreview"
 };
@@ -35,14 +37,21 @@ string[] entryPoints =
 Directory.CreateDirectory(outputDirectory);
 foreach (string entryPoint in entryPoints)
 {
-    CompileToFile(shaderSource, entryPoint, Path.Combine(outputDirectory, entryPoint + ".cso"));
+    CompileToFile(solverShaderSource, entryPoint, "cs_5_0", Path.Combine(outputDirectory, entryPoint + ".cso"));
 }
 
+string rendererShaderSource = ExtractVerbatimString(rendererSourcePath, "ShaderSource");
+CompileToFile(rendererShaderSource, "VSMain", "vs_4_0", Path.Combine(outputDirectory, "DensityPreviewVS.cso"));
+CompileToFile(rendererShaderSource, "PSMain", "ps_5_0", Path.Combine(outputDirectory, "DensityPreviewPS.cso"));
+CompileToFile(rendererShaderSource, "CSBuildOccupancy", "cs_5_0", Path.Combine(outputDirectory, "DensityPreviewOccupancy.cso"));
+CompileToFile(rendererShaderSource, "CSBuildShadow", "cs_5_0", Path.Combine(outputDirectory, "DensityPreviewShadow.cso"));
+CompileToFile(rendererShaderSource, "PSComposite", "ps_5_0", Path.Combine(outputDirectory, "DensityPreviewComposite.cso"));
+
 File.WriteAllText(Path.Combine(outputDirectory, "shaders.complete"), DateTime.UtcNow.ToString("O"));
-Console.WriteLine("Compiled " + entryPoints.Length + " Nuclei GPU shaders.");
+Console.WriteLine("Compiled " + (entryPoints.Length + 5) + " Nuclei GPU shaders.");
 return 0;
 
-static void CompileToFile(string source, string entryPoint, string outputPath)
+static void CompileToFile(string source, string entryPoint, string profile, string outputPath)
 {
     Blob? shaderBytecode = null;
     Blob? errorBlob = null;
@@ -52,7 +61,7 @@ static void CompileToFile(string source, string entryPoint, string outputPath)
         null!,
         entryPoint,
         "NucleiGpuFullSlimeSolver",
-        "cs_5_0",
+        profile,
         ShaderFlags.OptimizationLevel3,
         EffectFlags.None,
         out shaderBytecode,
