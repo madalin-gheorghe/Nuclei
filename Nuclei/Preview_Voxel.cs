@@ -57,38 +57,6 @@ namespace Nuclei3
         {
         }
 
-        #region menu items
-
-        public override bool Write(GH_IWriter writer)
-        {
-            writer.SetBoolean("HighResolutionDisplay", highResolutionDisplay);
-            return base.Write(writer);
-        }
-
-        public override bool Read(GH_IReader reader)
-        {
-            highResolutionDisplay = false;
-            reader.TryGetBoolean("HighResolutionDisplay", ref highResolutionDisplay);
-            return base.Read(reader);
-        }
-
-        protected override void AppendAdditionalComponentMenuItems(ToolStripDropDown menu)
-        {
-            base.AppendAdditionalComponentMenuItems(menu);
-
-            var highResToggle = Menu_AppendItem(menu, "High Res Display", highResolutionDisplayHandler, true, highResolutionDisplay);
-            highResToggle.ToolTipText = "Display small 2D Slime Chemoattractants fields with a 10x interpolated GPU texture. Large fields stay at native resolution.";
-        }
-
-        void highResolutionDisplayHandler(object sender, EventArgs e)
-        {
-            highResolutionDisplay = !highResolutionDisplay;
-            disableGpuDensityPreview();
-            ExpireSolution(true);
-        }
-
-        #endregion
-       
         /// <summary>
         /// This is the method that actually does the work.
         /// </summary>
@@ -401,7 +369,11 @@ namespace Nuclei3
         {
             if (frame == null) return;
 
-            frame.ValueIndex = currentValueIndex;
+            int sourceValueIndex = VoxelPreviewField.SourceField(currentValueIndex);
+            bool slimeVolume = sourceValueIndex == VoxelPreviewField.SlimeChemoattractants && frame.VolumeMode;
+            frame.VolumeRendererVersion = slimeVolume && frame.HasGradientTexture ? 2 : 1;
+            frame.FancyRender = false;
+            frame.ValueIndex = sourceValueIndex;
             frame.MinimumThreshold = ValidFloat(min, 0);
             frame.MaximumThreshold = ValidFloat(max, float.MaxValue);
             if (frame.MaximumThreshold < frame.MinimumThreshold)
@@ -421,7 +393,6 @@ namespace Nuclei3
             frame.VolumeOpacity = PreviewVolumeOpacity;
             frame.VolumeContrast = PreviewVolumeContrast;
             frame.VolumeSampleCount = PreviewVolumeSampleCount;
-            frame.VolumeRenderMode = PreviewVolumeRenderMode;
             frame.PreviewScale = frame.VolumeContrast;
         }
 
@@ -440,11 +411,6 @@ namespace Nuclei3
             get { return 0; }
         }
 
-        protected virtual int PreviewVolumeRenderMode
-        {
-            get { return 0; }
-        }
-
         static float ValidFloat(double value, float fallback)
         {
             if (double.IsNaN(value) || double.IsInfinity(value)) return fallback;
@@ -459,7 +425,7 @@ namespace Nuclei3
 
         int safeGpuDensityPreviewScale()
         {
-            if (!highResolutionDisplay || voxel == null)
+            if (voxel == null)
             {
                 return 1;
             }
@@ -602,6 +568,17 @@ namespace Nuclei3
             if (!valueList.ListItems.Any(item => item.Expression == "11"))
             {
                 valueList.ListItems.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ants and Slime", "11"));
+            }
+            Grasshopper.Kernel.Special.GH_ValueListItem legacyV2Item = valueList.ListItems.FirstOrDefault(item => item.Expression == "12");
+            if (legacyV2Item != null)
+            {
+                bool wasSelected = legacyV2Item.Selected;
+                valueList.ListItems.Remove(legacyV2Item);
+                if (wasSelected)
+                {
+                    Grasshopper.Kernel.Special.GH_ValueListItem slimeItem = valueList.ListItems.FirstOrDefault(item => item.Expression == "7");
+                    if (slimeItem != null) slimeItem.Selected = true;
+                }
             }
         }
 
@@ -1174,7 +1151,6 @@ namespace Nuclei3
         bool gpuDensityPreviewActive = false;
         SolverGPU gpuDensitySolver;
         BoundingBox gpuDensityClippingBox = BoundingBox.Empty;
-        bool highResolutionDisplay = true;
         bool staticPreviewCacheValid;
         Voxel[,,] staticPreviewCacheVoxels;
         VoxelGridData staticPreviewCacheData;
