@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFrameworks>net48;net7.0-windows</TargetFrameworks>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<Nullable>disable</Nullable>
+		<OutputType>Library</OutputType>
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+
+		<UseWindowsForms>true</UseWindowsForms>
+		<GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
+		
+		<AssemblyName>Nuclei3</AssemblyName>
+		<RootNamespace>Nuclei3</RootNamespace>
+
+		<TargetExt>.gha</TargetExt>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<AssemblyIcon>Nuclei.ico</AssemblyIcon>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Grasshopper" Version="8.0.*" />
+		<PackageReference Include="RhinoCommon" Version="8.0.*" />
+		<PackageReference Include="System.Resources.Extensions" Version="4.7.1" />
+		<PackageReference Include="Vortice.D3DCompiler" Version="2.4.1-beta" />
+		<PackageReference Include="Vortice.Direct3D11" Version="2.4.1-beta" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Update="Properties\Resources.resx" Generator="ResXFileCodeGenerator" LastGenOutput="Resources.Designer.cs" />
+	</ItemGroup>
+
+	<PropertyGroup Condition="$(Configuration) == 'Debug'">
+		<StartAction>Program</StartAction>
+		<StartProgram>C:\Program Files\Rhino 8\System\Rhino.exe</StartProgram>
+	</PropertyGroup>
+
+	<Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(SkipGrasshopperInstall)' != 'true'">
+		<ItemGroup>
+			<GrasshopperLibraryFiles Include="$(TargetPath)" />
+			<GrasshopperLibraryFiles Include="$(TargetDir)$(TargetName).deps.json" Condition="Exists('$(TargetDir)$(TargetName).deps.json')" />
+			<GrasshopperLibraryFiles Include="$(TargetDir)Microsoft.Bcl.HashCode.dll" Condition="Exists('$(TargetDir)Microsoft.Bcl.HashCode.dll')" />
+			<GrasshopperLibraryFiles Include="$(TargetDir)Vortice.*.dll" />
+			<GrasshopperLibraryFiles Include="$(TargetDir)SharpGen.Runtime.COM.dll" Condition="Exists('$(TargetDir)SharpGen.Runtime.COM.dll')" />
+			<GrasshopperLibraryFiles Include="$(TargetDir)SharpGen.Runtime.dll" Condition="Exists('$(TargetDir)SharpGen.Runtime.dll')" />
+			<GrasshopperLibraryFiles Include="$(TargetDir)System.Buffers.dll" Condition="Exists('$(TargetDir)System.Buffers.dll')" />
+			<GrasshopperLibraryFiles Include="$(TargetDir)System.Memory.dll" Condition="Exists('$(TargetDir)System.Memory.dll')" />
+			<GrasshopperLibraryFiles Include="$(TargetDir)System.Numerics.Vectors.dll" Condition="Exists('$(TargetDir)System.Numerics.Vectors.dll')" />
+			<GrasshopperLibraryFiles Include="$(TargetDir)System.Resources.Extensions.dll" Condition="Exists('$(TargetDir)System.Resources.Extensions.dll')" />
+			<GrasshopperLibraryFiles Include="$(TargetDir)System.Runtime.CompilerServices.Unsafe.dll" Condition="Exists('$(TargetDir)System.Runtime.CompilerServices.Unsafe.dll')" />
+		</ItemGroup>
+
+		<Copy SourceFiles="@(GrasshopperLibraryFiles)" DestinationFolder="$(AppData)\Grasshopper\Libraries" SkipUnchangedFiles="true" ContinueOnError="WarnAndContinue" />
+	</Target>
+</Project>

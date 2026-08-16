@@ -1,44 +1,72 @@
 # Nuclei
 
-Nuclei is an original Grasshopper/Rhino plugin for bottom-up generative systems, behaviour-based simulations, and voxel-controlled spatial maps.
+Nuclei is an original Grasshopper/Rhino plugin for bottom-up generative systems,
+behavior-based simulations, and voxel-controlled spatial maps.
 
-The plugin combines a simulation core with tools for defining particle behaviours and highly customizable voxel environments, allowing particles to adapt their movement through spatial behavior maps. Its slime-mold logic is inspired by [Physarum transport-network research](https://uwe-repository.worktribe.com/output/980579/characteristics-of-pattern-formation-and-evolution-in-approximations-of-physarum-transport-networks) and expanded toward computational design, speculative urban systems, and generative spatial workflows.
+The plugin combines particle simulation with highly customizable voxel
+environments, allowing movement and behavior to respond to spatial maps. Its
+slime-mold logic is inspired by
+[Physarum transport-network research](https://uwe-repository.worktribe.com/output/980579/characteristics-of-pattern-formation-and-evolution-in-approximations-of-physarum-transport-networks)
+and expanded toward computational design, speculative urban systems, and
+generative spatial workflows.
 
-Stable public releases will be published on Food4Rhino:
+Stable public releases are published on
+[Food4Rhino](https://www.food4rhino.com/en/app/nuclei).
 
-[Nuclei on Food4Rhino](https://www.food4rhino.com/en/app/nuclei)
+## Source Layout
 
-This repository tracks the source code, reconstructed optimization history, and small performance evidence summaries. It does not track local build products or multi-gigabyte profiler captures.
+- `Nuclei-v3/Nuclei-v3.sln` - V3.3 CPU implementation for Rhino 8.
+- `Nuclei-v4/Nuclei-v4.sln` - V4.1 GPU implementation for Rhino 9 on Windows.
+- `docs` - milestone, architecture, behavior-parity, and performance notes.
+- `tools` - shared repository verification and maintenance utilities.
 
-## Milestones
+The V3 and V4 codebases deliberately retain different assembly and component GUID
+families. They can be developed independently without Grasshopper definitions
+silently changing component identity.
 
-- `v3.0` - self-coded baseline hand-coded by Madalin Gheorghe; the initial stable Grasshopper/Rhino plugin before AI-assisted optimization work.
-- `v3.1` - CPU solver stabilization, wrap/no-wrap behavior fixes, and first structured benchmark workflow.
-- `v3.2` - CPU preview and diffusion optimization, separating solver and preview costs and clarifying the limits of CPU-side speedups.
-- `v4.0` - first meaningful GPU solver prototype using compute shader based execution and GPU-resident preview work.
-- `v4.1` - collaboration checkpoint for speed and main-functionality testing, with fast voxel data work, GPU solver progress, and internal voxel field particle generation.
+## Current Checkpoints
 
-## Current Development Backups
+### V3.3 CPU
 
-- [`main`](../../tree/main) and [`v4.x`](../../tree/v4.x) contain the current V4 GPU development checkpoint for Rhino 9 on Windows.
-- [`v3.x`](../../tree/v3.x) contains the current V3.3 CPU checkpoint for Rhino 8 compatibility and behavior comparison.
+V3.x is the CPU behavioral reference. It includes internal particle generation,
+scalar-array solver paths, wrap/no-wrap behavior, balanced diffusion, ant and slime
+systems, CPU previews, and the Nuclei-to-Dendro bridge. It contains no GPU solver.
 
-The current V4 checkpoint includes the Direct3D 11 compute-shader solver, GPU-resident particle and voxel previews, ordered GPU particle trails, live voxel behavior maps, internal particle generation, dynamic particle division and death, and ant food/pheromone behavior. Its voxel preview pipeline now includes a refined 3D volumetric density renderer with gradient-aware lighting, adaptive sampling, stable viewport compositing, and automatic high-resolution display where GPU limits allow. The V3.x CPU solver remains the behavioral reference when features are translated to the GPU. Known implementation differences are documented in [CPU to GPU Behavior Parity](docs/GPU_BEHAVIOR_PARITY.md).
+### V4.1 GPU
+
+V4.x targets Rhino 9 on Windows. It includes the Direct3D 11 compute-shader solver,
+adaptive large voxel fields, GPU-resident dynamic maps and previews, ordered trails,
+dynamic populations, ant food and pheromone behavior, reliable hard resets, live
+wrap changes, on-demand paused-state extraction, and GPU volume-to-mesh conversion
+with scalar and mesh smoothing.
+
+The CPU V3 implementation remains the reference whenever behavior is translated to
+the GPU. Known differences are documented in
+[CPU to GPU Behavior Parity](docs/GPU_BEHAVIOR_PARITY.md).
+The latest compatibility and feature checkpoint is summarized in
+[Development Status](docs/DEVELOPMENT_STATUS.md).
 
 ## Performance Evidence
 
-The detailed performance notes live in [docs/performance/performance-history.md](docs/performance/performance-history.md).
+The detailed optimization history is recorded in
+[Performance History](docs/performance/performance-history.md). The concise
+[Solver Frame Comparison](docs/performance/solver-frame-comparison.md) compares
+representative CPU and GPU median milliseconds per frame and speedup ratios.
 
-For the easiest overview, start with [docs/performance/solver-frame-comparison.md](docs/performance/solver-frame-comparison.md). It compares CPU and GPU median ms/frame and speedup ratios.
+Raw Visual Studio profiler captures remain outside Git because the diagnostic set
+is several gigabytes. Small CSV summaries and representative timings are retained
+in the repository.
 
-Local Visual Studio `.diagsession` captures are kept outside Git because the current diagnostic set is about 2.77 GB. The repository instead includes small CSV summaries for the diagnostic inventory, decoded CPU hot-frame samples, and representative GPU timing runs.
+## Milestones
 
-## Build
+- `v3.0` - stable self-coded baseline, hand-coded by Madalin Gheorghe.
+- `v3.1` - CPU solver stabilization and structured performance measurement.
+- `v3.2` - CPU diffusion and preview optimization.
+- `v3.3` - current CPU compatibility and behavioral-reference checkpoint.
+- `v4.0` - first meaningful GPU solver and GPU preview architecture.
+- `v4.1` - current GPU speed and main-functionality checkpoint.
 
-The plugin project is `Nuclei/Nuclei3.csproj` in `Nuclei.sln`. On `main`, it builds the V4 plugin for Rhino 9 on Windows.
-
-For CI-style validation without installing into Grasshopper:
-
-```powershell
-dotnet build .\Nuclei\Nuclei3.csproj -c Debug -f net48 -p:SkipGrasshopperInstall=true
-```
+After V3.0, AI augmentation with ChatGPT in Codex was used to accelerate profiling,
+performance exploration, GPU translation, testing, and documentation. The plugin's
+original behavior-based simulation concepts and voxel-controlled spatial-map
+architecture were developed by Madalin Gheorghe.

@@ -14,9 +14,11 @@ packages/
 # Local Codex / diagnostic workspaces
 .codex-backups/
 .diag-work/
-.build-appdata/
+.build-appdata*/
 .codex-build-appdata/
-Nuclei/.agent/
+.publish-work/
+.v3-work/
+**/.agent/
 
 # Visual Studio diagnostics and benchmark outputs
 *.diagsession
@@ -25,8 +27,8 @@ Nuclei/.agent/
 *.vspx
 *.psess
 *.trace
-BenchmarkSuite1/*.csv
-BenchmarkSuite1/Nuclei*.txt
+**/BenchmarkSuite1/*.csv
+**/BenchmarkSuite1/Nuclei*.txt
 
 # Runtime logs and temp files
 *.log
