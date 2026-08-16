@@ -16,7 +16,7 @@ The raw Visual Studio `.diagsession` files are intentionally excluded from Git. 
 
 Local raw diagnostics:
 
-- Folder: `C:\Nuclei\BenchmarkSuite1`
+- Folder: `C:\Nuclei\Nuclei-v4\BenchmarkSuite1`
 - Visual Studio captures: `45`
 - Total `.diagsession` size: about `2.77 GB`
 - Runtime timing CSV: `NucleiTiming.csv`, `32286` rows
