@@ -13,7 +13,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Particle_Settings_Trail class.
         /// </summary>
         public Iterations()
-          : base("Nuclei4 Solver Iterations", "Iterations",
+          : base("Nuclei4 Solver Iterations", "Nuclei4 Solver Iterations",
               "Defines the maximum number of iterations",
               "Nuclei4", " Solver")
         {

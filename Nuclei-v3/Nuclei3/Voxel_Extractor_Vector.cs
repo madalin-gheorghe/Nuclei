@@ -11,7 +11,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Voxel_Extractor_Vector class.
         /// </summary>
         public Voxel_Extractor_Vector()
-          : base("Extract Voxel Vector", "Voxel Vectors",
+          : base("Extract Voxel Vector", "Extract Voxel Vector",
               "Extract Voxel Vectorfield",
               "Nuclei3", " Environment")
         {

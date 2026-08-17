@@ -17,7 +17,7 @@ namespace Nuclei3
         /// Initializes a new instance of the ParticleConstructor class.
         /// </summary>
         public ParticleGroup_Constructor_Ant()
-          : base("Construct Ant Particles", "Ant Particles",
+          : base("Construct Ant Particles", "Construct Ant Particles",
               "Construct and Define Ant Particle Properties",
               "Nuclei4", " Particles")
         {

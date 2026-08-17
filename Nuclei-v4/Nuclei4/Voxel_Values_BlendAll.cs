@@ -9,7 +9,7 @@ namespace Nuclei3
     public class Voxel_Values_BlendAll : GH_Component
     {
         public Voxel_Values_BlendAll()
-          : base("Voxel Values Blend", "Blend Values",
+          : base("Voxel Values Blend", "Voxel Values Blend",
               "Blend All Values",
               "Nuclei4", " Environment")
         {

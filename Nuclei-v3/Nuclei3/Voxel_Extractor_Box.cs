@@ -11,7 +11,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Voxel_Extractor_Box class.
         /// </summary>
         public Voxel_Extractor_Box()
-          : base("Extract Voxel Bounding Box", "Voxel Box",
+          : base("Extract Voxel Bounding Box", "Extract Voxel Bounding Box",
               "Extract Voxel Design Space Bounding Box",
               "Nuclei3", " Environment")
         {

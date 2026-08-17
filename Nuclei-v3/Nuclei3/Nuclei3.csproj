@@ -21,8 +21,6 @@
 		<PackageReference Include="Grasshopper" Version="8.0.*" />
 		<PackageReference Include="RhinoCommon" Version="8.0.*" />
 		<PackageReference Include="System.Resources.Extensions" Version="4.7.1" />
-		<PackageReference Include="Vortice.D3DCompiler" Version="2.4.1-beta" />
-		<PackageReference Include="Vortice.Direct3D11" Version="2.4.1-beta" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -39,9 +37,6 @@
 			<GrasshopperLibraryFiles Include="$(TargetPath)" />
 			<GrasshopperLibraryFiles Include="$(TargetDir)$(TargetName).deps.json" Condition="Exists('$(TargetDir)$(TargetName).deps.json')" />
 			<GrasshopperLibraryFiles Include="$(TargetDir)Microsoft.Bcl.HashCode.dll" Condition="Exists('$(TargetDir)Microsoft.Bcl.HashCode.dll')" />
-			<GrasshopperLibraryFiles Include="$(TargetDir)Vortice.*.dll" />
-			<GrasshopperLibraryFiles Include="$(TargetDir)SharpGen.Runtime.COM.dll" Condition="Exists('$(TargetDir)SharpGen.Runtime.COM.dll')" />
-			<GrasshopperLibraryFiles Include="$(TargetDir)SharpGen.Runtime.dll" Condition="Exists('$(TargetDir)SharpGen.Runtime.dll')" />
 			<GrasshopperLibraryFiles Include="$(TargetDir)System.Buffers.dll" Condition="Exists('$(TargetDir)System.Buffers.dll')" />
 			<GrasshopperLibraryFiles Include="$(TargetDir)System.Memory.dll" Condition="Exists('$(TargetDir)System.Memory.dll')" />
 			<GrasshopperLibraryFiles Include="$(TargetDir)System.Numerics.Vectors.dll" Condition="Exists('$(TargetDir)System.Numerics.Vectors.dll')" />

@@ -15,7 +15,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Particle_Extractor_TrailPoints class.
         /// </summary>
         public Particle_Extractor_TrailPoints()
-          : base("Extract Particle Trails", "Trail Points",
+          : base("Extract Particle Trails", "Extract Particle Trails",
               "Extract Particle Trail Points",
               "Nuclei3", " Particles")
         {

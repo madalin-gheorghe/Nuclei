@@ -20,7 +20,7 @@ namespace Nuclei3
         const int ConstantBufferFloatCount = 64;
         const int ConstantBufferBytes = ConstantBufferFloatCount * sizeof(float);
         const int FullscreenVertexCount = 3;
-        const string StatusPath = @"C:\Nuclei\Nuclei-v4\BenchmarkSuite1\NucleiGpuDensityFieldRenderer.txt";
+        const string StatusPath = @"C:\Nuclei\BenchmarkSuite1\NucleiGpuDensityFieldRenderer.txt";
 
         static readonly GpuDensityFieldD3DRenderer instance = new GpuDensityFieldD3DRenderer();
 

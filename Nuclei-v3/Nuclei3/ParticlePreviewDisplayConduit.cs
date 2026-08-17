@@ -44,7 +44,6 @@ namespace Nuclei3
             lock (syncRoot)
             {
                 previews.Remove(id);
-                ParticlePreviewD3DRenderer.Unregister(id);
                 Enabled = previews.Count > 0;
             }
         }
@@ -64,8 +63,6 @@ namespace Nuclei3
 
         protected override void PostDrawObjects(DrawEventArgs e)
         {
-            RhinoWipD3DPreviewProbe.TryWriteProbe(e.Display, e.Viewport);
-
             Preview_Particle[] snapshot = Snapshot();
             if (snapshot.Length == 0) return;
 
@@ -81,29 +78,22 @@ namespace Nuclei3
                     continue;
                 }
 
-                if (ParticlePreviewD3DRenderer.TryDraw(preview.InstanceGuid, e, frame))
+                if (frame.SlimePointCloud != null && frame.SlimePointCloud.Count > 0)
                 {
+                    e.Display.DrawPointCloud(frame.SlimePointCloud, (float)frame.PointSize);
                     drew = true;
                 }
-                else
+
+                if (frame.AntPointCloud1 != null && frame.AntPointCloud1.Count > 0)
                 {
-                    if (frame.SlimePointCloud != null && frame.SlimePointCloud.Count > 0)
-                    {
-                        e.Display.DrawPointCloud(frame.SlimePointCloud, (float)frame.PointSize);
-                        drew = true;
-                    }
+                    e.Display.DrawPointCloud(frame.AntPointCloud1, (float)frame.PointSize);
+                    drew = true;
+                }
 
-                    if (frame.AntPointCloud1 != null && frame.AntPointCloud1.Count > 0)
-                    {
-                        e.Display.DrawPointCloud(frame.AntPointCloud1, (float)frame.PointSize);
-                        drew = true;
-                    }
-
-                    if (frame.AntPointCloud2 != null && frame.AntPointCloud2.Count > 0)
-                    {
-                        e.Display.DrawPointCloud(frame.AntPointCloud2, (float)(frame.PointSize * 1.5));
-                        drew = true;
-                    }
+                if (frame.AntPointCloud2 != null && frame.AntPointCloud2.Count > 0)
+                {
+                    e.Display.DrawPointCloud(frame.AntPointCloud2, (float)(frame.PointSize * 1.5));
+                    drew = true;
                 }
 
                 if (drew)
@@ -126,7 +116,6 @@ namespace Nuclei3
 
     internal sealed class ParticlePreviewDisplayFrame
     {
-        public GpuParticlePreviewFrame GpuFrame;
         public PointCloud SlimePointCloud;
         public PointCloud AntPointCloud1;
         public PointCloud AntPointCloud2;

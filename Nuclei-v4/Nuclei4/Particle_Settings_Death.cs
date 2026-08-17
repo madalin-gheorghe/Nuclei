@@ -12,7 +12,7 @@ namespace Nuclei3
         /// Initializes a new instance of the DeathSettings class.
         /// </summary>
         public Particle_Settings_Death()
-          : base("Particle Death Settings", "Death Settings",
+          : base("Particle Death Settings", "Particle Death Settings",
               "Sets Up Dynamic Population Death Settings. Dies if Neighbour Count is OUTSIDE Range",
               "Nuclei4", " Particles")
         {

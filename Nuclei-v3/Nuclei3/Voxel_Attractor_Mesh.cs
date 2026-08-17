@@ -15,7 +15,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Voxel_Attractor_Mesh2 class.
         /// </summary>
         public Voxel_Attractor_Mesh()
-          : base("Mesh Attractor for Voxel", "Mesh Attractor",
+          : base("Mesh Attractor for Voxel", "Mesh Attractor for Voxel",
               "Use Meshes as Attractors for Voxel Centers",
               "Nuclei3", " Environment")
         {

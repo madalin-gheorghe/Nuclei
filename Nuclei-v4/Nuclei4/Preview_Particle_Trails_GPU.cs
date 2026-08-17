@@ -2,6 +2,7 @@ using Grasshopper.Kernel;
 using Rhino.Geometry;
 
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 
 namespace Nuclei3
@@ -9,8 +10,8 @@ namespace Nuclei3
     public class Preview_Particle_Trails_GPU : GH_Component
     {
         public Preview_Particle_Trails_GPU()
-          : base("Particle Trail Preview", "Trail Preview",
-              "Displays GPU particle trails with Direct3D",
+          : base("Particle Trail Preview", "Particle Trail Preview",
+              "Displays particle trails in the Rhino viewport",
               "Nuclei4", "Preview")
         {
         }
@@ -46,6 +47,7 @@ namespace Nuclei3
 
             if (Hidden || Locked || particles == null)
             {
+                cpuTrailFrame = null;
                 ParticleTrailPreviewDisplayConduit.Unregister(InstanceGuid);
                 clippingBox = BoundingBox.Empty;
                 Message = "";
@@ -55,6 +57,7 @@ namespace Nuclei3
             GpuParticleTrailPreviewFrame frame = tryGetGpuTrailPreviewFrame();
             if (frame != null && frame.IsValid)
             {
+                cpuTrailFrame = null;
                 updatePalettes(frame);
                 clippingBox = frame.ClippingBox;
                 ParticleTrailPreviewDisplayConduit.Register(this);
@@ -62,9 +65,18 @@ namespace Nuclei3
                 return;
             }
 
+            cpuTrailFrame = buildCpuTrailPreviewFrame();
+            if (cpuTrailFrame != null && cpuTrailFrame.IsValid)
+            {
+                clippingBox = cpuTrailFrame.ClippingBox;
+                ParticleTrailPreviewDisplayConduit.Register(this);
+                Message = cpuTrailFrame.SegmentCount + " CPU segments";
+                return;
+            }
+
             ParticleTrailPreviewDisplayConduit.Unregister(InstanceGuid);
             clippingBox = BoundingBox.Empty;
-            Message = "No GPU trail";
+            Message = "No trail";
         }
 
         public override void DrawViewportMeshes(IGH_PreviewArgs args)
@@ -86,19 +98,30 @@ namespace Nuclei3
             if (Hidden || Locked || particles == null) return null;
 
             GpuParticleTrailPreviewFrame frame = tryGetGpuTrailPreviewFrame();
-            if (frame == null || !frame.IsValid) return null;
+            if (frame != null && frame.IsValid)
+            {
+                clippingBox = frame.ClippingBox;
+                return new ParticleTrailPreviewDisplayFrame
+                {
+                    GpuFrame = frame,
+                    FreshColor = freshColor,
+                    OldColor = oldColor,
+                    FreshColors = freshColors,
+                    OldColors = oldColors,
+                    Alpha = alpha,
+                    FadePower = fadePower,
+                    DepthFocus = IsPlanar(frame) ? 0.0 : depthFocus,
+                    ClippingBox = clippingBox,
+                    HasPoint = clippingBox.IsValid
+                };
+            }
 
-            clippingBox = frame.ClippingBox;
+            if (cpuTrailFrame == null || !cpuTrailFrame.IsValid) return null;
+
+            clippingBox = cpuTrailFrame.ClippingBox;
             return new ParticleTrailPreviewDisplayFrame
             {
-                GpuFrame = frame,
-                FreshColor = freshColor,
-                OldColor = oldColor,
-                FreshColors = freshColors,
-                OldColors = oldColors,
-                Alpha = alpha,
-                FadePower = fadePower,
-                DepthFocus = IsPlanar(frame) ? 0.0 : depthFocus,
+                CpuBatches = cpuTrailFrame.Batches,
                 ClippingBox = clippingBox,
                 HasPoint = clippingBox.IsValid
             };
@@ -108,6 +131,95 @@ namespace Nuclei3
         {
             ParticleList particleList = particles as ParticleList;
             return particleList != null ? particleList.GetGpuTrailPreviewFrame() : null;
+        }
+
+        CpuParticleTrailPreviewFrame buildCpuTrailPreviewFrame()
+        {
+            ParticleList particleList = particles as ParticleList;
+            if (particleList == null)
+            {
+                return null;
+            }
+
+            ParticleList.EnsureCpuStateCurrent(particleList);
+
+            Dictionary<int, CpuTrailGroupBuilder> groups = new Dictionary<int, CpuTrailGroupBuilder>();
+            BoundingBox bounds = BoundingBox.Empty;
+            bool hasPoint = false;
+            int totalSegments = 0;
+
+            for (int particleIndex = 0; particleIndex < particleList.Count; particleIndex++)
+            {
+                Particle particle = particleList[particleIndex];
+                if (particle == null || particle.trails == null || particle.trails.Count < 2)
+                {
+                    continue;
+                }
+
+                Color groupColor = particle.parentParticleGroup != null && !particle.parentParticleGroup.color.IsEmpty
+                    ? particle.parentParticleGroup.color
+                    : DefaultFreshColor;
+                Color fresh = Color.FromArgb(255, groupColor.R, groupColor.G, groupColor.B);
+                int colorKey = fresh.ToArgb();
+
+                CpuTrailGroupBuilder builder;
+                if (!groups.TryGetValue(colorKey, out builder))
+                {
+                    builder = new CpuTrailGroupBuilder(fresh);
+                    groups.Add(colorKey, builder);
+                }
+
+                Point3d newest = particle.trails[0];
+                Point3d previous = particle.trails[1];
+                if (!newest.IsValid || !previous.IsValid || newest.DistanceToSquared(previous) <= 1e-18)
+                {
+                    continue;
+                }
+
+                builder.Lines.Add(new Line(previous, newest));
+                IncludePoint(ref bounds, ref hasPoint, previous);
+                IncludePoint(ref bounds, ref hasPoint, newest);
+                totalSegments++;
+            }
+
+            if (!hasPoint || totalSegments == 0)
+            {
+                return null;
+            }
+
+            List<CpuParticleTrailPreviewBatch> batches = new List<CpuParticleTrailPreviewBatch>();
+            foreach (CpuTrailGroupBuilder builder in groups.Values)
+            {
+                if (builder.Lines.Count > 0)
+                {
+                    Color fresh = builder.FreshColor;
+                    batches.Add(new CpuParticleTrailPreviewBatch
+                    {
+                        Lines = builder.Lines.ToArray(),
+                        Color = Color.FromArgb(ClampByte(Clamp01(alpha) * 255.0), fresh.R, fresh.G, fresh.B)
+                    });
+                }
+            }
+
+            bounds.Inflate(Math.Max(Globals.voxelSize, 1.0));
+            return new CpuParticleTrailPreviewFrame
+            {
+                Batches = batches.ToArray(),
+                ClippingBox = bounds,
+                SegmentCount = totalSegments
+            };
+        }
+
+        static void IncludePoint(ref BoundingBox bounds, ref bool hasPoint, Point3d point)
+        {
+            if (!hasPoint)
+            {
+                bounds = new BoundingBox(point, point);
+                hasPoint = true;
+                return;
+            }
+
+            bounds.Union(point);
         }
 
         void updatePalettes(GpuParticleTrailPreviewFrame frame)
@@ -349,6 +461,7 @@ namespace Nuclei3
         Color oldColor = DefaultOldColor;
         Color[] freshColors = new Color[] { DefaultFreshColor };
         Color[] oldColors = new Color[] { DefaultOldColor };
+        CpuParticleTrailPreviewFrame cpuTrailFrame;
         double alpha = 0.35;
         const double fadePower = 2.0;
         double depthFocus = 0.55;
@@ -362,6 +475,17 @@ namespace Nuclei3
         public override Guid ComponentGuid
         {
             get { return new Guid("b17ecf97-0425-4ae2-a6b0-b3f869a5bc72"); }
+        }
+
+        sealed class CpuTrailGroupBuilder
+        {
+            public readonly Color FreshColor;
+            public readonly List<Line> Lines = new List<Line>();
+
+            public CpuTrailGroupBuilder(Color freshColor)
+            {
+                FreshColor = freshColor;
+            }
         }
     }
 }

@@ -11,7 +11,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Particle_Settings class.
         /// </summary>
         public Particle_Settings_Population()
-          : base("Particle Population Settings", "Population Settings",
+          : base("Particle Population Settings", "Particle Population Settings",
               "Sets Up Population Settings",
               "Nuclei3", " Particles")
         {

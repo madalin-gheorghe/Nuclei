@@ -14,7 +14,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Voxel_Values_BlendAll class.
         /// </summary>
         public Voxel_Values_BlendAll()
-          : base("Voxel Values Blend", "Blend Values",
+          : base("Voxel Values Blend", "Voxel Values Blend",
               "Blend All Values",
               "Nuclei3", " Environment")
         {

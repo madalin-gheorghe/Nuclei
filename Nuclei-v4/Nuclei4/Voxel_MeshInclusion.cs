@@ -13,7 +13,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Voxel_BrepInclusion class.
         /// </summary>
         public Voxel_MeshInclusion()
-          : base("Voxel Inclusion in Mesh", "Mesh Inclusion",
+          : base("Voxel Inclusion in Mesh", "Voxel Inclusion in Mesh",
               "Test if a Voxel Center is Inside a Mesh",
               "Nuclei4", " Environment")
         {

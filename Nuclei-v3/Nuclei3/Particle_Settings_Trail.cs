@@ -11,7 +11,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Particle_Settings_Trail class.
         /// </summary>
         public Particle_Settings_Trail()
-          : base("Particle Trail Settings", "Trail Settings",
+          : base("Particle Trail Settings", "Particle Trail Settings",
               "Sets Up Dynamic Trail Settings",
               "Nuclei3", " Particles")
         {

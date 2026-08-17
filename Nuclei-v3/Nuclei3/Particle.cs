@@ -214,7 +214,6 @@ namespace Nuclei3
     public class ParticleList : List<Particle>
     {
         public ParticlePreviewCache PreviewCache = new ParticlePreviewCache();
-        internal Func<GpuParticlePreviewFrame> GpuPreviewFrameProvider;
 
         public ParticleList()
         {
@@ -223,11 +222,6 @@ namespace Nuclei3
         public ParticleList(IEnumerable<Particle> particles)
             : base(particles)
         {
-        }
-
-        internal GpuParticlePreviewFrame GetGpuPreviewFrame()
-        {
-            return GpuPreviewFrameProvider != null ? GpuPreviewFrameProvider() : null;
         }
     }
 

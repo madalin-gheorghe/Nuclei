@@ -27,8 +27,11 @@ into separate folders did not change any source GUID literal.
 - Live wrap changes, reliable hard reset, and scattered particle initialization.
 - Dynamic populations and GPU ant food/pheromone behavior.
 - GPU particle, trail, and volumetric voxel previews.
-- On-demand particle and voxel extraction while the solver is paused.
+- On-demand particle and voxel extraction and preview refresh while the solver is paused.
+- Hidden trail previews retain an ordered two-sample GPU history without CPU readback.
+- Particle, trail, and planar voxel preview layers preserve independent display state.
 - GPU volume-to-mesh conversion with scalar-field and mesh smoothing controls.
+- Component names and nicknames are normalized across the V3 and V4 toolsets.
 - V4 is gated from loading as a normal plugin in Rhino 8.
 
 ## Validation

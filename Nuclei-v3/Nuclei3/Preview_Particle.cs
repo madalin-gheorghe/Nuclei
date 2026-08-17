@@ -66,16 +66,6 @@ namespace Nuclei3
                 return;
             }
 
-            GpuParticlePreviewFrame gpuFrame = tryGetGpuParticlePreviewFrame();
-            if (gpuFrame != null && gpuFrame.IsValid)
-            {
-                clearPointClouds();
-                clippingBox = gpuFrame.ClippingBox;
-                ParticlePreviewDisplayConduit.Register(this);
-                recordPreviewTiming(Stopwatch.GetTimestamp() - solveStart, 0);
-                return;
-            }
-
             long rebuildTicks = 0;
             if (!tryUseCachedPointClouds(false))
             {
@@ -113,19 +103,6 @@ namespace Nuclei3
         internal ParticlePreviewDisplayFrame GetDisplayFrame(bool refreshAsync)
         {
             if (Hidden || Locked || particles == null) return null;
-
-            GpuParticlePreviewFrame gpuFrame = tryGetGpuParticlePreviewFrame();
-            if (gpuFrame != null && gpuFrame.IsValid)
-            {
-                clippingBox = gpuFrame.ClippingBox;
-                return new ParticlePreviewDisplayFrame
-                {
-                    GpuFrame = gpuFrame,
-                    ClippingBox = clippingBox,
-                    PointSize = size,
-                    HasPoint = clippingBox.IsValid
-                };
-            }
 
             tryUseCachedPointClouds(refreshAsync);
             if (slimePointCloud.Count == 0 && antPointCloud1.Count == 0 && antPointCloud2.Count == 0)
@@ -236,12 +213,6 @@ namespace Nuclei3
             }
 
             clippingBox.Union(point);
-        }
-
-        GpuParticlePreviewFrame tryGetGpuParticlePreviewFrame()
-        {
-            ParticleList particleList = particles as ParticleList;
-            return particleList != null ? particleList.GetGpuPreviewFrame() : null;
         }
 
         void recordPreviewTiming(long totalTicks, long rebuildTicks)
