@@ -45,6 +45,14 @@ paused solver does not connect stale particle positions.
 V4 source types now use the `Nuclei4` namespace while preserving the existing
 `Nuclei4.gha` assembly name and all Grasshopper component identities.
 
+V4.1 is now separated into a GH1 compatibility adapter, platform-neutral Core,
+GPU and display contracts, and concrete Direct3D 11 compute/display backends.
+This keeps the current Windows implementation and hot GPU path intact while
+leaving explicit extension points for a future GPU-only Grasshopper 2 adapter
+and macOS Metal backends. GH2 and Metal are design targets only and are not
+shipped yet. See [V4 Architecture](docs/V4_ARCHITECTURE.md) and the executable
+[V4 Preservation Contract](docs/V4_PRESERVATION_CONTRACT.md).
+
 The CPU V3 implementation remains the reference whenever behavior is translated to
 the GPU. Known differences are documented in
 [CPU to GPU Behavior Parity](docs/GPU_BEHAVIOR_PARITY.md).
@@ -61,6 +69,11 @@ representative CPU and GPU median milliseconds per frame and speedup ratios.
 Raw Visual Studio profiler captures remain outside Git because the diagnostic set
 is several gigabytes. Small CSV summaries and representative timings are retained
 in the repository.
+
+The V4 architecture split was also benchmarked against its immutable pre-split
+build on the same machine and sustained synchronized GPU workload (262,144
+particles and 262,144 voxels). The median-of-medians changed from 3.530 ms to
+3.562 ms per step (+0.91%), well inside the 5% preservation gate.
 
 ## Milestones
 

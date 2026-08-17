@@ -8,6 +8,8 @@ namespace Nuclei4
     {
         public IntPtr SharedHandle;
         public IntPtr GradientSharedHandle;
+        public GpuTextureHandleDescriptor NativeTextureDescriptor;
+        public GpuTextureHandleDescriptor NativeGradientTextureDescriptor;
         public int Width;
         public int Height;
         public int ResX;
@@ -44,14 +46,34 @@ namespace Nuclei4
 
         public bool HasGradientTexture
         {
-            get { return GradientSharedHandle != IntPtr.Zero; }
+            get { return GradientTextureDescriptor.IsValid; }
+        }
+
+        public GpuTextureHandleDescriptor TextureDescriptor
+        {
+            get
+            {
+                return NativeTextureDescriptor.IsValid
+                    ? NativeTextureDescriptor
+                    : GpuTextureHandleDescriptor.Direct3D11SharedTexture(SharedHandle);
+            }
+        }
+
+        public GpuTextureHandleDescriptor GradientTextureDescriptor
+        {
+            get
+            {
+                return NativeGradientTextureDescriptor.IsValid
+                    ? NativeGradientTextureDescriptor
+                    : GpuTextureHandleDescriptor.Direct3D11SharedTexture(GradientSharedHandle);
+            }
         }
 
         public bool IsValid
         {
             get
             {
-                return SharedHandle != IntPtr.Zero && Width > 0 && Height > 0 && ResX > 0 && ResY > 0 && ResZ > 0 && VoxelSize > 0;
+                return TextureDescriptor.IsValid && Width > 0 && Height > 0 && ResX > 0 && ResY > 0 && ResZ > 0 && VoxelSize > 0;
             }
         }
 

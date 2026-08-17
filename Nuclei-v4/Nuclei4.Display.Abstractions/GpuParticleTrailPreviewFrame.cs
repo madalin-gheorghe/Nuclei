@@ -4,31 +4,56 @@ using Rhino.Geometry;
 
 namespace Nuclei4
 {
-    internal sealed class GpuParticlePreviewFrame
+    internal sealed class GpuParticleTrailPreviewFrame
     {
         public IntPtr SharedHandle;
+        public GpuTextureHandleDescriptor NativeTextureDescriptor;
         public int TextureWidth;
         public int TextureHeight;
         public int ParticleCount;
+        public int TrailSize;
+        public int ValidTrailCount;
+        public int HeadIndex;
         public int ResX;
         public int ResY;
         public int ResZ;
         public float VoxelSize;
+        public int GroupCount;
+        public float[] GroupColorData;
         public long Version;
+
+        public GpuTextureHandleDescriptor TextureDescriptor
+        {
+            get
+            {
+                return NativeTextureDescriptor.IsValid
+                    ? NativeTextureDescriptor
+                    : GpuTextureHandleDescriptor.Direct3D11SharedTexture(SharedHandle);
+            }
+        }
 
         public bool IsValid
         {
             get
             {
-                return SharedHandle != IntPtr.Zero
+                return TextureDescriptor.IsValid
                     && TextureWidth > 0
-                    && TextureHeight > 1
+                    && TextureHeight > 0
                     && ParticleCount > 0
+                    && TrailSize > 1
+                    && ValidTrailCount > 1
+                    && HeadIndex >= 0
+                    && HeadIndex < TrailSize
                     && ResX > 0
                     && ResY > 0
                     && ResZ > 0
                     && VoxelSize > 0;
             }
+        }
+
+        public int SegmentCount
+        {
+            get { return IsValid ? ParticleCount * (ValidTrailCount - 1) : 0; }
         }
 
         public BoundingBox ClippingBox

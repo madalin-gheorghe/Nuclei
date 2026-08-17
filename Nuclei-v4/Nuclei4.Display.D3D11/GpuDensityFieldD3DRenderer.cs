@@ -82,6 +82,8 @@ namespace Nuclei4
         bool TryDrawInternal(Guid solverId, DrawEventArgs e, GpuDensityFieldPreviewFrame frame)
         {
             if (disabled || e == null || frame == null || !frame.IsValid) return false;
+            if (frame.TextureDescriptor.Backend != GpuBackendKind.Direct3D11
+                || frame.TextureDescriptor.Interop != GpuInteropKind.Direct3D11SharedTexture) return false;
             if (rhinoVersionUnsupported) return false;
 
             try

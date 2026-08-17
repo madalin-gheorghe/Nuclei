@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Rhino.Display;
-using Rhino.Geometry;
 
 namespace Nuclei4
 {
@@ -134,16 +133,5 @@ namespace Nuclei4
                 return snapshot;
             }
         }
-    }
-
-    internal sealed class ParticlePreviewDisplayFrame
-    {
-        public GpuParticlePreviewFrame GpuFrame;
-        public PointCloud SlimePointCloud;
-        public PointCloud AntPointCloud1;
-        public PointCloud AntPointCloud2;
-        public BoundingBox ClippingBox;
-        public double PointSize;
-        public bool HasPoint;
     }
 }

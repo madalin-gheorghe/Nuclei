@@ -27,6 +27,14 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\Nuclei4.Core\Nuclei4.Core.csproj" />
+		<ProjectReference Include="..\Nuclei4.Gpu.Abstractions\Nuclei4.Gpu.Abstractions.csproj" />
+		<ProjectReference Include="..\Nuclei4.Gpu.D3D11\Nuclei4.Gpu.D3D11.csproj" />
+		<ProjectReference Include="..\Nuclei4.Display.Abstractions\Nuclei4.Display.Abstractions.csproj" />
+		<ProjectReference Include="..\Nuclei4.Display.D3D11\Nuclei4.Display.D3D11.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<EmbeddedResource Update="Properties\Resources.resx" Generator="ResXFileCodeGenerator" LastGenOutput="Resources.Designer.cs" />
 		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyBoundaryModeTransition.cso" LogicalName="Nuclei4.GpuShaders.ApplyBoundaryModeTransition.cso" />
 		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\MoveParticlesAndDeposit.cso" LogicalName="Nuclei4.GpuShaders.MoveParticlesAndDeposit.cso" />
@@ -54,10 +62,17 @@
 		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\DensityPreviewComposite.cso" LogicalName="Nuclei4.GpuShaders.DensityPreviewComposite.cso" />
 	</ItemGroup>
 
+	<PropertyGroup>
+		<GpuSolverSource>$(MSBuildProjectDirectory)\GpuFullSlimeSolverEngine.cs</GpuSolverSource>
+		<GpuSolverSource Condition="Exists('$(MSBuildProjectDirectory)\..\Nuclei4.Gpu.D3D11\GpuFullSlimeSolverEngine.cs')">$(MSBuildProjectDirectory)\..\Nuclei4.Gpu.D3D11\GpuFullSlimeSolverEngine.cs</GpuSolverSource>
+		<GpuDensityRendererSource>$(MSBuildProjectDirectory)\GpuDensityFieldD3DRenderer.cs</GpuDensityRendererSource>
+		<GpuDensityRendererSource Condition="Exists('$(MSBuildProjectDirectory)\..\Nuclei4.Display.D3D11\GpuDensityFieldD3DRenderer.cs')">$(MSBuildProjectDirectory)\..\Nuclei4.Display.D3D11\GpuDensityFieldD3DRenderer.cs</GpuDensityRendererSource>
+	</PropertyGroup>
+
 	<Target Name="CompileGpuShaders" BeforeTargets="PrepareResources"
-		Inputs="$(MSBuildProjectDirectory)\GpuFullSlimeSolverEngine.cs;$(MSBuildProjectDirectory)\GpuDensityFieldD3DRenderer.cs;$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Program.cs;$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Nuclei.ShaderCompiler.csproj"
+		Inputs="$(GpuSolverSource);$(GpuDensityRendererSource);$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Program.cs;$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Nuclei.ShaderCompiler.csproj"
 		Outputs="$(IntermediateOutputPath)GpuShaders\shaders.complete">
-		<Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Nuclei.ShaderCompiler.csproj&quot; --configuration Release -- &quot;$(MSBuildProjectDirectory)\GpuFullSlimeSolverEngine.cs&quot; &quot;$(MSBuildProjectDirectory)\GpuDensityFieldD3DRenderer.cs&quot; &quot;$(MSBuildProjectDirectory)\$(IntermediateOutputPath)GpuShaders&quot;" />
+		<Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Nuclei.ShaderCompiler.csproj&quot; --configuration Release -- &quot;$(GpuSolverSource)&quot; &quot;$(GpuDensityRendererSource)&quot; &quot;$(MSBuildProjectDirectory)\$(IntermediateOutputPath)GpuShaders&quot;" />
 	</Target>
 
 	<PropertyGroup Condition="$(Configuration) == 'Debug'">
@@ -68,6 +83,7 @@
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(SkipGrasshopperInstall)' != 'true'">
 		<ItemGroup>
 			<GrasshopperLibraryFiles Include="$(TargetPath)" />
+			<GrasshopperLibraryFiles Include="$(TargetDir)Nuclei4.*.dll" />
 			<GrasshopperLibraryFiles Include="$(TargetDir)$(TargetName).deps.json" Condition="Exists('$(TargetDir)$(TargetName).deps.json')" />
 			<GrasshopperLibraryFiles Include="$(TargetDir)Microsoft.Bcl.HashCode.dll" Condition="Exists('$(TargetDir)Microsoft.Bcl.HashCode.dll')" />
 			<GrasshopperLibraryFiles Include="$(TargetDir)Vortice.*.dll" />

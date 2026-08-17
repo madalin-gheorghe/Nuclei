@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net48;net7.0-windows</TargetFrameworks>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AssemblyName>Nuclei4.Gpu.D3D11</AssemblyName>
+    <RootNamespace>Nuclei4</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nuclei4.Core\Nuclei4.Core.csproj" />
+    <ProjectReference Include="..\Nuclei4.Gpu.Abstractions\Nuclei4.Gpu.Abstractions.csproj" />
+    <ProjectReference Include="..\Nuclei4.Display.Abstractions\Nuclei4.Display.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="RhinoCommon" Version="8.0.*" />
+    <PackageReference Include="Vortice.D3DCompiler" Version="2.4.1-beta" />
+    <PackageReference Include="Vortice.Direct3D11" Version="2.4.1-beta" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyBoundaryModeTransition.cso" LogicalName="Nuclei4.GpuShaders.ApplyBoundaryModeTransition.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\MoveParticlesAndDeposit.cso" LogicalName="Nuclei4.GpuShaders.MoveParticlesAndDeposit.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyDeposits.cso" LogicalName="Nuclei4.GpuShaders.ApplyDeposits.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ClearParticleCounts.cso" LogicalName="Nuclei4.GpuShaders.ClearParticleCounts.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\CountParticles.cso" LogicalName="Nuclei4.GpuShaders.CountParticles.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\SeedNeighbourCounts.cso" LogicalName="Nuclei4.GpuShaders.SeedNeighbourCounts.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\SumNeighbourAxis.cso" LogicalName="Nuclei4.GpuShaders.SumNeighbourAxis.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyParticleDeath.cso" LogicalName="Nuclei4.GpuShaders.ApplyParticleDeath.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyParticleDivision.cso" LogicalName="Nuclei4.GpuShaders.ApplyParticleDivision.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\DiffuseAxis.cso" LogicalName="Nuclei4.GpuShaders.DiffuseAxis.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyDecay.cso" LogicalName="Nuclei4.GpuShaders.ApplyDecay.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\BuildDensityPreview.cso" LogicalName="Nuclei4.GpuShaders.BuildDensityPreview.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\BuildCombinedDensityPreview.cso" LogicalName="Nuclei4.GpuShaders.BuildCombinedDensityPreview.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\BuildDensityGradientPreview.cso" LogicalName="Nuclei4.GpuShaders.BuildDensityGradientPreview.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\BuildParticlePreview.cso" LogicalName="Nuclei4.GpuShaders.BuildParticlePreview.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\BuildParticleTrailPreview.cso" LogicalName="Nuclei4.GpuShaders.BuildParticleTrailPreview.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\SmoothVolumeForMesh.cso" LogicalName="Nuclei4.GpuShaders.SmoothVolumeForMesh.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ClassifyVolumeCells.cso" LogicalName="Nuclei4.GpuShaders.ClassifyVolumeCells.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\EmitVolumeTriangles.cso" LogicalName="Nuclei4.GpuShaders.EmitVolumeTriangles.cso" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <ShaderCompilerProject>$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Nuclei.ShaderCompiler.csproj</ShaderCompilerProject>
+    <DensityShaderSource>$(MSBuildProjectDirectory)\..\Nuclei4.Display.D3D11\GpuDensityFieldD3DRenderer.cs</DensityShaderSource>
+  </PropertyGroup>
+
+  <Target Name="CompileGpuComputeShaders" BeforeTargets="PrepareResources"
+          Inputs="$(MSBuildProjectDirectory)\GpuFullSlimeSolverEngine.cs;$(DensityShaderSource);$(ShaderCompilerProject);$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Program.cs"
+          Outputs="$(IntermediateOutputPath)GpuShaders\shaders.complete">
+    <Exec Command="dotnet run --project &quot;$(ShaderCompilerProject)&quot; --configuration Release -- &quot;$(MSBuildProjectDirectory)\GpuFullSlimeSolverEngine.cs&quot; &quot;$(DensityShaderSource)&quot; &quot;$(MSBuildProjectDirectory)\$(IntermediateOutputPath)GpuShaders&quot;" />
+  </Target>
+</Project>
