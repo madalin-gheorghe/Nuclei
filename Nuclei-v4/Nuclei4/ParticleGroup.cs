@@ -11,10 +11,10 @@ using Grasshopper;
 using Rhino;
 using System.Diagnostics.Eventing.Reader;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
-using static Nuclei3.ParticleGroup;
+using static Nuclei4.ParticleGroup;
 using System.Drawing;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class ParticleGroup
     {

@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class Particle_Settings_Ant_Slime : GH_Component
     {
@@ -83,7 +83,7 @@ namespace Nuclei3
             {
                 //You can add image files to your project resources and access them like this:
                 // return Resources.IconForThisComponent;
-                return Nuclei3.Properties.Resources.ParticleSettings_Interaction;
+                return Nuclei4.Properties.Resources.ParticleSettings_Interaction;
             }
         }
 

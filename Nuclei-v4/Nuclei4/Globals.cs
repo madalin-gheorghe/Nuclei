@@ -11,7 +11,7 @@ using System.Drawing;
 using System.Diagnostics;
 using System.Threading;
 
-namespace Nuclei3
+namespace Nuclei4
 {
 	public class Globals
 	{

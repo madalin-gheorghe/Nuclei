@@ -8,7 +8,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     internal static class RhinoWipD3DPreviewProbe
     {

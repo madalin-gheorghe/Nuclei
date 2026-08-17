@@ -9,7 +9,7 @@ using Grasshopper.Kernel;
 using Rhino.Geometry;
 using Grasshopper;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     internal sealed class VoxelDensityStore
     {

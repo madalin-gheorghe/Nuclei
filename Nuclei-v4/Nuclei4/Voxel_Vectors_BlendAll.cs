@@ -3,7 +3,7 @@ using Rhino.Geometry;
 using System;
 using System.Threading.Tasks;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class Voxel_Vectors_BlendAll : GH_Component
     {
@@ -154,7 +154,7 @@ namespace Nuclei3
 
         protected override System.Drawing.Bitmap Icon
         {
-            get { return Nuclei3.Properties.Resources.VoxelBlendVectors2; }
+            get { return Nuclei4.Properties.Resources.VoxelBlendVectors2; }
         }
 
         public override Guid ComponentGuid

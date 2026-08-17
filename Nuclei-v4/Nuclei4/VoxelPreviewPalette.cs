@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     internal static class VoxelPreviewPalette
     {

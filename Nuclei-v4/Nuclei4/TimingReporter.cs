@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     internal static class TimingReporter
     {

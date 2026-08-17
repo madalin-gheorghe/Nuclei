@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     internal sealed class SolverGpuSettings
     {

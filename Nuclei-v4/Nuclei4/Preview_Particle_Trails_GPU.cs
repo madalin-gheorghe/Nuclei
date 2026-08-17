@@ -5,7 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class Preview_Particle_Trails_GPU : GH_Component
     {
@@ -469,7 +469,7 @@ namespace Nuclei3
 
         protected override System.Drawing.Bitmap Icon
         {
-            get { return Nuclei3.Properties.Resources.ParticleTrails; }
+            get { return Nuclei4.Properties.Resources.ParticleTrails; }
         }
 
         public override Guid ComponentGuid

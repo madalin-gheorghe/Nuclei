@@ -21,9 +21,9 @@ using System.Security.Cryptography.X509Certificates;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using static Nuclei3.ParticleGroup;
+using static Nuclei4.ParticleGroup;
 
-namespace Nuclei3
+namespace Nuclei4
 {
 public class Solver : GH_Component
     {
@@ -6743,7 +6743,7 @@ public class Solver : GH_Component
             {
                 //You can add image files to your project resources and access them like this:
                 // return Resources.IconForThisComponent;
-                return Nuclei3.Properties.Resources.Solver;
+                return Nuclei4.Properties.Resources.Solver;
             }
         }
 

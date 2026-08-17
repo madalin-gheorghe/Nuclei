@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Rhino.Geometry;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     internal enum VoxelScalarField
     {

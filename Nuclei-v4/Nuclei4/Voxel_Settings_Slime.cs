@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using Grasshopper.Kernel;
 using Rhino.Geometry;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class EnivronmentSettings : GH_Component
     {
@@ -82,7 +82,7 @@ namespace Nuclei3
             {
                 //You can add image files to your project resources and access them like this:
                 // return Resources.IconForThisComponent;
-                return Nuclei3.Properties.Resources.EnvironmentSettings_Slime;
+                return Nuclei4.Properties.Resources.EnvironmentSettings_Slime;
             }
         }
 

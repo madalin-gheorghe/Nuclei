@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class Voxel_Values_BlendAll : GH_Component
     {
@@ -253,7 +253,7 @@ namespace Nuclei3
 
         protected override Bitmap Icon
         {
-            get { return Nuclei3.Properties.Resources.EnvironmentWithValues; }
+            get { return Nuclei4.Properties.Resources.EnvironmentWithValues; }
         }
 
         public override Guid ComponentGuid

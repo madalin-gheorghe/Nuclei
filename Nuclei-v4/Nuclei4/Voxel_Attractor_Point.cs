@@ -10,7 +10,7 @@ using Rhino.Geometry;
 using GH_IO.Serialization;
 using System.Windows.Forms;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class Voxel_Attractor_Point : GH_Component
     {
@@ -569,7 +569,7 @@ namespace Nuclei3
             {
                 //You can add image files to your project resources and access them like this:
                 // return Resources.IconForThisComponent;
-                return Nuclei3.Properties.Resources.VoxelPointAttractor;
+                return Nuclei4.Properties.Resources.VoxelPointAttractor;
             }
         }
 

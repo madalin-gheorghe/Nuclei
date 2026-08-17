@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 using Rhino.Geometry;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     internal sealed class SolverGpuInputSnapshot
     {

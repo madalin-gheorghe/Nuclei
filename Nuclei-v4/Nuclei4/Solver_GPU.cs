@@ -8,9 +8,9 @@ using Grasshopper.Kernel.Attributes;
 
 using Rhino.Geometry;
 
-using static Nuclei3.ParticleGroup;
+using static Nuclei4.ParticleGroup;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class SolverGPU : GH_Component
     {
@@ -1449,7 +1449,7 @@ namespace Nuclei3
         {
             get
             {
-                return Nuclei3.Properties.Resources.Solver;
+                return Nuclei4.Properties.Resources.Solver;
             }
         }
 

@@ -2,9 +2,9 @@ using System;
 using System.Drawing;
 using Grasshopper.Kernel;
 
-namespace Nuclei3
+namespace Nuclei4
 {
-    public class Nuclei3Info : GH_AssemblyInfo
+    public class Nuclei4Info : GH_AssemblyInfo
     {
         public override string Name
         {

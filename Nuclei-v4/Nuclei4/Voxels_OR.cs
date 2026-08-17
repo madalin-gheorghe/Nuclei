@@ -12,7 +12,7 @@ using Grasshopper.Kernel.Data;
 using Rhino.Geometry;
 using GH_IO.Serialization;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class Voxels_OR : GH_Component, IGH_VariableParameterComponent
     {
@@ -1047,7 +1047,7 @@ namespace Nuclei3
             {
                 //You can add image files to your project resources and access them like this:
                 // return Resources.IconForThisComponent;
-                return Nuclei3.Properties.Resources.VoxelsUnion;
+                return Nuclei4.Properties.Resources.VoxelsUnion;
             }
         }
 

@@ -2,10 +2,10 @@ using System;
 using System.Linq;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
-using Nuclei3;
+using Nuclei4;
 using Rhino.Geometry;
 using Microsoft.VSDiagnostics;
-using NucleiParticle = Nuclei3.Particle;
+using NucleiParticle = Nuclei4.Particle;
 
 [CPUUsageDiagnoser]
 public class SolverBenchmark

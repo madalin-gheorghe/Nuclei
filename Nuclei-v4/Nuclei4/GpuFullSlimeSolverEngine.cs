@@ -12,7 +12,7 @@ using Vortice.DXGI;
 
 using Rhino.Geometry;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     internal sealed class GpuFullSolverStepResult
     {
@@ -4520,7 +4520,7 @@ namespace Nuclei3
 
         ID3D11ComputeShader CreateComputeShader(string entryPoint)
         {
-            string resourceName = "Nuclei3.GpuShaders." + entryPoint + ".cso";
+            string resourceName = "Nuclei4.GpuShaders." + entryPoint + ".cso";
             using (Stream stream = typeof(GpuFullSlimeSolverEngine).Assembly.GetManifestResourceStream(resourceName))
             {
                 if (stream != null)
