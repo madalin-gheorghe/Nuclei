@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net48;net7.0</TargetFrameworks>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AssemblyName>Nuclei4.Core</AssemblyName>
+    <RootNamespace>Nuclei4</RootNamespace>
+  </PropertyGroup>
+</Project>

@@ -292,7 +292,11 @@ namespace Nuclei4
             if (gpuStatus != null && gpuStatus.Available && snapshot.ResX > 0 && snapshot.ResY > 0 && snapshot.ResZ > 0)
             {
                 DisposeGpuEngines();
-                fullSolverEngine = new GpuFullSlimeSolverEngine(snapshot, settings, enableDensityFieldPreview, enableParticlePreview, enableParticleTrailPreview, particleTrailPreviewSize, densityPreviewScale);
+                int outputCapacity = settings != null && settings.DynamicPopulation
+                    ? Math.Max(snapshot.ParticleCount, Math.Max(0, settings.MaximumPopulation))
+                    : snapshot.ParticleCount;
+                gpuOutputSink = new Gh1GpuSolverOutputSink(snapshot, outputCapacity);
+                fullSolverEngine = new GpuFullSlimeSolverEngine(snapshot, gpuOutputSink, settings, enableDensityFieldPreview, enableParticlePreview, enableParticleTrailPreview, particleTrailPreviewSize, densityPreviewScale);
                 ConfigureGpuParticlePreviewProvider();
                 ConfigureGpuParticleTrailPreviewProvider();
                 ConfigureGpuVolumeMeshProvider();
@@ -484,8 +488,6 @@ namespace Nuclei4
             }
 
             particleCount = fullSolverEngine.SynchronizeParticleOutput(
-                particles,
-                voxels,
                 latestSolverSettings,
                 Math.Max(0, iteration - 1));
             lastParticleOutputSyncIteration = iteration;
@@ -498,7 +500,7 @@ namespace Nuclei4
                 return;
             }
 
-            fullSolverEngine.SynchronizeVoxelOutput(voxels);
+            fullSolverEngine.SynchronizeVoxelOutput();
             lastVoxelOutputSyncIteration = iteration;
         }
 
@@ -542,6 +544,10 @@ namespace Nuclei4
             }
 
             voxels = snapshot.Field;
+            if (gpuOutputSink != null)
+            {
+                gpuOutputSink.UpdateVoxelField(voxels);
+            }
             activeVoxelCount = snapshot.ActiveVoxelCount;
             inputVoxelReference = inputVoxels;
             ConfigureGpuVolumeMeshProvider();
@@ -604,8 +610,11 @@ namespace Nuclei4
 
         GpuFullSolverStepResult RunGpuSolverStep(SolverGpuSettings settings, bool syncVoxels, bool syncParticles, bool buildPreviewCache)
         {
-            SolverGpuDimensionMode dimensionMode = SolverGpuDimensionMode.FromResolution(resX, resY, resZ);
-            return fullSolverEngine.Step(voxels, particles, settings, dimensionMode, iteration, syncVoxels, syncParticles, buildPreviewCache);
+            GpuStepDemand demand = GpuStepDemand.None;
+            if (syncVoxels) demand |= GpuStepDemand.SynchronizeVoxels;
+            if (syncParticles) demand |= GpuStepDemand.SynchronizeParticles;
+            if (buildPreviewCache) demand |= GpuStepDemand.BuildCpuPreviewCache;
+            return fullSolverEngine.Step(settings, new GpuStepRequest(iteration, demand));
         }
 
         bool UpdateLiveParticleGroupSettings(List<ParticleGroup> inputParticleGroups)
@@ -683,7 +692,7 @@ namespace Nuclei4
         {
             return fullSolverEngine != null
                 && particles != null
-                && fullSolverEngine.TryCompletePreviewCache(particles);
+                && fullSolverEngine.TryCompletePreviewCache();
         }
 
         bool QueuePreviewCacheReadbackForCurrentIteration()
@@ -1175,6 +1184,7 @@ namespace Nuclei4
                 fullSolverEngine.Dispose();
                 fullSolverEngine = null;
             }
+            gpuOutputSink = null;
         }
 
         void resetTimingAverages()
@@ -1397,6 +1407,7 @@ namespace Nuclei4
 
         GpuComputeSmokeTestResult gpuStatus;
         GpuFullSlimeSolverEngine fullSolverEngine;
+        Gh1GpuSolverOutputSink gpuOutputSink;
         VoxelField voxels;
         VoxelField inputVoxelReference;
         ParticleList particles;

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net48;net7.0</TargetFrameworks>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AssemblyName>Nuclei4.Gpu.Abstractions</AssemblyName>
+    <RootNamespace>Nuclei4</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nuclei4.Core\Nuclei4.Core.csproj" />
+  </ItemGroup>
+</Project>

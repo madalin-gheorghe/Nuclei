@@ -73,6 +73,10 @@ namespace Nuclei4
         bool TryDrawInternal(Guid previewId, DrawEventArgs e, ParticlePreviewDisplayFrame frame)
         {
             if (disabled || e == null || frame == null) return false;
+            if (frame.GpuFrame != null
+                && frame.GpuFrame.IsValid
+                && (frame.GpuFrame.TextureDescriptor.Backend != GpuBackendKind.Direct3D11
+                    || frame.GpuFrame.TextureDescriptor.Interop != GpuInteropKind.Direct3D11SharedTexture)) return false;
             if (rhinoVersionUnsupported) return false;
 
             try

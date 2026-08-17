@@ -13,6 +13,7 @@ packages/
 
 # Local Codex / diagnostic workspaces
 .codex-backups/
+.codex-baseline-worktree/
 .diag-work/
 .build-appdata*/
 .codex-build-appdata/

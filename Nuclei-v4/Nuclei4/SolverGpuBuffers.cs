@@ -5,59 +5,16 @@ using Rhino.Geometry;
 
 namespace Nuclei4
 {
-    internal sealed class SolverGpuInputSnapshot
+    internal sealed class SolverGpuInputSnapshot : GpuSolverInput
     {
         public VoxelField Field;
         public Voxel[,,] Voxels;
         public ParticleList Particles;
         public ParticleGroup[] ParticleGroups;
-        public int ResX;
-        public int ResY;
-        public int ResZ;
         public int ActiveVoxelCount;
-        public int ParticleCount;
-        public float VoxelSize;
-        public float[] ParticlePositionsXyz;
-        public float[] ParticleDirectionsXyz;
-        public float[] ParticleYAxesXyz;
-        public float[] ParticleHomesXyz;
-        public uint[] ParticleAntStates;
-        public int[] ParticleGroupIndices;
-        public int[] ParticleParentIndices;
-        public float[] VoxelDensity;
-        public float[] AntFoodPheromone;
-        public float[] AntBasePheromone;
-        public float[] VoxelBehaviorData;
-        public int SpeedOffset = -1;
-        public int SensorDistanceOffset = -1;
-        public int SensorAngleOffset = -1;
-        public int RotationAngleOffset = -1;
-        public float SpeedDefault = 1;
-        public float SensorDistanceDefault = 1;
-        public float SensorAngleDefault = 1;
-        public float RotationAngleDefault = 1;
-        public float[] VoxelVectorData;
-        public float VoxelVectorDefaultX;
-        public float VoxelVectorDefaultY;
-        public float VoxelVectorDefaultZ;
-        public int[] VoxelVectorFrequencies;
-        public int VoxelVectorDefaultFrequency = 3;
-        public float[] VoxelDensityLimits;
-        public int MinimumDensityOffset = -1;
-        public int MaximumDensityOffset = -1;
-        public float MinimumDensityDefault = -1;
-        public float MaximumDensityDefault = -1;
-        public float[] InitialFood;
         public float[][] StaticVoxelFields;
         public float[] StaticVoxelFieldMaximums;
         public float[] VoxelVectorsXyz;
-        public uint[] VoxelFlags;
-        public int GroupCount;
-        public float[] GroupData0;
-        public float[] GroupData1;
-        public float[] GroupColorData;
-        public bool HasAntParticles;
-        public bool HasSlimeParticles;
 
         public static SolverGpuInputSnapshot Capture(Voxel[,,] inputVoxels, IList<ParticleGroup> particleGroups)
         {
@@ -99,6 +56,20 @@ namespace Nuclei4
             VoxelSize = (float)(data.VoxelSize > 0 ? data.VoxelSize : 1.0);
             int voxelCount = data.Count;
 
+            HasStaticPreviewInput = true;
+            StaticMinimumDensityValues = data.MinimumDensity.Values;
+            StaticMaximumDensityValues = data.MaximumDensity.Values;
+            StaticSpeedValues = data.Speed.Values;
+            StaticSensorDistanceValues = data.SensorDistance.Values;
+            StaticSensorAngleValues = data.SensorAngle.Values;
+            StaticRotationAngleValues = data.RotationAngle.Values;
+            StaticMinimumDensityDefault = data.MinimumDensity.DefaultValue;
+            StaticMaximumDensityDefault = data.MaximumDensity.DefaultValue;
+            StaticSpeedDefault = data.Speed.DefaultValue;
+            StaticSensorDistanceDefault = data.SensorDistance.DefaultValue;
+            StaticSensorAngleDefault = data.SensorAngle.DefaultValue;
+            StaticRotationAngleDefault = data.RotationAngle.DefaultValue;
+
             VoxelDensity = null;
             AntFoodPheromone = null;
             AntBasePheromone = null;
@@ -129,6 +100,7 @@ namespace Nuclei4
             VoxelVectorDefaultFrequency = data.VectorFrequency != null ? data.VectorFrequency.DefaultValue : 3;
             VoxelDensityLimits = densityLimitElementCount > 0 ? new float[densityLimitElementCount] : null;
             InitialFood = null;
+            ActiveVoxelFlags = data.AllVoxelsActive ? null : new uint[(voxelCount + 31) >> 5];
             VoxelFlags = hasFlags ? new uint[(voxelCount + 31) >> 5] : null;
             StaticVoxelFields = null;
             StaticVoxelFieldMaximums = null;
@@ -150,6 +122,7 @@ namespace Nuclei4
             for (int ordinal = 0; ordinal < data.ActiveCount; ordinal++)
             {
                 int flatIndex = data.ActiveFlatIndexAt(ordinal);
+                SetFlag(ActiveVoxelFlags, flatIndex);
                 if (HasSlimeParticles)
                 {
                     float density = (float)Field.GetScalarValue(VoxelPreviewField.SlimeChemoattractants, flatIndex);
@@ -238,6 +211,7 @@ namespace Nuclei4
                 StaticVoxelFields = null;
                 StaticVoxelFieldMaximums = null;
                 VoxelVectorsXyz = new float[0];
+                ActiveVoxelFlags = null;
                 VoxelFlags = new uint[0];
                 VoxelSize = 1;
                 return;
@@ -274,6 +248,7 @@ namespace Nuclei4
             StaticVoxelFields = null;
             StaticVoxelFieldMaximums = null;
             VoxelVectorsXyz = new float[voxelCount * 3];
+            ActiveVoxelFlags = hasInputVoxels ? new uint[(voxelCount + 31) >> 5] : null;
             VoxelFlags = new uint[(voxelCount + 31) >> 5];
 
             for (int x = 0; x < ResX; x++)
@@ -292,6 +267,7 @@ namespace Nuclei4
                         Voxel voxel = source == null ? new Voxel(voxelSize, x, y, z) : CopyVoxel(source, voxelSize, x, y, z);
                         voxel.flatIndex = flatIndex;
                         Voxels[x, y, z] = voxel;
+                        SetFlag(ActiveVoxelFlags, flatIndex);
 
                         if (HasSlimeParticles)
                         {
@@ -314,6 +290,11 @@ namespace Nuclei4
                         ActiveVoxelCount++;
                     }
                 }
+            }
+
+            if (ActiveVoxelCount == voxelCount)
+            {
+                ActiveVoxelFlags = null;
             }
         }
 
@@ -455,6 +436,7 @@ namespace Nuclei4
             ParticleYAxesXyz = new float[ParticleCount * 3];
             ParticleHomesXyz = new float[ParticleCount * 3];
             ParticleAntStates = new uint[ParticleCount];
+            ParticleAges = new int[ParticleCount];
             ParticleGroupIndices = new int[ParticleCount];
             ParticleParentIndices = new int[ParticleCount];
 
@@ -508,6 +490,7 @@ namespace Nuclei4
                     ParticleHomesXyz[particleIndex * 3 + 1] = (float)home.Y;
                     ParticleHomesXyz[particleIndex * 3 + 2] = (float)home.Z;
                     ParticleAntStates[particleIndex] = group.ant && particle.foundFood ? 1u : 0u;
+                    ParticleAges[particleIndex] = Math.Max(0, particle.age);
 
                     particleIndex++;
                 }

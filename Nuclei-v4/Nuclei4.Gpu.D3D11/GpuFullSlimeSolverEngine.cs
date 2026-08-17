@@ -14,25 +14,6 @@ using Rhino.Geometry;
 
 namespace Nuclei4
 {
-    internal sealed class GpuFullSolverStepResult
-    {
-        public double TotalMilliseconds;
-        public double ParticleMilliseconds;
-        public double PopulationMilliseconds;
-        public double DiffusionMilliseconds;
-        public double ReadbackMilliseconds;
-        public int Passes;
-        public int Range;
-        public bool Wrap;
-        public int ParticleCount;
-        public bool MovedParticles;
-        public bool SyncedVoxels;
-        public bool SyncedParticles;
-        public bool BuiltPreviewCache;
-        public bool QueuedPreviewReadback;
-        public bool CompletedPreviewReadback;
-    }
-
     internal sealed class GpuVolumeMeshResult
     {
         public bool Success;
@@ -43,7 +24,8 @@ namespace Nuclei4
         public double Milliseconds;
     }
 
-    internal sealed class GpuFullSlimeSolverEngine : IDisposable
+    /// <summary>Windows D3D11 compute backend; host objects stay behind the output sink.</summary>
+    internal sealed class GpuFullSlimeSolverEngine : IGpuSimulationBackend
     {
         const float DepositScale = 1024.0f;
         const int PreviewReadbackBufferCount = 3;
@@ -187,11 +169,22 @@ namespace Nuclei4
         float[] particleYAxisReadback;
         float[] particlePositionPreviewReadback;
         int[] particleAuxReadback;
-        int[] particleSlotGenerations;
         readonly int[] populationStateReadback = new int[4];
-        readonly Particle[] particleSlots;
-        readonly ParticleGroup[] particleGroups;
-        VoxelField staticPreviewField;
+        readonly IGpuSolverOutputSink outputSink;
+        uint[] staticActiveVoxelFlags;
+        bool hasStaticPreviewInput;
+        float[] staticMinimumDensityValues;
+        float[] staticMaximumDensityValues;
+        float[] staticSpeedValues;
+        float[] staticSensorDistanceValues;
+        float[] staticSensorAngleValues;
+        float[] staticRotationAngleValues;
+        double staticMinimumDensityDefault;
+        double staticMaximumDensityDefault;
+        double staticSpeedDefault;
+        double staticSensorDistanceDefault;
+        double staticSensorAngleDefault;
+        double staticRotationAngleDefault;
         readonly bool[] previewReadbackPending = new bool[PreviewReadbackBufferCount];
         readonly int[] previewReadbackSequences = new int[PreviewReadbackBufferCount];
 
@@ -287,12 +280,18 @@ namespace Nuclei4
         float[] particleTrailPreviewGroupColorData;
         long particleTrailPreviewVersion = 0;
 
-        public GpuFullSlimeSolverEngine(SolverGpuInputSnapshot snapshot, SolverGpuSettings settings, bool enableSharedDensityPreview, bool enableSharedParticlePreview, bool enableSharedParticleTrailPreview, int particleTrailSize, int densityPreviewScale)
+        public GpuFullSlimeSolverEngine(GpuSolverInput snapshot, IGpuSolverOutputSink outputSink, SolverGpuSettings settings, bool enableSharedDensityPreview, bool enableSharedParticlePreview, bool enableSharedParticleTrailPreview, int particleTrailSize, int densityPreviewScale)
         {
             if (snapshot == null)
             {
                 throw new ArgumentNullException(nameof(snapshot));
             }
+            if (outputSink == null)
+            {
+                throw new ArgumentNullException(nameof(outputSink));
+            }
+
+            this.outputSink = outputSink;
 
             resX = snapshot.ResX;
             resY = snapshot.ResY;
@@ -308,6 +307,8 @@ namespace Nuclei4
             hasSlimeParticles = snapshot.HasSlimeParticles;
             wrapBoundaryState = settings != null && settings.WrapBoundaries;
             if (!ValidVoxelFlags(snapshot.VoxelFlags, voxelCount)
+                || !ValidVoxelFlags(snapshot.ActiveVoxelFlags, voxelCount)
+                || !ValidStaticPreviewLayout(snapshot, voxelCount)
                 || !ValidBehaviorLayout(snapshot, voxelCount)
                 || !ValidDensityLimitLayout(snapshot, voxelCount))
             {
@@ -330,13 +331,7 @@ namespace Nuclei4
             voxelVectorDefaultZ = snapshot.VoxelVectorDefaultZ;
             hasVoxelDensityLimits = HasVoxelDensityLimits(snapshot);
             ApplySnapshotChannelOffsets(snapshot);
-            particleGroups = snapshot.ParticleGroups ?? new ParticleGroup[groupCount];
-            particleSlots = new Particle[particleCapacity];
-            int snapshotParticleObjectCount = snapshot.Particles != null ? snapshot.Particles.Count : 0;
-            for (int i = 0; i < particleCount && i < snapshotParticleObjectCount; i++)
-            {
-                particleSlots[i] = snapshot.Particles[i];
-            }
+            ApplyStaticPreviewInput(snapshot);
             particleTrailPreviewGroupColorData = snapshot.GroupColorData;
             voxelSize = snapshot.VoxelSize > 0 ? snapshot.VoxelSize : 1.0f;
             this.densityPreviewScale = NormalizeDensityPreviewScale(densityPreviewScale);
@@ -376,10 +371,23 @@ namespace Nuclei4
             particleYAxisReadback = null;
             particlePositionPreviewReadback = null;
             particleAuxReadback = null;
-            particleSlotGenerations = null;
-            staticPreviewField = snapshot.Field;
 
-            CreateDevice(out device, out context);
+            bool softwareFallback;
+            CreateDevice(out device, out context, out softwareFallback);
+            Capabilities = new GpuBackendCapabilities
+            {
+                Backend = GpuBackendKind.Direct3D11,
+                BackendName = "Direct3D 11",
+                ApiVersion = "D3D11 / shader model 5.0",
+                Available = true,
+                HardwareAccelerated = !softwareFallback,
+                SoftwareFallback = softwareFallback,
+                ComputeShaders = true,
+                NativePreviewInterop = !softwareFallback,
+                Message = softwareFallback
+                    ? "D3D11 WARP software fallback initialized."
+                    : "D3D11 hardware backend initialized."
+            };
             CompileShaders();
             if (hasSlimeParticles)
             {
@@ -685,7 +693,7 @@ namespace Nuclei4
             }
         }
 
-        public bool CanFastReset(SolverGpuInputSnapshot snapshot, SolverGpuSettings settings)
+        public bool CanFastReset(GpuSolverInput snapshot, SolverGpuSettings settings)
         {
             if (snapshot == null || settings == null)
             {
@@ -704,7 +712,7 @@ namespace Nuclei4
                 && SupportsPopulationCapacity(settings);
         }
 
-        public void FastReset(SolverGpuInputSnapshot snapshot, SolverGpuSettings settings)
+        public void FastReset(GpuSolverInput snapshot, SolverGpuSettings settings)
         {
             if (!CanFastReset(snapshot, settings))
             {
@@ -714,22 +722,6 @@ namespace Nuclei4
             UnbindComputeResources();
             wrapBoundaryState = settings.WrapBoundaries;
             particleCount = snapshot.ParticleCount;
-            staticPreviewField = snapshot.Field;
-
-            Array.Clear(particleSlots, 0, particleSlots.Length);
-            int snapshotParticleCount = snapshot.Particles != null ? snapshot.Particles.Count : 0;
-            for (int i = 0; i < particleCount && i < snapshotParticleCount; i++)
-            {
-                particleSlots[i] = snapshot.Particles[i];
-            }
-            if (snapshot.ParticleGroups == null || snapshot.ParticleGroups.Length != groupCount)
-            {
-                throw new InvalidOperationException("GPU reset particle groups do not match the existing solver.");
-            }
-            for (int i = 0; i < groupCount; i++)
-            {
-                particleGroups[i] = snapshot.ParticleGroups[i];
-            }
 
             if (hasSlimeParticles)
             {
@@ -785,7 +777,6 @@ namespace Nuclei4
             if (particleYAxisReadback != null) Array.Clear(particleYAxisReadback, 0, particleYAxisReadback.Length);
             if (particlePositionPreviewReadback != null) Array.Clear(particlePositionPreviewReadback, 0, particlePositionPreviewReadback.Length);
             if (particleAuxReadback != null) Array.Clear(particleAuxReadback, 0, particleAuxReadback.Length);
-            if (particleSlotGenerations != null) Array.Clear(particleSlotGenerations, 0, particleSlotGenerations.Length);
             Array.Clear(populationStateReadback, 0, populationStateReadback.Length);
 
             ResetPreviewReadbackState();
@@ -957,9 +948,21 @@ namespace Nuclei4
             particleTrailPreviewVersion++;
         }
 
+        public GpuBackendCapabilities Capabilities { get; private set; }
+
+        public GpuFullSolverStepResult Step(SolverGpuSettings settings, GpuStepRequest request)
+        {
+            SolverGpuDimensionMode dimensionMode = SolverGpuDimensionMode.FromResolution(resX, resY, resZ);
+            return Step(
+                settings,
+                dimensionMode,
+                request.Iteration,
+                request.Requires(GpuStepDemand.SynchronizeVoxels),
+                request.Requires(GpuStepDemand.SynchronizeParticles),
+                request.Requires(GpuStepDemand.BuildCpuPreviewCache));
+        }
+
         public GpuFullSolverStepResult Step(
-            VoxelField voxels,
-            ParticleList particles,
             SolverGpuSettings settings,
             SolverGpuDimensionMode dimensionMode,
             int iteration,
@@ -1049,7 +1052,7 @@ namespace Nuclei4
             {
                 if (hasSlimeParticles) ReadBackDensity();
                 if (hasAntParticles) ReadBackAntFields();
-                ApplyDynamicFieldsToVoxels(voxels);
+                ApplyDynamicFieldsToOutput();
             }
 
             bool builtPreviewCache = false;
@@ -1059,7 +1062,7 @@ namespace Nuclei4
             {
                 ClearPendingPreviewReadbacks();
                 ReadBackParticles();
-                builtPreviewCache = ApplyParticlesToOutput(particles, voxels, settings, iteration, buildPreviewCache);
+                builtPreviewCache = ApplyParticlesToOutput(settings, iteration, buildPreviewCache);
             }
             else if (buildPreviewCache)
             {
@@ -1090,23 +1093,19 @@ namespace Nuclei4
             };
         }
 
-        public int SynchronizeParticleOutput(
-            ParticleList particles,
-            VoxelField voxels,
-            SolverGpuSettings settings,
-            int iteration)
+        public int SynchronizeParticleOutput(SolverGpuSettings settings, int iteration)
         {
             ClearPendingPreviewReadbacks();
             ReadBackParticles();
-            ApplyParticlesToOutput(particles, voxels, settings, iteration, false);
+            ApplyParticlesToOutput(settings, iteration, false);
             return particleCount;
         }
 
-        public void SynchronizeVoxelOutput(VoxelField voxels)
+        public void SynchronizeVoxelOutput()
         {
             if (hasSlimeParticles) ReadBackDensity();
             if (hasAntParticles) ReadBackAntFields();
-            ApplyDynamicFieldsToVoxels(voxels);
+            ApplyDynamicFieldsToOutput();
         }
 
         void DispatchMoveParticlesAndDeposit(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
@@ -1788,10 +1787,12 @@ namespace Nuclei4
             return true;
         }
 
-        public bool UpdateVoxelBehaviorFields(SolverGpuInputSnapshot snapshot)
+        public bool UpdateVoxelBehaviorFields(GpuSolverInput snapshot)
         {
             if (snapshot == null
                 || !ValidVoxelFlags(snapshot.VoxelFlags, voxelCount)
+                || !ValidVoxelFlags(snapshot.ActiveVoxelFlags, voxelCount)
+                || !ValidStaticPreviewLayout(snapshot, voxelCount)
                 || !ValidBehaviorLayout(snapshot, voxelCount)
                 || (snapshot.VoxelVectorData != null && snapshot.VoxelVectorData.Length != checked(voxelCount * 3))
                 || (snapshot.VoxelVectorFrequencies != null && snapshot.VoxelVectorFrequencies.Length != voxelCount)
@@ -1801,7 +1802,6 @@ namespace Nuclei4
                 return false;
             }
 
-            staticPreviewField = snapshot.Field;
             UpdateOptionalUIntBuffer(snapshot.VoxelFlags, ref voxelFlagsBuffer, ref voxelFlagsView);
             UpdateOptionalFloatBuffer(snapshot.VoxelBehaviorData, ref voxelBehaviorBuffer, ref voxelBehaviorView, ref voxelBehaviorElementCount);
             UpdateOptionalFloat3Buffer(snapshot.VoxelVectorData, ref voxelVectorBuffer, ref voxelVectorView);
@@ -1818,6 +1818,7 @@ namespace Nuclei4
             voxelVectorDefaultZ = snapshot.VoxelVectorDefaultZ;
             hasVoxelDensityLimits = HasVoxelDensityLimits(snapshot);
             ApplySnapshotChannelOffsets(snapshot);
+            ApplyStaticPreviewInput(snapshot);
             InvalidateStaticFieldPreviews();
             return true;
         }
@@ -2105,11 +2106,6 @@ namespace Nuclei4
             {
                 particleAuxReadback = new int[auxiliaryCount];
             }
-            if (particleSlotGenerations == null || particleSlotGenerations.Length != particleCapacity)
-            {
-                particleSlotGenerations = new int[particleCapacity];
-            }
-
             int floatByteCount = checked(floatCount * sizeof(float));
             if (particlePositionReadbackBuffer == null) particlePositionReadbackBuffer = CreateReadbackBuffer(floatByteCount);
             if (particleDirectionReadbackBuffer == null) particleDirectionReadbackBuffer = CreateReadbackBuffer(floatByteCount);
@@ -2169,19 +2165,15 @@ namespace Nuclei4
             }
         }
 
-        void ApplyDynamicFieldsToVoxels(VoxelField voxels)
+        void ApplyDynamicFieldsToOutput()
         {
-            if (voxels == null)
-            {
-                return;
-            }
-
-            VoxelDynamicData existing = voxels.Dynamic;
-            voxels.UpdateDynamicFields(
-                hasSlimeParticles ? densityReadback : existing != null ? existing.Density : null,
-                hasAntParticles ? antFoodReadback : existing != null ? existing.AntFoodPheromone : null,
-                hasAntParticles ? antBaseReadback : existing != null ? existing.AntBasePheromone : null,
-                hasAntParticles ? ConvertRemainingFood() : existing != null ? existing.RemainingFood : null);
+            outputSink.ApplyVoxelFields(new GpuVoxelReadbackView(
+                hasSlimeParticles ? densityReadback : null,
+                hasAntParticles ? antFoodReadback : null,
+                hasAntParticles ? antBaseReadback : null,
+                hasAntParticles ? ConvertRemainingFood() : null,
+                hasSlimeParticles,
+                hasAntParticles));
         }
 
         float[] ConvertRemainingFood()
@@ -2299,7 +2291,7 @@ namespace Nuclei4
             return true;
         }
 
-        public bool TryCompletePreviewCache(ParticleList particles)
+        public bool TryCompletePreviewCache()
         {
             if (particleCapacity <= 0)
             {
@@ -2363,7 +2355,7 @@ namespace Nuclei4
                 }
 
                 previewReadbackCompletedSequence = sequence;
-                return BuildPreviewCacheFromPositions(particles, particlePositionPreviewReadback);
+                return ApplyPreviewPositions(particlePositionPreviewReadback);
             }
 
             return false;
@@ -2505,268 +2497,46 @@ namespace Nuclei4
             }
         }
 
-        bool ApplyParticlesToOutput(ParticleList particles, VoxelField voxels, SolverGpuSettings settings, int iteration, bool buildPreviewCache)
+        bool ApplyParticlesToOutput(SolverGpuSettings settings, int iteration, bool buildPreviewCache)
         {
-            if (particles == null || particleCapacity <= 0)
+            if (particleCapacity <= 0)
             {
                 return false;
             }
 
-            ParticlePreviewCache previewCache = buildPreviewCache ? particles.PreviewCache : null;
-            ParticlePreviewBuildCache previewBuildCache = previewCache != null ? new ParticlePreviewBuildCache(particleCount) : null;
-            if (previewCache != null)
-            {
-                previewCache.BeginBuild(particleCount);
-            }
-
-            particles.Clear();
-            for (int groupIndex = 0; groupIndex < particleGroups.Length; groupIndex++)
-            {
-                ParticleGroup group = particleGroups[groupIndex];
-                if (group != null && group.particles != null)
-                {
-                    group.particles.Clear();
-                }
-            }
-            int activeCount = 0;
-            for (int i = 0; i < particleCapacity; i++)
-            {
-                int offset = i * 4;
-                int groupIndex = (int)Math.Round(particlePositionReadback[offset + 3]);
-                if (groupIndex < 0 || groupIndex >= groupCount)
-                {
-                    Particle deadParticle = particleSlots[i];
-                    if (deadParticle != null && deadParticle.trails != null)
-                    {
-                        deadParticle.trails.Clear();
-                    }
-                    particleSlots[i] = null;
-                    continue;
-                }
-
-                Particle particle = particleSlots[i];
-                int generation = particleAuxReadback[particleCapacity * 3 + i];
-                if (particle == null)
-                {
-                    particle = new Particle();
-                    particleSlots[i] = particle;
-                }
-                else if (particleSlotGenerations[i] != generation && particle.trails != null)
-                {
-                    particle.trails.Clear();
-                }
-                particleSlotGenerations[i] = generation;
-                particle.parentParticleGroup = groupIndex < particleGroups.Length ? particleGroups[groupIndex] : null;
-                particle.age = particleAuxReadback[i];
-                particle.foundFood = particle.parentParticleGroup != null
-                    && particle.parentParticleGroup.ant
-                    && particleAuxReadback[particleCapacity * 4 + i] != 0;
-
-                Point3d origin = new Point3d(
-                    particlePositionReadback[offset],
-                    particlePositionReadback[offset + 1],
-                    particlePositionReadback[offset + 2]);
-
-                Vector3d xAxis = new Vector3d(
-                    particleDirectionReadback[offset],
-                    particleDirectionReadback[offset + 1],
-                    particleDirectionReadback[offset + 2]);
-
-                Vector3d yAxis = new Vector3d(
-                    particleYAxisReadback[offset],
-                    particleYAxisReadback[offset + 1],
-                    particleYAxisReadback[offset + 2]);
-
-                if (!xAxis.Unitize())
-                {
-                    xAxis = new Vector3d(1, 0, 0);
-                }
-
-                yAxis = OrthonormalYAxis(xAxis, yAxis);
-                particle.pPlane = new Plane(origin, xAxis, yAxis);
-
-                int parentIndex = (int)Math.Round(particleDirectionReadback[offset + 3]);
-                particle.parentVoxel = VoxelFromFlatIndex(voxels, parentIndex);
-                particle.age = particleAuxReadback[i];
-                particle.neighbourCount_Die = particleAuxReadback[particleCapacity + i];
-                particle.neighbourCount_Div = particleAuxReadback[particleCapacity * 2 + i];
-
-                if (particleYAxisReadback[offset + 3] > 0.5f)
-                {
-                    particle.trails.Clear();
-                }
-
-                if (previewBuildCache != null)
-                {
-                    previewBuildCache.AddParticle(particle);
-                }
-
-                particles.Add(particle);
-                if (particle.parentParticleGroup != null && particle.parentParticleGroup.particles != null)
-                {
-                    particle.parentParticleGroup.particles.Add(particle);
-                }
-                activeCount++;
-            }
-
-            particleCount = activeCount;
-
-            RecordTrails(particles, settings, iteration);
-
-            if (previewCache != null)
-            {
-                previewCache.Merge(previewBuildCache);
-                previewCache.CompleteBuild();
-                return true;
-            }
-
-            particles.PreviewCache.Invalidate(activeCount);
-            return false;
+            bool builtPreviewCache = outputSink.ApplyParticles(
+                new GpuParticleReadbackView(
+                    particleCapacity,
+                    particleCount,
+                    groupCount,
+                    particlePositionReadback,
+                    particleDirectionReadback,
+                    particleYAxisReadback,
+                    particleAuxReadback),
+                settings,
+                iteration,
+                buildPreviewCache);
+            particleCount = Math.Max(0, Math.Min(particleCapacity, outputSink.ParticleCount));
+            return builtPreviewCache;
         }
 
-        bool BuildPreviewCacheFromPositions(ParticleList particles)
+        bool ApplyPreviewPositions(float[] positionReadback)
         {
-            return BuildPreviewCacheFromPositions(particles, particlePositionReadback);
-        }
-
-        bool BuildPreviewCacheFromPositions(ParticleList particles, float[] positionReadback)
-        {
-            if (particles == null || particleCapacity <= 0)
+            if (particleCapacity <= 0)
             {
                 return false;
             }
 
-            ParticlePreviewCache previewCache = particles.PreviewCache;
-            ParticlePreviewBuildCache previewBuildCache = new ParticlePreviewBuildCache(particleCount);
-            previewCache.BeginBuild(particleCount);
-
-            int activeCount = 0;
-            for (int i = 0; i < particleCapacity; i++)
-            {
-                int offset = i * 4;
-                int groupIndex = (int)Math.Round(positionReadback[offset + 3]);
-                if (groupIndex < 0 || groupIndex >= groupCount)
-                {
-                    continue;
-                }
-
-                Particle particle = particleSlots[i];
-                if (particle == null)
-                {
-                    particle = new Particle();
-                    particle.parentParticleGroup = groupIndex < particleGroups.Length ? particleGroups[groupIndex] : null;
-                    particleSlots[i] = particle;
-                }
-
-                Point3d origin = new Point3d(
-                    positionReadback[offset],
-                    positionReadback[offset + 1],
-                    positionReadback[offset + 2]);
-
-                previewBuildCache.AddParticlePoint(particle, origin);
-                activeCount++;
-            }
-
-            previewCache.Merge(previewBuildCache);
-            previewCache.CompleteBuild();
-            previewCache.ParticleCount = activeCount;
-            return true;
-        }
-
-        void RecordTrails(ParticleList particles, SolverGpuSettings settings, int iteration)
-        {
-            if (particles == null)
-            {
-                return;
-            }
-
-            bool sampleTrail = settings.TrailFreq <= 1 || iteration % settings.TrailFreq == 0;
-            for (int i = 0; i < particles.Count; i++)
-            {
-                Particle particle = particles[i];
-                if (particle == null || particle.parentVoxel == null)
-                {
-                    continue;
-                }
-
-                if (settings.TrailSize <= 1)
-                {
-                    if (particle.trails.Count > 0)
-                    {
-                        particle.trails.Clear();
-                    }
-
-                    continue;
-                }
-
-                if (particle.trails.Capacity < settings.TrailSize)
-                {
-                    particle.trails.Capacity = settings.TrailSize;
-                }
-
-                Point3d origin = particle.pPlane.Origin;
-                if (sampleTrail)
-                {
-                    if (particle.trails.Count > 0)
-                    {
-                        particle.trails.Insert(0, origin);
-                    }
-                    else
-                    {
-                        particle.trails.Add(origin);
-                    }
-
-                    if (particle.trails.Count > settings.TrailSize)
-                    {
-                        particle.trails.RemoveAt(particle.trails.Count - 1);
-                    }
-                }
-                else if (particle.trails.Count > 0)
-                {
-                    particle.trails[0] = origin;
-                }
-                else
-                {
-                    particle.trails.Add(origin);
-                }
-            }
-        }
-
-        Voxel VoxelFromFlatIndex(VoxelField voxels, int index)
-        {
-            if (voxels == null || index < 0 || index >= voxelCount)
-            {
-                return null;
-            }
-            return voxels.CreateVoxel(index);
+            return outputSink.ApplyPreviewPositions(new GpuParticlePreviewReadbackView(
+                particleCapacity,
+                particleCount,
+                groupCount,
+                positionReadback));
         }
 
         int FlatIndex(int x, int y, int z)
         {
             return x * resY * resZ + y * resZ + z;
-        }
-
-        static Vector3d OrthonormalYAxis(Vector3d xAxis, Vector3d yAxis)
-        {
-            if (!yAxis.Unitize())
-            {
-                yAxis = Math.Abs(xAxis.Z) < 0.9
-                    ? Vector3d.CrossProduct(Vector3d.ZAxis, xAxis)
-                    : Vector3d.CrossProduct(Vector3d.YAxis, xAxis);
-            }
-
-            double dot = xAxis.X * yAxis.X + xAxis.Y * yAxis.Y + xAxis.Z * yAxis.Z;
-            yAxis -= xAxis * dot;
-
-            if (!yAxis.Unitize())
-            {
-                yAxis = Math.Abs(xAxis.Z) < 0.9
-                    ? Vector3d.CrossProduct(Vector3d.ZAxis, xAxis)
-                    : Vector3d.CrossProduct(Vector3d.YAxis, xAxis);
-                yAxis.Unitize();
-            }
-
-            return yAxis;
         }
 
         void EnsureWeights(int range)
@@ -2896,7 +2666,7 @@ namespace Nuclei4
                 return false;
             }
 
-            if (staticPreviewField == null)
+            if (!hasStaticPreviewInput)
             {
                 return false;
             }
@@ -3076,8 +2846,8 @@ namespace Nuclei4
                     y = ClampIndex(y, resY);
                     z = ClampIndex(z, resZ);
 
-                    int flatIndex = staticPreviewField.Data.FlatIndex(x, y, z);
-                    previewValues[v * width + u] = StaticVoxelFieldValue(staticPreviewField, flatIndex, fieldIndex);
+                    int flatIndex = FlatIndex(x, y, z);
+                    previewValues[v * width + u] = StaticVoxelFieldValue(flatIndex, fieldIndex);
                 }
             }
 
@@ -3146,7 +2916,7 @@ namespace Nuclei4
 
         float MaxVisibleStaticFieldValue(int fieldIndex, float minimumThreshold, float maximumThreshold)
         {
-            if (staticPreviewField == null)
+            if (!hasStaticPreviewInput)
             {
                 return 1.0f;
             }
@@ -3186,8 +2956,8 @@ namespace Nuclei4
                         continue;
                     }
 
-                    int flatIndex = staticPreviewField.Data.FlatIndex(x, y, z);
-                    float value = StaticVoxelFieldValue(staticPreviewField, flatIndex, fieldIndex);
+                    int flatIndex = FlatIndex(x, y, z);
+                    float value = StaticVoxelFieldValue(flatIndex, fieldIndex);
                     if (value > 0.01f && value >= minimumThreshold && value <= maximumThreshold && value > maximum)
                     {
                         maximum = value;
@@ -3198,12 +2968,40 @@ namespace Nuclei4
             return maximum > 0.0001f ? maximum : 1.0f;
         }
 
-        static float StaticVoxelFieldValue(VoxelField field, int flatIndex, int fieldIndex)
+        float StaticVoxelFieldValue(int flatIndex, int fieldIndex)
         {
-            if (field == null || !field.Data.IsActive(flatIndex)) return 0;
+            if (!hasStaticPreviewInput || flatIndex < 0 || flatIndex >= voxelCount || !StaticVoxelIsActive(flatIndex)) return 0;
 
-            double value = field.GetScalarValue(fieldIndex, flatIndex);
+            switch (fieldIndex)
+            {
+                case VoxelPreviewField.MinimumDensity:
+                    return StaticScalarFieldValue(staticMinimumDensityValues, staticMinimumDensityDefault, flatIndex);
+                case VoxelPreviewField.MaximumDensity:
+                    return StaticScalarFieldValue(staticMaximumDensityValues, staticMaximumDensityDefault, flatIndex);
+                case VoxelPreviewField.Speed:
+                    return StaticScalarFieldValue(staticSpeedValues, staticSpeedDefault, flatIndex);
+                case VoxelPreviewField.SensorDistance:
+                    return StaticScalarFieldValue(staticSensorDistanceValues, staticSensorDistanceDefault, flatIndex);
+                case VoxelPreviewField.SensorAngle:
+                    return StaticScalarFieldValue(staticSensorAngleValues, staticSensorAngleDefault, flatIndex);
+                case VoxelPreviewField.RotationAngle:
+                    return StaticScalarFieldValue(staticRotationAngleValues, staticRotationAngleDefault, flatIndex);
+                default:
+                    return 0;
+            }
+        }
 
+        bool StaticVoxelIsActive(int flatIndex)
+        {
+            return staticActiveVoxelFlags == null
+                || (staticActiveVoxelFlags[flatIndex >> 5] & (1u << (flatIndex & 31))) != 0;
+        }
+
+        static float StaticScalarFieldValue(float[] values, double defaultValue, int flatIndex)
+        {
+            double value = values != null && flatIndex < values.Length
+                ? values[flatIndex]
+                : defaultValue;
             if (double.IsNaN(value) || double.IsInfinity(value) || value < 0) return 0;
             return (float)value;
         }
@@ -3915,7 +3713,7 @@ namespace Nuclei4
             return true;
         }
 
-        void CreateParticleBuffers(SolverGpuInputSnapshot snapshot)
+        void CreateParticleBuffers(GpuSolverInput snapshot)
         {
             if (particleCapacity <= 0)
             {
@@ -3941,7 +3739,7 @@ namespace Nuclei4
         }
 
         void BuildParticleBufferData(
-            SolverGpuInputSnapshot snapshot,
+            GpuSolverInput snapshot,
             out float[] positions,
             out float[] directions,
             out float[] yAxes,
@@ -3996,7 +3794,7 @@ namespace Nuclei4
             }
         }
 
-        void CreateGroupBuffers(SolverGpuInputSnapshot snapshot)
+        void CreateGroupBuffers(GpuSolverInput snapshot)
         {
             if (groupCount <= 0)
             {
@@ -4011,7 +3809,7 @@ namespace Nuclei4
             groupColorDataView = CreateSrv(groupColorDataBuffer, groupCount);
         }
 
-        void CreateVoxelFlagBuffer(SolverGpuInputSnapshot snapshot)
+        void CreateVoxelFlagBuffer(GpuSolverInput snapshot)
         {
             UpdateOptionalUIntBuffer(snapshot.VoxelFlags, ref voxelFlagsBuffer, ref voxelFlagsView);
 
@@ -4036,7 +3834,7 @@ namespace Nuclei4
             ResetAuxiliaryState(snapshot);
         }
 
-        void ResetAuxiliaryState(SolverGpuInputSnapshot snapshot)
+        void ResetAuxiliaryState(GpuSolverInput snapshot)
         {
             context.ClearUnorderedAccessView(particleCountView, new Vortice.Mathematics.Int4(0));
             context.ClearUnorderedAccessView(depositView, new Vortice.Mathematics.Int4(0));
@@ -4099,32 +3897,32 @@ namespace Nuclei4
             }
         }
 
-        void UploadParticleAges(SolverGpuInputSnapshot snapshot)
+        void UploadParticleAges(GpuSolverInput snapshot)
         {
             if (particleCount == 0 || particleAgeOffset < 0) return;
 
             const int chunkSize = 262144;
             uint[] chunk = new uint[Math.Min(chunkSize, particleCount)];
-            int particleObjectCount = snapshot.Particles != null ? snapshot.Particles.Count : 0;
             for (int start = 0; start < particleCount; start += chunk.Length)
             {
                 int count = Math.Min(chunk.Length, particleCount - start);
                 for (int i = 0; i < count; i++)
                 {
                     int slot = start + i;
-                    Particle particle = slot < particleObjectCount ? snapshot.Particles[slot] : null;
-                    chunk[i] = (uint)Math.Max(0, particle != null ? particle.age : 0);
+                    chunk[i] = (uint)Math.Max(0,
+                        snapshot.ParticleAges != null && slot < snapshot.ParticleAges.Length
+                            ? snapshot.ParticleAges[slot]
+                            : 0);
                 }
                 UpdateUIntBufferRegion(depositBuffer, particleAgeOffset + start, chunk, count);
             }
         }
 
-        void UploadParticleAntStates(SolverGpuInputSnapshot snapshot)
+        void UploadParticleAntStates(GpuSolverInput snapshot)
         {
             if (particleCount == 0 || particleAntStateOffset < 0 || snapshot.ParticleAntStates == null) return;
 
-            int particleObjectCount = snapshot.Particles != null ? snapshot.Particles.Count : 0;
-            int uploadCount = Math.Min(particleCount, particleObjectCount);
+            int uploadCount = Math.Min(particleCount, snapshot.ParticleAntStates.Length);
             if (uploadCount == 0) return;
 
             const int chunkSize = 262144;
@@ -4150,7 +3948,7 @@ namespace Nuclei4
             context.UpdateSubresource<uint>(new ReadOnlySpan<uint>(values, 0, valueCount), buffer, 0, 0, 0, region);
         }
 
-        void CreateVoxelBehaviorBuffers(SolverGpuInputSnapshot snapshot)
+        void CreateVoxelBehaviorBuffers(GpuSolverInput snapshot)
         {
             UpdateOptionalFloatBuffer(snapshot.VoxelBehaviorData, ref voxelBehaviorBuffer, ref voxelBehaviorView, ref voxelBehaviorElementCount);
             UpdateOptionalFloat3Buffer(snapshot.VoxelVectorData, ref voxelVectorBuffer, ref voxelVectorView);
@@ -4312,7 +4110,23 @@ namespace Nuclei4
             return flags == null || flags.Length == ((count + 31) >> 5);
         }
 
-        static bool ValidBehaviorLayout(SolverGpuInputSnapshot snapshot, int count)
+        static bool ValidStaticPreviewLayout(GpuSolverInput snapshot, int count)
+        {
+            if (snapshot == null || !snapshot.HasStaticPreviewInput) return true;
+            return ValidOptionalStaticField(snapshot.StaticMinimumDensityValues, count)
+                && ValidOptionalStaticField(snapshot.StaticMaximumDensityValues, count)
+                && ValidOptionalStaticField(snapshot.StaticSpeedValues, count)
+                && ValidOptionalStaticField(snapshot.StaticSensorDistanceValues, count)
+                && ValidOptionalStaticField(snapshot.StaticSensorAngleValues, count)
+                && ValidOptionalStaticField(snapshot.StaticRotationAngleValues, count);
+        }
+
+        static bool ValidOptionalStaticField(float[] values, int count)
+        {
+            return values == null || values.Length == count;
+        }
+
+        static bool ValidBehaviorLayout(GpuSolverInput snapshot, int count)
         {
             if (snapshot == null) return false;
             return ValidPackedChannels(
@@ -4324,7 +4138,7 @@ namespace Nuclei4
                 snapshot.RotationAngleOffset);
         }
 
-        static bool ValidDensityLimitLayout(SolverGpuInputSnapshot snapshot, int count)
+        static bool ValidDensityLimitLayout(GpuSolverInput snapshot, int count)
         {
             if (snapshot == null) return false;
             return ValidPackedChannels(
@@ -4348,7 +4162,7 @@ namespace Nuclei4
             return hasChannel ? values != null : values == null || values.Length == 0;
         }
 
-        static bool HasVoxelBehavior(SolverGpuInputSnapshot snapshot)
+        static bool HasVoxelBehavior(GpuSolverInput snapshot)
         {
             return snapshot != null &&
                 ((snapshot.VoxelBehaviorData != null && snapshot.VoxelBehaviorData.Length > 0) ||
@@ -4358,7 +4172,7 @@ namespace Nuclei4
                  snapshot.RotationAngleDefault != 1);
         }
 
-        static bool HasVoxelDensityLimits(SolverGpuInputSnapshot snapshot)
+        static bool HasVoxelDensityLimits(GpuSolverInput snapshot)
         {
             return snapshot != null &&
                 ((snapshot.VoxelDensityLimits != null && snapshot.VoxelDensityLimits.Length > 0) ||
@@ -4366,7 +4180,7 @@ namespace Nuclei4
                  snapshot.MaximumDensityDefault >= 0);
         }
 
-        void ApplySnapshotChannelOffsets(SolverGpuInputSnapshot snapshot)
+        void ApplySnapshotChannelOffsets(GpuSolverInput snapshot)
         {
             speedOffset = hasVoxelBehavior ? snapshot.SpeedOffset : -1;
             sensorDistanceOffset = hasVoxelBehavior ? snapshot.SensorDistanceOffset : -1;
@@ -4380,6 +4194,24 @@ namespace Nuclei4
             rotationAngleDefault = snapshot.RotationAngleDefault;
             minimumDensityDefault = snapshot.MinimumDensityDefault;
             maximumDensityDefault = snapshot.MaximumDensityDefault;
+        }
+
+        void ApplyStaticPreviewInput(GpuSolverInput snapshot)
+        {
+            hasStaticPreviewInput = snapshot.HasStaticPreviewInput;
+            staticActiveVoxelFlags = snapshot.ActiveVoxelFlags;
+            staticMinimumDensityValues = snapshot.StaticMinimumDensityValues;
+            staticMaximumDensityValues = snapshot.StaticMaximumDensityValues;
+            staticSpeedValues = snapshot.StaticSpeedValues;
+            staticSensorDistanceValues = snapshot.StaticSensorDistanceValues;
+            staticSensorAngleValues = snapshot.StaticSensorAngleValues;
+            staticRotationAngleValues = snapshot.StaticRotationAngleValues;
+            staticMinimumDensityDefault = snapshot.StaticMinimumDensityDefault;
+            staticMaximumDensityDefault = snapshot.StaticMaximumDensityDefault;
+            staticSpeedDefault = snapshot.StaticSpeedDefault;
+            staticSensorDistanceDefault = snapshot.StaticSensorDistanceDefault;
+            staticSensorAngleDefault = snapshot.StaticSensorAngleDefault;
+            staticRotationAngleDefault = snapshot.StaticRotationAngleDefault;
         }
 
         static void DisposeOptionalBuffer(ref ID3D11Buffer buffer, ref ID3D11ShaderResourceView view)
@@ -4657,8 +4489,9 @@ namespace Nuclei4
             context.CSSetShader(null);
         }
 
-        static void CreateDevice(out ID3D11Device device, out ID3D11DeviceContext context)
+        static void CreateDevice(out ID3D11Device device, out ID3D11DeviceContext context, out bool softwareFallback)
         {
+            softwareFallback = false;
             FeatureLevel[] levels = new FeatureLevel[] { FeatureLevel.Level_11_0 };
             FeatureLevel featureLevel;
 
@@ -4676,6 +4509,7 @@ namespace Nuclei4
                 return;
             }
 
+            softwareFallback = true;
             result = D3D11.D3D11CreateDevice(
                 IntPtr.Zero,
                 DriverType.Warp,
