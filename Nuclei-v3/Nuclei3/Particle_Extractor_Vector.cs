@@ -11,7 +11,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Particle_Extractor_Vector class.
         /// </summary>
         public Particle_Extractor_Vector()
-          : base("Extract Particle Vectors", "Particle Vectors",
+          : base("Extract Particle Vectors", "Extract Particle Vectors",
               "Extract Particle Directions",
               "Nuclei3", " Particles")
         {

@@ -1537,7 +1537,10 @@ namespace Nuclei3
                 return;
             }
 
-            int trailSize = ClampTrailPreviewSizeForParticleCount(settings.TrailSize);
+            // The solver selects the active history size before each step. Re-reading
+            // TrailSize here would resize and clear a hidden two-sample history on
+            // every iteration, so dispatch into the texture that is already active.
+            int trailSize = particleTrailPreviewTrailSize;
             if (trailSize <= 1)
             {
                 return;

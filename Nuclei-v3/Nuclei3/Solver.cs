@@ -31,7 +31,7 @@ public class Solver : GH_Component
         /// Initializes a new instance of the Solver class.
         /// </summary>
         public Solver()
-          : base("Nuclei3 Solver", "Solver",
+          : base("Nuclei3 Solver", "Nuclei3 Solver",
               "Where the magic happens",
               "Nuclei3", " Solver")
         {

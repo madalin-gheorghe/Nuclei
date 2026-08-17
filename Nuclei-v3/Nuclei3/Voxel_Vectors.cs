@@ -12,7 +12,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Voxel_Vectors class.
         /// </summary>
         public Voxel_Vectors()
-          : base("Define Voxel Vectors", "Voxel Vectors",
+          : base("Define Voxel Vectors", "Define Voxel Vectors",
               "Define Voxel Vector Field",
               "Nuclei3", " Environment")
         {

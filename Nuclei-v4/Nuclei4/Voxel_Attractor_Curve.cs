@@ -17,7 +17,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Voxel_CurveAttractor class.
         /// </summary>
         public Voxel_Attractor_Curve()
-          : base("Curve Attractor for Voxels", "Curve Attractor",
+          : base("Curve Attractor for Voxels", "Curve Attractor for Voxels",
               "Use Curves as Attractors for Voxel Centers",
               "Nuclei4", " Environment")
         {

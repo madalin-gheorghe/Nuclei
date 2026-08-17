@@ -17,7 +17,7 @@ namespace Nuclei3
         /// Initializes a new instance of the ParticleConstructor class.
         /// </summary>
         public ParticleGroup_Constructor_Slime()
-          : base("Construct Slime Particles", "Slime Particles",
+          : base("Construct Slime Particles", "Construct Slime Particles",
               "Construct and Define Slime Particle Properties",
               "Nuclei4", " Particles")
         {

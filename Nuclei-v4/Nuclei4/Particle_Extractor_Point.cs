@@ -12,7 +12,7 @@ namespace Nuclei3
         /// Initializes a new instance of the ParticleExtract class.
         /// </summary>
         public Particle_Extractor_Point()
-          : base("Extract Particle Positions", "Particle Positions",
+          : base("Extract Particle Positions", "Extract Particle Positions",
               "Extract Particle Positions",
               "Nuclei4", " Particles")
         {

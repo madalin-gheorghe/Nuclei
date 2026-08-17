@@ -17,7 +17,7 @@ namespace Nuclei3
         /// Initializes a new instance of the EnvironmentValues class.
         /// </summary>
         public Voxel_Values()
-          : base("Define Voxel Values", "Voxel Values", 
+          : base("Define Voxel Values", "Define Voxel Values",
               "Define Voxel Differentiated Values",
               "Nuclei3", " Environment")
         {

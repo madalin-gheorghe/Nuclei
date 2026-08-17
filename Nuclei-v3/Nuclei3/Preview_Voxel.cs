@@ -135,8 +135,6 @@ namespace Nuclei3
             initializeGlobalVoxelColors();
             initializeCustomColour();
 
-            disableGpuDensityPreview();
-
             if (voxel != null && !this.Hidden)
             {
                 //determine voxel settings
@@ -319,8 +317,6 @@ namespace Nuclei3
         {
             base.DrawViewportMeshes(args);
 
-            if (gpuDensityPreviewActive) return;
-
             if (Hidden || Locked || voxelPointCloud == null || voxelPointCloud.Count == 0) return;
 
             //draw background polygon
@@ -346,21 +342,12 @@ namespace Nuclei3
 
         public override BoundingBox ClippingBox
         {
-            get
-            {
-                if (gpuDensityPreviewActive && gpuDensityClippingBox.IsValid)
-                {
-                    return gpuDensityClippingBox;
-                }
-
-                return clippingBox;
-            }
+            get { return clippingBox; }
         }
 
         public override void RemovedFromDocument(GH_Document document)
         {
             ObjectChanged -= previewObjectChanged;
-            NucleiGpuDisplayManager.DisableVoxelDensityPreview(InstanceGuid);
             base.RemovedFromDocument(document);
         }
 
@@ -382,153 +369,9 @@ namespace Nuclei3
             }
         }
 
-        internal bool WantsGpuDensityPreview
-        {
-            get { return false; }
-        }
-
-        internal bool WantsGpuDynamicDensityPreview
-        {
-            get { return false; }
-        }
-
-        internal int GpuDensityPreviewScale
-        {
-            get { return 1; }
-        }
-
-        internal bool WantsGpuVoxelPreview
-        {
-            get { return false; }
-        }
-
         internal bool WantsSolverVoxelOutput
         {
             get { return !Hidden && !Locked; }
-        }
-
-        internal GpuDensityFieldPreviewFrame GetGpuDensityFieldPreviewFrame()
-        {
-            if (!gpuDensityPreviewActive || !WantsGpuVoxelPreview) return null;
-
-            SolverGPU solver = gpuDensitySolver;
-            if (solver == null && !NucleiGpuDisplayManager.TryGetSolverForVoxels(voxel, out solver))
-            {
-                return null;
-            }
-
-            int currentValueIndex = CurrentValueIndex();
-            GpuDensityFieldPreviewFrame frame = solver.GetDensityFieldPreviewFrame(currentValueIndex, ValidFloat(min, 0), ValidFloat(max, float.MaxValue), GpuDensityPreviewScale);
-            if (frame == null || !frame.IsValid)
-            {
-                return null;
-            }
-
-            applyGpuPreviewStyle(frame, currentValueIndex);
-            gpuDensitySolver = solver;
-            gpuDensityClippingBox = frame.ClippingBox;
-            return frame;
-        }
-
-        internal void RecordGpuDensityFieldPreviewDrawTiming(long drawTicks)
-        {
-            if (gpuDensitySolver != null)
-            {
-                gpuDensitySolver.RecordDensityFieldPreviewDrawTiming(drawTicks);
-            }
-        }
-
-        bool tryUseGpuDensityPreview()
-        {
-            if (voxel == null || !WantsGpuVoxelPreview) return false;
-
-            SolverGPU solver;
-            if (!NucleiGpuDisplayManager.TryGetSolverForVoxels(voxel, out solver))
-            {
-                return false;
-            }
-
-            int currentValueIndex = CurrentValueIndex();
-            GpuDensityFieldPreviewFrame frame = solver.GetDensityFieldPreviewFrame(currentValueIndex, ValidFloat(min, 0), ValidFloat(max, float.MaxValue), GpuDensityPreviewScale);
-            if (frame == null || !frame.IsValid)
-            {
-                return false;
-            }
-
-            applyGpuPreviewStyle(frame, currentValueIndex);
-            clearPointCloudPreview();
-            gpuDensitySolver = solver;
-            gpuDensityPreviewActive = true;
-            gpuDensityClippingBox = frame.ClippingBox;
-            NucleiGpuDisplayManager.SetVoxelDensityPreview(this);
-            return true;
-        }
-
-        void applyGpuPreviewStyle(GpuDensityFieldPreviewFrame frame, int currentValueIndex)
-        {
-            if (frame == null) return;
-
-            frame.ValueIndex = currentValueIndex;
-            frame.MinimumThreshold = ValidFloat(min, 0);
-            frame.MaximumThreshold = ValidFloat(max, float.MaxValue);
-            if (frame.MaximumThreshold < frame.MinimumThreshold)
-            {
-                float temp = frame.MinimumThreshold;
-                frame.MinimumThreshold = frame.MaximumThreshold;
-                frame.MaximumThreshold = temp;
-            }
-
-            bool useCustomColor = colour.R != 0 || colour.G != 0 || colour.B != 0;
-            frame.UseCustomColor = useCustomColor;
-            frame.ColorR = colour.R / 255.0f;
-            frame.ColorG = colour.G / 255.0f;
-            frame.ColorB = colour.B / 255.0f;
-            frame.ColorA = colour.A > 0 ? colour.A / 255.0f : 1.0f;
-            frame.VolumeOpacity = PreviewVolumeOpacity;
-            frame.VolumeContrast = PreviewVolumeContrast;
-            frame.VolumeSampleCount = PreviewVolumeSampleCount;
-            frame.VolumeRenderMode = PreviewVolumeRenderMode;
-            frame.PreviewScale = frame.VolumeContrast;
-        }
-
-        protected virtual float PreviewVolumeOpacity
-        {
-            get { return 0.8f; }
-        }
-
-        protected virtual float PreviewVolumeContrast
-        {
-            get { return 1.5f; }
-        }
-
-        protected virtual int PreviewVolumeSampleCount
-        {
-            get { return 0; }
-        }
-
-        protected virtual int PreviewVolumeRenderMode
-        {
-            get { return 0; }
-        }
-
-        static float ValidFloat(double value, float fallback)
-        {
-            if (double.IsNaN(value) || double.IsInfinity(value)) return fallback;
-            if (value > float.MaxValue) return float.MaxValue;
-            if (value < -float.MaxValue) return -float.MaxValue;
-            return (float)value;
-        }
-
-        void disableGpuDensityPreview()
-        {
-            if (gpuDensityPreviewActive)
-            {
-                NucleiGpuDisplayManager.DisableVoxelDensityPreview(InstanceGuid);
-            }
-
-            gpuDensityPreviewActive = false;
-            gpuDensitySolver = null;
-            gpuDensityClippingBox = BoundingBox.Empty;
         }
 
         int CurrentValueIndex()
@@ -616,7 +459,6 @@ namespace Nuclei3
         {
             voxel = null;
             clearPointCloudPreview();
-            disableGpuDensityPreview();
             invalidateStaticPreviewCache();
         }
 
@@ -1009,9 +851,6 @@ namespace Nuclei3
         List<StablePointBucket> stablePointBuckets;
         Mesh planarPreviewMesh;
         BoundingBox clippingBox = BoundingBox.Empty;
-        bool gpuDensityPreviewActive = false;
-        SolverGPU gpuDensitySolver;
-        BoundingBox gpuDensityClippingBox = BoundingBox.Empty;
         bool staticPreviewCacheValid;
         Voxel[,,] staticPreviewCacheVoxels;
         VoxelGridData staticPreviewCacheData;

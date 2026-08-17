@@ -19,7 +19,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Voxel_Extractor_Density class.
         /// </summary>
         public Voxel_Extractor_Values()
-          : base("Extract Voxel Values", "Voxel Values",
+          : base("Extract Voxel Values", "Extract Voxel Values",
               "Extract Voxel Values",
               "Nuclei4", " Environment")
         {

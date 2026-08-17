@@ -77,13 +77,26 @@ namespace Nuclei3
                     continue;
                 }
 
-                if (!Globals.tridimensional && !drewBackground)
+                if (!Globals.tridimensional
+                    && !drewBackground
+                    && !NucleiGpuDisplayManager.HasActivePlanarVoxelDensityPreview())
                 {
                     e.Display.DrawPolygon(Globals.bgPolygon, Color.Black, true);
                     drewBackground = true;
                 }
 
-                ParticleTrailD3DRenderer.TryDraw(snapshot[i].InstanceGuid, e, frame);
+                if (!ParticleTrailD3DRenderer.TryDraw(snapshot[i].InstanceGuid, e, frame)
+                    && frame.CpuBatches != null)
+                {
+                    for (int batchIndex = 0; batchIndex < frame.CpuBatches.Length; batchIndex++)
+                    {
+                        CpuParticleTrailPreviewBatch batch = frame.CpuBatches[batchIndex];
+                        if (batch != null && batch.Lines != null && batch.Lines.Length > 0)
+                        {
+                            e.Display.DrawLines(batch.Lines, batch.Color, 1);
+                        }
+                    }
+                }
             }
         }
 
@@ -101,6 +114,7 @@ namespace Nuclei3
     internal sealed class ParticleTrailPreviewDisplayFrame
     {
         public GpuParticleTrailPreviewFrame GpuFrame;
+        public CpuParticleTrailPreviewBatch[] CpuBatches;
         public Color FreshColor;
         public Color OldColor;
         public Color[] FreshColors;
@@ -110,5 +124,29 @@ namespace Nuclei3
         public double DepthFocus;
         public BoundingBox ClippingBox;
         public bool HasPoint;
+    }
+
+    internal sealed class CpuParticleTrailPreviewFrame
+    {
+        public CpuParticleTrailPreviewBatch[] Batches;
+        public BoundingBox ClippingBox;
+        public int SegmentCount;
+
+        public bool IsValid
+        {
+            get
+            {
+                return Batches != null
+                    && Batches.Length > 0
+                    && SegmentCount > 0
+                    && ClippingBox.IsValid;
+            }
+        }
+    }
+
+    internal sealed class CpuParticleTrailPreviewBatch
+    {
+        public Line[] Lines;
+        public Color Color;
     }
 }

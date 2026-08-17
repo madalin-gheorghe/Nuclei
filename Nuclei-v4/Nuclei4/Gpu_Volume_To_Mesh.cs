@@ -13,7 +13,7 @@ namespace Nuclei3
         public GpuVolumeToMesh()
           : base(
                 "Nuclei4 GPU Volume To Mesh",
-                "GPU Volume Mesh",
+                "Nuclei4 GPU Volume To Mesh",
                 "Extracts a Rhino mesh directly from the Solver GPU density field",
                 "Nuclei4",
                 "Voxels")

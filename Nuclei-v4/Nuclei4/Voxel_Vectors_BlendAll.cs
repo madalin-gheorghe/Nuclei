@@ -8,7 +8,7 @@ namespace Nuclei3
     public class Voxel_Vectors_BlendAll : GH_Component
     {
         public Voxel_Vectors_BlendAll()
-          : base("Voxel Vectors Blend", "Blend Vectorfield",
+          : base("Voxel Vectors Blend", "Voxel Vectors Blend",
               "Blend All Vectors By Averaging Their Neighbours",
               "Nuclei4", " Environment")
         {

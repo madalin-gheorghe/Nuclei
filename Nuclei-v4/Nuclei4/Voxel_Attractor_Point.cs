@@ -18,7 +18,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Voxel_PointAttractor class.
         /// </summary>
         public Voxel_Attractor_Point()
-          : base("Point Attractor for Voxels", "Point Attractor",
+          : base("Point Attractor for Voxels", "Point Attractor for Voxels",
               "Use Points as Attractors for Voxel Centers",
               "Nuclei4", " Environment")
         {

@@ -13,7 +13,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Particle_Settings class.
         /// </summary>
         public Particle_Settings_Ant_Slime()
-          : base("Particle Settings Slime Ant Interaction", "Ant and Slime Particle Interaction Settings",
+          : base("Particle Settings Slime Ant Interaction", "Particle Settings Slime Ant Interaction",
               "Sets Up Species Interaction Settings",
               "Nuclei4", " Particles")
         {

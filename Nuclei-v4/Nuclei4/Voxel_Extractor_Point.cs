@@ -14,7 +14,7 @@ namespace Nuclei3
         /// Initializes a new instance of the VoxelPosition class.
         /// </summary>
         public Voxel_Extractor_Point()
-          : base("Extract Voxel Positions", "Voxel Centers",
+          : base("Extract Voxel Positions", "Extract Voxel Positions",
               "Extract Voxel Positions",
               "Nuclei4", " Environment")
         {

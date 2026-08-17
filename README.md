@@ -37,8 +37,10 @@ systems, CPU previews, and the Nuclei-to-Dendro bridge. It contains no GPU solve
 V4.x targets Rhino 9 on Windows. It includes the Direct3D 11 compute-shader solver,
 adaptive large voxel fields, GPU-resident dynamic maps and previews, ordered trails,
 dynamic populations, ant food and pheromone behavior, reliable hard resets, live
-wrap changes, on-demand paused-state extraction, and GPU volume-to-mesh conversion
-with scalar and mesh smoothing.
+wrap changes, on-demand paused-state extraction and preview refresh, and GPU
+volume-to-mesh conversion with scalar and mesh smoothing. Its trail preview keeps
+the latest ordered GPU segment current while hidden, so enabling the preview on a
+paused solver does not connect stale particle positions.
 
 The CPU V3 implementation remains the reference whenever behavior is translated to
 the GPU. Known differences are documented in

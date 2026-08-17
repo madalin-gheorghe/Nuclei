@@ -12,7 +12,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Voxel_Vectors class.
         /// </summary>
         public Voxel_Vectors_Discretize()
-          : base("Define Discrete Vectors", "Voxel Discrete Vectors",
+          : base("Define Discrete Vectors", "Define Discrete Vectors",
               "Define Voxel Discrete Vectors",
               "Nuclei3", " Environment")
         {

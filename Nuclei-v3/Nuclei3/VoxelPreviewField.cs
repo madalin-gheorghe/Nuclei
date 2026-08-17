@@ -31,10 +31,5 @@ namespace Nuclei3
                 || valueIndex == AntPheromones
                 || valueIndex == AntsAndSlime;
         }
-
-        public static bool IsGpuSupported(int valueIndex)
-        {
-            return IsStatic(valueIndex) || valueIndex == SlimeChemoattractants;
-        }
     }
 }

@@ -12,7 +12,7 @@ namespace Nuclei3
         /// Initializes a new instance of the DynamicPopulation class.
         /// </summary>
         public Particle_Settings_Division()
-          : base("Particle Division Settings", "Division Settings",
+          : base("Particle Division Settings", "Particle Division Settings",
               "Sets Up Dynamic Population Division Settings. Divides if Neighbour Count is INSIDE Range",
               "Nuclei4", " Particles")
         {

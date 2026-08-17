@@ -11,7 +11,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Particle_Extractor_Vector class.
         /// </summary>
         public Particle_Extractor_NeighbourCount()
-          : base("Extract Particle Neighbour Count", "Particle Neighbour Count",
+          : base("Extract Particle Neighbour Count", "Extract Particle Neighbour Count",
               "Extract Particle Neighbour Count",
               "Nuclei3", " Particles")
         {

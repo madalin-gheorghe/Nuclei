@@ -18,7 +18,7 @@ namespace Nuclei3
         public NucleiToDendro()
           : base(
                 "Nuclei3 To Dendro Volume",
-                "To Dendro",
+                "Nuclei3 To Dendro Volume",
                 "Converts a Nuclei voxel field into a native Dendro volume on demand",
                 "Nuclei3",
                 "Voxels")

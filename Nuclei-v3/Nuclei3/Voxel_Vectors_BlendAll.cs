@@ -12,7 +12,7 @@ namespace Nuclei3
         /// Initializes a new instance of the Voxel_Vectors_BlendAll class.
         /// </summary>
         public Voxel_Vectors_BlendAll()
-          : base("Voxel Vectors Blend", "Blend Vectorfield",
+          : base("Voxel Vectors Blend", "Voxel Vectors Blend",
               "Blend All Vectors By Averaging Their Neighbours",
               "Nuclei3", " Environment")
         {
