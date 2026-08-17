@@ -2,7 +2,7 @@ using System;
 
 using Rhino.Geometry;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     internal sealed class GpuParticleTrailPreviewFrame
     {

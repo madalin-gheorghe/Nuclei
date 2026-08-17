@@ -11,7 +11,7 @@ using System.Windows.Forms;
 using GH_IO.Serialization;
 using static Rhino.UI.Fonts;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class Preview_Voxel : GH_Component
     {
@@ -1335,7 +1335,7 @@ namespace Nuclei3
             {
                 //You can add image files to your project resources and access them like this:
                 // return Resources.IconForThisComponent;
-                return Nuclei3.Properties.Resources.PreviewVoxelDensities;
+                return Nuclei4.Properties.Resources.PreviewVoxelDensities;
             }
         }
 

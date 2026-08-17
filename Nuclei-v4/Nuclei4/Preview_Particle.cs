@@ -6,7 +6,7 @@ using Grasshopper.Kernel;
 using Rhino.Geometry;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class Preview_Particle : GH_Component
     {
@@ -335,7 +335,7 @@ namespace Nuclei3
             {
                 //You can add image files to your project resources and access them like this:
                 // return Resources.IconForThisComponent;
-                return Nuclei3.Properties.Resources.PreviewParticles;
+                return Nuclei4.Properties.Resources.PreviewParticles;
             }
         }
 

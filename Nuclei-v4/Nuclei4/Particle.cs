@@ -12,7 +12,7 @@ using Rhino;
 using System.Diagnostics.Eventing.Reader;
 using System.Drawing;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class ParticlePreviewCache
     {

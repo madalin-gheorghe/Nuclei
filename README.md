@@ -42,6 +42,9 @@ volume-to-mesh conversion with scalar and mesh smoothing. Its trail preview keep
 the latest ordered GPU segment current while hidden, so enabling the preview on a
 paused solver does not connect stale particle positions.
 
+V4 source types now use the `Nuclei4` namespace while preserving the existing
+`Nuclei4.gha` assembly name and all Grasshopper component identities.
+
 The CPU V3 implementation remains the reference whenever behavior is translated to
 the GPU. Known differences are documented in
 [CPU to GPU Behavior Parity](docs/GPU_BEHAVIOR_PARITY.md).

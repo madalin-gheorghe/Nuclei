@@ -4,7 +4,7 @@ using System.Diagnostics;
 using Rhino.Display;
 using Rhino.Geometry;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     internal sealed class ParticlePreviewDisplayConduit : DisplayConduit
     {

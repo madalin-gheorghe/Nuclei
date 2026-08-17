@@ -4,7 +4,7 @@ using Rhino.Geometry;
 using System;
 using System.Collections.Generic;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class Particle_Extractor_Point : GH_Component
     {
@@ -98,7 +98,7 @@ namespace Nuclei3
             {
                 //You can add image files to your project resources and access them like this:
                 // return Resources.IconForThisComponent;
-                return Nuclei3.Properties.Resources.ParticlePositions;
+                return Nuclei4.Properties.Resources.ParticlePositions;
             }
         }
 

@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     internal sealed class VoxelSelectionBuilder
     {

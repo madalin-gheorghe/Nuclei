@@ -81,7 +81,7 @@ internal static class Program
         object sparse = Invoke(baseData, "WithActiveMask", sparseMask);
         VerifySelection(sparse, sparseMask, sparseExpected, "sparse selection");
 
-        Type builderType = RequiredType("Nuclei3.VoxelSelectionBuilder");
+        Type builderType = RequiredType("Nuclei4.VoxelSelectionBuilder");
         object differenceBuilder = Activator.CreateInstance(builderType, count)!;
         Invoke(differenceBuilder, "UnionWith", dense);
         Invoke(differenceBuilder, "ExceptWith", sparse);
@@ -260,8 +260,8 @@ internal static class Program
         second = Invoke(second, "WithScalarValues", 2, new List<double> { 2, 4, 6, 8 });
         second = Invoke(second, "WithActiveMask", new[] { true, true, false, true });
 
-        Type combinerType = RequiredType("Nuclei3.VoxelGridCombiner");
-        Type modeType = RequiredType("Nuclei3.VoxelGridMergeMode");
+        Type combinerType = RequiredType("Nuclei4.VoxelGridCombiner");
+        Type modeType = RequiredType("Nuclei4.VoxelGridMergeMode");
         object average = Enum.Parse(modeType, "Average");
         IList inputs = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(GridType))!;
         inputs.Add(first);
@@ -296,19 +296,19 @@ internal static class Program
         initialDensity[densityIndex] = 0.6f;
         object inputField = CreateField(WithInitialDensity(CreateFullDomain(17, 9, 3), initialDensity));
         object snapshot = CaptureVoxelSnapshot(inputField);
-        Type particleGroupType = RequiredType("Nuclei3.ParticleGroup");
+        Type particleGroupType = RequiredType("Nuclei4.ParticleGroup");
         SnapshotType.GetField("ParticleGroups")!.SetValue(snapshot, Array.CreateInstance(particleGroupType, 0));
 
-        Type settingsType = RequiredType("Nuclei3.SolverGpuSettings");
+        Type settingsType = RequiredType("Nuclei4.SolverGpuSettings");
         object settings = Activator.CreateInstance(settingsType)!;
-        Type engineType = RequiredType("Nuclei3.GpuFullSlimeSolverEngine");
+        Type engineType = RequiredType("Nuclei4.GpuFullSlimeSolverEngine");
         ConstructorInfo constructor = engineType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
             .Single(item => item.GetParameters().Length == 7);
 
         object engine = constructor.Invoke(new object[] { snapshot, settings, true, false, false, 0, 1 });
         try
         {
-            Type dimensionType = RequiredType("Nuclei3.SolverGpuDimensionMode");
+            Type dimensionType = RequiredType("Nuclei4.SolverGpuDimensionMode");
             object dimensionMode = InvokeStatic(dimensionType, "FromResolution", 17, 9, 3);
             Invoke(engine, "Step", Field<object>(snapshot, "Field"), null, settings, dimensionMode, 2, false, false, false);
         }
@@ -342,7 +342,7 @@ internal static class Program
     static void TestGpuWrapTransitions()
     {
         object snapshot = CaptureVoxelSnapshot(CreateField(CreateFullDomain(5, 5, 1)));
-        Type groupType = RequiredType("Nuclei3.ParticleGroup");
+        Type groupType = RequiredType("Nuclei4.ParticleGroup");
         object group = Activator.CreateInstance(groupType)!;
         Array groups = Array.CreateInstance(groupType, 1);
         groups.SetValue(group, 0);
@@ -361,13 +361,13 @@ internal static class Program
         SnapshotType.GetField("GroupData1")!.SetValue(snapshot, new[] { 0.0f, 0.0f, 0.0f, 100.0f });
         SnapshotType.GetField("GroupColorData")!.SetValue(snapshot, new float[4]);
 
-        Type settingsType = RequiredType("Nuclei3.SolverGpuSettings");
+        Type settingsType = RequiredType("Nuclei4.SolverGpuSettings");
         object settings = Activator.CreateInstance(settingsType)!;
         FieldInfo wrapField = settingsType.GetField("WrapBoundaries")!;
         wrapField.SetValue(settings, false);
-        Type dimensionType = RequiredType("Nuclei3.SolverGpuDimensionMode");
+        Type dimensionType = RequiredType("Nuclei4.SolverGpuDimensionMode");
         object dimensionMode = InvokeStatic(dimensionType, "FromResolution", 5, 5, 1);
-        Type engineType = RequiredType("Nuclei3.GpuFullSlimeSolverEngine");
+        Type engineType = RequiredType("Nuclei4.GpuFullSlimeSolverEngine");
         ConstructorInfo constructor = engineType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
             .Single(item => item.GetParameters().Length == 7);
 
@@ -397,7 +397,7 @@ internal static class Program
     static void TestScatteredParticlePlacement()
     {
         object data = CreateFullDomain(8, 8, 1);
-        Type generatorType = RequiredType("Nuclei3.ParticleGenerator");
+        Type generatorType = RequiredType("Nuclei4.ParticleGenerator");
         int flatIndex = 3 * 8 + 4;
         bool movedFromCenter = false;
         double firstX = 0;
@@ -452,7 +452,7 @@ internal static class Program
 
     static int[] ResolveVolumePreviewLayout(int x, int y, int z)
     {
-        Type engineType = RequiredType("Nuclei3.GpuFullSlimeSolverEngine");
+        Type engineType = RequiredType("Nuclei4.GpuFullSlimeSolverEngine");
         object engine = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(engineType);
         engineType.GetField("resX", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(engine, x);
         engineType.GetField("resY", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(engine, y);
@@ -502,7 +502,7 @@ internal static class Program
 
     static object WithInitialDensity(object data, float[] density)
     {
-        Type mapType = RequiredType("Nuclei3.VoxelScalarMap");
+        Type mapType = RequiredType("Nuclei4.VoxelScalarMap");
         object map = Activator.CreateInstance(mapType, new object[] { 0.0, density })!;
         GridType.GetField("Density")!.SetValue(data, map);
         return data;
@@ -524,7 +524,7 @@ internal static class Program
     static void LoadNuclei()
     {
         string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-        string nucleiDirectory = Path.Combine(root, "Nuclei", "bin", "Release", "net7.0-windows");
+        string nucleiDirectory = Path.Combine(root, "Nuclei-v4", "Nuclei4", "bin", "Release", "net7.0-windows");
         string packageRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
 
         AssemblyLoadContext.Default.Resolving += (_, name) =>
@@ -544,9 +544,9 @@ internal static class Program
         };
 
         NucleiAssembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.Combine(nucleiDirectory, "Nuclei4.gha"));
-        GridType = RequiredType("Nuclei3.VoxelGridData");
-        FieldType = RequiredType("Nuclei3.VoxelField");
-        SnapshotType = RequiredType("Nuclei3.SolverGpuInputSnapshot");
+        GridType = RequiredType("Nuclei4.VoxelGridData");
+        FieldType = RequiredType("Nuclei4.VoxelField");
+        SnapshotType = RequiredType("Nuclei4.SolverGpuInputSnapshot");
     }
 
     static object Invoke(object target, string method, params object[] arguments)

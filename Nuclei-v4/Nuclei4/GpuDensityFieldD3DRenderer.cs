@@ -13,7 +13,7 @@ using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     internal sealed class GpuDensityFieldD3DRenderer
     {
@@ -395,7 +395,7 @@ namespace Nuclei3
 
         static byte[] LoadShaderBytecode(string shaderName, string entryPoint, string profile)
         {
-            string resourceName = "Nuclei3.GpuShaders." + shaderName + ".cso";
+            string resourceName = "Nuclei4.GpuShaders." + shaderName + ".cso";
             using (Stream stream = typeof(GpuDensityFieldD3DRenderer).Assembly.GetManifestResourceStream(resourceName))
             {
                 if (stream != null)

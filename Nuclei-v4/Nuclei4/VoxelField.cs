@@ -5,7 +5,7 @@ using System.Threading;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Types;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     /// <summary>
     /// Lightweight runtime payload for a voxel field. Static maps are immutable and

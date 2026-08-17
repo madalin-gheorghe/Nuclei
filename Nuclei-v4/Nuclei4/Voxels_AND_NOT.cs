@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class Voxels_AND_NOT : GH_Component
     {
@@ -129,7 +129,7 @@ namespace Nuclei3
             {
                 //You can add image files to your project resources and access them like this:
                 // return Resources.IconForThisComponent;
-                return Nuclei3.Properties.Resources.VoxelsDifference;
+                return Nuclei4.Properties.Resources.VoxelsDifference;
             }
         }
 

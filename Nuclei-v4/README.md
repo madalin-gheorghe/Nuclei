@@ -17,6 +17,5 @@ Open `Nuclei-v4.sln`, or validate without installing into Grasshopper:
 dotnet build .\Nuclei4\Nuclei4.csproj -c Release -f net7.0-windows -p:SkipGrasshopperInstall=true
 ```
 
-The source namespace remains `Nuclei3` for embedded-resource compatibility. The
-assembly output is `Nuclei4.gha`; this is intentional and does not affect the V4
-component identity.
+The source namespace and assembly identity are both `Nuclei4`. The assembly
+output remains `Nuclei4.gha`, and the V4 component identity is unchanged.

@@ -4,7 +4,7 @@ using System.Diagnostics;
 
 using Rhino.Display;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     internal static class NucleiGpuDisplayManager
     {

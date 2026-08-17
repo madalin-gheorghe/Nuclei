@@ -4,7 +4,7 @@ using Grasshopper.Kernel;
 
 using Rhino.Geometry;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public sealed class GpuVolumeToMesh : GH_Component
     {

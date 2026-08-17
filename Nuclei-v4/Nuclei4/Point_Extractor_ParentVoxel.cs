@@ -11,7 +11,7 @@ using Grasshopper.Kernel.Types;
 using Grasshopper;
 using System.Diagnostics;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class Point_Extractor_ParentVoxel : GH_Component
     {
@@ -133,7 +133,7 @@ namespace Nuclei3
             {
                 //You can add image files to your project resources and access them like this:
                 // return Resources.IconForThisComponent;
-                return Nuclei3.Properties.Resources.Point_ParentVoxel;
+                return Nuclei4.Properties.Resources.Point_ParentVoxel;
             }
         }
 

@@ -16,6 +16,7 @@ packages/
 .diag-work/
 .build-appdata*/
 .codex-build-appdata/
+.dotnet/
 .publish-work/
 .v3-work/
 **/.agent/

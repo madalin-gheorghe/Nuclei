@@ -7,9 +7,9 @@ using Grasshopper.Kernel;
 using Rhino.Geometry;
 using System.Threading.Tasks;
 using System.Drawing;
-using static Nuclei3.ParticleGroup;
+using static Nuclei4.ParticleGroup;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     public class ParticleGroup_Constructor_Ant : GH_Component
     {
@@ -153,7 +153,7 @@ namespace Nuclei3
             {
                 //You can add image files to your project resources and access them like this:
                 // return Resources.IconForThisComponent;
-                return Nuclei3.Properties.Resources.Particle_Ant;
+                return Nuclei4.Properties.Resources.Particle_Ant;
             }
         }
 

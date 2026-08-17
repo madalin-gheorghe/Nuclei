@@ -13,7 +13,7 @@ using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 
-namespace Nuclei3
+namespace Nuclei4
 {
     internal sealed class ParticlePreviewD3DRenderer
     {
