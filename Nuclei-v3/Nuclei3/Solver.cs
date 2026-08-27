@@ -92,6 +92,7 @@ public class Solver : GH_Component
                 //iteration counter
                 iteration = 0;
                 antParticles = false;
+                slimeParticles = false;
                 particleCountsRequireFullReset = true;
                 particleCountTouchedCount = 0;
 
@@ -202,6 +203,7 @@ public class Solver : GH_Component
 
                     //voxel logics
                     stageStart = Stopwatch.GetTimestamp();
+                    projectFoodSources();
                     diffuseVoxels();
                     diffuseTicks = Stopwatch.GetTimestamp() - stageStart;
 
@@ -214,9 +216,13 @@ public class Solver : GH_Component
                     stageStart = Stopwatch.GetTimestamp();
                     if (iteration > 1 && dynPop)
                     {
-                        particleCheckNeighbourCount();
-                        killParticles();
-                        divideParticles();
+                        if (death || division)
+                        {
+                            particleCheckNeighbourCount();
+                            killParticles();
+                            divideParticles();
+                        }
+                        applyRandomPopulationChanges();
                     }
                     populationTicks = Stopwatch.GetTimestamp() - stageStart;
 
@@ -282,6 +288,7 @@ public class Solver : GH_Component
         Voxel[] activeVoxels;
         double[] scalarVoxelDensity;
         double[] scalarVoxelScratch;
+        double[] foodSourceValues;
         VoxelDensityStore scalarDensityStore;
         bool scalarVoxelDensityAuthoritative;
         bool scalarVoxelDensityDirtyForOutput;
@@ -321,6 +328,7 @@ public class Solver : GH_Component
         //voxel settings slime
         double diffuse = 0.1;
         int diffuseRange = 1;
+        double diffusionGradual = 1.0;
         double decay = 0.03;
         bool wrapBoundaries = false;
 
@@ -345,6 +353,9 @@ public class Solver : GH_Component
         bool dynPop = false;
         int minPopulation = 100;
         int maxPopulation = 20000;
+        double randomDivisionProbability = 0;
+        double randomDeathProbability = 0;
+        int randomPopulationFrequency = 1;
 
         //division settings
         bool division = false;
@@ -371,6 +382,7 @@ public class Solver : GH_Component
 
         //ant settings
         bool antParticles = false;
+        bool slimeParticles = false;
 
         int maxAge = 100;
         double minBase = 0.1;
@@ -398,6 +410,7 @@ public class Solver : GH_Component
         double[] reusableAntWeights;
         int reusableWeightsRange = int.MinValue;
         int reusableAntWeightsRange = int.MinValue;
+        double reusableWeightsGradual = double.NaN;
         readonly int[] reusableDiffusionAxes = new int[3];
         static readonly int[,] tridimensionalDiffusionAxisOrders = new int[,]
         {
@@ -695,6 +708,7 @@ public class Solver : GH_Component
             voxelFlat = new Voxel[voxelCount];
             scalarVoxelDensity = new double[voxelCount];
             scalarVoxelScratch = new double[voxelCount];
+            foodSourceValues = new double[voxelCount];
             scalarDensityStore = new VoxelDensityStore(scalarVoxelDensity);
             scalarVoxelDensityAuthoritative = true;
             scalarVoxelDensityDirtyForOutput = false;
@@ -726,6 +740,7 @@ public class Solver : GH_Component
             
             reusableWeightsRange = int.MinValue;
             reusableAntWeightsRange = int.MinValue;
+            reusableWeightsGradual = double.NaN;
             ensureReusableDiffusionWeights();
         }
 
@@ -735,6 +750,7 @@ public class Solver : GH_Component
             voxels[V.idX, V.idY, V.idZ] = V;
             voxelFlat[flatIndex] = V;
             scalarVoxelDensity[flatIndex] = V.density;
+            foodSourceValues[flatIndex] = V.food > 0 ? V.food : 0;
 
             if (V.food > 0)
             {
@@ -934,7 +950,7 @@ public class Solver : GH_Component
             {
                 ensureScalarDensityAuthoritative();
 
-                if (diffuse > 0)
+                if (diffuse > 0 || diffusionGradual < 1)
                 {
                     diffuseScalarVoxels();
                 }
@@ -945,21 +961,29 @@ public class Solver : GH_Component
 
             scalarVoxelDensityAuthoritative = false;
 
-            if (diffuse > 0)
+            if (diffuse > 0 || diffusionGradual < 1)
             {
                 int axisCount = getDiffusionAxisOrder(reusableDiffusionAxes);
+                double strength = gradualDiffusionStrength(diffuse, diffusionGradual);
+                double retention = gradualDiffusionRetention(diffuse, diffusionGradual);
+                double baseKeep = 1 - strength;
+
                 for (int i = 0; i < axisCount; i++)
                 {
+                    double finalScale = i == axisCount - 1 ? retention : 1;
+                    double keep = baseKeep * finalScale;
+                    double diffuseAmount = strength * finalScale;
+
                     switch (reusableDiffusionAxes[i])
                     {
                         case 0:
-                            xPassInPlace(reusableWeights);
+                            xPassInPlace(reusableWeights, keep, diffuseAmount);
                             break;
                         case 1:
-                            yPassInPlace(reusableWeights);
+                            yPassInPlace(reusableWeights, keep, diffuseAmount);
                             break;
                         case 2:
-                            zPassInPlace(reusableWeights);
+                            zPassInPlace(reusableWeights, keep, diffuseAmount);
                             break;
                     }
                 }
@@ -1036,6 +1060,49 @@ public class Solver : GH_Component
 
 
             applyBoundaryAndDecay();
+        }
+
+        //-------------
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static double gradualDiffusionStrength(double rate, double gradual)
+        {
+            if (gradual <= 0) return 1;
+            if (gradual >= 1) return rate;
+            return 1 - gradual * (1 - rate);
+        }
+
+        /// <summary>
+        /// Projects the initial food-map value into the slime chemoattractant
+        /// field. Projection happens before diffusion so the injected value is
+        /// diffused and decayed by the normal slime-field update during the
+        /// same solver iteration. Ant food retains its original consumable-map
+        /// behavior and ant pheromone remains agent-deposited.
+        /// </summary>
+        void projectFoodSources()
+        {
+            if (!voxelHasPositiveFood || !slimeParticles) return;
+
+            Voxel[] active = activeVoxels;
+
+            Parallel.For(0, active.Length, i =>
+            {
+                Voxel V = active[i];
+                // Use the immutable slime-food input-map value so every reset
+                // establishes a stable persistent source strength.
+                double foodValue = foodSourceValues[V.flatIndex];
+                if (foodValue <= 0) return;
+
+                addWorkingDensity(V, foodValue);
+            });
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static double gradualDiffusionRetention(double rate, double gradual)
+        {
+            if (gradual <= 0) return 1 - rate;
+            if (gradual >= 1) return 1;
+            return 1 - rate + gradual * rate;
         }
 
         //-------------
@@ -1129,12 +1196,17 @@ public class Solver : GH_Component
         void diffuseScalarVoxels()
         {
             double[] weights = reusableWeights;
-            double keep = 1 - diffuse;
-            double diffuseAmount = diffuse;
+            double strength = gradualDiffusionStrength(diffuse, diffusionGradual);
+            double retention = gradualDiffusionRetention(diffuse, diffusionGradual);
+            double baseKeep = 1 - strength;
             int axisCount = getDiffusionAxisOrder(reusableDiffusionAxes);
 
             for (int i = 0; i < axisCount; i++)
             {
+                double finalScale = i == axisCount - 1 ? retention : 1;
+                double keep = baseKeep * finalScale;
+                double diffuseAmount = strength * finalScale;
+
                 switch (reusableDiffusionAxes[i])
                 {
                     case 0:
@@ -1779,7 +1851,7 @@ public class Solver : GH_Component
 
         //-------------
 
-        void xPassInPlace(double[] weights)
+        void xPassInPlace(double[] weights, double keep, double diffuseAmount)
         {
             Voxel[,,] voxelGrid = voxels;
             Voxel[] flatGrid = voxelFlat;
@@ -1788,8 +1860,6 @@ public class Solver : GH_Component
             int strideX = voxelStrideX;
             int strideY = voxelStrideY;
             bool wrap = wrapBoundaries;
-            double keep = 1 - diffuse;
-            double diffuseAmount = diffuse;
             bool useInteriorFastPath = denseVoxelGrid && densityLimitsOnlyBoundaryVoxels && xCount > 2;
             bool useDenseWrapFastPath = denseVoxelGrid && densityLimitsDisabled;
 
@@ -2010,7 +2080,7 @@ public class Solver : GH_Component
             }
         }
 
-        void yPassInPlace(double[] weights)
+        void yPassInPlace(double[] weights, double keep, double diffuseAmount)
         {
             Voxel[,,] voxelGrid = voxels;
             Voxel[] flatGrid = voxelFlat;
@@ -2019,8 +2089,6 @@ public class Solver : GH_Component
             int strideX = voxelStrideX;
             int strideY = voxelStrideY;
             bool wrap = wrapBoundaries;
-            double keep = 1 - diffuse;
-            double diffuseAmount = diffuse;
             bool useInteriorFastPath = denseVoxelGrid && densityLimitsOnlyBoundaryVoxels && yCount > 2;
             bool useDenseWrapFastPath = denseVoxelGrid && densityLimitsDisabled;
 
@@ -2241,7 +2309,7 @@ public class Solver : GH_Component
             }
         }
 
-        void zPassInPlace(double[] weights)
+        void zPassInPlace(double[] weights, double keep, double diffuseAmount)
         {
             Voxel[,,] voxelGrid = voxels;
             Voxel[] flatGrid = voxelFlat;
@@ -2250,8 +2318,6 @@ public class Solver : GH_Component
             int strideX = voxelStrideX;
             int strideY = voxelStrideY;
             bool wrap = wrapBoundaries;
-            double keep = 1 - diffuse;
-            double diffuseAmount = diffuse;
             bool useInteriorFastPath = denseVoxelGrid && densityLimitsOnlyBoundaryVoxels && zCount > 2;
             bool useDenseWrapFastPath = denseVoxelGrid && densityLimitsDisabled;
 
@@ -3535,41 +3601,55 @@ public class Solver : GH_Component
 
         //-------------
 
-        double[] precomputeWeights(int diffuseRange)
+        double[] precomputeWeights(int diffuseRange, double gradual)
         {
-            int total = (diffuseRange + 1) * 2 + 1;
+            int total = diffuseRange * 2 + 1;
             double[] weights = new double[total];
 
             double weightSum = 0;
 
             for (int i = 0; i < total; i++)
             {
-                double n = Math.PI * (i - (diffuseRange + 1)) / (diffuseRange + 1);
-                weights[i] = (1 + Math.Cos(n)) / 2;
+                int offset = i - diffuseRange;
+                double angle = Math.PI * offset / (diffuseRange + 1.0);
+                double v3Weight = (1 + Math.Cos(angle)) * 0.5;
+
+                if (gradual <= 0)
+                {
+                    weights[i] = 1;
+                }
+                else if (gradual >= 1)
+                {
+                    weights[i] = v3Weight;
+                }
+                else
+                {
+                    weights[i] = Math.Pow(v3Weight, gradual);
+                }
 
                 weightSum += weights[i];
             }
 
-            double[] weightsWithoutEnds = new double[total - 2];
-            for (int i = 1; i < total - 1; i++)
+            for (int i = 0; i < total; i++)
             {
-                weightsWithoutEnds[i - 1] = weights[i]/weightSum;
+                weights[i] /= weightSum;
             }
 
-            return weightsWithoutEnds;
+            return weights;
         }
 
         void ensureReusableDiffusionWeights()
         {
-            if (reusableWeights == null || reusableWeightsRange != diffuseRange)
+            if (reusableWeights == null || reusableWeightsRange != diffuseRange || reusableWeightsGradual != diffusionGradual)
             {
-                reusableWeights = precomputeWeights(diffuseRange);
+                reusableWeights = precomputeWeights(diffuseRange, diffusionGradual);
                 reusableWeightsRange = diffuseRange;
+                reusableWeightsGradual = diffusionGradual;
             }
 
             if (antParticles && (reusableAntWeights == null || reusableAntWeightsRange != diffuseRange_Ant))
             {
-                reusableAntWeights = precomputeWeights(diffuseRange_Ant);
+                reusableAntWeights = precomputeWeights(diffuseRange_Ant, 1.0);
                 reusableAntWeightsRange = diffuseRange_Ant;
             }
         }
@@ -4120,6 +4200,8 @@ public class Solver : GH_Component
                             {
                                 if (!initialP.parentParticleGroup.ant)
                                 {
+                                    slimeParticles = true;
+
                                     //flatten vectors
                                     if (tridimensional == false)
                                     {
@@ -4343,14 +4425,14 @@ public class Solver : GH_Component
                         if (P.parentParticleGroup.ant && iteration > 1)
                         {
                             //found food
-                            if (parentVoxel.food > 0 && P.foundFood == false)
+                            if (parentVoxel.antFood > 0 && P.foundFood == false)
                             {
                                 P.foundFood = true;
                                 P.age = 0;
 
                                 if (P.age == 0)
                                 {
-                                    parentVoxel.food -= 1;
+                                    parentVoxel.antFood -= 1;
                                     P.age++;
                                 }
                             }
@@ -4878,7 +4960,7 @@ public class Solver : GH_Component
                 }
                 else
                 {
-                    if (parentVoxel.food <= 0)
+                    if (parentVoxel.antFood <= 0)
                     {
                         if (potentialVoxel.towardsFoodPheromone > 0)
                         {
@@ -5122,7 +5204,7 @@ public class Solver : GH_Component
                     xVector.Unitize();
                     Vector3d moveVector = P.moveVector;
                     moveVector.Unitize();
-                    moveVector += xVector;
+                    moveVector += xVector * 0.2;
 
                     //slime wander movement
                     if (!parentGroup.ant)
@@ -5206,61 +5288,59 @@ public class Solver : GH_Component
                     //move to a random neighbour
                     if (nextVoxel == null || nextVoxel.boundary)
                     {
-                        bool moveToRandomNeighbour = true;
+                        P.die = false;
                         int idX = parentVoxel.idX;
                         int idY = parentVoxel.idY;
                         int idZ = parentVoxel.idZ;
 
-                        // move to random neighbour?
-                        if (dynPop == true)
+                        Voxel[] neighborArray = threadLocalNeighbors.Value;
+                        int neighborCount = 0;
+
+                        //create list with all viable inward neighbours
+                        int range = (int)(moveSpeed / voxelSize);
+                        if (range < 1) range = 1;
+
+                        for (int u = idX - range; u <= idX + range; u += range)
                         {
-                            if (idX != 0 && idY != 0 && idZ != 0)
+                            for (int v = idY - range; v <= idY + range; v += range)
                             {
-                                moveToRandomNeighbour = true;
-                            }
-                            else
-                            {
-                                P.die = true;
-                                moveToRandomNeighbour = false;
-                            }
-                        }
-
-                        if (moveToRandomNeighbour)
-                        {
-                            Voxel[] neighborArray = threadLocalNeighbors.Value;
-                            int neighborCount = 0;
-
-                            //create list with all viable neighbours
-                            int range = (int)(moveSpeed / voxelSize);
-                            if (range < 1) range = 1;
-
-                            for (int u = idX - range; u <= idX + range; u += range)
-                            {
-                                for (int v = idY - range; v <= idY + range; v += range)
+                                for (int w = idZ - range; w <= idZ + range; w += range)
                                 {
-                                    for (int w = idZ - range; w <= idZ + range; w += range)
+                                    if (u == idX && v == idY && w == idZ) continue;
+                                    if (u >= 0 && u < resX && v >= 0 && v < resY && w >= 0 && w < resZ)
                                     {
-                                        if (u >= 0 && u < resX && v >= 0 && v < resY && w >= 0 && w < resZ)
+                                        Voxel neighborV = voxels[u, v, w];
+                                        if (VoxelOccupancy.IsWalkable(neighborV) && !neighborV.boundary)
                                         {
-                                            Voxel neighborV = voxels[u, v, w];
-                                            if (VoxelOccupancy.IsWalkable(neighborV) && !neighborV.boundary)
+                                            if (neighborCount < 27)
                                             {
-                                                if (neighborCount < 27)
-                                                {
-                                                    neighborArray[neighborCount++] = neighborV;
-                                                }
+                                                neighborArray[neighborCount++] = neighborV;
                                             }
                                         }
                                     }
                                 }
                             }
+                        }
 
-                            if (neighborCount > 0)
+                        if (neighborCount > 0)
+                        {
+                            int randomIndex = threadLocalRandom.Value.Next(neighborCount);
+                            nextVoxel = neighborArray[randomIndex];
+                            nextLoc = nextVoxel.loc;
+                            Vector3d recoveryDirection = nextLoc - P.pPlane.Origin;
+                            if (recoveryDirection.Unitize())
                             {
-                                //pick random one
-                                int randomIndex = threadLocalRandom.Value.Next(neighborCount);
-                                nextVoxel = neighborArray[randomIndex];
-                                nextLoc = nextVoxel.loc;
+                                alignParticleToUnitMoveVector(P, recoveryDirection);
+                            }
+                        }
+                        else
+                        {
+                            nextVoxel = parentVoxel;
+                            nextLoc = P.pPlane.Origin;
+                            Vector3d reverseDirection = -P.pPlane.XAxis;
+                            if (reverseDirection.Unitize())
+                            {
+                                alignParticleToUnitMoveVector(P, reverseDirection);
                             }
                         }
                     }
@@ -5967,14 +6047,89 @@ public class Solver : GH_Component
 
         //-------------------------------------------------------------------
 
+        void applyRandomPopulationChanges()
+        {
+            if ((randomDeathProbability <= 0 && randomDivisionProbability <= 0)
+                || iteration % randomPopulationFrequency != 0)
+            {
+                return;
+            }
+
+            applyRandomParticleDeath();
+            applyRandomParticleDivision();
+        }
+
+        void applyRandomParticleDeath()
+        {
+            int deathBudget = Math.Max(0, particles.Count - minPopulation);
+            if (randomDeathProbability <= 0 || deathBudget == 0) return;
+
+            List<Particle> candidates = createShuffledParticleList(particles);
+            HashSet<Particle> removed = new HashSet<Particle>();
+
+            for (int i = 0; i < candidates.Count && removed.Count < deathBudget; i++)
+            {
+                if (random.NextDouble() < randomDeathProbability)
+                {
+                    Particle particle = candidates[i];
+                    particle.die = true;
+                    removed.Add(particle);
+                }
+            }
+
+            if (removed.Count == 0) return;
+
+            particles.RemoveAll(particle => removed.Contains(particle));
+            for (int i = 0; i < particleGroups.Count; i++)
+            {
+                particleGroups[i].particles.RemoveAll(particle => removed.Contains(particle));
+            }
+        }
+
+        void applyRandomParticleDivision()
+        {
+            int divisionBudget = Math.Max(0, maxPopulation - particles.Count);
+            if (randomDivisionProbability <= 0 || divisionBudget == 0) return;
+
+            List<Particle> candidates = createShuffledParticleList(particles);
+            List<Particle> children = new List<Particle>();
+
+            for (int i = 0; i < candidates.Count && children.Count < divisionBudget; i++)
+            {
+                Particle parent = candidates[i];
+                if (parent.parentVoxel == null || random.NextDouble() >= randomDivisionProbability) continue;
+
+                Plane childPlane = new Plane(parent.pPlane.Origin, parent.pPlane.XAxis, parent.pPlane.YAxis);
+                childPlane.Rotate(random.NextDouble() * Math.PI * 2, childPlane.ZAxis, childPlane.Origin);
+
+                Particle child = new Particle(childPlane);
+                child.parentParticleGroup = parent.parentParticleGroup;
+                child.parentVoxel = parent.parentVoxel;
+                child.home = parent.home;
+                child.foundFood = parent.foundFood;
+                child.parentVoxel.particleCount++;
+
+                children.Add(child);
+                parent.parentParticleGroup.particles.Add(child);
+            }
+
+            if (children.Count > 0)
+            {
+                particles.AddRange(children);
+            }
+        }
+
+        //-------------------------------------------------------------------
+
         void killParticles()
         {
-            if (iteration % dieFreq == 0)
+            if (death && iteration % dieFreq == 0)
             {
                 //shuffle particles
                 shuffleParticlesInPlace(particles);
 
                 int counter = 0;
+                int deathBudget = Math.Max(0, particles.Count - minPopulation);
 
                 //kill particles according to settings
                 if (particles.Count > minPopulation)
@@ -5984,23 +6139,22 @@ public class Solver : GH_Component
                     {
                         Particle P = particles[i];
 
-                        if (minPopulation < particles.Count - counter)
+                        if (P.age < dieMinAge)
                         {
-
-                            if (death)
-                            {
-                                if (P.parentVoxel == null)
-                                {
-                                    P.die = true;
-                                    counter++;
-                                }
-                                else
-                                {
-                                    if (P.neighbourCount_Die <= minDieN || P.neighbourCount_Die >= maxDieN) P.die = true;
-                                    if (P.age < dieMinAge && P.neighbourCount_Die > 2) P.die = false;
-                                }
-                            }
+                            P.die = false;
+                            return;
                         }
+
+                        bool outsideNeighbourRange = P.neighbourCount_Die < minDieN ||
+                                                     P.neighbourCount_Die > maxDieN;
+                        if (!outsideNeighbourRange)
+                        {
+                            P.die = false;
+                            return;
+                        }
+
+                        int deathTicket = System.Threading.Interlocked.Increment(ref counter);
+                        P.die = deathTicket <= deathBudget;
                     }
                     );
 
@@ -6030,18 +6184,9 @@ public class Solver : GH_Component
                             }
                             else
                             {
-                                bool particleDivide = false;
-                                if (minDivN <= P.neighbourCount_Div && P.neighbourCount_Div <= maxDivN)
-                                {
-                                    particleDivide = true;
-
-                                    if (P.parentVoxel.minDensity != -1)
-                                    {
-                                        if (P.age < divMinAge) particleDivide = false;
-                                    }
-                                }
-
-                                if (particleDivide) P.divide = true;
+                                P.divide = P.age >= divMinAge &&
+                                           minDivN <= P.neighbourCount_Div &&
+                                           P.neighbourCount_Div <= maxDivN;
                             }
                         }
                     }
@@ -6296,18 +6441,9 @@ public class Solver : GH_Component
                             }
                             else
                             {
-                                bool particleDivide = false;
-                                if (minDivN <= P.neighbourCount_Div && P.neighbourCount_Div <= maxDivN)
-                                {
-                                    particleDivide = true;
-
-                                    if (P.parentVoxel.minDensity != -1)
-                                    {
-                                        if (P.age < divMinAge) particleDivide = false;
-                                    }
-                                }
-
-                                if (particleDivide) P.divide = true;
+                                P.divide = P.age >= divMinAge &&
+                                           minDivN <= P.neighbourCount_Div &&
+                                           P.neighbourCount_Div <= maxDivN;
                             }
                         }
                     }
@@ -6374,11 +6510,19 @@ public class Solver : GH_Component
 
         //-------------------------------------------------------------------
 
+        static double normalizeDiffusionGradual(double gradual)
+        {
+            if (double.IsNaN(gradual) || gradual < 0) return 0;
+            if (double.IsPositiveInfinity(gradual) || gradual > 1) return 1;
+            return gradual;
+        }
+
         void readSolverSettings()
         {
             //reset voxel settings
             diffuse = 0.1;
             diffuseRange = 1;
+            diffusionGradual = 1.0;
             decay = 0.03;
 
             foodDiffuseRate = 0.05;
@@ -6393,6 +6537,9 @@ public class Solver : GH_Component
             dynPop = false;
             minPopulation = 100;
             maxPopulation = 20000;
+            randomDivisionProbability = 0;
+            randomDeathProbability = 0;
+            randomPopulationFrequency = 1;
 
             //reset particle division settings
             division = false;
@@ -6440,6 +6587,10 @@ public class Solver : GH_Component
                         diffuseRange = Convert.ToInt32(inputSettings_components[2]);
                         if (diffuseRange < 0) diffuseRange = 0;
                         decay = Convert.ToDouble(inputSettings_components[3]);
+                        if (inputSettings_components.Length > 4)
+                        {
+                            diffusionGradual = normalizeDiffusionGradual(Convert.ToDouble(inputSettings_components[4]));
+                        }
                         break;
 
                     case "VoxelSettingsAnt":
@@ -6465,6 +6616,21 @@ public class Solver : GH_Component
                     case "PopulationSettings":
                         minPopulation = Convert.ToInt32(inputSettings_components[1]);
                         maxPopulation = Convert.ToInt32(inputSettings_components[2]);
+                        if (minPopulation < 0) minPopulation = 0;
+                        if (maxPopulation < minPopulation) maxPopulation = minPopulation;
+                        if (inputSettings_components.Length > 3)
+                        {
+                            randomDivisionProbability = clampProbability(Convert.ToDouble(inputSettings_components[3]));
+                        }
+                        if (inputSettings_components.Length > 4)
+                        {
+                            randomDeathProbability = clampProbability(Convert.ToDouble(inputSettings_components[4]));
+                        }
+                        if (inputSettings_components.Length > 5)
+                        {
+                            randomPopulationFrequency = Convert.ToInt32(inputSettings_components[5]);
+                            if (randomPopulationFrequency < 1) randomPopulationFrequency = 1;
+                        }
                         break;
 
                     case "DivisionSettings":
@@ -6528,7 +6694,7 @@ public class Solver : GH_Component
                         break;
                 }
 
-                if (division || death)
+                if (division || death || randomDivisionProbability > 0 || randomDeathProbability > 0)
                 {
                     dynPop = true;
                 }
@@ -6545,6 +6711,13 @@ public class Solver : GH_Component
                 slime_antBase = 0;
                 ant_slime = 0;
             }
+        }
+
+        static double clampProbability(double value)
+        {
+            if (double.IsNaN(value) || value < 0) return 0;
+            if (double.IsPositiveInfinity(value) || value > 1) return 1;
+            return value;
         }
 
         //-------------------------------------------------------------------

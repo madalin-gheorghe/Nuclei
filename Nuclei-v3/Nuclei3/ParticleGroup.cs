@@ -90,11 +90,16 @@ namespace Nuclei3
 
         public void updateWanderFrequency()
         {
-            if (wanderFrequency < 0) wanderFrequency = 0;
+            if (wanderFrequency <= 0)
+            {
+                wanderFrequency = 0;
+                return;
+            }
+
             if (wanderFrequency > 1) wanderFrequency = 1;
             wanderFrequency = 1 - wanderFrequency;
 
-            wanderFrequency = Math.Floor(Math.Pow(wanderFrequency, 3) * particles.Count / 40);
+            wanderFrequency = Math.Floor(Math.Pow(wanderFrequency, 3) * particles.Count / 10);
             if (wanderFrequency < 1) wanderFrequency = 1;
         }
 

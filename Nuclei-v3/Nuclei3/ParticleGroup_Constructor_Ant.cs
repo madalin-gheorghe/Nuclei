@@ -135,7 +135,7 @@ namespace Nuclei3
             {
                 VoxelGridData voxelData = inputVoxels != null ? VoxelGridRegistry.GetOrCapture(inputVoxels, 1.0) : null;
                 outputParticles = voxelData != null
-                    ? ParticleGenerator.CreateRandomVoxelCenterParticles(generatedParticleCount, _PG, voxelData)
+                    ? ParticleGenerator.CreateScatteredParticles(generatedParticleCount, _PG, voxelData)
                     : new List<Particle>();
             }
 

@@ -9,22 +9,26 @@ namespace Nuclei3
         public const int SensorAngle = 4;
         public const int RotationAngle = 5;
         public const int Food = 6;
+        public const int SlimeFood = Food;
         public const int SlimeChemoattractants = 7;
         public const int AntFoodPheromones = 8;
         public const int AntBasePheromones = 9;
         public const int AntPheromones = 10;
         public const int AntsAndSlime = 11;
+        public const int AntFood = 13;
 
         public const int StaticFieldCount = 6;
 
         public static bool IsStatic(int valueIndex)
         {
-            return valueIndex >= MinimumDensity && valueIndex < StaticFieldCount;
+            return (valueIndex >= MinimumDensity && valueIndex <= SlimeFood)
+                || valueIndex == AntFood;
         }
 
         public static bool IsDynamicDensity(int valueIndex)
         {
-            return valueIndex == Food
+            return valueIndex == SlimeFood
+                || valueIndex == AntFood
                 || valueIndex == SlimeChemoattractants
                 || valueIndex == AntFoodPheromones
                 || valueIndex == AntBasePheromones

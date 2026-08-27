@@ -42,6 +42,7 @@ namespace Nuclei3
 
         protected override void SolveInstance(IGH_DataAccess DA)
         {
+            VoxelFoodValueList.EnsureSeparateFoodChoices(this, 1);
             EnsureTypeValueList();
 
             int valueIndex = VoxelPreviewField.SlimeChemoattractants;
@@ -218,7 +219,8 @@ namespace Nuclei3
                 case VoxelPreviewField.SensorDistance: return voxel.sensorDistanceMultiplier;
                 case VoxelPreviewField.SensorAngle: return voxel.sensorAngleMultiplier;
                 case VoxelPreviewField.RotationAngle: return voxel.rotationAngleMultiplier;
-                case VoxelPreviewField.Food: return voxel.food;
+                case VoxelPreviewField.SlimeFood: return voxel.food;
+                case VoxelPreviewField.AntFood: return voxel.antFood;
                 case VoxelPreviewField.SlimeChemoattractants: return voxel.density;
                 case VoxelPreviewField.AntFoodPheromones: return voxel.towardsFoodPheromone;
                 case VoxelPreviewField.AntBasePheromones: return voxel.towardsBasePheromone;
@@ -246,7 +248,8 @@ namespace Nuclei3
             list.ListItems.Add(new GH_ValueListItem("Sensor Distance", "3"));
             list.ListItems.Add(new GH_ValueListItem("Sensor Angle", "4"));
             list.ListItems.Add(new GH_ValueListItem("Rotation Angle", "5"));
-            list.ListItems.Add(new GH_ValueListItem("Food", "6"));
+            list.ListItems.Add(new GH_ValueListItem("Slime Food", "6"));
+            list.ListItems.Add(new GH_ValueListItem("Ant Food", "13"));
             list.ListItems.Add(new GH_ValueListItem("Slime Chemoattractants", "7"));
             list.ListItems.Add(new GH_ValueListItem("Ant Food Pheromones", "8"));
             list.ListItems.Add(new GH_ValueListItem("Ant Base Pheromones", "9"));
