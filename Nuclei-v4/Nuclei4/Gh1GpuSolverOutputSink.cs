@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 
 using Rhino.Geometry;
 
@@ -89,6 +90,8 @@ namespace Nuclei4
             }
 
             EnsureParticleCapacity(view.Capacity);
+            // One voxel refresh per step; see VoxelFromFlatIndex.
+            voxelCacheGeneration++;
 
             ParticlePreviewCache previewCache = buildPreviewCache ? particles.PreviewCache : null;
             ParticlePreviewBuildCache previewBuildCache = previewCache != null
@@ -164,13 +167,13 @@ namespace Nuclei4
                     yAxes[offset + 1],
                     yAxes[offset + 2]);
 
-                if (!xAxis.Unitize())
+                if (!TryUnitize(ref xAxis))
                 {
                     xAxis = new Vector3d(1, 0, 0);
                 }
 
                 yAxis = OrthonormalYAxis(xAxis, yAxis);
-                particle.pPlane = new Plane(origin, xAxis, yAxis);
+                particle.pPlane = PlaneFromOrthonormalAxes(origin, xAxis, yAxis);
 
                 int parentIndex = (int)Math.Round(directions[offset + 3]);
                 particle.parentVoxel = VoxelFromFlatIndex(parentIndex);
@@ -218,6 +221,7 @@ namespace Nuclei4
             }
 
             EnsureParticleCapacity(view.Capacity);
+            voxelCacheGeneration++;
 
             ParticlePreviewCache previewCache = particles.PreviewCache;
             ParticlePreviewBuildCache previewBuildCache = new ParticlePreviewBuildCache(view.Count);
@@ -277,13 +281,57 @@ namespace Nuclei4
             particleSlotGenerations = expandedGenerations;
         }
 
+        struct VoxelCacheEntry
+        {
+            public Voxel Voxel;
+            public int Generation;
+        }
+
+        readonly Dictionary<int, VoxelCacheEntry> voxelCache = new Dictionary<int, VoxelCacheEntry>();
+        VoxelField voxelCacheField;
+        int voxelCacheGeneration;
+
+        /// <summary>
+        /// Voxel instances are reused across particles and across steps, refreshed at
+        /// most once per step each. Allocating one per particle per step dominated the
+        /// solver component cost once dynamic population let the population grow. The
+        /// cache is keyed by flat index, so it is bounded by the number of occupied
+        /// voxels rather than by the grid size.
+        /// </summary>
         Voxel VoxelFromFlatIndex(int index)
         {
             if (voxelField == null || index < 0 || index >= voxelField.Count)
             {
                 return null;
             }
-            return voxelField.CreateVoxel(index);
+
+            if (!ReferenceEquals(voxelCacheField, voxelField))
+            {
+                voxelCache.Clear();
+                voxelCacheField = voxelField;
+            }
+
+            VoxelCacheEntry entry;
+            if (voxelCache.TryGetValue(index, out entry) && entry.Voxel != null)
+            {
+                if (entry.Generation != voxelCacheGeneration)
+                {
+                    voxelField.RefreshDynamicValues(entry.Voxel, index);
+                    entry.Generation = voxelCacheGeneration;
+                    voxelCache[index] = entry;
+                }
+
+                return entry.Voxel;
+            }
+
+            Voxel created = voxelField.CreateVoxel(index);
+            if (created == null)
+            {
+                return null;
+            }
+
+            voxelCache[index] = new VoxelCacheEntry { Voxel = created, Generation = voxelCacheGeneration };
+            return created;
         }
 
         void RecordTrails(SolverGpuSettings settings, int iteration)
@@ -345,24 +393,61 @@ namespace Nuclei4
             }
         }
 
+        /// <summary>
+        /// Managed normalization. Vector3d.Unitize is a native call, and this runs three
+        /// times per particle per step; at a large population the transitions alone cost
+        /// more than the arithmetic.
+        /// </summary>
+        static bool TryUnitize(ref Vector3d vector)
+        {
+            double length = Math.Sqrt(vector.X * vector.X + vector.Y * vector.Y + vector.Z * vector.Z);
+            if (!(length > 1e-12)) return false;
+
+            double inverse = 1.0 / length;
+            vector = new Vector3d(vector.X * inverse, vector.Y * inverse, vector.Z * inverse);
+            return true;
+        }
+
+        static Vector3d Cross(Vector3d a, Vector3d b)
+        {
+            return new Vector3d(
+                a.Y * b.Z - a.Z * b.Y,
+                a.Z * b.X - a.X * b.Z,
+                a.X * b.Y - a.Y * b.X);
+        }
+
+        /// <summary>
+        /// Builds the plane from axes that are already unit length and orthogonal, so the
+        /// native Plane constructor's own orthonormalization is redundant work.
+        /// </summary>
+        static Plane PlaneFromOrthonormalAxes(Point3d origin, Vector3d xAxis, Vector3d yAxis)
+        {
+            Plane plane = new Plane();
+            plane.Origin = origin;
+            plane.XAxis = xAxis;
+            plane.YAxis = yAxis;
+            plane.ZAxis = Cross(xAxis, yAxis);
+            return plane;
+        }
+
         static Vector3d OrthonormalYAxis(Vector3d xAxis, Vector3d yAxis)
         {
-            if (!yAxis.Unitize())
+            if (!TryUnitize(ref yAxis))
             {
                 yAxis = Math.Abs(xAxis.Z) < 0.9
-                    ? Vector3d.CrossProduct(Vector3d.ZAxis, xAxis)
-                    : Vector3d.CrossProduct(Vector3d.YAxis, xAxis);
+                    ? Cross(Vector3d.ZAxis, xAxis)
+                    : Cross(Vector3d.YAxis, xAxis);
             }
 
             double dot = xAxis.X * yAxis.X + xAxis.Y * yAxis.Y + xAxis.Z * yAxis.Z;
             yAxis -= xAxis * dot;
 
-            if (!yAxis.Unitize())
+            if (!TryUnitize(ref yAxis))
             {
                 yAxis = Math.Abs(xAxis.Z) < 0.9
-                    ? Vector3d.CrossProduct(Vector3d.ZAxis, xAxis)
-                    : Vector3d.CrossProduct(Vector3d.YAxis, xAxis);
-                yAxis.Unitize();
+                    ? Cross(Vector3d.ZAxis, xAxis)
+                    : Cross(Vector3d.YAxis, xAxis);
+                TryUnitize(ref yAxis);
             }
 
             return yAxis;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -106,7 +106,7 @@ namespace Nuclei4
                 return 0;
             }
 
-            if (fieldIndex == VoxelPreviewField.Food && Dynamic != null && Dynamic.RemainingFood != null)
+            if (fieldIndex == VoxelPreviewField.AntFood && Dynamic != null && Dynamic.RemainingFood != null)
             {
                 return Dynamic.RemainingFood[flatIndex];
             }
@@ -137,11 +137,25 @@ namespace Nuclei4
             if (!Data.IsActive(flatIndex)) return null;
 
             Voxel voxel = Data.CreateVoxel(flatIndex, null);
+            RefreshDynamicValues(voxel, flatIndex);
+            return voxel;
+        }
+
+        /// <summary>
+        /// Updates the solver-owned values on an existing voxel. Callers that touch the
+        /// same voxel repeatedly can hold on to the instance instead of allocating a new
+        /// one per lookup, which also matches V3, where a particle references the shared
+        /// grid voxel rather than a private copy.
+        /// </summary>
+        internal void RefreshDynamicValues(Voxel voxel, int flatIndex)
+        {
+            if (voxel == null) return;
+
             voxel.density = GetScalarValue(VoxelPreviewField.SlimeChemoattractants, flatIndex);
             voxel.towardsFoodPheromone = GetScalarValue(VoxelPreviewField.AntFoodPheromones, flatIndex);
             voxel.towardsBasePheromone = GetScalarValue(VoxelPreviewField.AntBasePheromones, flatIndex);
             voxel.food = GetScalarValue(VoxelPreviewField.Food, flatIndex);
-            return voxel;
+            voxel.antFood = GetScalarValue(VoxelPreviewField.AntFood, flatIndex);
         }
 
         internal Voxel[,,] MaterializeLegacyArray()

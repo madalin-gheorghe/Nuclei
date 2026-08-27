@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Nuclei4
@@ -7,6 +7,10 @@ namespace Nuclei4
     {
         public double Diffuse = 0.1;
         public int DiffuseRange = 1;
+        public double DiffusionGradual = 1.0;
+        public double RandomDivisionProbability = 0;
+        public double RandomDeathProbability = 0;
+        public int RandomPopulationFrequency = 1;
         public double Decay = 0.03;
         public double AntFoodDiffuse = 0.05;
         public double AntFoodDecay = 0.005;
@@ -64,6 +68,7 @@ namespace Nuclei4
                         if (parts.Length > 1) parsed.Diffuse = Convert.ToDouble(parts[1]);
                         if (parts.Length > 2) parsed.DiffuseRange = Convert.ToInt32(parts[2]);
                         if (parts.Length > 3) parsed.Decay = Convert.ToDouble(parts[3]);
+                        if (parts.Length > 4) parsed.DiffusionGradual = Convert.ToDouble(parts[4]);
                         if (parsed.DiffuseRange < 0) parsed.DiffuseRange = 0;
                         break;
 
@@ -119,12 +124,21 @@ namespace Nuclei4
                     case "PopulationSettings":
                         if (parts.Length > 1) parsed.MinimumPopulation = Convert.ToInt32(parts[1]);
                         if (parts.Length > 2) parsed.MaximumPopulation = Convert.ToInt32(parts[2]);
+                        if (parts.Length > 3) parsed.RandomDivisionProbability = Convert.ToDouble(parts[3]);
+                        if (parts.Length > 4) parsed.RandomDeathProbability = Convert.ToDouble(parts[4]);
+                        if (parts.Length > 5) parsed.RandomPopulationFrequency = Convert.ToInt32(parts[5]);
                         break;
 
                 }
             }
 
-            parsed.DynamicPopulation = parsed.Division || parsed.Death;
+            parsed.RandomDivisionProbability = Clamp01(parsed.RandomDivisionProbability);
+            parsed.RandomDeathProbability = Clamp01(parsed.RandomDeathProbability);
+            parsed.RandomPopulationFrequency = Math.Max(1, parsed.RandomPopulationFrequency);
+            // Random-only configurations must still run the population pass.
+            parsed.DynamicPopulation = parsed.Division || parsed.Death
+                || parsed.RandomDivisionProbability > 0 || parsed.RandomDeathProbability > 0;
+            parsed.DiffusionGradual = NormalizeDiffusionGradual(parsed.DiffusionGradual);
             parsed.AntFoodDiffuse = Math.Max(0, parsed.AntFoodDiffuse);
             parsed.AntFoodDecay = Math.Max(0, parsed.AntFoodDecay);
             parsed.AntBaseDiffuse = Math.Max(0, parsed.AntBaseDiffuse);
@@ -166,6 +180,15 @@ namespace Nuclei4
             int swap = minimum;
             minimum = maximum;
             maximum = swap;
+        }
+
+        // Mirrors V3 normalizeDiffusionGradual: NaN collapses to 0 so a bad
+        // input can never poison the diffusion weight kernel.
+        static double NormalizeDiffusionGradual(double gradual)
+        {
+            if (double.IsNaN(gradual) || gradual < 0) return 0;
+            if (double.IsPositiveInfinity(gradual) || gradual > 1) return 1;
+            return gradual;
         }
 
         static double Clamp01(double value)

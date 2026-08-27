@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -1837,6 +1837,63 @@ bool IsInsideVolume(float3 position)
     return all(position >= 0.0) && all(position <= VolumeBox.xyz);
 }
 
+float3 VolumeBoundaryNormal(float3 position)
+{
+    float3 boxMaximum = max(VolumeBox.xyz, float3(0.0001, 0.0001, 0.0001));
+    float3 minimumDistance = abs(position);
+    float3 maximumDistance = abs(boxMaximum - position);
+    float closestDistance = min(
+        min(minimumDistance.x, minimumDistance.y),
+        min(minimumDistance.z, min(maximumDistance.x, min(maximumDistance.y, maximumDistance.z))));
+
+    if (minimumDistance.x <= closestDistance + 0.00001) return float3(-1.0, 0.0, 0.0);
+    if (maximumDistance.x <= closestDistance + 0.00001) return float3(1.0, 0.0, 0.0);
+    if (minimumDistance.y <= closestDistance + 0.00001) return float3(0.0, -1.0, 0.0);
+    if (maximumDistance.y <= closestDistance + 0.00001) return float3(0.0, 1.0, 0.0);
+    if (minimumDistance.z <= closestDistance + 0.00001) return float3(0.0, 0.0, -1.0);
+    return float3(0.0, 0.0, 1.0);
+}
+
+float4 SampleBoundaryCap(float3 boundaryPosition, float3 rayDirection, float voxelSize, float solidityScale)
+{
+    float3 outwardNormal = VolumeBoundaryNormal(boundaryPosition);
+    float3 samplePosition = clamp(
+        boundaryPosition - outwardNormal * voxelSize * 0.55,
+        float3(0.0, 0.0, 0.0),
+        VolumeBox.xyz);
+    float4 sample = SampleFancyVolume(samplePosition);
+    float value = PreviewValue(sample);
+    if (!InPreviewRange(value))
+    {
+        return float4(0.0, 0.0, 0.0, 0.0);
+    }
+
+    float normalizedValue = saturate(value * Style.y);
+    float presence = sqrt(saturate(VolumeTransfer(normalizedValue)));
+    if (presence <= 0.0001)
+    {
+        return float4(0.0, 0.0, 0.0, 0.0);
+    }
+
+    float visual = max(VolumeTransfer(normalizedValue), normalizedValue);
+    float3 color = PreviewSampleColor(sample, value, visual);
+    if (Thresholds.z > 0.5 && !IsDynamicColorPreview())
+    {
+        color = CustomColor.rgb * visual;
+    }
+
+    float3 surfaceNormal = outwardNormal;
+    if (dot(surfaceNormal, rayDirection) > 0.0) surfaceNormal = -surfaceNormal;
+    float3 lightDirection = normalize(-rayDirection + float3(-0.32, -0.24, 0.52));
+    float diffuse = saturate(dot(surfaceNormal, lightDirection));
+    float rim = pow(1.0 - saturate(dot(surfaceNormal, -rayDirection)), 2.2);
+    float skyLight = lerp(0.96, 1.04, saturate(surfaceNormal.z * 0.5 + 0.5));
+    float lighting = (0.84 + diffuse * 0.14 + rim * 0.02) * skyLight;
+    color *= lighting;
+
+    return float4(color, presence * 0.28 * solidityScale);
+}
+
 float CoarseVolumeShadow(float3 position, float3 lightDirection, float voxelSize)
 {
     float opticalDepth = 0.0;
@@ -1944,6 +2001,18 @@ float4 RenderVolume(VSOutput input, out float representativeDepth)
     float firstSurfaceStrength = 0.0;
     float firstSurfaceDepth = 0.0;
     float3 startPosition = strongestPosition;
+    if (enterT >= 0.0)
+    {
+        float4 entryCap = SampleBoundaryCap(startPosition, direction, voxelSize, 1.0);
+        if (entryCap.a > 0.0)
+        {
+            float entryContribution = entryCap.a;
+            accumulated.rgb += entryContribution * entryCap.rgb;
+            accumulated.a += entryContribution;
+            representativePositionAccumulator += entryContribution * startPosition;
+            representativeWeight += entryContribution;
+        }
+    }
     float previousNormalizedValue = saturate(PreviewValue(SampleVolumeAtlasTrilinear(startPosition)) * Style.y);
     float nextStepScale = 1.0;
 
@@ -2097,6 +2166,22 @@ float4 RenderVolume(VSOutput input, out float representativeDepth)
 
         previousNormalizedValue = normalizedValue;
         t = sampleT;
+    }
+
+    if (accumulated.a < 0.985)
+    {
+        float3 exitPosition = rayOrigin + direction * exitT;
+        float4 exitCap = SampleBoundaryCap(exitPosition, direction, voxelSize, 0.60);
+        float exitContribution = (1.0 - accumulated.a) * exitCap.a;
+        if (exitContribution > 0.0)
+        {
+            accumulated.rgb += exitContribution * exitCap.rgb;
+            accumulated.a += exitContribution;
+            representativePositionAccumulator += exitContribution * exitPosition;
+            representativeWeight += exitContribution;
+            representativeDepthMoment += exitContribution;
+            representativeDepthMoment2 += exitContribution;
+        }
     }
 
     if (accumulated.a <= 0.002)

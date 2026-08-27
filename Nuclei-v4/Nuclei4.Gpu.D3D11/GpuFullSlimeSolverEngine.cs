@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -31,6 +31,7 @@ namespace Nuclei4
         const int PreviewReadbackBufferCount = 3;
         const int MaxSharedPreviewTextureDimension = 16384;
         const long MaxSharedDensityPreviewTexturePixels = 33554432;
+        static readonly SolverGpuSettings GradientPreviewSettings = new SolverGpuSettings();
         const int MaxAdaptiveVolumePreviewResolution = 256;
         const int MaxParticleTrailPreviewTexels = 33554432;
         const string SharedDensityPreviewStatusPath = @"C:\Nuclei\Nuclei-v4\BenchmarkSuite1\NucleiGpuDensityFieldSource.txt";
@@ -50,6 +51,7 @@ namespace Nuclei4
         ID3D11ComputeShader boundaryModeTransitionShader;
         ID3D11ComputeShader moveShader;
         ID3D11ComputeShader applyDepositsShader;
+        ID3D11ComputeShader projectFoodSourcesShader;
         ID3D11ComputeShader clearCountsShader;
         ID3D11ComputeShader countParticlesShader;
         ID3D11ComputeShader seedNeighbourCountsShader;
@@ -222,14 +224,17 @@ namespace Nuclei4
         readonly int antFoodDepositOffset;
         readonly int antBaseDepositOffset;
         readonly int foodRemainingOffset;
+        readonly int foodSourceOffset;
         readonly int freeSlotOffset;
         readonly int particleAgeOffset;
         readonly int particleDeathNeighbourOffset;
         readonly int particleDivisionNeighbourOffset;
         readonly int particleGenerationOffset;
         readonly int particleAntStateOffset;
+        readonly int particleHighDepositOffset;
         readonly int depositElementCount;
         int weightsRange = int.MinValue;
+        double weightsGradual = double.NaN;
         int antWeightsRange = int.MinValue;
         int previewReadbackNextIndex = 0;
         int previewReadbackSequenceCounter = 0;
@@ -347,13 +352,19 @@ namespace Nuclei4
             slimeDepositOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, voxelCount, hasSlimeParticles);
             antFoodDepositOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, voxelCount, hasAntParticles);
             antBaseDepositOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, voxelCount, hasAntParticles);
-            foodRemainingOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, voxelCount, snapshot.InitialFood != null);
+            // Ant-consumable remaining food is now fed by the separate ant food map.
+            foodRemainingOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, voxelCount, snapshot.InitialAntFood != null);
+            // Immutable slime food source, projected into density every step.
+            foodSourceOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, voxelCount, snapshot.InitialFood != null);
             freeSlotOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, particleCapacity, particleCapacity > 0);
             particleAgeOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, particleCapacity, particleCapacity > 0);
             particleDeathNeighbourOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, particleCapacity, particleCapacity > 0);
             particleDivisionNeighbourOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, particleCapacity, particleCapacity > 0);
             particleGenerationOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, particleCapacity, particleCapacity > 0);
             particleAntStateOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, particleCapacity, particleCapacity > 0);
+            // V3's high-deposit flag: a particle whose previous move landed in an
+            // occupied voxel deposits a quarter of the normal amount.
+            particleHighDepositOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, particleCapacity, particleCapacity > 0);
             depositElementCount = Math.Max(1, auxiliaryOffset);
 
             if (voxelCount <= 0)
@@ -708,7 +719,8 @@ namespace Nuclei4
                 && snapshot.GroupCount == groupCount
                 && snapshot.HasAntParticles == hasAntParticles
                 && snapshot.HasSlimeParticles == hasSlimeParticles
-                && (snapshot.InitialFood != null) == (foodRemainingOffset >= 0)
+                && (snapshot.InitialAntFood != null) == (foodRemainingOffset >= 0)
+                && (snapshot.InitialFood != null) == (foodSourceOffset >= 0)
                 && SupportsPopulationCapacity(settings);
         }
 
@@ -986,7 +998,7 @@ namespace Nuclei4
 
             if (hasSlimeParticles)
             {
-                EnsureWeights(settings.DiffuseRange);
+                EnsureWeights(settings.DiffuseRange, settings.DiffusionGradual);
             }
 
             if (particleCount > 0 && iteration > 1)
@@ -1010,12 +1022,31 @@ namespace Nuclei4
             double populationMs = stage.Elapsed.TotalMilliseconds;
 
             stage.Restart();
-            if (hasSlimeParticles && settings.Diffuse > 0)
+            if (hasSlimeParticles && foodSourceOffset >= 0)
+            {
+                DispatchFoodSourceProjection(settings, dimensionMode, iteration);
+                passCount++;
+            }
+
+            if (hasSlimeParticles && (settings.Diffuse > 0 || settings.DiffusionGradual < 1))
             {
                 int axisCount = GetDiffusionAxisOrder(dimensionMode, iteration, diffusionAxisScratch);
+                double strength = GradualDiffusionStrength(settings.Diffuse, settings.DiffusionGradual);
+                double retention = GradualDiffusionRetention(settings.Diffuse, settings.DiffusionGradual);
+                double baseKeep = 1 - strength;
+
                 for (int i = 0; i < axisCount; i++)
                 {
-                    DispatchDiffusionPass(diffusionAxisScratch[i], settings, dimensionMode, iteration);
+                    // Retention applies only on the final axis so a multi-axis
+                    // pass does not compound it, matching V3.
+                    double finalScale = i == axisCount - 1 ? retention : 1;
+                    DispatchDiffusionPass(
+                        diffusionAxisScratch[i],
+                        settings,
+                        dimensionMode,
+                        iteration,
+                        baseKeep * finalScale,
+                        strength * finalScale);
                     SwapDensityBuffers();
                     passCount++;
                 }
@@ -1158,6 +1189,22 @@ namespace Nuclei4
             UnbindComputeResources();
         }
 
+        void DispatchFoodSourceProjection(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
+        {
+            if (foodSourceOffset < 0 || projectFoodSourcesShader == null) return;
+
+            UpdateParameters(CreateParameters(0, settings, dimensionMode, iteration));
+
+            context.CSSetShader(projectFoodSourcesShader);
+            context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+            context.CSSetShaderResource(3, voxelFlagsView);
+            context.CSSetShaderResource(7, voxelDensityLimitsView);
+            context.CSSetUnorderedAccessView(0, CurrentDensityView(), -1);
+            context.CSSetUnorderedAccessView(6, depositView, -1);
+            DispatchLinear256(voxelCount);
+            UnbindComputeResources();
+        }
+
         void DispatchApplyDeposits(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
         {
             UpdateParameters(CreateParameters(0, settings, dimensionMode, iteration));
@@ -1218,17 +1265,42 @@ namespace Nuclei4
                 return;
             }
 
-            if (settings.Death && iteration % settings.DeathFrequency == 0)
+            bool randomDue = settings.RandomPopulationFrequency > 0
+                && iteration % settings.RandomPopulationFrequency == 0;
+
+            // Building neighbour counts costs a seed pass plus one pass per axis over
+            // the whole grid. The random path is independent of neighbours, so that
+            // build is only worth paying for when the neighbour rule itself is due.
+            bool deathRuleDue = settings.Death && iteration % settings.DeathFrequency == 0;
+            bool deathRandomDue = settings.RandomDeathProbability > 0 && randomDue;
+            if (deathRuleDue || deathRandomDue)
             {
-                ID3D11UnorderedAccessView neighbourView = DispatchBuildNeighbourCounts(settings.DeathRange, settings, dimensionMode, iteration);
+                ID3D11UnorderedAccessView neighbourView = deathRuleDue
+                    ? DispatchBuildNeighbourCounts(settings.DeathRange, settings, dimensionMode, iteration)
+                    : NeighbourCountsWithoutRebuild();
                 DispatchParticleDeath(neighbourView, settings, dimensionMode, iteration);
             }
 
-            if (settings.Division && iteration % settings.DivisionFrequency == 0)
+            bool divisionRuleDue = settings.Division && iteration % settings.DivisionFrequency == 0;
+            bool divisionRandomDue = settings.RandomDivisionProbability > 0 && randomDue;
+            if (divisionRuleDue || divisionRandomDue)
             {
-                ID3D11UnorderedAccessView neighbourView = DispatchBuildNeighbourCounts(settings.DivisionRange, settings, dimensionMode, iteration);
+                ID3D11UnorderedAccessView neighbourView = divisionRuleDue
+                    ? DispatchBuildNeighbourCounts(settings.DivisionRange, settings, dimensionMode, iteration)
+                    : NeighbourCountsWithoutRebuild();
                 DispatchParticleDivision(neighbourView, settings, dimensionMode, iteration);
             }
+        }
+
+        /// <summary>
+        /// Neighbour buffer without refreshing it. Only valid for a dispatch whose
+        /// decision ignores neighbour counts, which is the random-only population
+        /// path; the per-particle neighbour value it records is stale on those steps.
+        /// </summary>
+        ID3D11UnorderedAccessView NeighbourCountsWithoutRebuild()
+        {
+            EnsureNeighbourBuffers();
+            return neighbourCountAView;
         }
 
         ID3D11UnorderedAccessView DispatchBuildNeighbourCounts(int range, SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
@@ -1326,9 +1398,12 @@ namespace Nuclei4
             UnbindComputeResources();
         }
 
-        void DispatchDiffusionPass(int axis, SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
+        void DispatchDiffusionPass(int axis, SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration, double keep, double diffuseAmount)
         {
-            UpdateParameters(CreateParameters(axis, settings, dimensionMode, iteration));
+            FullSolverParameters parameters = CreateParameters(axis, settings, dimensionMode, iteration);
+            parameters.Keep = (float)keep;
+            parameters.Diffuse = (float)diffuseAmount;
+            UpdateParameters(parameters);
 
             context.CSSetShader(diffusionShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
@@ -1487,6 +1562,17 @@ namespace Nuclei4
             {
                 return true;
             }
+
+            // Particle and trail preview passes share this constant buffer and
+            // overwrite its preview layout. Restore the density atlas layout
+            // before generating gradients so this pass never depends on which
+            // preview happened to dispatch last.
+            FullSolverParameters parameters = CreateParameters(
+                0,
+                GradientPreviewSettings,
+                SolverGpuDimensionMode.FromResolution(resX, resY, resZ),
+                0);
+            UpdateParameters(parameters);
 
             context.CSSetShader(densityGradientPreviewShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
@@ -1717,6 +1803,12 @@ namespace Nuclei4
             parameters.AntFoodDepositOffset = antFoodDepositOffset;
             parameters.AntBaseDepositOffset = antBaseDepositOffset;
             parameters.FoodRemainingOffset = foodRemainingOffset;
+            parameters.FoodSourceOffset = foodSourceOffset;
+            parameters.RandomPopulationFrequency = Math.Max(1, settings.RandomPopulationFrequency);
+            parameters.RandomDeathProbability = (float)settings.RandomDeathProbability;
+            parameters.RandomDivisionProbability = (float)settings.RandomDivisionProbability;
+            parameters.HighDepositOffset = particleHighDepositOffset;
+            parameters.RandomPadding1 = 0;
             parameters.FreeSlotOffset = freeSlotOffset;
             parameters.ParticleAgeOffset = particleAgeOffset;
             parameters.ParticleDeathNeighbourOffset = particleDeathNeighbourOffset;
@@ -1797,7 +1889,8 @@ namespace Nuclei4
                 || (snapshot.VoxelVectorData != null && snapshot.VoxelVectorData.Length != checked(voxelCount * 3))
                 || (snapshot.VoxelVectorFrequencies != null && snapshot.VoxelVectorFrequencies.Length != voxelCount)
                 || !ValidDensityLimitLayout(snapshot, voxelCount)
-                || (snapshot.InitialFood != null) != (foodRemainingOffset >= 0))
+                || (snapshot.InitialAntFood != null) != (foodRemainingOffset >= 0)
+                || (snapshot.InitialFood != null) != (foodSourceOffset >= 0))
             {
                 return false;
             }
@@ -1922,7 +2015,7 @@ namespace Nuclei4
             bool wantsGradientPreview = valueIndex == VoxelPreviewField.SlimeChemoattractants
                 || valueIndex == VoxelPreviewField.SlimeChemoattractantsV2;
             valueIndex = VoxelPreviewField.SourceField(valueIndex);
-            if (VoxelPreviewField.IsDynamicDensity(valueIndex))
+            if (VoxelPreviewField.HasGpuDensityTexture(valueIndex))
             {
                 if (valueIndex == VoxelPreviewField.SlimeChemoattractants && !hasSlimeParticles)
                 {
@@ -1931,7 +2024,16 @@ namespace Nuclei4
                 int normalizedScale = NormalizeDensityPreviewScale(previewScale);
                 if ((valueIndex == VoxelPreviewField.AntFoodPheromones
                     || valueIndex == VoxelPreviewField.AntBasePheromones
-                    || VoxelPreviewField.IsCombinedDynamicDensity(valueIndex)) && !hasAntParticles)
+                    || valueIndex == VoxelPreviewField.AntPheromones) && !hasAntParticles)
+                {
+                    return null;
+                }
+
+                // Ants and Slime is a union of both systems, so it must still draw
+                // when only one of them is present. Requiring ants here meant a
+                // slime-only document rendered nothing at all.
+                if (valueIndex == VoxelPreviewField.AntsAndSlime
+                    && !hasAntParticles && !hasSlimeParticles)
                 {
                     return null;
                 }
@@ -2539,17 +2641,18 @@ namespace Nuclei4
             return x * resY * resZ + y * resZ + z;
         }
 
-        void EnsureWeights(int range)
+        void EnsureWeights(int range, double gradual)
         {
-            if (weightsView != null && weightsRange == range)
+            if (weightsView != null && weightsRange == range && weightsGradual.Equals(gradual))
             {
                 return;
             }
 
             DisposeWeights();
 
-            float[] weights = PrecomputeWeights(range);
+            float[] weights = PrecomputeWeights(range, gradual);
             weightsRange = range;
+            weightsGradual = gradual;
 
             weightsBuffer = device.CreateBuffer(
                 weights,
@@ -2571,7 +2674,7 @@ namespace Nuclei4
 
             if (antWeightsView != null) antWeightsView.Dispose();
             if (antWeightsBuffer != null) antWeightsBuffer.Dispose();
-            float[] weights = PrecomputeWeights(range);
+            float[] weights = PrecomputeWeights(range, 1.0);
             antWeightsRange = range;
             antWeightsBuffer = device.CreateBuffer(weights, BindFlags.ShaderResource, ResourceUsage.Default,
                 CpuAccessFlags.None, ResourceOptionFlags.BufferStructured, weights.Length * sizeof(float), sizeof(float));
@@ -2580,27 +2683,51 @@ namespace Nuclei4
                 new ShaderResourceViewDescription(antWeightsBuffer, Format.Unknown, 0, weights.Length, BufferExtendedShaderResourceViewFlags.None));
         }
 
-        static float[] PrecomputeWeights(int range)
+        // Mirrors V3 precomputeWeights. The kernel keeps 2*range+1 entries, the
+        // same length the DiffuseAxis shader indexes as Weights[offset + Range].
+        // gradual 1 is the original raised-cosine kernel; gradual 0 is a flat box
+        // average matching V2's immediate averaging.
+        static float[] PrecomputeWeights(int range, double gradual)
         {
-            int total = (range + 1) * 2 + 1;
-            float[] weights = new float[total - 2];
+            int total = range * 2 + 1;
+            float[] weights = new float[total];
+            double[] raw = new double[total];
             double weightSum = 0;
-            double[] fullWeights = new double[total];
 
             for (int i = 0; i < total; i++)
             {
-                double n = Math.PI * (i - (range + 1)) / (range + 1);
-                double weight = (1 + Math.Cos(n)) / 2;
-                fullWeights[i] = weight;
-                weightSum += weight;
+                int offset = i - range;
+                double angle = Math.PI * offset / (range + 1.0);
+                double v3Weight = (1 + Math.Cos(angle)) * 0.5;
+
+                if (gradual <= 0) raw[i] = 1;
+                else if (gradual >= 1) raw[i] = v3Weight;
+                else raw[i] = Math.Pow(v3Weight, gradual);
+
+                weightSum += raw[i];
             }
 
-            for (int i = 1; i < total - 1; i++)
+            for (int i = 0; i < total; i++)
             {
-                weights[i - 1] = (float)(fullWeights[i] / weightSum);
+                weights[i] = (float)(raw[i] / weightSum);
             }
 
             return weights;
+        }
+
+        // Mirrors V3 gradualDiffusionStrength / gradualDiffusionRetention.
+        static double GradualDiffusionStrength(double rate, double gradual)
+        {
+            if (gradual <= 0) return 1;
+            if (gradual >= 1) return rate;
+            return 1 - gradual * (1 - rate);
+        }
+
+        static double GradualDiffusionRetention(double rate, double gradual)
+        {
+            if (gradual <= 0) return 1 - rate;
+            if (gradual >= 1) return 1;
+            return 1 - rate + gradual * rate;
         }
 
         void CreateDensityBuffers(float[] initialDensity)
@@ -3856,17 +3983,23 @@ namespace Nuclei4
             }
             UpdateUIntBufferRegion(particleCountBuffer, voxelCount, populationState, populationState.Length);
 
-            if (foodRemainingOffset >= 0 && snapshot.InitialFood != null)
+            if (foodRemainingOffset >= 0 && snapshot.InitialAntFood != null)
             {
-                UploadInitialFood(snapshot.InitialFood);
+                UploadFoodChannel(snapshot.InitialAntFood, foodRemainingOffset);
+            }
+
+            if (foodSourceOffset >= 0 && snapshot.InitialFood != null)
+            {
+                UploadFoodChannel(snapshot.InitialFood, foodSourceOffset);
             }
 
             UploadFreeParticleSlots();
+            UploadParticleHighDepositFlags();
             UploadParticleAges(snapshot);
             UploadParticleAntStates(snapshot);
         }
 
-        void UploadInitialFood(float[] initialFood)
+        void UploadFoodChannel(float[] initialFood, int channelOffset)
         {
             const int chunkSize = 262144;
             uint[] chunk = new uint[Math.Min(chunkSize, voxelCount)];
@@ -3878,7 +4011,7 @@ namespace Nuclei4
                     float food = start + i < initialFood.Length ? initialFood[start + i] : 0;
                     chunk[i] = (uint)Math.Round(Math.Max(0, food) * DepositScale);
                 }
-                UpdateUIntBufferRegion(depositBuffer, foodRemainingOffset + start, chunk, count);
+                UpdateUIntBufferRegion(depositBuffer, channelOffset + start, chunk, count);
             }
         }
 
@@ -3897,6 +4030,34 @@ namespace Nuclei4
             }
         }
 
+        /// <summary>
+        /// V3 advances age inside particleCheckParentVoxel, which runs once during reset
+        /// and again every iteration, so by the time its population rules are evaluated a
+        /// particle's age is iteration + 1. V4 only advances age inside the move kernel,
+        /// which is skipped on iteration 1, giving iteration - 1. Seeding the uploaded
+        /// ages with those two missing increments makes every age gate -- death,
+        /// division and ant behaviour -- fire on the same iteration as V3.
+        /// </summary>
+        const int V3AgeAlignmentOffset = 2;
+
+        /// <summary>
+        /// V3 particles start with the flag clear, so a reset must not inherit stale
+        /// values from a previous run in the reused deposit buffer.
+        /// </summary>
+        void UploadParticleHighDepositFlags()
+        {
+            if (particleCapacity == 0 || particleHighDepositOffset < 0) return;
+
+            const int chunkSize = 262144;
+            uint[] chunk = new uint[Math.Min(chunkSize, particleCapacity)];
+            for (int start = 0; start < particleCapacity; start += chunk.Length)
+            {
+                int count = Math.Min(chunk.Length, particleCapacity - start);
+                Array.Clear(chunk, 0, count);
+                UpdateUIntBufferRegion(depositBuffer, particleHighDepositOffset + start, chunk, count);
+            }
+        }
+
         void UploadParticleAges(GpuSolverInput snapshot)
         {
             if (particleCount == 0 || particleAgeOffset < 0) return;
@@ -3909,10 +4070,10 @@ namespace Nuclei4
                 for (int i = 0; i < count; i++)
                 {
                     int slot = start + i;
-                    chunk[i] = (uint)Math.Max(0,
+                    chunk[i] = (uint)(Math.Max(0,
                         snapshot.ParticleAges != null && slot < snapshot.ParticleAges.Length
                             ? snapshot.ParticleAges[slot]
-                            : 0);
+                            : 0) + V3AgeAlignmentOffset);
                 }
                 UpdateUIntBufferRegion(depositBuffer, particleAgeOffset + start, chunk, count);
             }
@@ -4332,6 +4493,7 @@ namespace Nuclei4
             boundaryModeTransitionShader = CreateComputeShader("ApplyBoundaryModeTransition");
             moveShader = CreateComputeShader("MoveParticlesAndDeposit");
             applyDepositsShader = CreateComputeShader("ApplyDeposits");
+            projectFoodSourcesShader = CreateComputeShader("ProjectFoodSources");
             clearCountsShader = CreateComputeShader("ClearParticleCounts");
             countParticlesShader = CreateComputeShader("CountParticles");
             seedNeighbourCountsShader = CreateComputeShader("SeedNeighbourCounts");
@@ -4799,8 +4961,12 @@ namespace Nuclei4
             public int ParticleDivisionNeighbourOffset;
             public int ParticleGenerationOffset;
             public int ParticleAntStateOffset;
-            public int Padding2;
-            public int Padding3;
+            public int FoodSourceOffset;
+            public int RandomPopulationFrequency;
+            public float RandomDeathProbability;
+            public float RandomDivisionProbability;
+            public int HighDepositOffset;
+            public int RandomPadding1;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -4921,8 +5087,12 @@ cbuffer Params : register(b0)
     int ParticleDivisionNeighbourOffset;
     int ParticleGenerationOffset;
     int ParticleAntStateOffset;
-    int Padding2;
-    int Padding3;
+    int FoodSourceOffset;
+    int RandomPopulationFrequency;
+    float RandomDeathProbability;
+    float RandomDivisionProbability;
+    int HighDepositOffset;
+    int RandomPadding1;
 }
 
 cbuffer MeshParams : register(b1)
@@ -5009,6 +5179,11 @@ int FreeSlotIndex(int stackIndex)
     return FreeSlotOffset + stackIndex;
 }
 
+int HighDepositIndex(int particleIndex)
+{
+    return HighDepositOffset + particleIndex;
+}
+
 int ParticleAgeIndex(int particleIndex)
 {
     return ParticleAgeOffset + particleIndex;
@@ -5052,6 +5227,11 @@ int AntBaseDepositIndex(int voxelIndex)
 int FoodRemainingIndex(int voxelIndex)
 {
     return FoodRemainingOffset + voxelIndex;
+}
+
+int FoodSourceIndex(int voxelIndex)
+{
+    return FoodSourceOffset + voxelIndex;
 }
 
 bool IsParticleAlive(int particleIndex)
@@ -5143,6 +5323,12 @@ bool HasRemainingFoodAt(int index)
     return FoodRemainingOffset >= 0 && index >= 0 && index < VoxelCount && DepositFixed[FoodRemainingIndex(index)] != 0u;
 }
 
+float FoodSourceAt(int index)
+{
+    if (FoodSourceOffset < 0 || index < 0 || index >= VoxelCount) return 0.0;
+    return DepositFixed[FoodSourceIndex(index)] / DepositScale;
+}
+
 int VoxelIndexFromPosition(float3 position)
 {
     int x = PlanarYZ != 0 ? 0 : (int)floor(position.x / VoxelSize);
@@ -5171,6 +5357,20 @@ float3 SafeYAxis(float3 x, float3 y)
     y = NormalizeOr(y, abs(x.z) < 0.9 ? normalize(cross(float3(0, 0, 1), x)) : normalize(cross(float3(0, 1, 0), x)));
     y = y - x * dot(x, y);
     return NormalizeOr(y, abs(x.z) < 0.9 ? normalize(cross(float3(0, 0, 1), x)) : normalize(cross(float3(0, 1, 0), x)));
+}
+
+// Mirrors V3 ParticleGenerator.ToUnit so both toolsets draw from the same range.
+// The cast and float reciprocal are load-bearing: the masked value is always
+// below 16777216, so an integer division truncates every draw to exactly 0 and
+// makes any positive probability fire on every particle.
+float UnitFromHash(uint value)
+{
+    return (float)(value & 0x00FFFFFFu) * (1.0f / 16777216.0f);
+}
+
+bool RandomPopulationDue()
+{
+    return RandomPopulationFrequency > 0 && (Iteration % RandomPopulationFrequency) == 0;
 }
 
 uint Hash(uint value)
@@ -5231,11 +5431,6 @@ float SampleDensity(float3 p)
     if (Wrap == 0 && IsBoundary(x, y, z)) return -1.0;
 
     float value = Source[index];
-    float food = RemainingFoodAt(index);
-    if (food > value && food > 0.0)
-    {
-        value = food;
-    }
 
     if (HasAntParticles != 0)
     {
@@ -5521,6 +5716,7 @@ bool TryRecoverWalkableStep(int currentParentIndex, int particleIndex, float spe
             [unroll]
             for (int offsetZ = -1; offsetZ <= 1; offsetZ++)
             {
+                if (offsetX == 0 && offsetY == 0 && offsetZ == 0) continue;
                 int x = parentX + offsetX * step;
                 int y = parentY + offsetY * step;
                 int z = parentZ + offsetZ * step;
@@ -5586,6 +5782,7 @@ void ApplyBoundaryModeTransition(uint3 id : SV_DispatchThreadID)
         if (TryRecoverWalkableStep(previousParentIndex, particleIndex, 0.0, recoveredIndex, recoveredPosition))
         {
             parentIndex = recoveredIndex;
+            direction = NormalizeOr(ApplyPlanarMode(recoveredPosition - position), -direction);
             position = recoveredPosition;
         }
         else
@@ -5666,12 +5863,14 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
     float rotationCos;
     sincos(rotationAngle, rotationSin, rotationCos);
     float depositValue = group1.z;
-    uint wanderFrequency = max(1u, (uint)round(group1.w));
+    uint wanderFrequency = group1.w <= 0.0 ? 0u : max(1u, (uint)round(group1.w));
     if (DynamicPopulation != 0)
     {
         float wander = saturate(group0.w);
         float groupPopulation = (float)ParticleCounts[GroupPopulationIndex(groupIndex)];
-        wanderFrequency = max(1u, (uint)floor(pow(1.0 - wander, 3.0) * groupPopulation / 40.0));
+        wanderFrequency = wander <= 0.0
+            ? 0u
+            : max(1u, (uint)floor(pow(1.0 - wander, 3.0) * groupPopulation / 10.0));
     }
 
     float3 homeOffset = position - homePosition;
@@ -5754,7 +5953,7 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
     }
 
     float3 steeringDirection = NormalizeOr(force, x);
-    float3 moveDirection = NormalizeOr(steeringDirection + x, x);
+    float3 moveDirection = NormalizeOr(steeringDirection + x * 0.2, x);
     uint movementSeed = Hash((uint)particleIndex + (uint)Iteration * 2891336453u);
     if (!isAnt && wanderFrequency > 0u && movementSeed % wanderFrequency == 0u)
     {
@@ -5777,6 +5976,7 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
         if (TryRecoverWalkableStep(currentParentIndex, particleIndex, speed, recoveredIndex, recoveredPosition))
         {
             parentIndex = recoveredIndex;
+            moveDirection = NormalizeOr(ApplyPlanarMode(recoveredPosition - position), -moveDirection);
             nextPosition = recoveredPosition;
         }
         else
@@ -5784,18 +5984,33 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
             parentIndex = currentParentIndex;
             if (!IsValidVoxelIndex(parentIndex)) parentIndex = -1;
             nextPosition = position;
+            moveDirection = NormalizeOr(ApplyPlanarMode(-moveDirection), x);
         }
     }
 
     if (parentIndex >= 0 && parentIndex < VoxelCount)
     {
         uint previousCount = ParticleCounts[parentIndex];
+        // Mirrors V3: the deposit is scaled by whether the *previous* move landed in
+        // an empty voxel, and the flag is then updated for the next step. V3 updates
+        // the flag whenever the destination is empty, even if the boundary guard
+        // suppresses the deposit itself, so the update sits outside that check.
+        bool wasHighDeposit = HighDepositOffset < 0
+            || DepositFixed[HighDepositIndex(particleIndex)] != 0u;
+        if (HighDepositOffset >= 0)
+        {
+            DepositFixed[HighDepositIndex(particleIndex)] = previousCount == 0u ? 1u : 0u;
+        }
+
         if (previousCount == 0u && CanDepositAtVoxel(parentIndex, sensorDistance))
         {
             float ageT = saturate(particleAge / 99.0);
             float antMultiplier = foundFood ? lerp(1.0, 0.3, ageT) : lerp(1.0, 0.2, ageT);
             float antTrailFactor = !foundFood && AntFoodPheromone[parentIndex] > 0.0 ? 1.1 : 0.9;
-            float effectiveDeposit = isAnt ? depositValue * antMultiplier * (foundFood ? 1.0 : antTrailFactor) : depositValue;
+            float slimeScale = wasHighDeposit ? 1.0 : 0.25;
+            float effectiveDeposit = isAnt
+                ? depositValue * antMultiplier * (foundFood ? 1.0 : antTrailFactor)
+                : depositValue * slimeScale;
             uint fixedDeposit = (uint)round(max(0.0, effectiveDeposit * DepositScale));
             if (fixedDeposit > 0u)
             {
@@ -5838,6 +6053,22 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
     ParticleYAxis[particleIndex] = float4(y, (float)wrapped);
     DepositFixed[ParticleAgeIndex(particleIndex)] = nextParticleAge;
     if (isAnt) DepositFixed[ParticleAntStateIndex(particleIndex)] = foundFood ? 1u : 0u;
+}
+
+// Mirrors V3 projectFoodSources. Runs before diffusion so the injected value
+// is diffused and decayed by the normal slime-field update in the same step.
+// The source map is immutable, so every reset re-establishes the same strength.
+[numthreads(256, 1, 1)]
+void ProjectFoodSources(uint3 id : SV_DispatchThreadID)
+{
+    int index = (int)LinearIndex256(id);
+    if (index >= VoxelCount) return;
+    if (!IsValidVoxelIndex(index)) return;
+
+    float foodValue = FoodSourceAt(index);
+    if (foodValue <= 0.0) return;
+
+    Source[index] = ClampDensityLimits(Source[index] + foodValue, index);
 }
 
 [numthreads(256, 1, 1)]
@@ -5986,21 +6217,25 @@ void SumNeighbourAxis(uint3 id : SV_DispatchThreadID)
     }
 }
 
+// Reserve first, undo if we crossed the floor. A single atomic add always
+// succeeds, whereas the bounded compare-exchange retry loop this replaces
+// silently dropped claims once many particles contended on the one counter --
+// which made the observed death rate track contention instead of the
+// configured probability.
+// Reserve first, undo if we crossed the floor. A single atomic add always
+// succeeds, whereas the bounded compare-exchange retry loop this replaces
+// silently dropped claims once many particles contended on the one counter --
+// which made the observed death rate track contention instead of the
+// configured probability.
 bool TryClaimDeath()
 {
-    uint current = ParticleCounts[ActivePopulationIndex()];
     uint minimum = (uint)max(MinimumPopulation, 0);
-    [loop]
-    for (int attempt = 0; attempt < 64; attempt++)
-    {
-        if (current <= minimum) return false;
+    uint previous;
+    InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0xffffffffu, previous);
+    if (previous > minimum) return true;
 
-        uint observed;
-        InterlockedCompareExchange(ParticleCounts[ActivePopulationIndex()], current, current - 1u, observed);
-        if (observed == current) return true;
-        current = observed;
-    }
-
+    uint ignored;
+    InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 1u, ignored);
     return false;
 }
 
@@ -6014,20 +6249,34 @@ void ApplyParticleDeath(uint3 id : SV_DispatchThreadID)
     int neighbourCount = 0;
     if (parentIndex >= 0 && parentIndex < VoxelCount)
     {
+        // Excludes the particle itself, matching V3, which subtracts one after
+        // summing the box (Solver.cs particleCheckNeighbourCount).
         neighbourCount = max(0, (int)round(Source[parentIndex]) - 1);
     }
     DepositFixed[ParticleDeathNeighbourIndex(particleIndex)] = (uint)neighbourCount;
 
     uint age = DepositFixed[ParticleAgeIndex(particleIndex)];
-    bool shouldDie = parentIndex < 0 || parentIndex >= VoxelCount ||
-                     neighbourCount <= DeathMinimumNeighbours ||
-                     neighbourCount >= DeathMaximumNeighbours;
-    if (parentIndex >= 0 && age < (uint)max(DeathMinimumAge, 0) && neighbourCount > 2)
+    bool outsideNeighbourRange = neighbourCount < DeathMinimumNeighbours ||
+                                 neighbourCount > DeathMaximumNeighbours;
+    bool oldEnoughToDie = age >= (uint)max(DeathMinimumAge, 0);
+    bool shouldDie = DeathEnabled != 0 && oldEnoughToDie && outsideNeighbourRange;
+
+    // Random death is independent of the neighbour rule and of the age gate,
+    // matching V3 applyRandomParticleDeath. TryClaimDeath still enforces the
+    // minimum-population budget.
+    if (!shouldDie && RandomDeathProbability > 0.0 && RandomPopulationDue())
     {
-        shouldDie = false;
+        uint deathSeed = Hash((uint)particleIndex ^ ((uint)Iteration * 2654435761u) ^ 0x9E3779B9u);
+        shouldDie = UnitFromHash(deathSeed) < RandomDeathProbability;
     }
 
-    if (!shouldDie || !TryClaimDeath()) return;
+    // Separate statements are load-bearing. HLSL does not guarantee short-circuit
+    // evaluation, so a combined !shouldDie || !TryClaimDeath() condition let
+    // the compiler call TryClaimDeath for every particle, and that call
+    // decrements the population counter as a side effect, draining the
+    // population regardless of any rule.
+    if (!shouldDie) return;
+    if (!TryClaimDeath()) return;
 
     float4 position = ParticlePosition[particleIndex];
     int groupIndex = clamp((int)round(position.w), 0, max(GroupCount - 1, 0));
@@ -6059,45 +6308,38 @@ void ApplyParticleDeath(uint3 id : SV_DispatchThreadID)
     }
 }
 
+// Same reserve-then-undo shape as TryClaimDeath, for the same reason.
 bool TryClaimBirth(out uint particleSlot)
 {
     particleSlot = 0u;
-    uint current = ParticleCounts[ActivePopulationIndex()];
     uint maximum = (uint)min(max(MaximumPopulation, 0), ParticleCapacity);
-    [loop]
-    for (int attempt = 0; attempt < 64; attempt++)
+    uint ignored;
+    uint previous;
+    InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 1u, previous);
+    if (previous >= maximum)
     {
-        if (current >= maximum) return false;
-
-        uint observed;
-        InterlockedCompareExchange(ParticleCounts[ActivePopulationIndex()], current, current + 1u, observed);
-        if (observed == current)
-        {
-            uint previousFree;
-            uint ignored;
-            InterlockedAdd(ParticleCounts[FreePopulationIndex()], 0xffffffffu, previousFree);
-            if (previousFree == 0u)
-            {
-                InterlockedAdd(ParticleCounts[FreePopulationIndex()], 1u, ignored);
-                InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0xffffffffu, ignored);
-                return false;
-            }
-
-            particleSlot = DepositFixed[FreeSlotIndex((int)previousFree - 1)];
-            if (particleSlot >= (uint)ParticleCapacity)
-            {
-                InterlockedAdd(ParticleCounts[FreePopulationIndex()], 1u, ignored);
-                InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0xffffffffu, ignored);
-                return false;
-            }
-
-            return true;
-        }
-
-        current = observed;
+        InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0xffffffffu, ignored);
+        return false;
     }
 
-    return false;
+    uint previousFree;
+    InterlockedAdd(ParticleCounts[FreePopulationIndex()], 0xffffffffu, previousFree);
+    if (previousFree == 0u)
+    {
+        InterlockedAdd(ParticleCounts[FreePopulationIndex()], 1u, ignored);
+        InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0xffffffffu, ignored);
+        return false;
+    }
+
+    particleSlot = DepositFixed[FreeSlotIndex((int)previousFree - 1)];
+    if (particleSlot >= (uint)ParticleCapacity)
+    {
+        InterlockedAdd(ParticleCounts[FreePopulationIndex()], 1u, ignored);
+        InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0xffffffffu, ignored);
+        return false;
+    }
+
+    return true;
 }
 
 [numthreads(256, 1, 1)]
@@ -6110,18 +6352,31 @@ void ApplyParticleDivision(uint3 id : SV_DispatchThreadID)
     int parentIndex = (int)round(ParticleDirection[particleIndex].w);
     if (!IsValidVoxelIndex(parentIndex)) return;
 
+    // Excludes the particle itself, matching V3.
     int neighbourCount = max(0, (int)round(Source[parentIndex]) - 1);
     DepositFixed[ParticleDivisionNeighbourIndex(particleIndex)] = (uint)neighbourCount;
     uint age = DepositFixed[ParticleAgeIndex(particleIndex)];
-    if ((HasVoxelDensityLimits != 0 && ReadDensityLimit(MinimumDensityOffset, parentIndex, MinimumDensityDefault) >= 0.0 && age < (uint)max(DivisionMinimumAge, 0)) ||
-        neighbourCount < DivisionMinimumNeighbours ||
-        neighbourCount > DivisionMaximumNeighbours)
+    bool neighbourEligible = DivisionEnabled != 0 &&
+                             age >= (uint)max(DivisionMinimumAge, 0) &&
+                             neighbourCount >= DivisionMinimumNeighbours &&
+                             neighbourCount <= DivisionMaximumNeighbours;
+
+    bool divide = false;
+    if (neighbourEligible)
     {
-        return;
+        uint selectionSeed = Hash((uint)particleIndex + (uint)Iteration * 3266489917u);
+        divide = (selectionSeed & 1u) == 0u;
     }
 
-    uint selectionSeed = Hash((uint)particleIndex + (uint)Iteration * 3266489917u);
-    if ((selectionSeed & 1u) != 0u) return;
+    // Random division is independent of the neighbour rule, matching V3
+    // applyRandomParticleDivision. TryClaimBirth enforces the maximum.
+    if (!divide && RandomDivisionProbability > 0.0 && RandomPopulationDue())
+    {
+        uint divisionSeed = Hash((uint)particleIndex ^ ((uint)Iteration * 40503u) ^ 0x85EBCA6Bu);
+        divide = UnitFromHash(divisionSeed) < RandomDivisionProbability;
+    }
+
+    if (!divide) return;
 
     uint childSlot;
     if (!TryClaimBirth(childSlot)) return;
@@ -6627,7 +6882,7 @@ float MeshDensity(int3 sampleIndex)
 [numthreads(256, 1, 1)]
 void SmoothVolumeForMesh(uint3 id : SV_DispatchThreadID)
 {
-    uint index = id.x;
+    uint index = LinearIndex256(id);
     uint voxelCountForMesh = (uint)(MeshResX * MeshResY * MeshResZ);
     if (index >= voxelCountForMesh) return;
 

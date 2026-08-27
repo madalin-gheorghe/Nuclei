@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Rhino.Geometry;
 
@@ -70,6 +70,7 @@ namespace Nuclei4
             result.SensorAngle = BuildScalarMap(result, inputs, mode, 4, -1, union);
             result.RotationAngle = BuildScalarMap(result, inputs, mode, 5, -1, union);
             result.Food = BuildScalarMap(result, inputs, mode, 6, -1, union);
+            result.AntFood = BuildScalarMap(result, inputs, mode, VoxelPreviewField.AntFood, -1, union);
             VoxelFrequencyMap vectorFrequency;
             Vector3d vectorDefault;
             result.VectorData = BuildVectorData(result, inputs, mode, union, out vectorFrequency, out vectorDefault);
@@ -215,6 +216,7 @@ namespace Nuclei4
                 case 4: return data.SensorAngle;
                 case 5: return data.RotationAngle;
                 case 6: return data.Food;
+                case VoxelPreviewField.AntFood: return data.AntFood;
                 default: throw new ArgumentOutOfRangeException(nameof(fieldIndex));
             }
         }

@@ -1,4 +1,4 @@
-namespace Nuclei4
+﻿namespace Nuclei4
 {
     /// <summary>
     /// Packed, host-neutral reset input. Arrays are passed by reference and retain
@@ -24,6 +24,9 @@ namespace Nuclei4
         public float[] AntFoodPheromone;
         public float[] AntBasePheromone;
         public float[] InitialFood;
+        // Ant-consumable food map. Kept separate from InitialFood, which is the
+        // slime chemoattractant source, so ants no longer eat the slime map.
+        public float[] InitialAntFood;
         public uint[] ActiveVoxelFlags;
         public uint[] VoxelFlags;
         public bool HasStaticPreviewInput;

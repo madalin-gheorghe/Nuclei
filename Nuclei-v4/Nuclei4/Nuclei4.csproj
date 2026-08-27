@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFrameworks>net48;net7.0-windows</TargetFrameworks>
 		<ImplicitUsings>disable</ImplicitUsings>
@@ -39,6 +39,7 @@
 		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyBoundaryModeTransition.cso" LogicalName="Nuclei4.GpuShaders.ApplyBoundaryModeTransition.cso" />
 		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\MoveParticlesAndDeposit.cso" LogicalName="Nuclei4.GpuShaders.MoveParticlesAndDeposit.cso" />
 		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyDeposits.cso" LogicalName="Nuclei4.GpuShaders.ApplyDeposits.cso" />
+		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ProjectFoodSources.cso" LogicalName="Nuclei4.GpuShaders.ProjectFoodSources.cso" />
 		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ClearParticleCounts.cso" LogicalName="Nuclei4.GpuShaders.ClearParticleCounts.cso" />
 		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\CountParticles.cso" LogicalName="Nuclei4.GpuShaders.CountParticles.cso" />
 		<EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\SeedNeighbourCounts.cso" LogicalName="Nuclei4.GpuShaders.SeedNeighbourCounts.cso" />
