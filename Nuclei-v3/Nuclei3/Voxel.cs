@@ -88,6 +88,7 @@ namespace Nuclei3
         public double rotationAngleMultiplier = -1;
 
         public double food = -1;
+        public double antFood = -1;
 
         public Vector3d voxelVector = new Vector3d(0,0,0);
         public int frequency = 3;

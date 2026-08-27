@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,9 +16,13 @@ namespace Nuclei3
 {
     public class ParticlePreviewCache
     {
-        public PointCloud SlimePointCloud = new PointCloud();
-        public PointCloud AntPointCloud1 = new PointCloud();
-        public PointCloud AntPointCloud2 = new PointCloud();
+        // Left null until BeginBuild/Invalidate assigns them. Allocating point clouds
+        // in the field initializer meant every ParticleList construction touched Rhino
+        // native code -- V3 builds one on every division pass -- and made the solver
+        // and the output sink impossible to exercise outside a Rhino host.
+        public PointCloud SlimePointCloud;
+        public PointCloud AntPointCloud1;
+        public PointCloud AntPointCloud2;
         public BoundingBox ClippingBox = BoundingBox.Empty;
         public int ParticleCount = 0;
         public bool HasPoint = false;
@@ -41,9 +45,11 @@ namespace Nuclei3
 
         public void Invalidate(int particleCount)
         {
-            SlimePointCloud = new PointCloud();
-            AntPointCloud1 = new PointCloud();
-            AntPointCloud2 = new PointCloud();
+            // Dropping the references is enough to invalidate; allocating three fresh
+            // point clouds here ran on every step even when no preview was requested.
+            SlimePointCloud = null;
+            AntPointCloud1 = null;
+            AntPointCloud2 = null;
             ClippingBox = BoundingBox.Empty;
             ParticleCount = particleCount;
             HasPoint = false;

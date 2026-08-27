@@ -64,6 +64,7 @@ namespace Nuclei3
         /// <param name="DA">The DA object is used to retrieve from inputs and store in outputs.</param>
         protected override void SolveInstance(IGH_DataAccess DA)
         {
+            VoxelFoodValueList.EnsureSeparateFoodChoices(this, 1);
             //add value list
             if (Params.Input[1].SourceCount == 0)
             {
@@ -89,7 +90,8 @@ namespace Nuclei3
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Distance", "3"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Angle", "4"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Rotation Angle", "5"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Food", "6"));
+                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Food", "6"));
+                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food", "13"));
 
                 vallist.ListItems.AddRange(items);
                 // Until now, the slider is a hypothetical object.
@@ -247,6 +249,7 @@ namespace Nuclei3
                             V.rotationAngleMultiplier = initialV.rotationAngleMultiplier;
 
                             V.food = initialV.food;
+                            V.antFood = initialV.antFood;
 
                             V.voxelVector = initialV.voxelVector;
 
@@ -443,6 +446,12 @@ namespace Nuclei3
                                                 neighbourSum[i] += neighbour.food * weights[weightIndex];
                                             }
                                             break;
+                                        case 13:
+                                            if (neighbour.antFood != -1)
+                                            {
+                                                neighbourSum[i] += neighbour.antFood * weights[weightIndex];
+                                            }
+                                            break;
                                     }
                                 }
                             }
@@ -524,6 +533,12 @@ namespace Nuclei3
                                                     neighbourSum[i] += neighbour.food * weights[weightIndex];
                                                 }
                                                 break;
+                                            case 13:
+                                                if (neighbour.antFood != -1)
+                                                {
+                                                    neighbourSum[i] += neighbour.antFood * weights[weightIndex];
+                                                }
+                                                break;
                                         }
                                     }
                                 }
@@ -603,6 +618,12 @@ namespace Nuclei3
                                                     neighbourSum[i] += neighbour.food * weights[weightIndex];
                                                 }
                                                 break;
+                                            case 13:
+                                                if (neighbour.antFood != -1)
+                                                {
+                                                    neighbourSum[i] += neighbour.antFood * weights[weightIndex];
+                                                }
+                                                break;
                                         }
                                     }
                                 }
@@ -643,6 +664,9 @@ namespace Nuclei3
 
                         case 6:
                             newValues[i] = V.food * (1 - diffuse) + diffuse * neighbourSum[i];
+                            break;
+                        case 13:
+                            newValues[i] = V.antFood * (1 - diffuse) + diffuse * neighbourSum[i];
                             break;
                     }
 
@@ -747,6 +771,12 @@ namespace Nuclei3
                                                 neighbourSum[i] += neighbour.food * weights[weightIndex];
                                             }
                                             break;
+                                        case 13:
+                                            if (neighbour.antFood != -1)
+                                            {
+                                                neighbourSum[i] += neighbour.antFood * weights[weightIndex];
+                                            }
+                                            break;
                                     }
                                 }
                             }
@@ -828,6 +858,12 @@ namespace Nuclei3
                                                     neighbourSum[i] += neighbour.food * weights[weightIndex];
                                                 }
                                                 break;
+                                            case 13:
+                                                if (neighbour.antFood != -1)
+                                                {
+                                                    neighbourSum[i] += neighbour.antFood * weights[weightIndex];
+                                                }
+                                                break;
                                         }
                                     }
                                 }
@@ -907,6 +943,12 @@ namespace Nuclei3
                                                     neighbourSum[i] += neighbour.food * weights[weightIndex];
                                                 }
                                                 break;
+                                            case 13:
+                                                if (neighbour.antFood != -1)
+                                                {
+                                                    neighbourSum[i] += neighbour.antFood * weights[weightIndex];
+                                                }
+                                                break;
                                         }
                                     }
                                 }
@@ -947,6 +989,9 @@ namespace Nuclei3
 
                         case 6:
                             newValues[i] = V.food * (1 - diffuse) + diffuse * neighbourSum[i];
+                            break;
+                        case 13:
+                            newValues[i] = V.antFood * (1 - diffuse) + diffuse * neighbourSum[i];
                             break;
                     }
 
@@ -1050,6 +1095,12 @@ namespace Nuclei3
                                                 neighbourSum[i] += neighbour.food * weights[weightIndex];
                                             }
                                             break;
+                                        case 13:
+                                            if (neighbour.antFood != -1)
+                                            {
+                                                neighbourSum[i] += neighbour.antFood * weights[weightIndex];
+                                            }
+                                            break;
                                     }
                                 }
                             }
@@ -1131,6 +1182,12 @@ namespace Nuclei3
                                                     neighbourSum[i] += neighbour.food * weights[weightIndex];
                                                 }
                                                 break;
+                                            case 13:
+                                                if (neighbour.antFood != -1)
+                                                {
+                                                    neighbourSum[i] += neighbour.antFood * weights[weightIndex];
+                                                }
+                                                break;
                                         }
                                     }
                                 }
@@ -1210,6 +1267,12 @@ namespace Nuclei3
                                                     neighbourSum[i] += neighbour.food * weights[weightIndex];
                                                 }
                                                 break;
+                                            case 13:
+                                                if (neighbour.antFood != -1)
+                                                {
+                                                    neighbourSum[i] += neighbour.antFood * weights[weightIndex];
+                                                }
+                                                break;
                                         }
                                     }
                                 }
@@ -1250,6 +1313,9 @@ namespace Nuclei3
 
                         case 6:
                             newValues[i] = V.food * (1 - diffuse) + diffuse * neighbourSum[i];
+                            break;
+                        case 13:
+                            newValues[i] = V.antFood * (1 - diffuse) + diffuse * neighbourSum[i];
                             break;
                     }
 
@@ -1346,6 +1412,9 @@ namespace Nuclei3
 
                     case 6:
                         V.food = valueMultipliers[i];
+                        break;
+                    case 13:
+                        V.antFood = valueMultipliers[i];
                         break;
                 }
             }

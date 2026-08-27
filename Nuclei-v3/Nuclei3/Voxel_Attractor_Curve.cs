@@ -263,6 +263,7 @@ namespace Nuclei3
                                             outV.rotationAngleMultiplier = inV.rotationAngleMultiplier;
 
                                             outV.food = inV.food;
+                                            outV.antFood = inV.antFood;
 
                                             outV.voxelVector = inV.voxelVector;
                                             outV.frequency = inV.frequency;
@@ -425,6 +426,7 @@ namespace Nuclei3
                                     outV.rotationAngleMultiplier = inV.rotationAngleMultiplier;
 
                                     outV.food = inV.food;
+                                    outV.antFood = inV.antFood;
 
                                     outV.voxelVector = inV.voxelVector;
                                     outV.frequency = inV.frequency;

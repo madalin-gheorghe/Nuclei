@@ -40,7 +40,7 @@ public class SolverBenchmark
         diffuseField.SetValue(solver, 0.1);
         var reusableWeightsField = typeof(Solver).GetField("reusableWeights", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         var precompute = typeof(Solver).GetMethod("precomputeWeights", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        reusableWeightsField.SetValue(solver, precompute.Invoke(solver, new object[] { 1 }) as double[]);
+        reusableWeightsField.SetValue(solver, precompute.Invoke(solver, new object[] { 1, 1.0 }) as double[]);
         var activeVoxelsField = typeof(Solver).GetField("activeVoxels", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         var activeVoxels = activeVoxelsField.GetValue(solver) as Voxel[];
         newVoxelDensity = new double[activeVoxels.Length];

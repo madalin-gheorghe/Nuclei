@@ -97,7 +97,8 @@ namespace Nuclei3
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Distance", "3"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Angle", "4"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Rotation Angle", "5"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Food", "6"));
+                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Food", "6"));
+                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food", "13"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Chemoattractants", "7"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food Pheromones", "8"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Base Pheromones", "9"));
@@ -114,6 +115,7 @@ namespace Nuclei3
             }
 
             ensureCombinedPreviewChoices();
+            VoxelFoodValueList.EnsureSeparateFoodChoices(this, 1);
 
             //DA.GetData("Display", ref display);
             min = 0;
@@ -294,6 +296,14 @@ namespace Nuclei3
                                     if (tryGetDynamicPreviewValue(V, out dynamicValue))
                                     {
                                         addPreviewSample(voxelSamplesConcurrent, V, dynamicValue, previewPlanarOffset());
+                                    }
+                                }
+
+                                if (valueIndex == VoxelPreviewField.AntFood)
+                                {
+                                    if (V.antFood >= 0 && min <= V.antFood && V.antFood <= max)
+                                    {
+                                        addPreviewSample(voxelSamplesConcurrent, V, V.antFood, voxelSize / 2.5);
                                     }
                                 }
                             }
@@ -728,6 +738,7 @@ namespace Nuclei3
                 case 9: return voxelSize / 5;
                 case 10: return voxelSize / 4;
                 case 11: return voxelSize / 4;
+                case VoxelPreviewField.AntFood: return voxelSize / 2.5;
                 default: return voxelSize / 12;
             }
         }
@@ -765,6 +776,10 @@ namespace Nuclei3
                     break;
                 case 6:
                     value = V.food;
+                    if (value < 0) return false;
+                    break;
+                case VoxelPreviewField.AntFood:
+                    value = V.antFood;
                     if (value < 0) return false;
                     break;
                 case 7:
@@ -873,6 +888,7 @@ namespace Nuclei3
                 Point = point;
                 Value = value;
                 Food = voxel != null ? voxel.food : 0;
+                AntFood = voxel != null ? voxel.antFood : 0;
                 Slime = voxel != null ? voxel.density : 0;
                 FoodPheromone = voxel != null ? voxel.towardsFoodPheromone : 0;
                 BasePheromone = voxel != null ? voxel.towardsBasePheromone : 0;
@@ -881,6 +897,7 @@ namespace Nuclei3
             public Point3d Point;
             public double Value;
             public double Food;
+            public double AntFood;
             public double Slime;
             public double FoodPheromone;
             public double BasePheromone;
@@ -920,7 +937,7 @@ namespace Nuclei3
 
             if (colour.R == 0 && colour.G == 0 && colour.B == 0)
             {
-                if (valueIndex < 7)
+                if (VoxelPreviewField.IsStatic(valueIndex))
                 {
                     voxelColor = Globals.voxelColorList_White[index];
                 }
@@ -958,13 +975,14 @@ namespace Nuclei3
 
         Color retrieveVoxelColor(VoxelPreviewSample sample)
         {
-            if (valueIndex < VoxelPreviewField.SlimeChemoattractants)
+            if (VoxelPreviewField.IsStatic(valueIndex))
             {
                 return retrieveVoxelColor(sample.Value);
             }
 
             return retrieveDynamicVoxelColor(
                 sample.Food,
+                sample.AntFood,
                 sample.Slime,
                 sample.FoodPheromone,
                 sample.BasePheromone);
@@ -972,17 +990,22 @@ namespace Nuclei3
 
         Color retrieveVoxelColor(Voxel V, double value)
         {
-            if (valueIndex < VoxelPreviewField.SlimeChemoattractants || V == null)
+            if (VoxelPreviewField.IsStatic(valueIndex) || V == null)
             {
                 return retrieveVoxelColor(value);
             }
 
-            return retrieveDynamicVoxelColor(V.food, V.density, V.towardsFoodPheromone, V.towardsBasePheromone);
+            return retrieveDynamicVoxelColor(V.food, V.antFood, V.density, V.towardsFoodPheromone, V.towardsBasePheromone);
         }
 
-        Color retrieveDynamicVoxelColor(double food, double slime, double foodPheromone, double basePheromone)
+        Color retrieveDynamicVoxelColor(double food, double antFood, double slime, double foodPheromone, double basePheromone)
         {
-            double foodVisual = previewValueToNormalized(food);
+            double sourceFood = valueIndex == VoxelPreviewField.SlimeChemoattractants
+                ? food
+                : valueIndex == VoxelPreviewField.AntsAndSlime
+                    ? Math.Max(food, antFood)
+                    : antFood;
+            double foodVisual = previewValueToNormalized(sourceFood);
             double slimeVisual = previewValueToNormalized(slime);
             double foodPheromoneVisual = previewValueToNormalized(foodPheromone);
             double basePheromoneVisual = previewValueToNormalized(basePheromone);
@@ -1033,6 +1056,7 @@ namespace Nuclei3
         bool tryGetDynamicPreviewValue(Voxel V, out double value)
         {
             double food = Math.Max(0, V.food);
+            double antFood = Math.Max(0, V.antFood);
             double slime = Math.Max(0, V.density);
             double foodPheromone = Math.Max(0, V.towardsFoodPheromone);
             double basePheromone = Math.Max(0, V.towardsBasePheromone);
@@ -1043,16 +1067,16 @@ namespace Nuclei3
                     value = Math.Max(food, slime);
                     break;
                 case VoxelPreviewField.AntFoodPheromones:
-                    value = Math.Max(food, foodPheromone);
+                    value = Math.Max(antFood, foodPheromone);
                     break;
                 case VoxelPreviewField.AntBasePheromones:
-                    value = Math.Max(food, basePheromone);
+                    value = Math.Max(antFood, basePheromone);
                     break;
                 case VoxelPreviewField.AntPheromones:
-                    value = Math.Max(food, Math.Max(foodPheromone, basePheromone));
+                    value = Math.Max(antFood, Math.Max(foodPheromone, basePheromone));
                     break;
                 case VoxelPreviewField.AntsAndSlime:
-                    value = Math.Max(food, Math.Max(slime, Math.Max(foodPheromone, basePheromone)));
+                    value = Math.Max(Math.Max(food, antFood), Math.Max(slime, Math.Max(foodPheromone, basePheromone)));
                     break;
                 default:
                     value = 0;

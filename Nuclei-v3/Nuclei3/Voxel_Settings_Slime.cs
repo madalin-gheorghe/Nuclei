@@ -32,6 +32,10 @@ namespace Nuclei3
             //2
             pManager.AddNumberParameter("Decay Rate", "decay", "The rate of decay of the deposited values", GH_ParamAccess.item, 0.03);
             pManager[2].Optional = true;
+
+            //3
+            pManager.AddNumberParameter("Gradual", "gradual", "Controls diffusion behaviour. 0 is V2-like immediate averaging and 1 is the original gradual V3 diffusion", GH_ParamAccess.item, 1.0);
+            pManager[3].Optional = true;
         }
 
         /// <summary>
@@ -56,8 +60,13 @@ namespace Nuclei3
             DA.GetData("Diffuse Rate", ref diffuseRate);
             DA.GetData("Diffuse Range", ref diffuseRange);
             DA.GetData("Decay Rate", ref decayRate);
+            ensureGradualParameterMetadata();
+            DA.GetData(3, ref diffusionGradual);
+
+            if (double.IsNaN(diffusionGradual) || diffusionGradual < 0) diffusionGradual = 0;
+            if (double.IsPositiveInfinity(diffusionGradual) || diffusionGradual > 1) diffusionGradual = 1;
             
-            String voxelSettings = "VoxelSettingsSlime" + " " + diffuseRate + " " + diffuseRange + " " + decayRate;
+            String voxelSettings = "VoxelSettingsSlime" + " " + diffuseRate + " " + diffuseRange + " " + decayRate + " " + diffusionGradual;
 
             List<String> outputSettings = new List<String>();
             outputSettings.Add(voxelSettings);
@@ -70,6 +79,17 @@ namespace Nuclei3
         double diffuseRate;
         int diffuseRange;
         double decayRate;
+        double diffusionGradual = 1.0;
+
+        void ensureGradualParameterMetadata()
+        {
+            if (Params.Input.Count <= 3) return;
+
+            IGH_Param parameter = Params.Input[3];
+            parameter.Name = "Gradual";
+            parameter.NickName = "gradual";
+            parameter.Description = "Controls diffusion behaviour. 0 is V2-like immediate averaging and 1 is the original gradual V3 diffusion";
+        }
 
         //-------------------------------------------------------------------
 

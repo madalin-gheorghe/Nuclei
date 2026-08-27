@@ -28,6 +28,15 @@ namespace Nuclei3
             //1
             pManager.AddIntegerParameter("Maximum Population", "maxPop", "Maxiumum Population of Particles", GH_ParamAccess.item, 20000);
             pManager[1].Optional = true;
+            //2
+            pManager.AddNumberParameter("Random Division", "randomDiv", "Independent division probability per particle at each population update (0 to 1)", GH_ParamAccess.item, 0.0);
+            pManager[2].Optional = true;
+            //3
+            pManager.AddNumberParameter("Random Death", "randomDie", "Independent removal probability per particle at each population update (0 to 1)", GH_ParamAccess.item, 0.0);
+            pManager[3].Optional = true;
+            //4
+            pManager.AddIntegerParameter("Frequency", "frequency", "Apply random population changes once every X solver iterations", GH_ParamAccess.item, 1);
+            pManager[4].Optional = true;
         }
 
         /// <summary>
@@ -51,8 +60,15 @@ namespace Nuclei3
         {
             DA.GetData("Minimum Population", ref minPop);
             DA.GetData("Maximum Population", ref maxPop);
+            DA.GetData("Random Division", ref randomDiv);
+            DA.GetData("Random Death", ref randomDie);
+            DA.GetData("Frequency", ref frequency);
 
-            String particleSettings = "PopulationSettings" + " " + minPop + " " + maxPop;
+            randomDiv = clampProbability(randomDiv);
+            randomDie = clampProbability(randomDie);
+            if (frequency < 1) frequency = 1;
+
+            String particleSettings = "PopulationSettings" + " " + minPop + " " + maxPop + " " + randomDiv + " " + randomDie + " " + frequency;
 
             List<String> outputSettings = new List<String>();
             outputSettings.Add(particleSettings);
@@ -65,6 +81,16 @@ namespace Nuclei3
         //inputs
         int minPop;
         int maxPop;
+        double randomDiv;
+        double randomDie;
+        int frequency = 1;
+
+        static double clampProbability(double value)
+        {
+            if (double.IsNaN(value) || value < 0) return 0;
+            if (double.IsPositiveInfinity(value) || value > 1) return 1;
+            return value;
+        }
 
         //-------------------------------------------------------------------
 

@@ -14,7 +14,8 @@ namespace Nuclei3
         SensorDistance = 3,
         SensorAngle = 4,
         RotationAngle = 5,
-        Food = 6
+        Food = 6,
+        AntFood = 13
     }
 
     internal sealed class VoxelScalarMap
@@ -77,6 +78,7 @@ namespace Nuclei3
         public VoxelScalarMap SensorAngle = new VoxelScalarMap(-1);
         public VoxelScalarMap RotationAngle = new VoxelScalarMap(-1);
         public VoxelScalarMap Food = new VoxelScalarMap(-1);
+        public VoxelScalarMap AntFood = new VoxelScalarMap(-1);
         public Vector3d[] Vectors;
         public int[] Frequencies;
 
@@ -126,6 +128,7 @@ namespace Nuclei3
             double[] sensorAngle = null;
             double[] rotationAngle = null;
             double[] food = null;
+            double[] antFood = null;
             Vector3d[] vectors = null;
             int[] frequencies = null;
 
@@ -153,6 +156,7 @@ namespace Nuclei3
                         CaptureNonDefault(ref sensorAngle, count, flatIndex, voxel.sensorAngleMultiplier, -1);
                         CaptureNonDefault(ref rotationAngle, count, flatIndex, voxel.rotationAngleMultiplier, -1);
                         CaptureNonDefault(ref food, count, flatIndex, voxel.food, -1);
+                        CaptureNonDefault(ref antFood, count, flatIndex, voxel.antFood, -1);
 
                         if (voxel.voxelVector.Length > 0)
                         {
@@ -199,6 +203,7 @@ namespace Nuclei3
             data.SensorAngle = new VoxelScalarMap(-1, sensorAngle);
             data.RotationAngle = new VoxelScalarMap(-1, rotationAngle);
             data.Food = new VoxelScalarMap(-1, food);
+            data.AntFood = new VoxelScalarMap(-1, antFood);
             data.Vectors = vectors;
             data.Frequencies = frequencies;
             return data;
@@ -329,6 +334,7 @@ namespace Nuclei3
             result.SensorAngle = SensorAngle;
             result.RotationAngle = RotationAngle;
             result.Food = Food;
+            result.AntFood = AntFood;
             result.Vectors = Vectors;
             result.Frequencies = Frequencies;
             return result;
@@ -388,6 +394,7 @@ namespace Nuclei3
             voxel.sensorAngleMultiplier = SensorAngle.Get(flatIndex);
             voxel.rotationAngleMultiplier = RotationAngle.Get(flatIndex);
             voxel.food = Food.Get(flatIndex);
+            voxel.antFood = AntFood.Get(flatIndex);
 
             voxel.voxelVector = Vectors != null ? Vectors[flatIndex] : Vector3d.Zero;
             voxel.vectorField = voxel.voxelVector.Length > 0;
@@ -418,6 +425,7 @@ namespace Nuclei3
                 case 5: return RotationAngle.Get(flatIndex);
                 case 6: return Food.Get(flatIndex);
                 case 7: return Density.Get(flatIndex);
+                case 13: return AntFood.Get(flatIndex);
                 default: return 0;
             }
         }
@@ -440,6 +448,20 @@ namespace Nuclei3
             }
 
             return AllVoxelsActive ? ordinal : ActiveIndices[ordinal];
+        }
+
+        public bool MayContainBlockedMaxDensity()
+        {
+            return MaximumDensity.Values != null || VoxelOccupancy.IsBlockedMaxDensity(MaximumDensity.DefaultValue);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool IsWalkableFlatIndex(int flatIndex)
+        {
+            return flatIndex >= 0 &&
+                   flatIndex < Count &&
+                   IsActive(flatIndex) &&
+                   !VoxelOccupancy.IsBlockedMaxDensity(MaximumDensity.Get(flatIndex));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -487,6 +509,7 @@ namespace Nuclei3
             result.SensorAngle = SensorAngle;
             result.RotationAngle = RotationAngle;
             result.Food = Food;
+            result.AntFood = AntFood;
             result.Vectors = Vectors;
             result.Frequencies = Frequencies;
             return result;
@@ -523,6 +546,7 @@ namespace Nuclei3
                 case VoxelScalarField.SensorAngle: return SensorAngle;
                 case VoxelScalarField.RotationAngle: return RotationAngle;
                 case VoxelScalarField.Food: return Food;
+                case VoxelScalarField.AntFood: return AntFood;
                 default: return Speed;
             }
         }
@@ -551,6 +575,9 @@ namespace Nuclei3
                     break;
                 case VoxelScalarField.Food:
                     Food = map;
+                    break;
+                case VoxelScalarField.AntFood:
+                    AntFood = map;
                     break;
             }
         }

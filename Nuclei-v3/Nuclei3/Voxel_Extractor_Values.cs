@@ -55,6 +55,7 @@ namespace Nuclei3
         /// <param name="DA">The DA object is used to retrieve from inputs and store in outputs.</param>
         protected override void SolveInstance(IGH_DataAccess DA)
         {
+            VoxelFoodValueList.EnsureSeparateFoodChoices(this, 1);
             //add value list
             if (Params.Input[1].SourceCount == 0)
             {
@@ -80,7 +81,8 @@ namespace Nuclei3
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Distance", "3"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Angle", "4"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Rotation Angle", "5"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Food", "6"));
+                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Food", "6"));
+                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food", "13"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Chemoattractants", "7"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food Pheromones", "8"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Base Pheromones", "9"));
@@ -98,7 +100,7 @@ namespace Nuclei3
             DA.GetData(0, ref voxel);
             DA.GetData("Type", ref valueIndex);
 
-            if (valueIndex >= 0 && valueIndex <= 7)
+            if ((valueIndex >= 0 && valueIndex <= 7) || valueIndex == VoxelPreviewField.AntFood)
             {
                 VoxelGridData voxelData = VoxelGridRegistry.GetOrCapture(voxel, Globals.voxelSize);
                 ensureOutputCapacity(voxelData.ActiveCount);
@@ -155,6 +157,9 @@ namespace Nuclei3
 
                                 case 6:
                                     outputVoxelValues.Add(V.food);
+                                    break;
+                                case VoxelPreviewField.AntFood:
+                                    outputVoxelValues.Add(V.antFood);
                                     break;
 
                                 case 7:

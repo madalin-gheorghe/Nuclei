@@ -61,6 +61,7 @@ namespace Nuclei3
             result.SensorAngle = BuildScalarMap(result, inputs, mode, 4, -1);
             result.RotationAngle = BuildScalarMap(result, inputs, mode, 5, -1);
             result.Food = BuildScalarMap(result, inputs, mode, 6, -1);
+            result.AntFood = BuildScalarMap(result, inputs, mode, 13, -1);
             result.Vectors = BuildVectorMap(result, inputs);
             result.Frequencies = BuildFrequencyMap(result, inputs, mode);
             return result;
