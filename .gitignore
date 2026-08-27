@@ -40,3 +40,8 @@ packages/
 # OS files
 Thumbs.db
 .DS_Store
+
+# Local comparison / reference material (not part of the shipped product)
+Nuclei-v2-old/
+.tools/
+tmp/

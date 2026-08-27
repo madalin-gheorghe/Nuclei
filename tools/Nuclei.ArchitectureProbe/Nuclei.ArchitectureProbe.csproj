@@ -6,5 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Rhino.Inside" Version="7.0.0" />
+  </ItemGroup>
 
 </Project>
