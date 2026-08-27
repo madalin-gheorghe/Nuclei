@@ -1,4 +1,4 @@
-using Grasshopper.Kernel;
+﻿using Grasshopper.Kernel;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -244,7 +244,8 @@ namespace Nuclei4
                 new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Distance", "3"),
                 new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Angle", "4"),
                 new Grasshopper.Kernel.Special.GH_ValueListItem("Rotation Angle", "5"),
-                new Grasshopper.Kernel.Special.GH_ValueListItem("Food", "6")
+                new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Food", "6"),
+                new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food", "13")
             });
             document.AddObject(valueList, false);
             Params.Input[1].AddSource(valueList);

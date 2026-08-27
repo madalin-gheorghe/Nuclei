@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -80,7 +80,8 @@ namespace Nuclei4
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Distance", "3"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Angle", "4"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Rotation Angle", "5"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Food", "6"));
+                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Food", "6"));
+                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food", "13"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Chemoattractants", "7"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food Pheromones", "8"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Base Pheromones", "9"));

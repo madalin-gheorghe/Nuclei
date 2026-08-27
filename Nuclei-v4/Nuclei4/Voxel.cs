@@ -25,6 +25,7 @@ namespace Nuclei4
         public double[] SensorDistanceMultiplier;
         public double[] RotationAngleMultiplier;
         public double[] Food;
+        public double[] AntFood;
         public Vector3d[] Vectors;
         public int[] Frequencies;
         public bool[] VectorField;
@@ -48,6 +49,7 @@ namespace Nuclei4
             SensorAngleMultiplier = CopyMap(data.SensorAngle);
             RotationAngleMultiplier = CopyMap(data.RotationAngle);
             Food = CopyMap(data.Food);
+            AntFood = CopyMap(data.AntFood);
             if (data.VectorData != null)
             {
                 Vectors = new Vector3d[data.Count];
@@ -191,6 +193,7 @@ namespace Nuclei4
         double rotationAngleMultiplierValue = -1;
 
         double foodValue = -1;
+        double antFoodValue = -1;
 
         Vector3d voxelVectorValue = new Vector3d(0,0,0);
         int frequencyValue = 3;
@@ -264,6 +267,12 @@ namespace Nuclei4
         {
             get { return GetStoreValue(densityStore != null ? densityStore.Food : null, foodValue); }
             set { SetStoreValue(densityStore != null ? densityStore.Food : null, ref foodValue, value); }
+        }
+
+        public double antFood
+        {
+            get { return GetStoreValue(densityStore != null ? densityStore.AntFood : null, antFoodValue); }
+            set { SetStoreValue(densityStore != null ? densityStore.AntFood : null, ref antFoodValue, value); }
         }
 
         public Vector3d voxelVector

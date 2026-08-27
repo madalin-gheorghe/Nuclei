@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
@@ -14,7 +14,8 @@ namespace Nuclei4
         SensorDistance = 3,
         SensorAngle = 4,
         RotationAngle = 5,
-        Food = 6
+        Food = 6,
+        AntFood = 13
     }
 
     internal sealed class VoxelScalarMap
@@ -134,6 +135,7 @@ namespace Nuclei4
         public VoxelScalarMap SensorAngle = new VoxelScalarMap(-1);
         public VoxelScalarMap RotationAngle = new VoxelScalarMap(-1);
         public VoxelScalarMap Food = new VoxelScalarMap(-1);
+        public VoxelScalarMap AntFood = new VoxelScalarMap(-1);
         // Packed XYZ. Frequency is kept separately so a uniform frequency remains
         // one scalar instead of adding a fourth value to every voxel.
         public float[] VectorData;
@@ -208,6 +210,7 @@ namespace Nuclei4
             float[] sensorAngle = null;
             float[] rotationAngle = null;
             float[] food = null;
+            float[] antFood = null;
             float[] vectorData = null;
             int[] vectorFrequencies = null;
 
@@ -235,6 +238,7 @@ namespace Nuclei4
                         CaptureNonDefault(ref sensorAngle, count, flatIndex, voxel.sensorAngleMultiplier, -1);
                         CaptureNonDefault(ref rotationAngle, count, flatIndex, voxel.rotationAngleMultiplier, -1);
                         CaptureNonDefault(ref food, count, flatIndex, voxel.food, -1);
+                        CaptureNonDefault(ref antFood, count, flatIndex, voxel.antFood, -1);
 
                         if (voxel.voxelVector.Length > 0)
                         {
@@ -279,6 +283,7 @@ namespace Nuclei4
             data.SensorAngle = new VoxelScalarMap(-1, sensorAngle);
             data.RotationAngle = new VoxelScalarMap(-1, rotationAngle);
             data.Food = new VoxelScalarMap(-1, food);
+            data.AntFood = new VoxelScalarMap(-1, antFood);
             data.VectorData = vectorData;
             data.VectorFrequency = new VoxelFrequencyMap(3, vectorFrequencies);
             return data;
@@ -397,6 +402,7 @@ namespace Nuclei4
             result.SensorAngle = SensorAngle;
             result.RotationAngle = RotationAngle;
             result.Food = Food;
+            result.AntFood = AntFood;
             result.VectorData = VectorData;
             result.VectorDefaultX = VectorDefaultX;
             result.VectorDefaultY = VectorDefaultY;
@@ -437,6 +443,7 @@ namespace Nuclei4
             result.SensorAngle = SensorAngle;
             result.RotationAngle = RotationAngle;
             result.Food = Food;
+            result.AntFood = AntFood;
             result.VectorData = VectorData;
             result.VectorDefaultX = VectorDefaultX;
             result.VectorDefaultY = VectorDefaultY;
@@ -551,6 +558,7 @@ namespace Nuclei4
             voxel.sensorAngleMultiplier = SensorAngle.Get(flatIndex);
             voxel.rotationAngleMultiplier = RotationAngle.Get(flatIndex);
             voxel.food = Food.Get(flatIndex);
+            voxel.antFood = AntFood.Get(flatIndex);
 
             voxel.voxelVector = GetVectorValue(flatIndex);
             voxel.vectorField = voxel.voxelVector.Length > 0;
@@ -581,6 +589,7 @@ namespace Nuclei4
                 case 5: return RotationAngle.Get(flatIndex);
                 case 6: return Food.Get(flatIndex);
                 case 7: return Density.Get(flatIndex);
+                case 13: return AntFood.Get(flatIndex);
                 default: return 0;
             }
         }
@@ -652,6 +661,7 @@ namespace Nuclei4
                 hash = HashDouble(hash, SensorAngle.Get(flatIndex));
                 hash = HashDouble(hash, RotationAngle.Get(flatIndex));
                 hash = HashDouble(hash, Food.Get(flatIndex));
+                hash = HashDouble(hash, AntFood.Get(flatIndex));
 
                 Vector3d vector = GetVectorValue(flatIndex);
                 hash = HashDouble(hash, vector.X);
@@ -866,6 +876,7 @@ namespace Nuclei4
             result.SensorAngle = SensorAngle;
             result.RotationAngle = RotationAngle;
             result.Food = Food;
+            result.AntFood = AntFood;
             result.VectorData = VectorData;
             result.VectorDefaultX = VectorDefaultX;
             result.VectorDefaultY = VectorDefaultY;
@@ -955,6 +966,7 @@ namespace Nuclei4
                 case VoxelScalarField.SensorAngle: return SensorAngle;
                 case VoxelScalarField.RotationAngle: return RotationAngle;
                 case VoxelScalarField.Food: return Food;
+                case VoxelScalarField.AntFood: return AntFood;
                 default: return Speed;
             }
         }
@@ -983,6 +995,9 @@ namespace Nuclei4
                     break;
                 case VoxelScalarField.Food:
                     Food = map;
+                    break;
+                case VoxelScalarField.AntFood:
+                    AntFood = map;
                     break;
             }
         }

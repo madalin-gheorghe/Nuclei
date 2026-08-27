@@ -1,4 +1,4 @@
-using Grasshopper.Kernel;
+﻿using Grasshopper.Kernel;
 using Rhino.Geometry;
 using Grasshopper.Kernel.Types;
 using System;
@@ -106,7 +106,8 @@ namespace Nuclei4
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Distance", "3"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Angle", "4"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Rotation Angle", "5"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Food", "6"));
+                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Food", "6"));
+                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food", "13"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Chemoattractants", "7"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food Pheromones", "8"));
                 items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Base Pheromones", "9"));
@@ -317,7 +318,7 @@ namespace Nuclei4
 
         internal bool WantsGpuDynamicDensityPreview
         {
-            get { return Rhino.RhinoApp.ExeVersion >= 9 && !Hidden && !Locked && VoxelPreviewField.IsDynamicDensity(CurrentValueIndex()); }
+            get { return Rhino.RhinoApp.ExeVersion >= 9 && !Hidden && !Locked && VoxelPreviewField.HasGpuDensityTexture(CurrentValueIndex()); }
         }
 
         internal int GpuDensityPreviewScale
@@ -442,7 +443,7 @@ namespace Nuclei4
 
         protected virtual int PreviewVolumeSampleCount
         {
-            get { return 0; }
+            get { return highResolutionPreview ? HighResolutionVolumeSamples : StandardVolumeSamples; }
         }
 
         static float ValidFloat(double value, float fallback)
@@ -1022,6 +1023,7 @@ namespace Nuclei4
                 case 4: return voxelSize / 8;
                 case 5: return voxelSize / 7;
                 case 6: return voxelSize / 2.5;
+                case VoxelPreviewField.AntFood: return voxelSize / 2.5;
                 case 7: return voxelSize / 4;
                 case 8: return voxelSize / 3;
                 case 9: return voxelSize / 5;
@@ -1067,6 +1069,10 @@ namespace Nuclei4
                     break;
                 case 6:
                     value = voxel != null ? voxel.GetScalarValue(VoxelPreviewField.Food, flatIndex) : previewData != null ? previewData.Food.Get(flatIndex) : -1;
+                    if (value < 0) return false;
+                    break;
+                case VoxelPreviewField.AntFood:
+                    value = voxel != null ? voxel.GetScalarValue(VoxelPreviewField.AntFood, flatIndex) : previewData != null ? previewData.AntFood.Get(flatIndex) : -1;
                     if (value < 0) return false;
                     break;
                 case 7:
@@ -1146,6 +1152,44 @@ namespace Nuclei4
         double min, max;
 
         Color colour;
+        // Volumetric preview quality. The automatic budget saturates at 256 on
+        // large grids, and 128 is close enough that the difference rarely justifies
+        // the cost, so 128 is the default and High Resolution opts back in to 256.
+        bool highResolutionPreview;
+
+        const int StandardVolumeSamples = 128;
+        const int HighResolutionVolumeSamples = 256;
+
+        public override bool Write(GH_IWriter writer)
+        {
+            writer.SetBoolean("HighResolutionPreview", this.highResolutionPreview);
+
+            return base.Write(writer);
+        }
+
+        public override bool Read(GH_IReader reader)
+        {
+            this.highResolutionPreview = false;
+            reader.TryGetBoolean("HighResolutionPreview", ref this.highResolutionPreview);
+
+            return base.Read(reader);
+        }
+
+        protected override void AppendAdditionalComponentMenuItems(ToolStripDropDown menu)
+        {
+            base.AppendAdditionalComponentMenuItems(menu);
+
+            var highResolutionToggle = Menu_AppendItem(
+                menu, "High Resolution", highResolutionHandler, true, this.highResolutionPreview);
+            highResolutionToggle.ToolTipText =
+                "Doubles the volumetric preview ray samples from 128 to 256. Sharper, and roughly twice the display cost.";
+        }
+
+        protected void highResolutionHandler(object sender, EventArgs e)
+        {
+            this.highResolutionPreview = !this.highResolutionPreview;
+            this.ExpireSolution(true);
+        }
 
         bool automaticPreviewDomain = true;
         Interval currentPreviewDomain = new Interval(0, 1);
@@ -1225,7 +1269,7 @@ namespace Nuclei4
 
             if (colour.R == 0 && colour.G == 0 && colour.B == 0)
             {
-                if (valueIndex < 7)
+                if (valueIndex < 7 || valueIndex == VoxelPreviewField.AntFood)
                 {
                     voxelColor = Globals.voxelColorList_White[index];
                 }

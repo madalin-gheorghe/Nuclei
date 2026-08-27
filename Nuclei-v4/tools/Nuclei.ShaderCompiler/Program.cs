@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using System.Text;
 
 using SharpGen.Runtime;
@@ -20,6 +20,7 @@ string[] entryPoints =
     "ApplyBoundaryModeTransition",
     "MoveParticlesAndDeposit",
     "ApplyDeposits",
+    "ProjectFoodSources",
     "ClearParticleCounts",
     "CountParticles",
     "SeedNeighbourCounts",

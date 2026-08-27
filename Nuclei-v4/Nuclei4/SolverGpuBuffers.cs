@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 using Rhino.Geometry;
@@ -100,6 +100,7 @@ namespace Nuclei4
             VoxelVectorDefaultFrequency = data.VectorFrequency != null ? data.VectorFrequency.DefaultValue : 3;
             VoxelDensityLimits = densityLimitElementCount > 0 ? new float[densityLimitElementCount] : null;
             InitialFood = null;
+            InitialAntFood = null;
             ActiveVoxelFlags = data.AllVoxelsActive ? null : new uint[(voxelCount + 31) >> 5];
             VoxelFlags = hasFlags ? new uint[(voxelCount + 31) >> 5] : null;
             StaticVoxelFields = null;
@@ -112,9 +113,15 @@ namespace Nuclei4
             bool hasDynamicFood = includeDynamicState && Field.Dynamic != null && Field.Dynamic.RemainingFood != null;
             bool mayHaveDensity = HasSlimeParticles && (hasDynamicDensity || data.Density.Values != null || data.Density.DefaultValue != 0 || Field.LegacyVoxels != null);
             bool mayHaveAntFields = HasAntParticles && (hasDynamicAntFood || hasDynamicAntBase || Field.LegacyVoxels != null);
-            bool mayHaveFood = hasDynamicFood || data.Food.Values != null || PositiveValueOrZero(data.Food.DefaultValue) > 0;
+            // hasDynamicFood tracks the remaining-food readback, which is the ant map
+            // after the food split. Both maps must be able to force the voxel scan;
+            // omitting ant food here left InitialAntFood null whenever nothing else
+            // required a scan, so ants saw no food while the preview still showed it.
+            bool mayHaveFood = data.Food.Values != null || PositiveValueOrZero(data.Food.DefaultValue) > 0;
+            bool mayHaveAntFood = hasDynamicFood || data.AntFood.Values != null
+                || PositiveValueOrZero(data.AntFood.DefaultValue) > 0;
             bool needsFlagScan = hasFlags && (!data.AllVoxelsActive || data.MaximumDensity.Values != null);
-            bool needsVoxelScan = mayHaveDensity || mayHaveAntFields || mayHaveFood ||
+            bool needsVoxelScan = mayHaveDensity || mayHaveAntFields || mayHaveFood || mayHaveAntFood ||
                 VoxelBehaviorData != null || VoxelDensityLimits != null || needsFlagScan;
 
             if (!needsVoxelScan) return;
@@ -158,6 +165,12 @@ namespace Nuclei4
                 {
                     if (InitialFood == null) InitialFood = new float[voxelCount];
                     InitialFood[flatIndex] = food;
+                }
+                float antFood = PositiveValueOrZero(Field.GetScalarValue(VoxelPreviewField.AntFood, flatIndex));
+                if (antFood > 0)
+                {
+                    if (InitialAntFood == null) InitialAntFood = new float[voxelCount];
+                    InitialAntFood[flatIndex] = antFood;
                 }
                 if (hasFlags && data.IsWalkableFlatIndex(flatIndex))
                 {
@@ -208,6 +221,7 @@ namespace Nuclei4
                 MinimumDensityOffset = MaximumDensityOffset = -1;
                 MinimumDensityDefault = MaximumDensityDefault = -1;
                 InitialFood = new float[0];
+                InitialAntFood = new float[0];
                 StaticVoxelFields = null;
                 StaticVoxelFieldMaximums = null;
                 VoxelVectorsXyz = new float[0];
@@ -245,6 +259,7 @@ namespace Nuclei4
             MinimumDensityDefault = MaximumDensityDefault = -1;
             VoxelDensityLimits = new float[voxelCount * 2];
             InitialFood = null;
+            InitialAntFood = null;
             StaticVoxelFields = null;
             StaticVoxelFieldMaximums = null;
             VoxelVectorsXyz = new float[voxelCount * 3];
@@ -321,6 +336,12 @@ namespace Nuclei4
             {
                 if (InitialFood == null) InitialFood = new float[ResX * ResY * ResZ];
                 InitialFood[flatIndex] = food;
+            }
+            float antFood = PositiveValueOrZero(voxel.antFood);
+            if (antFood > 0)
+            {
+                if (InitialAntFood == null) InitialAntFood = new float[ResX * ResY * ResZ];
+                InitialAntFood[flatIndex] = antFood;
             }
         }
 
@@ -730,11 +751,11 @@ namespace Nuclei4
 
         static float ComputeSlimeWanderFrequency(double wander, int particleCount)
         {
-            if (wander < 0) wander = 0;
+            if (wander <= 0) return 0;
             if (wander > 1) wander = 1;
 
             wander = 1 - wander;
-            double frequency = Math.Floor(Math.Pow(wander, 3) * particleCount / 40.0);
+            double frequency = Math.Floor(Math.Pow(wander, 3) * particleCount / 10.0);
             if (frequency < 1) frequency = 1;
             return (float)frequency;
         }

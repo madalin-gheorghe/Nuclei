@@ -1,4 +1,4 @@
-namespace Nuclei4
+﻿namespace Nuclei4
 {
     internal static class VoxelPreviewField
     {
@@ -9,12 +9,16 @@ namespace Nuclei4
         public const int SensorAngle = 4;
         public const int RotationAngle = 5;
         public const int Food = 6;
+        public const int SlimeFood = Food;
         public const int SlimeChemoattractants = 7;
         public const int AntFoodPheromones = 8;
         public const int AntBasePheromones = 9;
         public const int AntPheromones = 10;
         public const int AntsAndSlime = 11;
         public const int SlimeChemoattractantsV2 = 12;
+        // 12 is already taken by SlimeChemoattractantsV2, so ant food takes 13.
+        // V3 uses the same index so the two toolsets stay value-compatible.
+        public const int AntFood = 13;
 
         public const int StaticFieldCount = 6;
 
@@ -26,12 +30,27 @@ namespace Nuclei4
         public static bool IsDynamicDensity(int valueIndex)
         {
             return valueIndex == Food
+                || valueIndex == AntFood
                 || valueIndex == SlimeChemoattractants
                 || valueIndex == AntFoodPheromones
                 || valueIndex == AntBasePheromones
                 || valueIndex == AntPheromones
                 || valueIndex == AntsAndSlime
                 || valueIndex == SlimeChemoattractantsV2;
+        }
+
+        /// <summary>
+        /// True when the field is backed by a float density buffer the GPU can
+        /// raymarch. Slime food and ant food are dynamic (ant food is consumed and
+        /// read back) but live in the packed deposit buffer, not a density buffer,
+        /// so they must use the CPU preview path instead of allocating a second
+        /// volumetric atlas.
+        /// </summary>
+        public static bool HasGpuDensityTexture(int valueIndex)
+        {
+            return IsDynamicDensity(valueIndex)
+                && valueIndex != Food
+                && valueIndex != AntFood;
         }
 
         public static bool IsCombinedDynamicDensity(int valueIndex)
