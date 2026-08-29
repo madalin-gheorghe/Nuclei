@@ -265,6 +265,7 @@ namespace Nuclei3
         public Vector3d moveVector;
 
         public bool foundFood = false;
+        public bool antLaunchBoundaryHit = false;
         #endregion
 
         //-------------------------------------------------------------------

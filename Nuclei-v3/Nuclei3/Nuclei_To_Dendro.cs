@@ -14,6 +14,8 @@ namespace Nuclei3
     {
         object cachedVolume;
         bool previousConvert;
+        bool allowDownstreamExpiration;
+        bool publishScheduled;
 
         public NucleiToDendro()
           : base(
@@ -83,6 +85,17 @@ namespace Nuclei3
             }
         }
 
+        protected override void ExpireDownStreamObjects()
+        {
+            // Once a volume has been cached, live solver updates must not keep
+            // waking downstream Dendro components. A successful conversion
+            // explicitly publishes the replacement volume instead.
+            if (cachedVolume == null || allowDownstreamExpiration)
+            {
+                base.ExpireDownStreamObjects();
+            }
+        }
+
         void TryConvert(Voxel[,,] field, int valueIndex, double isoValue, object settingsInput)
         {
             Type settingsType = FindDendroType("DendroGH.DendroSettings");
@@ -141,6 +154,7 @@ namespace Nuclei3
 
             try
             {
+                bool replacingCachedVolume = cachedVolume != null;
                 object nextVolume = Activator.CreateInstance(volumeType, new object[] { points, radii, settings });
                 PropertyInfo validProperty = volumeType.GetProperty("IsValid", BindingFlags.Instance | BindingFlags.Public);
                 bool valid = validProperty != null && Convert.ToBoolean(validProperty.GetValue(nextVolume, null));
@@ -165,6 +179,10 @@ namespace Nuclei3
                 cachedVolume = volumeGoo;
                 Message = points.Count.ToString("N0") + " voxels";
                 ExpirePreview(true);
+                if (replacingCachedVolume)
+                {
+                    ScheduleCachedVolumePublication();
+                }
             }
             catch (TargetInvocationException ex)
             {
@@ -175,6 +193,35 @@ namespace Nuclei3
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Dendro conversion failed: " + ex.Message);
             }
+        }
+
+        void ScheduleCachedVolumePublication()
+        {
+            GH_Document document = OnPingDocument();
+            if (document == null || publishScheduled)
+            {
+                return;
+            }
+
+            publishScheduled = true;
+            document.ScheduleSolution(1, _ =>
+            {
+                publishScheduled = false;
+                if (OnPingDocument() == null)
+                {
+                    return;
+                }
+
+                allowDownstreamExpiration = true;
+                try
+                {
+                    ExpireSolution(false);
+                }
+                finally
+                {
+                    allowDownstreamExpiration = false;
+                }
+            });
         }
 
         static double SourceVoxelSize(Voxel[,,] field)

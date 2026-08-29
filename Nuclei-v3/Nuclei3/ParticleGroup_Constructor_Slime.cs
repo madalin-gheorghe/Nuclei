@@ -4,9 +4,14 @@ using System.Linq;
 using System.Collections.Concurrent;
 
 using Grasshopper.Kernel;
+using Grasshopper.Kernel.Attributes;
+using Grasshopper.GUI;
+using Grasshopper.GUI.Canvas;
+using GH_IO.Serialization;
 using Rhino.Geometry;
 using System.Threading.Tasks;
 using System.Drawing;
+using System.Windows.Forms;
 using static Nuclei3.ParticleGroup;
 
 namespace Nuclei3
@@ -46,7 +51,7 @@ namespace Nuclei3
             //7
             pManager.AddNumberParameter("Deposit", "deposit", "The Amount of Chemoattractants Each Particle Deposits in the Environment", GH_ParamAccess.item, 1);
             //8
-            pManager.AddNumberParameter("Wander", "wander", "The Frequency of Random Directions. VALUES FROM 0 TO 1. The Larger the Value the More Chaotic", GH_ParamAccess.item, 0);
+            pManager.AddNumberParameter("Exploration", "exploration", "Classic: frequency of random directions. Probabilistic: 0 chooses the strongest direction, while 1 samples all positive directions equally", GH_ParamAccess.item, 0);
             //9
             pManager.AddColourParameter("Colour", "colour", "The Display Color of The Particles", GH_ParamAccess.item, Color.FromArgb(125, 220, 255, 0));
             pManager[9].Optional = true;
@@ -65,6 +70,40 @@ namespace Nuclei3
         public override GH_Exposure Exposure
         {
             get { return GH_Exposure.primary; }
+        }
+
+        public bool ProbabilisticSteering
+        {
+            get { return probabilisticSteering; }
+        }
+
+        public override void CreateAttributes()
+        {
+            m_attributes = new SlimeSteeringAttributes(this);
+        }
+
+        public void SetProbabilisticSteering(bool enabled)
+        {
+            if (probabilisticSteering == enabled) return;
+
+            RecordUndoEvent("Change slime steering mode");
+            probabilisticSteering = enabled;
+            ExpireSolution(true);
+        }
+
+        public override bool Write(GH_IWriter writer)
+        {
+            writer.SetBoolean("ProbabilisticSteering", probabilisticSteering);
+            return base.Write(writer);
+        }
+
+        public override bool Read(GH_IReader reader)
+        {
+            probabilisticSteering = false;
+            reader.TryGetBoolean("ProbabilisticSteering", ref probabilisticSteering);
+            bool result = base.Read(reader);
+            normalizeExplorationParameterMetadata();
+            return result;
         }
 
         /// <summary>
@@ -89,18 +128,21 @@ namespace Nuclei3
             DA.GetData("Rotation Angle", ref particleRotationAngle);
             DA.GetData("Deposit", ref particleDepositValue);
 
-            DA.GetData("Wander", ref particleWander);
+            // Fixed inputs are serialized by ordinal. Legacy archives restore the
+            // former "Wander" name, but their wire and persistent value remain at 8.
+            DA.GetData(8, ref particleWander);
 
             DA.GetData("Colour", ref colour);
 
             ParticleGroup PG = new ParticleGroup(particleSpeed, particleSensorDistance, (int) Math.Floor(particleSensorAngle), (int) Math.Floor(particleRotationAngle), particleDepositValue,
                 particleWander, -1, colour);
             PG.ant = false;
+            PG.connectedSteering = probabilisticSteering;
             createParticles(PG);
 
             DA.SetData(0, PG);
 
-            this.Message = "Particles: " + outputParticles.Count;
+            this.Message = (probabilisticSteering ? "Probabilistic" : "Classic") + " | Particles: " + outputParticles.Count;
         }
 
         //-------------------------------------------------------------------
@@ -117,11 +159,92 @@ namespace Nuclei3
         double particleDepositValue;
 
         double particleWander;
+        bool probabilisticSteering = false;
 
         Color colour;
 
         //outputs
         List<Particle> outputParticles;
+
+        void normalizeExplorationParameterMetadata()
+        {
+            if (Params.Input.Count <= 8) return;
+
+            IGH_Param parameter = Params.Input[8];
+            parameter.Name = "Exploration";
+            parameter.NickName = "exploration";
+            parameter.Description = "Classic: frequency of random directions. Probabilistic: 0 chooses the strongest direction, while 1 samples all positive directions equally";
+        }
+
+        sealed class SlimeSteeringAttributes : GH_ComponentAttributes
+        {
+            const float ToggleHeight = 18f;
+            const float ToggleMargin = 2f;
+            RectangleF toggleBounds;
+
+            public SlimeSteeringAttributes(ParticleGroup_Constructor_Slime owner)
+                : base(owner)
+            {
+            }
+
+            ParticleGroup_Constructor_Slime SlimeOwner
+            {
+                get { return (ParticleGroup_Constructor_Slime)Owner; }
+            }
+
+            protected override void Layout()
+            {
+                base.Layout();
+
+                RectangleF bounds = Bounds;
+                bounds.Height += ToggleHeight + ToggleMargin * 2;
+                Bounds = bounds;
+                toggleBounds = new RectangleF(
+                    bounds.X + ToggleMargin,
+                    bounds.Bottom - ToggleHeight - ToggleMargin,
+                    bounds.Width - ToggleMargin * 2,
+                    ToggleHeight);
+            }
+
+            protected override void Render(GH_Canvas canvas, Graphics graphics, GH_CanvasChannel channel)
+            {
+                base.Render(canvas, graphics, channel);
+                if (channel != GH_CanvasChannel.Objects) return;
+
+                RectangleF classicBounds = toggleBounds;
+                classicBounds.Width *= 0.5f;
+                RectangleF probabilisticBounds = toggleBounds;
+                probabilisticBounds.X = classicBounds.Right;
+                probabilisticBounds.Width -= classicBounds.Width;
+
+                bool probabilistic = SlimeOwner.ProbabilisticSteering;
+                Color inactiveColor = Color.FromArgb(255, 146, 146, 161);
+                Color selectedColor = Color.FromArgb(255, 226, 161, 62);
+                using (Brush classicBrush = new SolidBrush(probabilistic ? inactiveColor : selectedColor))
+                using (Brush probabilisticBrush = new SolidBrush(probabilistic ? selectedColor : inactiveColor))
+                using (Pen borderPen = new Pen(Color.FromArgb(95, 95, 95)))
+                using (StringFormat textFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                {
+                    graphics.FillRectangle(classicBrush, classicBounds);
+                    graphics.FillRectangle(probabilisticBrush, probabilisticBounds);
+                    graphics.DrawRectangle(borderPen, toggleBounds.X, toggleBounds.Y, toggleBounds.Width, toggleBounds.Height);
+                    graphics.DrawLine(borderPen, classicBounds.Right, toggleBounds.Top, classicBounds.Right, toggleBounds.Bottom);
+                    graphics.DrawString("Classic", SystemFonts.MessageBoxFont, Brushes.Black, classicBounds, textFormat);
+                    graphics.DrawString("Probabilistic", SystemFonts.MessageBoxFont, Brushes.Black, probabilisticBounds, textFormat);
+                }
+            }
+
+            public override GH_ObjectResponse RespondToMouseDown(GH_Canvas sender, GH_CanvasMouseEvent e)
+            {
+                if (e.Button == MouseButtons.Left && toggleBounds.Contains(e.CanvasLocation))
+                {
+                    SlimeOwner.SetProbabilisticSteering(e.CanvasLocation.X >= toggleBounds.X + toggleBounds.Width * 0.5f);
+                    return GH_ObjectResponse.Handled;
+                }
+
+                return base.RespondToMouseDown(sender, e);
+            }
+        }
 
         //-------------------------------------------------------------------
 
@@ -166,4 +289,3 @@ namespace Nuclei3
         }
     }
 }
-

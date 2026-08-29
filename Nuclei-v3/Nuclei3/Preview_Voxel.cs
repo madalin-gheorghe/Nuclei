@@ -192,7 +192,7 @@ namespace Nuclei3
                     return;
                 }
 
-                if (!VoxelPreviewField.IsStatic(valueIndex))
+                if (!VoxelPreviewField.CanUseStaticPreviewCache(valueIndex))
                 {
                     invalidateStaticPreviewCache();
                 }
@@ -485,7 +485,7 @@ namespace Nuclei3
 
         bool tryReuseStaticPreviewCache(int resX, int resY, int resZ)
         {
-            if (!staticPreviewCacheValid || !VoxelPreviewField.IsStatic(valueIndex))
+            if (!staticPreviewCacheValid || !VoxelPreviewField.CanUseStaticPreviewCache(valueIndex))
             {
                 return false;
             }
@@ -527,7 +527,7 @@ namespace Nuclei3
 
         void rememberStaticPreviewCache(int resX, int resY, int resZ)
         {
-            if (!VoxelPreviewField.IsStatic(valueIndex))
+            if (!VoxelPreviewField.CanUseStaticPreviewCache(valueIndex))
             {
                 invalidateStaticPreviewCache();
                 return;
@@ -1193,4 +1193,3 @@ namespace Nuclei3
     }
 
 }
-

@@ -846,7 +846,7 @@ public class Solver : GH_Component
 
                 if (boundary)
                 {
-                    V.maxDensity = 0.01;
+                    V.maxDensity = 0;
                     V.boundary = true;
                 }
             });
@@ -4164,6 +4164,7 @@ public class Solver : GH_Component
                 ParticleGroup inputPG = inputParticleGroups[pg];
 
                 ParticleGroup PG = new ParticleGroup(inputPG.speed, inputPG.sensorDistance, inputPG.sensorAngle, inputPG.rotationAngle, inputPG.depositValue, inputPG.wanderFrequency, inputPG.baseWanderFrequency, inputPG.color);
+                PG.connectedSteering = inputPG.connectedSteering;
                 particleGroups.Add(PG);
 
                 for (int i = 0; i < inputPG.particles.Count; i++)
@@ -4182,7 +4183,7 @@ public class Solver : GH_Component
                         {
                             initialP.parentVoxel = voxels[xID, yID, zID];
                             initialP.die = false;
-                            if (initialP.parentVoxel.maxDensity == 0.01) initialP.die = true;
+                            if (VoxelOccupancy.IsBlockedMaxDensity(initialP.parentVoxel.maxDensity)) initialP.die = true;
                         }
                         else
                         {
@@ -4344,7 +4345,11 @@ public class Solver : GH_Component
                     }
                 }
 
-                if(!PG.ant) PG.updateWanderFrequency();
+                if (!PG.ant)
+                {
+                    if (PG.connectedSteering) PG.clampConnectedExploration();
+                    else PG.updateWanderFrequency();
+                }
                 if (PG.ant)
                 {
                     PG.updateBaseWanderFrequency();
@@ -4369,8 +4374,13 @@ public class Solver : GH_Component
                 PG.wanderFrequency = inputPG.wanderFrequency;
                 PG.baseWanderFrequency = inputPG.baseWanderFrequency;
                 PG.color = inputPG.color;
+                PG.connectedSteering = inputPG.connectedSteering;
 
-                if (!PG.ant) PG.updateWanderFrequency();
+                if (!PG.ant)
+                {
+                    if (PG.connectedSteering) PG.clampConnectedExploration();
+                    else PG.updateWanderFrequency();
+                }
                 if (PG.ant)
                 {
                     PG.updateBaseWanderFrequency();
@@ -4442,6 +4452,7 @@ public class Solver : GH_Component
                             {
                                 P.foundFood = false;
                                 P.age = 1;
+                                P.antLaunchBoundaryHit = false;
                             }
                         }
 
@@ -4803,7 +4814,7 @@ public class Solver : GH_Component
                     }
                 }
 
-                int bestIndex = chooseBestSensorIndex(value0, value1, value2, value3, value4, tridimensional);
+                int bestIndex = chooseSensorIndex(value0, value1, value2, value3, value4, tridimensional, parentGroup, p);
                 applySensorMoveForce(P, parentVoxel, parentGroup, bestIndex, p);
             }
             );
@@ -4877,7 +4888,7 @@ public class Solver : GH_Component
                     value4 = useScalarSensors ? sampleSlimeSensorValueScalar(sensorPos4) : sampleSlimeSensorValue(sensorPos4);
                 }
 
-                int bestIndex = chooseBestSensorIndex(value0, value1, value2, value3, value4, tridimensional);
+                int bestIndex = chooseSensorIndex(value0, value1, value2, value3, value4, tridimensional, parentGroup, p);
                 applySensorMoveForce(P, parentVoxel, parentGroup, bestIndex, p);
             }
             );
@@ -4994,6 +5005,117 @@ public class Solver : GH_Component
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int chooseSensorIndex(double value0, double value1, double value2, double value3, double value4, bool include3d, ParticleGroup parentGroup, int particleIndex)
+        {
+            if (parentGroup.ant || !parentGroup.connectedSteering)
+            {
+                return chooseBestSensorIndex(value0, value1, value2, value3, value4, include3d);
+            }
+
+            return chooseConnectedSensorIndex(
+                value0,
+                value1,
+                value2,
+                value3,
+                value4,
+                include3d,
+                parentGroup.wanderFrequency,
+                connectedSteeringSample(particleIndex)
+            );
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int chooseConnectedSensorIndex(double value0, double value1, double value2, double value3, double value4, bool include3d, double exploration, double unitSample)
+        {
+            if (exploration <= 0)
+            {
+                return chooseBestSensorIndex(value0, value1, value2, value3, value4, include3d);
+            }
+
+            double positive0 = connectedSensorValue(value0);
+            double positive1 = connectedSensorValue(value1);
+            double positive2 = connectedSensorValue(value2);
+            double positive3 = include3d ? connectedSensorValue(value3) : 0;
+            double positive4 = include3d ? connectedSensorValue(value4) : 0;
+
+            double maxPositive = Math.Max(positive0, Math.Max(positive1, positive2));
+            if (include3d)
+            {
+                maxPositive = Math.Max(maxPositive, Math.Max(positive3, positive4));
+            }
+
+            if (maxPositive <= 0)
+            {
+                return chooseBestSensorIndex(value0, value1, value2, value3, value4, include3d);
+            }
+
+            double selectivityPower = 7 * (1 - exploration);
+            double weight0 = connectedSensorWeight(positive0, maxPositive, selectivityPower);
+            double weight1 = connectedSensorWeight(positive1, maxPositive, selectivityPower);
+            double weight2 = connectedSensorWeight(positive2, maxPositive, selectivityPower);
+            double weight3 = include3d ? connectedSensorWeight(positive3, maxPositive, selectivityPower) : 0;
+            double weight4 = include3d ? connectedSensorWeight(positive4, maxPositive, selectivityPower) : 0;
+            double totalWeight = weight0 + weight1 + weight2 + weight3 + weight4;
+
+            if (totalWeight <= 0 || double.IsNaN(totalWeight))
+            {
+                return chooseBestSensorIndex(value0, value1, value2, value3, value4, include3d);
+            }
+
+            double target = unitSample * totalWeight;
+            double cumulativeWeight = weight0;
+            if (target < cumulativeWeight) return 0;
+
+            cumulativeWeight += weight1;
+            if (target < cumulativeWeight) return 1;
+
+            cumulativeWeight += weight2;
+            if (target < cumulativeWeight) return 2;
+
+            if (include3d)
+            {
+                cumulativeWeight += weight3;
+                if (target < cumulativeWeight) return 3;
+                return 4;
+            }
+
+            return 2;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        double connectedSensorWeight(double value, double maxValue, double selectivityPower)
+        {
+            if (value <= 0) return 0;
+            if (value >= maxValue) return 1;
+
+            double normalized = value / maxValue;
+            return Math.Pow(normalized, selectivityPower);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        double connectedSensorValue(double value)
+        {
+            if (double.IsNaN(value) || value <= 0) return 0;
+            if (double.IsPositiveInfinity(value)) return double.MaxValue;
+            return value;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        double connectedSteeringSample(int particleIndex)
+        {
+            unchecked
+            {
+                uint sampleKey = (uint)particleIndex ^ ((uint)iteration * 2654435769u) ^ 2738958700u;
+                sampleKey ^= sampleKey >> 16;
+                sampleKey *= 2146121005u;
+                sampleKey ^= sampleKey >> 15;
+                sampleKey *= 2221713035u;
+                sampleKey ^= sampleKey >> 16;
+                return sampleKey * (1.0 / 4294967296.0);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int chooseBestSensorIndex(double value0, double value1, double value2, double value3, double value4, bool include3d)
         {
             double minValue = 9999;
@@ -5087,9 +5209,6 @@ public class Solver : GH_Component
         void particleSense_Ant()
         {
             //ant paricles
-            double maxDist = Math.Max(dimX, dimY);
-            maxDist = Math.Max(maxDist, dimZ);
-
             shuffleParticlesInPlace(particles);
 
             //sense for next iteration
@@ -5105,6 +5224,7 @@ public class Solver : GH_Component
                         Vector3d outsideVector = P.pPlane.Origin - P.home.Origin;
                         Vector3d towardsHomeVector = -outsideVector;
                         towardsHomeVector.Unitize();
+                        int launchDuration = antLaunchDuration(P, parentGroup);
 
                         //turn
                         if (P.age < 15)
@@ -5141,11 +5261,23 @@ public class Solver : GH_Component
                             P.moveVector += wanderVectors[(p + iteration) % wanderVectors.Count];
                         }
 
-                        //when it's close to base wonder out
-                        if (P.age < 30 && outsideVector.Length < sensorDistance * 3)
+                        // Launch searching ants for long enough to cross the distance
+                        // from their nest to the farthest voxel-field corner.
+                        if (!P.foundFood && !P.antLaunchBoundaryHit && P.age < launchDuration)
                         {
-                            outsideVector.Unitize();
-                            P.moveVector += outsideVector * 10;
+                            Vector3d launchVector = outsideVector;
+                            if (!launchVector.Unitize())
+                            {
+                                launchVector = P.pPlane.XAxis;
+                                launchVector.Unitize();
+                            }
+
+                            double launchProgress = Math.Min(1.0, Math.Max(0.0, P.age / (double)launchDuration));
+                            double launchFade = 0.5 * (1.0 + Math.Cos(Math.PI * launchProgress));
+                            double outwardStrength = (7 + antLaunchVariation(P, 17.17) * 2) * launchFade;
+                            double lateralStrength = outwardStrength * (0.55 + antLaunchVariation(P, 41.73) * 0.20);
+                            P.moveVector += launchVector * outwardStrength;
+                            P.moveVector += antLaunchWaveVector(P) * lateralStrength;
                         }
 
                         //towards home
@@ -5172,6 +5304,45 @@ public class Solver : GH_Component
                 }
             }
             );
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        int antLaunchDuration(Particle particle, ParticleGroup parentGroup)
+        {
+            double speed = Math.Abs(parentGroup.speed);
+            if (speed <= Rhino.RhinoMath.ZeroTolerance) return 0;
+
+            Point3d home = particle.home.Origin;
+            double minBoundary = voxelSize;
+            double dx = planarYZ ? 0 : Math.Max(Math.Abs(home.X - minBoundary), Math.Abs(dimX - minBoundary - home.X));
+            double dy = planarXZ ? 0 : Math.Max(Math.Abs(home.Y - minBoundary), Math.Abs(dimY - minBoundary - home.Y));
+            double dz = planarXY ? 0 : Math.Max(Math.Abs(home.Z - minBoundary), Math.Abs(dimZ - minBoundary - home.Z));
+            double farthestBoundaryDistance = Math.Sqrt(dx * dx + dy * dy + dz * dz) * 0.75;
+
+            return (int)Math.Min(int.MaxValue, Math.Ceiling(farthestBoundaryDistance / speed));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        Vector3d antLaunchWaveVector(Particle particle)
+        {
+            Vector3d lateralAxis = particle.home.YAxis;
+            if (!lateralAxis.Unitize()) return Vector3d.Zero;
+
+            double frequency = 0.28 + antLaunchVariation(particle, 73.91) * 0.14;
+            double phase = antLaunchVariation(particle, 109.37) * Math.PI * 2;
+            double wave = Math.Sin(particle.age * frequency + phase);
+            return lateralAxis * wave;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static double antLaunchVariation(Particle particle, double salt)
+        {
+            Plane home = particle.home;
+            double value = Math.Sin(
+                home.Origin.X * 0.1031 + home.Origin.Y * 0.11369 + home.Origin.Z * 0.13787 +
+                home.XAxis.X * 12.9898 + home.XAxis.Y * 78.233 + home.XAxis.Z * 37.719 + salt
+            ) * 43758.5453;
+            return value - Math.Floor(value);
         }
 
         //----------------------------------
@@ -5207,7 +5378,7 @@ public class Solver : GH_Component
                     moveVector += xVector * 0.2;
 
                     //slime wander movement
-                    if (!parentGroup.ant)
+                    if (!parentGroup.ant && !parentGroup.connectedSteering)
                     {
                         int wanderFrequency = (int) parentGroup.wanderFrequency;
 
@@ -5273,6 +5444,13 @@ public class Solver : GH_Component
                     if (planarXZ) nextLoc.Y = dimY / 2;
                     if (planarYZ) nextLoc.X = dimX / 2;
 
+                    // Detect the attempted boundary crossing before boundaries()
+                    // clamps or wraps the point back into the voxel field.
+                    if (parentGroup.ant && antMoveTouchesBoundary(nextLoc))
+                    {
+                        P.antLaunchBoundaryHit = true;
+                    }
+
                     //apply boundaries for new location
                     nextLoc = boundaries(P, nextLoc);
 
@@ -5288,6 +5466,11 @@ public class Solver : GH_Component
                     //move to a random neighbour
                     if (nextVoxel == null || nextVoxel.boundary)
                     {
+                        if (parentGroup.ant)
+                        {
+                            P.antLaunchBoundaryHit = true;
+                        }
+
                         P.die = false;
                         int idX = parentVoxel.idX;
                         int idY = parentVoxel.idY;
@@ -5370,6 +5553,15 @@ public class Solver : GH_Component
             );
 
             particlesTicks = Stopwatch.GetTimestamp() - stageStart;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool antMoveTouchesBoundary(Point3d nextLocation)
+        {
+            double boundaryDistance = voxelSize;
+            return (!planarYZ && (nextLocation.X <= boundaryDistance || nextLocation.X >= dimX - boundaryDistance)) ||
+                   (!planarXZ && (nextLocation.Y <= boundaryDistance || nextLocation.Y >= dimY - boundaryDistance)) ||
+                   (!planarXY && (nextLocation.Z <= boundaryDistance || nextLocation.Z >= dimZ - boundaryDistance));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -5853,7 +6045,6 @@ public class Solver : GH_Component
 
                 if (planarXY == false)
                 {
-
                     if (nextLoc.Z <= boundaryDistance)
                     {
                         nextLoc.Z = boundaryDistance;
@@ -6107,6 +6298,8 @@ public class Solver : GH_Component
                 child.parentVoxel = parent.parentVoxel;
                 child.home = parent.home;
                 child.foundFood = parent.foundFood;
+                child.age = parent.age;
+                child.antLaunchBoundaryHit = parent.antLaunchBoundaryHit;
                 child.parentVoxel.particleCount++;
 
                 children.Add(child);
@@ -6870,5 +7063,3 @@ public class Solver : GH_Component
         }
     }
 }
-
-

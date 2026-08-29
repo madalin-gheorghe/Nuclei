@@ -28,6 +28,7 @@ namespace Nuclei3
         public Color color;
 
         public bool ant = false;
+        public bool connectedSteering = false;
         #endregion
 
         //-------------------------------------------------------------------
@@ -62,6 +63,7 @@ namespace Nuclei3
         public ParticleGroup Duplicate()
         {
             ParticleGroup dup = new ParticleGroup(speed,sensorDistance,sensorAngle,rotationAngle,depositValue,wanderFrequency,baseWanderFrequency,color);
+            dup.connectedSteering = connectedSteering;
             return dup;
         }
         #endregion
@@ -101,6 +103,20 @@ namespace Nuclei3
 
             wanderFrequency = Math.Floor(Math.Pow(wanderFrequency, 3) * particles.Count / 10);
             if (wanderFrequency < 1) wanderFrequency = 1;
+        }
+
+        public void clampConnectedExploration()
+        {
+            if (double.IsNaN(wanderFrequency) || wanderFrequency < 0)
+            {
+                wanderFrequency = 0;
+                return;
+            }
+
+            if (double.IsPositiveInfinity(wanderFrequency) || wanderFrequency > 1)
+            {
+                wanderFrequency = 1;
+            }
         }
 
         public void updateBaseWanderFrequency()

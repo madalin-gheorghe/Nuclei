@@ -25,6 +25,13 @@ namespace Nuclei3
                 || valueIndex == AntFood;
         }
 
+        public static bool CanUseStaticPreviewCache(int valueIndex)
+        {
+            // Ant food uses the static scalar colour palette, but its quantity is
+            // consumed by ants while the solver runs and must be rebuilt live.
+            return IsStatic(valueIndex) && valueIndex != AntFood;
+        }
+
         public static bool IsDynamicDensity(int valueIndex)
         {
             return valueIndex == SlimeFood
