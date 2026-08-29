@@ -154,6 +154,8 @@ namespace Nuclei4
 
             if (voxel != null && !this.Hidden)
             {
+                EnsureCpuDynamicPreviewState(voxel, valueIndex);
+
                 //determine voxel settings
                 int resX = voxel.ResX;
                 int resY = voxel.ResY;
@@ -228,6 +230,14 @@ namespace Nuclei4
             else
             {
                 clearPreviewCache();
+            }
+        }
+
+        internal static void EnsureCpuDynamicPreviewState(VoxelField field, int previewValueIndex)
+        {
+            if (field != null && VoxelPreviewField.IsDynamicDensity(previewValueIndex))
+            {
+                field.EnsureDynamicStateCurrent();
             }
         }
 

@@ -80,6 +80,10 @@ namespace Nuclei4
             stageStart = Stopwatch.GetTimestamp();
             SolverGpuSettings solverSettings = SolverGpuSettings.FromStrings(settings);
             latestSolverSettings = solverSettings;
+            if (voxels != null)
+            {
+                voxels.ConfigureSolverBoundaries(solverSettings.WrapBoundaries);
+            }
             settingsTicks = Stopwatch.GetTimestamp() - stageStart;
 
             bool hasVisibleParticlePreviewRecipient = HasVisibleParticlePreviewRecipient(Params.Output[0], new HashSet<IGH_Param>());
@@ -134,13 +138,34 @@ namespace Nuclei4
 
             atMaxIterationsAtEntry = !reset && iteration >= solverSettings.MaxIterations;
 
+            // Dynamic population counters live on the GPU. Poll the tiny staging
+            // copy queued by the prior step without waiting; movement already uses
+            // the exact GPU counters, while this keeps CPU-visible V3 metadata as
+            // current as the device has made available.
+            if (!stateResetFailed && solverSettings.DynamicPopulation)
+            {
+                TryRefreshLiveGroupPopulations();
+            }
+
             bool settingsSupported = true;
             if (unsupportedGpuReason == "Dynamic population is not supported by Solver GPU yet.")
             {
                 unsupportedGpuReason = "";
             }
 
-            if (settingsSupported && !stateResetFailed && fullSolverEngine != null && !atMaxIterationsAtEntry)
+            // V3 refreshes the live ParticleGroup objects on every non-reset
+            // solution before checking Max Iterations. Keep CPU-visible group
+            // metadata current even when the GPU is unavailable or already done.
+            bool liveParticleVisualMetadataChanged = false;
+            if (!stateResetFailed && particles != null)
+            {
+                liveParticleVisualMetadataChanged = ApplyLiveParticleGroupMetadata(inputParticleGroups);
+            }
+
+            // Group buffers are safe to refresh after completion and carry both
+            // live solver controls and preview colors. Voxel-field updates remain
+            // gated because no simulation step will consume them at Max Iterations.
+            if (settingsSupported && !stateResetFailed && fullSolverEngine != null)
             {
                 try
                 {
@@ -153,7 +178,7 @@ namespace Nuclei4
                         settingsSupported = false;
                         AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, unsupportedGpuReason);
                     }
-                    else if (!UpdateLiveVoxelBehaviorFields(inputVoxels, inputParticleGroups))
+                    else if (!atMaxIterationsAtEntry && !UpdateLiveVoxelBehaviorFields(inputVoxels, inputParticleGroups))
                     {
                         settingsSupported = false;
                         AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, unsupportedGpuReason);
@@ -169,6 +194,15 @@ namespace Nuclei4
                 }
             }
 
+            if (!stateResetFailed && liveParticleVisualMetadataChanged)
+            {
+                RefreshParticlePreviewsAfterLiveMetadataChange(
+                    solverSettings,
+                    useSharedParticlePreview,
+                    useSharedParticleTrailPreview,
+                    buildParticlePreviewCache);
+            }
+
             GpuFullSolverStepResult solverResult = null;
             if (!reset && !atMaxIterationsAtEntry && settingsSupported && !stateResetFailed && gpuStatus.Available && fullSolverEngine != null && voxels != null && iteration < solverSettings.MaxIterations)
             {
@@ -179,7 +213,11 @@ namespace Nuclei4
                     engineTicks = Stopwatch.GetTimestamp() - stageStart;
                     particleCount = solverResult.ParticleCount;
                     iteration++;
-                    if (solverResult.SyncedParticles) lastParticleOutputSyncIteration = iteration;
+                    if (solverResult.SyncedParticles)
+                    {
+                        lastParticleOutputSyncIteration = iteration;
+                        RefreshLiveGroupPopulationsFromCpuGroups();
+                    }
                     if (solverResult.SyncedVoxels) lastVoxelOutputSyncIteration = iteration;
                     if (solverResult.QueuedPreviewReadback)
                     {
@@ -259,12 +297,22 @@ namespace Nuclei4
         {
             Stopwatch resetTimer = Stopwatch.StartNew();
             Stopwatch stageTimer = Stopwatch.StartNew();
-            SolverGpuInputSnapshot snapshot = SolverGpuInputSnapshot.Capture(inputVoxels, inputParticleGroups);
+            SolverGpuInputSnapshot snapshot = SolverGpuInputSnapshot.Capture(
+                inputVoxels,
+                inputParticleGroups,
+                settings != null && settings.WrapBoundaries);
             double snapshotMs = stageTimer.Elapsed.TotalMilliseconds;
             stageTimer.Restart();
 
+            // Snapshot first in case the caller fed a previous solver output back
+            // into this component, then detach that output while it is still held
+            // by the current fields. Replacing the fields before disposal leaves
+            // the old objects with callbacks into a disposed or different engine.
+            DisposeGpuEngines();
+
             voxels = snapshot.Field;
             inputVoxelReference = inputVoxels;
+            inputVoxelWrapState = settings != null && settings.WrapBoundaries;
             particles = snapshot.Particles;
             ClearParticleTrails(particles);
             resX = snapshot.ResX;
@@ -279,6 +327,8 @@ namespace Nuclei4
             particleGroupReferences = snapshot.ParticleGroups ?? new ParticleGroup[0];
             Globals.particleGroups = new List<ParticleGroup>(particleGroupReferences);
             particleGroupParticleCounts = CaptureInputParticleGroupCounts(inputParticleGroups);
+            liveParticleGroupPopulations = CaptureRetainedParticleGroupCounts(particleGroupReferences);
+            particleGroupAntKinds = CaptureInputParticleGroupKinds(inputParticleGroups);
             gpuDensityFieldPreviewEnabled = enableDensityFieldPreview;
             gpuParticlePreviewEnabled = enableParticlePreview;
             gpuParticleTrailPreviewEnabled = enableParticleTrailPreview;
@@ -291,7 +341,6 @@ namespace Nuclei4
 
             if (gpuStatus != null && gpuStatus.Available && snapshot.ResX > 0 && snapshot.ResY > 0 && snapshot.ResZ > 0)
             {
-                DisposeGpuEngines();
                 int outputCapacity = settings != null && settings.DynamicPopulation
                     ? Math.Max(snapshot.ParticleCount, Math.Max(0, settings.MaximumPopulation))
                     : snapshot.ParticleCount;
@@ -490,6 +539,7 @@ namespace Nuclei4
             particleCount = fullSolverEngine.SynchronizeParticleOutput(
                 latestSolverSettings,
                 Math.Max(0, iteration - 1));
+            RefreshLiveGroupPopulationsFromCpuGroups();
             lastParticleOutputSyncIteration = iteration;
         }
 
@@ -515,7 +565,8 @@ namespace Nuclei4
                 && inputVoxels.ResY == resY
                 && inputVoxels.ResZ == resZ
                 && Math.Abs(inputVoxels.VoxelSize - voxelSize) < 0.000001
-                && InputParticleGroupCountsMatch(inputParticleGroups);
+                && InputParticleGroupCountsMatch(inputParticleGroups)
+                && InputParticleGroupKindsMatch(inputParticleGroups);
         }
 
         void ApplyGlobalDimensionState()
@@ -525,12 +576,21 @@ namespace Nuclei4
 
         bool UpdateLiveVoxelBehaviorFields(VoxelField inputVoxels, List<ParticleGroup> inputParticleGroups)
         {
-            if (fullSolverEngine == null || ReferenceEquals(inputVoxels, inputVoxelReference))
+            if (fullSolverEngine == null)
             {
                 return true;
             }
 
-            SolverGpuInputSnapshot snapshot = SolverGpuInputSnapshot.CaptureVoxelFields(inputVoxels, inputParticleGroups);
+            bool wrapBoundaries = latestSolverSettings != null && latestSolverSettings.WrapBoundaries;
+            if (ReferenceEquals(inputVoxels, inputVoxelReference) && wrapBoundaries == inputVoxelWrapState)
+            {
+                return true;
+            }
+
+            SolverGpuInputSnapshot snapshot = SolverGpuInputSnapshot.CaptureVoxelFields(
+                inputVoxels,
+                inputParticleGroups,
+                wrapBoundaries);
             if (snapshot.ResX != resX || snapshot.ResY != resY || snapshot.ResZ != resZ)
             {
                 unsupportedGpuReason = "GPU voxel behavior map update failed because voxel resolution changed.";
@@ -543,6 +603,7 @@ namespace Nuclei4
                 return false;
             }
 
+            DetachVoxelOutputCallbacks(voxels);
             voxels = snapshot.Field;
             if (gpuOutputSink != null)
             {
@@ -550,6 +611,7 @@ namespace Nuclei4
             }
             activeVoxelCount = snapshot.ActiveVoxelCount;
             inputVoxelReference = inputVoxels;
+            inputVoxelWrapState = wrapBoundaries;
             ConfigureGpuVolumeMeshProvider();
             ConfigureGpuOutputSynchronizers();
             lastParticleOutputSyncIteration = -1;
@@ -589,6 +651,42 @@ namespace Nuclei4
             return counts;
         }
 
+        bool InputParticleGroupKindsMatch(List<ParticleGroup> inputParticleGroups)
+        {
+            int count = inputParticleGroups != null ? inputParticleGroups.Count : 0;
+            if (particleGroupAntKinds == null || particleGroupAntKinds.Length != count)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                ParticleGroup inputGroup = inputParticleGroups[i];
+                bool inputIsAnt = inputGroup != null && inputGroup.ant;
+                if (inputIsAnt != particleGroupAntKinds[i])
+                {
+                    // Population kind controls which fixed GPU fields and optimized
+                    // movement shader exist, so changing it requires a clean reset.
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        bool[] CaptureInputParticleGroupKinds(List<ParticleGroup> inputParticleGroups)
+        {
+            int count = inputParticleGroups != null ? inputParticleGroups.Count : 0;
+            bool[] kinds = new bool[count];
+            for (int i = 0; i < count; i++)
+            {
+                ParticleGroup group = inputParticleGroups[i];
+                kinds[i] = group != null && group.ant;
+            }
+
+            return kinds;
+        }
+
         bool HasAntParticleGroups(List<ParticleGroup> inputParticleGroups)
         {
             if (inputParticleGroups == null)
@@ -624,10 +722,15 @@ namespace Nuclei4
             float[] groupColorData;
             bool hasAntParticles;
             bool hasSlimeParticles;
-            SolverGpuInputSnapshot.CaptureGroupSettings(inputParticleGroups, out groupData0, out groupData1, out hasAntParticles, out hasSlimeParticles);
+            SolverGpuInputSnapshot.CaptureRuntimeGroupSettings(
+                inputParticleGroups,
+                particleGroupReferences,
+                liveParticleGroupPopulations,
+                out groupData0,
+                out groupData1,
+                out hasAntParticles,
+                out hasSlimeParticles);
             groupColorData = SolverGpuInputSnapshot.CaptureGroupColors(inputParticleGroups);
-
-            ApplyLiveParticleGroupMetadata(inputParticleGroups);
 
             if (fullSolverEngine == null)
             {
@@ -643,29 +746,46 @@ namespace Nuclei4
             return true;
         }
 
-        void ApplyLiveParticleGroupMetadata(List<ParticleGroup> inputParticleGroups)
+        bool ApplyLiveParticleGroupMetadata(List<ParticleGroup> inputParticleGroups)
         {
             if (inputParticleGroups == null || particleGroupReferences == null)
             {
-                return;
+                return false;
             }
 
+            bool visualMetadataChanged = false;
             int count = Math.Min(inputParticleGroups.Count, particleGroupReferences.Length);
             for (int groupIndex = 0; groupIndex < count; groupIndex++)
             {
                 ParticleGroup inputGroup = inputParticleGroups[groupIndex];
                 ParticleGroup targetGroup = particleGroupReferences[groupIndex];
-                CopyParticleGroupSettings(inputGroup, targetGroup);
+                int population = liveParticleGroupPopulations != null && groupIndex < liveParticleGroupPopulations.Length
+                    ? liveParticleGroupPopulations[groupIndex]
+                    : targetGroup != null && targetGroup.particles != null
+                        ? targetGroup.particles.Count
+                        : 0;
+                visualMetadataChanged |= CopyParticleGroupSettings(inputGroup, targetGroup, population);
             }
+
+            return visualMetadataChanged;
         }
 
-        void CopyParticleGroupSettings(ParticleGroup source, ParticleGroup target)
+        bool CopyParticleGroupSettings(ParticleGroup source, ParticleGroup target)
+        {
+            int population = target != null && target.particles != null
+                ? target.particles.Count
+                : 0;
+            return CopyParticleGroupSettings(source, target, population);
+        }
+
+        bool CopyParticleGroupSettings(ParticleGroup source, ParticleGroup target, int population)
         {
             if (source == null || target == null)
             {
-                return;
+                return false;
             }
 
+            bool visualMetadataChanged = target.color != source.color;
             target.speed = source.speed;
             target.sensorDistance = source.sensorDistance;
             target.sensorAngle = source.sensorAngle;
@@ -674,7 +794,88 @@ namespace Nuclei4
             target.wanderFrequency = source.wanderFrequency;
             target.baseWanderFrequency = source.baseWanderFrequency;
             target.color = source.color;
-            target.ant = source.ant;
+            target.connectedSteering = source.connectedSteering;
+            // V3 never recopies the source ant flag. An input ant group with no
+            // retained particles remains a non-ant simulation group thereafter.
+            SolverGpuInputSnapshot.ApplyV3ParticleGroupMetadata(target, population);
+            return visualMetadataChanged;
+        }
+
+        void TryRefreshLiveGroupPopulations()
+        {
+            if (fullSolverEngine == null || liveParticleGroupPopulations == null)
+            {
+                return;
+            }
+
+            int livePopulation;
+            if (fullSolverEngine.TryCompletePopulationReadback(
+                liveParticleGroupPopulations,
+                out livePopulation))
+            {
+                particleCount = livePopulation;
+            }
+        }
+
+        void RefreshLiveGroupPopulationsFromCpuGroups()
+        {
+            liveParticleGroupPopulations = CaptureRetainedParticleGroupCounts(particleGroupReferences);
+        }
+
+        static int[] CaptureRetainedParticleGroupCounts(IList<ParticleGroup> groups)
+        {
+            int count = groups != null ? groups.Count : 0;
+            int[] populations = new int[count];
+            for (int i = 0; i < count; i++)
+            {
+                ParticleGroup group = groups[i];
+                populations[i] = group != null && group.particles != null
+                    ? group.particles.Count
+                    : 0;
+            }
+
+            return populations;
+        }
+
+        void RefreshParticlePreviewsAfterLiveMetadataChange(
+            SolverGpuSettings settings,
+            bool useSharedParticlePreview,
+            bool useSharedParticleTrailPreview,
+            bool buildParticlePreviewCache)
+        {
+            if (particles == null)
+            {
+                return;
+            }
+
+            SolverGpuDimensionMode dimensionMode = SolverGpuDimensionMode.FromResolution(resX, resY, resZ);
+            if (fullSolverEngine != null && useSharedParticlePreview)
+            {
+                fullSolverEngine.RefreshParticlePreview(settings, dimensionMode, iteration);
+            }
+            if (fullSolverEngine != null && useSharedParticleTrailPreview)
+            {
+                fullSolverEngine.RefreshParticleTrailPreview(settings, dimensionMode, iteration);
+            }
+
+            if (!buildParticlePreviewCache)
+            {
+                return;
+            }
+
+            particles.PreviewCache.Invalidate(particleCount);
+            if (fullSolverEngine == null || lastParticleOutputSyncIteration == iteration)
+            {
+                BuildPreviewCacheFromCurrentParticles();
+                return;
+            }
+
+            // A lightweight position readback rebuilds the cache with current GPU
+            // positions while resolving colors from the just-refreshed group objects.
+            if (fullSolverEngine.QueuePreviewCacheReadback())
+            {
+                lastPreviewReadbackQueuedIteration = iteration;
+            }
         }
 
         void ConfigurePreviewCacheRefresh()
@@ -1166,18 +1367,8 @@ namespace Nuclei4
 
         void DisposeGpuEngines()
         {
-            if (particles != null)
-            {
-                particles.GpuPreviewFrameProvider = null;
-                particles.GpuTrailPreviewFrameProvider = null;
-                particles.CpuStateSynchronizer = null;
-            }
-
-            if (voxels != null)
-            {
-                voxels.GpuVolumeMeshProvider = null;
-                voxels.DynamicStateSynchronizer = null;
-            }
+            DetachParticleOutputCallbacks(particles);
+            DetachVoxelOutputCallbacks(voxels);
 
             if (fullSolverEngine != null)
             {
@@ -1185,6 +1376,34 @@ namespace Nuclei4
                 fullSolverEngine = null;
             }
             gpuOutputSink = null;
+        }
+
+        static void DetachParticleOutputCallbacks(ParticleList particleOutput)
+        {
+            if (particleOutput == null)
+            {
+                return;
+            }
+
+            particleOutput.GpuPreviewFrameProvider = null;
+            particleOutput.GpuTrailPreviewFrameProvider = null;
+            particleOutput.CpuStateSynchronizer = null;
+            if (particleOutput.PreviewCache != null)
+            {
+                particleOutput.PreviewCache.TryCompleteAsyncUpdate = null;
+                particleOutput.PreviewCache.QueueAsyncUpdate = null;
+            }
+        }
+
+        static void DetachVoxelOutputCallbacks(VoxelField voxelOutput)
+        {
+            if (voxelOutput == null)
+            {
+                return;
+            }
+
+            voxelOutput.GpuVolumeMeshProvider = null;
+            voxelOutput.DynamicStateSynchronizer = null;
         }
 
         void resetTimingAverages()
@@ -1410,6 +1629,7 @@ namespace Nuclei4
         Gh1GpuSolverOutputSink gpuOutputSink;
         VoxelField voxels;
         VoxelField inputVoxelReference;
+        bool inputVoxelWrapState;
         ParticleList particles;
         int resX;
         int resY;
@@ -1421,6 +1641,8 @@ namespace Nuclei4
         bool antParticles;
         ParticleGroup[] particleGroupReferences = new ParticleGroup[0];
         int[] particleGroupParticleCounts = new int[0];
+        int[] liveParticleGroupPopulations = new int[0];
+        bool[] particleGroupAntKinds = new bool[0];
         int iteration = 0;
         int lastPreviewReadbackQueuedIteration = -1;
         int lastParticleOutputSyncIteration = -1;

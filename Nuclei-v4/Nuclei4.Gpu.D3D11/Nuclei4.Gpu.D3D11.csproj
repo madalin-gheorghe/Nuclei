@@ -22,10 +22,12 @@
   <ItemGroup>
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyBoundaryModeTransition.cso" LogicalName="Nuclei4.GpuShaders.ApplyBoundaryModeTransition.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\MoveParticlesAndDeposit.cso" LogicalName="Nuclei4.GpuShaders.MoveParticlesAndDeposit.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\MoveAntParticlesAndDeposit.cso" LogicalName="Nuclei4.GpuShaders.MoveAntParticlesAndDeposit.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyDeposits.cso" LogicalName="Nuclei4.GpuShaders.ApplyDeposits.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ProjectFoodSources.cso" LogicalName="Nuclei4.GpuShaders.ProjectFoodSources.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ClearParticleCounts.cso" LogicalName="Nuclei4.GpuShaders.ClearParticleCounts.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\CountParticles.cso" LogicalName="Nuclei4.GpuShaders.CountParticles.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\AdvanceParticleAges.cso" LogicalName="Nuclei4.GpuShaders.AdvanceParticleAges.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\SeedNeighbourCounts.cso" LogicalName="Nuclei4.GpuShaders.SeedNeighbourCounts.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\SumNeighbourAxis.cso" LogicalName="Nuclei4.GpuShaders.SumNeighbourAxis.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyParticleDeath.cso" LogicalName="Nuclei4.GpuShaders.ApplyParticleDeath.cso" />
@@ -50,6 +52,10 @@
   <Target Name="CompileGpuComputeShaders" BeforeTargets="PrepareResources"
           Inputs="$(MSBuildProjectDirectory)\GpuFullSlimeSolverEngine.cs;$(DensityShaderSource);$(ShaderCompilerProject);$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Program.cs"
           Outputs="$(IntermediateOutputPath)GpuShaders\shaders.complete">
-    <Exec Command="dotnet run --project &quot;$(ShaderCompilerProject)&quot; --configuration Release -- &quot;$(MSBuildProjectDirectory)\GpuFullSlimeSolverEngine.cs&quot; &quot;$(DensityShaderSource)&quot; &quot;$(MSBuildProjectDirectory)\$(IntermediateOutputPath)GpuShaders&quot;" />
+    <MSBuild Projects="$(ShaderCompilerProject)" Targets="Build"
+             Properties="Configuration=Release;TargetFramework=net8.0-windows"
+             RemoveProperties="RuntimeIdentifier;SelfContained;TargetFrameworkIdentifier;TargetFrameworkVersion"
+             BuildInParallel="false" />
+    <Exec Command="dotnet &quot;$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\bin\Release\net8.0-windows\Nuclei.ShaderCompiler.dll&quot; &quot;$(MSBuildProjectDirectory)\GpuFullSlimeSolverEngine.cs&quot; &quot;$(DensityShaderSource)&quot; &quot;$(MSBuildProjectDirectory)\$(IntermediateOutputPath)GpuShaders&quot;" />
   </Target>
 </Project>

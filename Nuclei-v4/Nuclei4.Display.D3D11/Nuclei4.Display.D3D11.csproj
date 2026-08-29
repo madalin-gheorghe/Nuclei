@@ -33,6 +33,10 @@
   <Target Name="CompileDisplayShaders" BeforeTargets="PrepareResources"
           Inputs="$(GpuSolverShaderSource);$(DensityShaderSource);$(ShaderCompilerProject);$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Program.cs"
           Outputs="$(IntermediateOutputPath)GpuShaders\shaders.complete">
-    <Exec Command="dotnet run --project &quot;$(ShaderCompilerProject)&quot; --configuration Release -- &quot;$(GpuSolverShaderSource)&quot; &quot;$(DensityShaderSource)&quot; &quot;$(MSBuildProjectDirectory)\$(IntermediateOutputPath)GpuShaders&quot;" />
+    <MSBuild Projects="$(ShaderCompilerProject)" Targets="Build"
+             Properties="Configuration=Release;TargetFramework=net8.0-windows"
+             RemoveProperties="RuntimeIdentifier;SelfContained;TargetFrameworkIdentifier;TargetFrameworkVersion"
+             BuildInParallel="false" />
+    <Exec Command="dotnet &quot;$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\bin\Release\net8.0-windows\Nuclei.ShaderCompiler.dll&quot; &quot;$(GpuSolverShaderSource)&quot; &quot;$(DensityShaderSource)&quot; &quot;$(MSBuildProjectDirectory)\$(IntermediateOutputPath)GpuShaders&quot;" />
   </Target>
 </Project>

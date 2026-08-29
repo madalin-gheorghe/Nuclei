@@ -17,6 +17,7 @@
         public float[] ParticleYAxesXyz;
         public float[] ParticleHomesXyz;
         public uint[] ParticleAntStates;
+        public uint[] ParticleAntLaunchBoundaryStates;
         public int[] ParticleAges;
         public int[] ParticleGroupIndices;
         public int[] ParticleParentIndices;
@@ -67,5 +68,8 @@
         public float[] GroupColorData;
         public bool HasAntParticles;
         public bool HasSlimeParticles;
+        // V3 always advances the scalar density field, even in ant-only or empty
+        // simulations. Species presence separately controls sensing/deposits/food.
+        public bool ProcessDensity = true;
     }
 }

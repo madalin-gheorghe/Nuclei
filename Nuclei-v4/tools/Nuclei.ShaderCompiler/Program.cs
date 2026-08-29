@@ -19,10 +19,12 @@ string[] entryPoints =
 {
     "ApplyBoundaryModeTransition",
     "MoveParticlesAndDeposit",
+    "MoveAntParticlesAndDeposit",
     "ApplyDeposits",
     "ProjectFoodSources",
     "ClearParticleCounts",
     "CountParticles",
+    "AdvanceParticleAges",
     "SeedNeighbourCounts",
     "SumNeighbourAxis",
     "ApplyParticleDeath",

@@ -1,5 +1,7 @@
 using Grasshopper.Kernel;
 using Rhino.Geometry;
+using Grasshopper.Kernel.Parameters;
+using GH_IO.Serialization;
 using System;
 using System.Collections.Generic;
 
@@ -25,9 +27,6 @@ namespace Nuclei4
             //0
             pManager.AddIntegerParameter("Trail Size", "trailSize", "Size Of Particle Trail", GH_ParamAccess.item, 5);
             pManager[0].Optional = true;
-            //1
-            pManager.AddIntegerParameter("Trail Frequency", "trailFrequency", "Frequency Of Particle Trail Sampling", GH_ParamAccess.item, 1);
-            pManager[1].Optional = true;
         }
 
         /// <summary>
@@ -43,6 +42,30 @@ namespace Nuclei4
             get { return GH_Exposure.tertiary; }
         }
 
+        public override bool Read(GH_IReader reader)
+        {
+            if (hasLegacyFrequencyInput(reader))
+            {
+                // Temporarily recreate the retired input so Grasshopper can read old
+                // archives, then discard that parameter together with its old wire/value.
+                Params.RegisterInputParam(new Param_Integer(), 1);
+                bool result;
+                try
+                {
+                    result = base.Read(reader);
+                }
+                finally
+                {
+                    if (Params.Input.Count > 1)
+                        Params.UnregisterInputParameter(Params.Input[1], true);
+                    Params.OnParametersChanged();
+                }
+                return result;
+            }
+
+            return base.Read(reader);
+        }
+
         /// <summary>
         /// This is the method that actually does the work.
         /// </summary>
@@ -50,9 +73,7 @@ namespace Nuclei4
         protected override void SolveInstance(IGH_DataAccess DA)
         {
             DA.GetData("Trail Size", ref trailSize);
-            DA.GetData("Trail Frequency", ref trailFreq);
-
-            String particleSettings = "TrailSettings" + " " + trailSize + " " + trailFreq;
+            String particleSettings = "TrailSettings" + " " + trailSize + " " + TrailFrequency;
 
             List<String> outputSettings = new List<String>();
             outputSettings.Add(particleSettings);
@@ -62,8 +83,19 @@ namespace Nuclei4
 
         //-------------------------------------------------------------------
         //inputs
+        const int TrailFrequency = 1;
         int trailSize;
-        int trailFreq;
+
+        static bool hasLegacyFrequencyInput(GH_IReader reader)
+        {
+            if (!reader.ChunkExists("param_input", 1)) return false;
+
+            GH_IReader frequency = reader.FindChunk("param_input", 1);
+            string name = string.Empty;
+            return frequency != null
+                && frequency.TryGetString("Name", ref name)
+                && string.Equals(name, "Trail Frequency", StringComparison.Ordinal);
+        }
 
         //-------------------------------------------------------------------
 

@@ -28,7 +28,12 @@ namespace Nuclei4
     internal sealed class GpuFullSlimeSolverEngine : IGpuSimulationBackend
     {
         const float DepositScale = 1024.0f;
+        const int PopulationNeighbourDisabled = 0;
+        const int PopulationNeighbourApplyStored = 2;
+        const int PopulationNeighbourPublishOnly = -1;
+        const int PopulationNeighbourPublishZero = -2;
         const int PreviewReadbackBufferCount = 3;
+        const int PopulationReadbackBufferCount = 3;
         const int MaxSharedPreviewTextureDimension = 16384;
         const long MaxSharedDensityPreviewTexturePixels = 33554432;
         static readonly SolverGpuSettings GradientPreviewSettings = new SolverGpuSettings();
@@ -50,10 +55,12 @@ namespace Nuclei4
         ID3D11DeviceContext context;
         ID3D11ComputeShader boundaryModeTransitionShader;
         ID3D11ComputeShader moveShader;
+        ID3D11ComputeShader antMoveShader;
         ID3D11ComputeShader applyDepositsShader;
         ID3D11ComputeShader projectFoodSourcesShader;
         ID3D11ComputeShader clearCountsShader;
         ID3D11ComputeShader countParticlesShader;
+        ID3D11ComputeShader advanceParticleAgesShader;
         ID3D11ComputeShader seedNeighbourCountsShader;
         ID3D11ComputeShader sumNeighbourAxisShader;
         ID3D11ComputeShader applyParticleDeathShader;
@@ -86,9 +93,11 @@ namespace Nuclei4
         ID3D11Buffer particlePositionReadbackBuffer;
         ID3D11Buffer particleDirectionReadbackBuffer;
         ID3D11Buffer particleYAxisReadbackBuffer;
+        ID3D11Buffer particleHomeReadbackBuffer;
         ID3D11Buffer particleAuxReadbackBuffer;
         ID3D11Buffer populationStateReadbackBuffer;
         readonly ID3D11Buffer[] particlePositionPreviewReadbackBuffers = new ID3D11Buffer[PreviewReadbackBufferCount];
+        readonly ID3D11Buffer[] populationAsyncReadbackBuffers = new ID3D11Buffer[PopulationReadbackBufferCount];
         ID3D11Buffer particleCountBuffer;
         ID3D11Buffer depositBuffer;
         ID3D11Buffer neighbourCountA;
@@ -97,6 +106,7 @@ namespace Nuclei4
         ID3D11Buffer groupData1Buffer;
         ID3D11Buffer groupColorDataBuffer;
         ID3D11Buffer voxelFlagsBuffer;
+        ID3D11Buffer activeVoxelFlagsBuffer;
         ID3D11Buffer voxelBehaviorBuffer;
         ID3D11Buffer voxelVectorBuffer;
         ID3D11Buffer voxelVectorFrequencyBuffer;
@@ -135,6 +145,7 @@ namespace Nuclei4
         ID3D11ShaderResourceView groupData1View;
         ID3D11ShaderResourceView groupColorDataView;
         ID3D11ShaderResourceView voxelFlagsView;
+        ID3D11ShaderResourceView activeVoxelFlagsView;
         ID3D11ShaderResourceView voxelBehaviorView;
         ID3D11ShaderResourceView voxelVectorView;
         ID3D11ShaderResourceView voxelVectorFrequencyView;
@@ -169,9 +180,12 @@ namespace Nuclei4
         float[] particlePositionReadback;
         float[] particleDirectionReadback;
         float[] particleYAxisReadback;
+        float[] particleHomeReadback;
+        float[] particleHomeAxesReadback;
         float[] particlePositionPreviewReadback;
         int[] particleAuxReadback;
         readonly int[] populationStateReadback = new int[4];
+        int[] populationAsyncReadback;
         readonly IGpuSolverOutputSink outputSink;
         uint[] staticActiveVoxelFlags;
         bool hasStaticPreviewInput;
@@ -189,6 +203,9 @@ namespace Nuclei4
         double staticRotationAngleDefault;
         readonly bool[] previewReadbackPending = new bool[PreviewReadbackBufferCount];
         readonly int[] previewReadbackSequences = new int[PreviewReadbackBufferCount];
+        readonly bool[] populationReadbackPending = new bool[PopulationReadbackBufferCount];
+        readonly int[] populationReadbackSequences = new int[PopulationReadbackBufferCount];
+        readonly bool[] populationReadbackAttempted = new bool[PopulationReadbackBufferCount];
 
         bool densityInA = true;
         bool antFoodInA = true;
@@ -196,7 +213,9 @@ namespace Nuclei4
         bool wrapBoundaryState;
         readonly bool hasAntParticles;
         readonly bool hasSlimeParticles;
+        readonly bool processDensity;
         bool hasVoxelFlags;
+        bool hasActiveVoxelFlags;
         bool hasVoxelBehavior;
         bool hasVoxelVectors;
         bool hasVoxelVectorData;
@@ -232,6 +251,13 @@ namespace Nuclei4
         readonly int particleGenerationOffset;
         readonly int particleAntStateOffset;
         readonly int particleHighDepositOffset;
+        readonly int particleAntLaunchBoundaryOffset;
+        readonly int particleAntHomeYAxisXOffset;
+        readonly int particleAntHomeYAxisYOffset;
+        readonly int particleAntHomeYAxisZOffset;
+        readonly int particleAntHomeXAxisXOffset;
+        readonly int particleAntHomeXAxisYOffset;
+        readonly int particleAntHomeXAxisZOffset;
         readonly int depositElementCount;
         int weightsRange = int.MinValue;
         double weightsGradual = double.NaN;
@@ -239,6 +265,9 @@ namespace Nuclei4
         int previewReadbackNextIndex = 0;
         int previewReadbackSequenceCounter = 0;
         int previewReadbackCompletedSequence = 0;
+        int populationReadbackNextIndex = 0;
+        int populationReadbackSequenceCounter = 0;
+        int populationReadbackCompletedSequence = 0;
         IntPtr densityPreviewSharedHandle = IntPtr.Zero;
         IntPtr densityGradientPreviewSharedHandle = IntPtr.Zero;
         int densityPreviewWidth;
@@ -310,6 +339,7 @@ namespace Nuclei4
             groupCount = Math.Max(0, snapshot.GroupCount);
             hasAntParticles = snapshot.HasAntParticles;
             hasSlimeParticles = snapshot.HasSlimeParticles;
+            processDensity = snapshot.ProcessDensity;
             wrapBoundaryState = settings != null && settings.WrapBoundaries;
             if (!ValidVoxelFlags(snapshot.VoxelFlags, voxelCount)
                 || !ValidVoxelFlags(snapshot.ActiveVoxelFlags, voxelCount)
@@ -365,6 +395,16 @@ namespace Nuclei4
             // V3's high-deposit flag: a particle whose previous move landed in an
             // occupied voxel deposits a quarter of the normal amount.
             particleHighDepositOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, particleCapacity, particleCapacity > 0);
+            // Ant launch state and the fixed home-plane axes stay GPU-resident. The
+            // Y axis drives V3's deterministic launch wave; both axes are retained so
+            // synchronized random-born ants expose the inherited home plane exactly.
+            particleAntLaunchBoundaryOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, particleCapacity, hasAntParticles);
+            particleAntHomeYAxisXOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, particleCapacity, hasAntParticles);
+            particleAntHomeYAxisYOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, particleCapacity, hasAntParticles);
+            particleAntHomeYAxisZOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, particleCapacity, hasAntParticles);
+            particleAntHomeXAxisXOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, particleCapacity, hasAntParticles);
+            particleAntHomeXAxisYOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, particleCapacity, hasAntParticles);
+            particleAntHomeXAxisZOffset = ReserveAuxiliaryChannel(ref auxiliaryOffset, particleCapacity, hasAntParticles);
             depositElementCount = Math.Max(1, auxiliaryOffset);
 
             if (voxelCount <= 0)
@@ -380,6 +420,8 @@ namespace Nuclei4
             particlePositionReadback = null;
             particleDirectionReadback = null;
             particleYAxisReadback = null;
+            particleHomeReadback = null;
+            particleHomeAxesReadback = null;
             particlePositionPreviewReadback = null;
             particleAuxReadback = null;
 
@@ -400,7 +442,7 @@ namespace Nuclei4
                     : "D3D11 hardware backend initialized."
             };
             CompileShaders();
-            if (hasSlimeParticles)
+            if (processDensity)
             {
                 CreateDensityBuffers(snapshot.VoxelDensity);
             }
@@ -452,7 +494,7 @@ namespace Nuclei4
         {
             Stopwatch timer = Stopwatch.StartNew();
             GpuVolumeMeshResult result = new GpuVolumeMeshResult();
-            if (!hasSlimeParticles || densityA == null || densityB == null)
+            if (!processDensity || densityA == null || densityB == null)
             {
                 result.Error = "The current Solver GPU has no slime density field to mesh.";
                 return result;
@@ -719,6 +761,7 @@ namespace Nuclei4
                 && snapshot.GroupCount == groupCount
                 && snapshot.HasAntParticles == hasAntParticles
                 && snapshot.HasSlimeParticles == hasSlimeParticles
+                && snapshot.ProcessDensity == processDensity
                 && (snapshot.InitialAntFood != null) == (foodRemainingOffset >= 0)
                 && (snapshot.InitialFood != null) == (foodSourceOffset >= 0)
                 && SupportsPopulationCapacity(settings);
@@ -735,7 +778,7 @@ namespace Nuclei4
             wrapBoundaryState = settings.WrapBoundaries;
             particleCount = snapshot.ParticleCount;
 
-            if (hasSlimeParticles)
+            if (processDensity)
             {
                 ResetFloatFieldPair(snapshot.VoxelDensity, densityA, densityAView, densityB, densityBView);
                 densityInA = true;
@@ -772,7 +815,6 @@ namespace Nuclei4
             {
                 context.ClearUnorderedAccessView(neighbourCountBView, System.Numerics.Vector4.Zero);
             }
-
             if (!UpdateGroupSettings(snapshot.GroupData0, snapshot.GroupData1, snapshot.GroupColorData)
                 || !UpdateVoxelBehaviorFields(snapshot))
             {
@@ -787,11 +829,14 @@ namespace Nuclei4
             if (particlePositionReadback != null) Array.Clear(particlePositionReadback, 0, particlePositionReadback.Length);
             if (particleDirectionReadback != null) Array.Clear(particleDirectionReadback, 0, particleDirectionReadback.Length);
             if (particleYAxisReadback != null) Array.Clear(particleYAxisReadback, 0, particleYAxisReadback.Length);
+            if (particleHomeReadback != null) Array.Clear(particleHomeReadback, 0, particleHomeReadback.Length);
+            if (particleHomeAxesReadback != null) Array.Clear(particleHomeAxesReadback, 0, particleHomeAxesReadback.Length);
             if (particlePositionPreviewReadback != null) Array.Clear(particlePositionPreviewReadback, 0, particlePositionPreviewReadback.Length);
             if (particleAuxReadback != null) Array.Clear(particleAuxReadback, 0, particleAuxReadback.Length);
             Array.Clear(populationStateReadback, 0, populationStateReadback.Length);
 
             ResetPreviewReadbackState();
+            InvalidatePendingPopulationReadbacks();
             ResetParticleTrailPreviewHistory();
             DispatchClearParticleCounts(0);
             DispatchCountParticles(0);
@@ -819,6 +864,87 @@ namespace Nuclei4
         {
             ReadBackPopulationState();
             return particleCount;
+        }
+
+        public bool TryCompletePopulationReadback(int[] groupPopulations, out int totalPopulation)
+        {
+            totalPopulation = particleCount;
+            if (groupPopulations == null
+                || groupPopulations.Length < groupCount
+                || populationAsyncReadback == null)
+            {
+                return false;
+            }
+
+            Array.Clear(populationReadbackAttempted, 0, populationReadbackAttempted.Length);
+            for (int attempt = 0; attempt < PopulationReadbackBufferCount; attempt++)
+            {
+                int index = FindNewestPendingPopulationReadback(populationReadbackAttempted);
+                if (index < 0)
+                {
+                    return false;
+                }
+
+                populationReadbackAttempted[index] = true;
+                ID3D11Buffer readbackBuffer = populationAsyncReadbackBuffers[index];
+                if (readbackBuffer == null)
+                {
+                    populationReadbackPending[index] = false;
+                    continue;
+                }
+
+                MappedSubresource mapped;
+                Result result = context.Map(
+                    readbackBuffer,
+                    0,
+                    MapMode.Read,
+                    Vortice.Direct3D11.MapFlags.DoNotWait,
+                    out mapped);
+                if (result.Failure)
+                {
+                    const int dxgiErrorWasStillDrawing = unchecked((int)0x887A000A);
+                    if (result.Code == dxgiErrorWasStillDrawing)
+                    {
+                        continue;
+                    }
+
+                    result.CheckError();
+                }
+
+                int sequence = populationReadbackSequences[index];
+                try
+                {
+                    if (sequence > populationReadbackCompletedSequence)
+                    {
+                        Marshal.Copy(
+                            mapped.DataPointer,
+                            populationAsyncReadback,
+                            0,
+                            populationAsyncReadback.Length);
+                    }
+                }
+                finally
+                {
+                    context.Unmap(readbackBuffer);
+                    populationReadbackPending[index] = false;
+                }
+
+                if (sequence <= populationReadbackCompletedSequence)
+                {
+                    continue;
+                }
+
+                populationReadbackCompletedSequence = sequence;
+                particleCount = Math.Max(0, Math.Min(particleCapacity, populationAsyncReadback[0]));
+                totalPopulation = particleCount;
+                for (int groupIndex = 0; groupIndex < groupCount; groupIndex++)
+                {
+                    groupPopulations[groupIndex] = Math.Max(0, populationAsyncReadback[4 + groupIndex]);
+                }
+                return true;
+            }
+
+            return false;
         }
 
         static int DiffusionOrderIndex(int iteration)
@@ -992,11 +1118,13 @@ namespace Nuclei4
             {
                 DispatchBoundaryModeTransition(settings, dimensionMode, iteration);
                 wrapBoundaryState = settings.WrapBoundaries;
+                DisposeStaticFieldPreviewTexture(VoxelPreviewField.MaximumDensity);
+                staticFieldPreviewScaleValid[VoxelPreviewField.MaximumDensity] = false;
                 DispatchClearParticleCounts(iteration);
                 DispatchCountParticles(iteration);
             }
 
-            if (hasSlimeParticles)
+            if (processDensity)
             {
                 EnsureWeights(settings.DiffuseRange, settings.DiffusionGradual);
             }
@@ -1009,6 +1137,13 @@ namespace Nuclei4
                 DispatchCountParticles(iteration);
                 movedParticles = true;
             }
+            else if (particleCount > 0)
+            {
+                // V3 still runs particleCheckParentVoxel during iterations 0 and 1.
+                // Movement is gated, but every live particle ages once on each of
+                // those warm-up solutions before iteration 2 starts sensing.
+                DispatchAdvanceParticleAges(iteration);
+            }
 
             stage.Stop();
             double particleMs = stage.Elapsed.TotalMilliseconds;
@@ -1017,6 +1152,12 @@ namespace Nuclei4
             if (settings.DynamicPopulation && particleCapacity > 0 && iteration > 1)
             {
                 DispatchDynamicPopulation(settings, dimensionMode, iteration);
+                if (!syncParticleState)
+                {
+                    // Stage only four global counters plus one counter per group.
+                    // The frontend polls this ring next solution with DoNotWait.
+                    QueuePopulationReadback();
+                }
             }
             stage.Stop();
             double populationMs = stage.Elapsed.TotalMilliseconds;
@@ -1028,7 +1169,7 @@ namespace Nuclei4
                 passCount++;
             }
 
-            if (hasSlimeParticles && (settings.Diffuse > 0 || settings.DiffusionGradual < 1))
+            if (processDensity && (settings.Diffuse > 0 || settings.DiffusionGradual < 1))
             {
                 int axisCount = GetDiffusionAxisOrder(dimensionMode, iteration, diffusionAxisScratch);
                 double strength = GradualDiffusionStrength(settings.Diffuse, settings.DiffusionGradual);
@@ -1052,7 +1193,7 @@ namespace Nuclei4
                 }
             }
 
-            if (hasSlimeParticles)
+            if (processDensity)
             {
                 DispatchDecayPass(settings, dimensionMode, iteration);
                 SwapDensityBuffers();
@@ -1081,7 +1222,7 @@ namespace Nuclei4
             stage.Restart();
             if (syncVoxels)
             {
-                if (hasSlimeParticles) ReadBackDensity();
+                if (processDensity) ReadBackDensity();
                 if (hasAntParticles) ReadBackAntFields();
                 ApplyDynamicFieldsToOutput();
             }
@@ -1134,7 +1275,7 @@ namespace Nuclei4
 
         public void SynchronizeVoxelOutput()
         {
-            if (hasSlimeParticles) ReadBackDensity();
+            if (processDensity) ReadBackDensity();
             if (hasAntParticles) ReadBackAntFields();
             ApplyDynamicFieldsToOutput();
         }
@@ -1148,10 +1289,11 @@ namespace Nuclei4
 
             UpdateParameters(CreateParameters(0, settings, dimensionMode, iteration));
 
-            context.CSSetShader(moveShader);
+            context.CSSetShader(hasAntParticles && !hasSlimeParticles ? antMoveShader : moveShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetShaderResources(1, new ID3D11ShaderResourceView[] { groupData0View, groupData1View, voxelFlagsView, null, voxelBehaviorView, voxelVectorView, voxelDensityLimitsView });
             context.CSSetShaderResource(11, voxelVectorFrequencyView);
+            context.CSSetShaderResource(12, activeVoxelFlagsView);
             if (hasAntParticles)
             {
                 context.CSSetShaderResource(8, CurrentAntFoodResourceView());
@@ -1179,6 +1321,7 @@ namespace Nuclei4
             context.CSSetShader(boundaryModeTransitionShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetShaderResource(3, voxelFlagsView);
+            context.CSSetShaderResource(12, activeVoxelFlagsView);
             context.CSSetUnorderedAccessViews(2, new ID3D11UnorderedAccessView[]
             {
                 particlePositionView,
@@ -1199,6 +1342,7 @@ namespace Nuclei4
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetShaderResource(3, voxelFlagsView);
             context.CSSetShaderResource(7, voxelDensityLimitsView);
+            context.CSSetShaderResource(12, activeVoxelFlagsView);
             context.CSSetUnorderedAccessView(0, CurrentDensityView(), -1);
             context.CSSetUnorderedAccessView(6, depositView, -1);
             DispatchLinear256(voxelCount);
@@ -1213,6 +1357,7 @@ namespace Nuclei4
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetShaderResource(3, voxelFlagsView);
             context.CSSetShaderResource(7, voxelDensityLimitsView);
+            context.CSSetShaderResource(12, activeVoxelFlagsView);
             context.CSSetUnorderedAccessView(0, CurrentDensityView(), -1);
             if (hasAntParticles)
             {
@@ -1252,8 +1397,31 @@ namespace Nuclei4
             context.CSSetShader(countParticlesShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetShaderResource(3, voxelFlagsView);
+            context.CSSetShaderResource(12, activeVoxelFlagsView);
+            context.CSSetUnorderedAccessView(2, particlePositionView, -1);
             context.CSSetUnorderedAccessView(3, particleDirectionView, -1);
             context.CSSetUnorderedAccessView(5, particleCountView, -1);
+            DispatchLinear256(particleCapacity);
+            UnbindComputeResources();
+        }
+
+        void DispatchAdvanceParticleAges(int iteration)
+        {
+            if (particleCapacity <= 0 || advanceParticleAgesShader == null || depositView == null)
+            {
+                return;
+            }
+
+            UpdateParameters(CreateParameters(
+                0,
+                new SolverGpuSettings(),
+                SolverGpuDimensionMode.FromResolution(resX, resY, resZ),
+                iteration));
+
+            context.CSSetShader(advanceParticleAgesShader);
+            context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+            context.CSSetUnorderedAccessView(2, particlePositionView, -1);
+            context.CSSetUnorderedAccessView(6, depositView, -1);
             DispatchLinear256(particleCapacity);
             UnbindComputeResources();
         }
@@ -1268,34 +1436,194 @@ namespace Nuclei4
             bool randomDue = settings.RandomPopulationFrequency > 0
                 && iteration % settings.RandomPopulationFrequency == 0;
 
-            // Building neighbour counts costs a seed pass plus one pass per axis over
-            // the whole grid. The random path is independent of neighbours, so that
-            // build is only worth paying for when the neighbour rule itself is due.
+            // V3 applies population changes in four distinct stages. In particular,
+            // random death runs after normal division and therefore samples the
+            // post-division population, including normal newborns.
             bool deathRuleDue = settings.Death && iteration % settings.DeathFrequency == 0;
             bool deathRandomDue = settings.RandomDeathProbability > 0 && randomDue;
-            if (deathRuleDue || deathRandomDue)
-            {
-                ID3D11UnorderedAccessView neighbourView = deathRuleDue
-                    ? DispatchBuildNeighbourCounts(settings.DeathRange, settings, dimensionMode, iteration)
-                    : NeighbourCountsWithoutRebuild();
-                DispatchParticleDeath(neighbourView, settings, dimensionMode, iteration);
-            }
-
             bool divisionRuleDue = settings.Division && iteration % settings.DivisionFrequency == 0;
             bool divisionRandomDue = settings.RandomDivisionProbability > 0 && randomDue;
-            if (divisionRuleDue || divisionRandomDue)
+
+            if (settings.Death || settings.Division)
             {
-                ID3D11UnorderedAccessView neighbourView = divisionRuleDue
-                    ? DispatchBuildNeighbourCounts(settings.DivisionRange, settings, dimensionMode, iteration)
-                    : NeighbourCountsWithoutRebuild();
-                DispatchParticleDivision(neighbourView, settings, dimensionMode, iteration);
+                int checkRange = settings.Death && settings.Division
+                    ? Math.Max(settings.DeathRange, settings.DivisionRange)
+                    : settings.Death
+                        ? settings.DeathRange
+                        : settings.DivisionRange;
+
+                if (checkRange > 0)
+                {
+                    // V3 refreshes both observable per-particle fields before any
+                    // population mutation, even when one rule is disabled or neither
+                    // frequency is due. With only one rule enabled, its shared scan
+                    // range truncates the disabled field.
+                    int deathRange = Math.Min(settings.DeathRange, checkRange);
+                    int divisionRange = Math.Min(settings.DivisionRange, checkRange);
+                    PublishPopulationNeighbourCounts(
+                        deathRange,
+                        divisionRange,
+                        settings,
+                        dimensionMode,
+                        iteration);
+
+                    // The published values are the pre-death snapshot V3 consumes.
+                    // Reading them per particle also preserves different stale values
+                    // for particles sharing a voxel when a later range is zero.
+                    if (deathRuleDue)
+                    {
+                        DispatchParticleDeath(
+                            NeighbourCountsWithoutRebuild(),
+                            settings,
+                            dimensionMode,
+                            iteration,
+                            PopulationNeighbourApplyStored,
+                            false);
+                    }
+
+                    if (divisionRuleDue)
+                    {
+                        DispatchParticleDivision(
+                            NeighbourCountsWithoutRebuild(),
+                            settings,
+                            dimensionMode,
+                            iteration,
+                            PopulationNeighbourApplyStored,
+                            false);
+
+                        // V3 recounts both fields after normal division and before
+                        // random population changes. Normal newborns are included;
+                        // random newborns therefore retain their default zero counts.
+                        PublishPopulationNeighbourCounts(
+                            deathRange,
+                            divisionRange,
+                            settings,
+                            dimensionMode,
+                            iteration);
+                    }
+                }
+                else
+                {
+                    // V3's checkRange <= 0 path does not clear or recalculate either
+                    // field. Normal rules still run against the stored/default values.
+                    if (deathRuleDue)
+                    {
+                        DispatchParticleDeath(
+                            NeighbourCountsWithoutRebuild(),
+                            settings,
+                            dimensionMode,
+                            iteration,
+                            PopulationNeighbourApplyStored,
+                            false);
+                    }
+
+                    if (divisionRuleDue)
+                    {
+                        DispatchParticleDivision(
+                            NeighbourCountsWithoutRebuild(),
+                            settings,
+                            dimensionMode,
+                            iteration,
+                            PopulationNeighbourApplyStored,
+                            false);
+                    }
+                }
+            }
+
+            if (deathRandomDue)
+            {
+                DispatchParticleDeath(
+                    NeighbourCountsWithoutRebuild(),
+                    settings,
+                    dimensionMode,
+                    iteration,
+                    PopulationNeighbourDisabled,
+                    true);
+            }
+
+            // V3 applies random division after normal division and samples the
+            // survivors of random death, including surviving normal newborns.
+            if (divisionRandomDue)
+            {
+                DispatchParticleDivision(
+                    NeighbourCountsWithoutRebuild(),
+                    settings,
+                    dimensionMode,
+                    iteration,
+                    PopulationNeighbourDisabled,
+                    true);
             }
         }
 
+        void PublishPopulationNeighbourCounts(
+            int deathRange,
+            int divisionRange,
+            SolverGpuSettings settings,
+            SolverGpuDimensionMode dimensionMode,
+            int iteration)
+        {
+            if (deathRange == divisionRange && deathRange >= 0)
+            {
+                ID3D11UnorderedAccessView sharedView = DispatchBuildNeighbourCounts(
+                    deathRange,
+                    settings,
+                    dimensionMode,
+                    iteration);
+                DispatchParticleDeath(
+                    sharedView,
+                    settings,
+                    dimensionMode,
+                    iteration,
+                    PopulationNeighbourPublishOnly,
+                    false);
+                DispatchParticleDivision(
+                    sharedView,
+                    settings,
+                    dimensionMode,
+                    iteration,
+                    PopulationNeighbourPublishOnly,
+                    false);
+                return;
+            }
+
+            ID3D11UnorderedAccessView deathView = deathRange < 0
+                ? NeighbourCountsWithoutRebuild()
+                : DispatchBuildNeighbourCounts(
+                    deathRange,
+                    settings,
+                    dimensionMode,
+                    iteration);
+            DispatchParticleDeath(
+                deathView,
+                settings,
+                dimensionMode,
+                iteration,
+                deathRange < 0
+                    ? PopulationNeighbourPublishZero
+                    : PopulationNeighbourPublishOnly,
+                false);
+
+            ID3D11UnorderedAccessView divisionView = divisionRange < 0
+                ? NeighbourCountsWithoutRebuild()
+                : DispatchBuildNeighbourCounts(
+                    divisionRange,
+                    settings,
+                    dimensionMode,
+                    iteration);
+            DispatchParticleDivision(
+                divisionView,
+                settings,
+                dimensionMode,
+                iteration,
+                divisionRange < 0
+                    ? PopulationNeighbourPublishZero
+                    : PopulationNeighbourPublishOnly,
+                false);
+        }
+
         /// <summary>
-        /// Neighbour buffer without refreshing it. Only valid for a dispatch whose
-        /// decision ignores neighbour counts, which is the random-only population
-        /// path; the per-particle neighbour value it records is stale on those steps.
+        /// Bound placeholder for passes that consume published per-particle counts or
+        /// ignore neighbour counts entirely. The Source UAV is not read by those modes.
         /// </summary>
         ID3D11UnorderedAccessView NeighbourCountsWithoutRebuild()
         {
@@ -1348,14 +1676,25 @@ namespace Nuclei4
             return resX * resY;
         }
 
-        void DispatchParticleDeath(ID3D11UnorderedAccessView neighbourView, SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
+        void DispatchParticleDeath(
+            ID3D11UnorderedAccessView neighbourView,
+            SolverGpuSettings settings,
+            SolverGpuDimensionMode dimensionMode,
+            int iteration,
+            int neighbourMode,
+            bool enableRandomRule)
         {
             if (neighbourView == null || applyParticleDeathShader == null)
             {
                 return;
             }
 
-            UpdateParameters(CreateParameters(0, settings, dimensionMode, iteration));
+            FullSolverParameters parameters = CreateParameters(0, settings, dimensionMode, iteration);
+            parameters.DeathEnabled = neighbourMode;
+            parameters.RandomDeathProbability = enableRandomRule
+                ? (float)settings.RandomDeathProbability
+                : 0;
+            UpdateParameters(parameters);
             context.CSSetShader(applyParticleDeathShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetUnorderedAccessView(0, neighbourView, -1);
@@ -1368,14 +1707,25 @@ namespace Nuclei4
             UnbindComputeResources();
         }
 
-        void DispatchParticleDivision(ID3D11UnorderedAccessView neighbourView, SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
+        void DispatchParticleDivision(
+            ID3D11UnorderedAccessView neighbourView,
+            SolverGpuSettings settings,
+            SolverGpuDimensionMode dimensionMode,
+            int iteration,
+            int neighbourMode,
+            bool enableRandomRule)
         {
             if (neighbourView == null || applyParticleDivisionShader == null)
             {
                 return;
             }
 
-            UpdateParameters(CreateParameters(0, settings, dimensionMode, iteration));
+            FullSolverParameters parameters = CreateParameters(0, settings, dimensionMode, iteration);
+            parameters.DivisionEnabled = neighbourMode;
+            parameters.RandomDivisionProbability = enableRandomRule
+                ? (float)settings.RandomDivisionProbability
+                : 0;
+            UpdateParameters(parameters);
             context.CSSetShader(applyParticleDivisionShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetShaderResources(2, new ID3D11ShaderResourceView[]
@@ -1410,6 +1760,7 @@ namespace Nuclei4
             context.CSSetShaderResources(0, new ID3D11ShaderResourceView[] { weightsView });
             context.CSSetShaderResource(3, voxelFlagsView);
             context.CSSetShaderResource(7, voxelDensityLimitsView);
+            context.CSSetShaderResource(12, activeVoxelFlagsView);
             context.CSSetUnorderedAccessView(0, CurrentDensityView(), -1);
             context.CSSetUnorderedAccessView(1, NextDensityView(), -1);
             DispatchLinear256(voxelCount);
@@ -1424,8 +1775,10 @@ namespace Nuclei4
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetShaderResource(3, voxelFlagsView);
             context.CSSetShaderResource(7, voxelDensityLimitsView);
+            context.CSSetShaderResource(12, activeVoxelFlagsView);
             context.CSSetUnorderedAccessView(0, CurrentDensityView(), -1);
             context.CSSetUnorderedAccessView(1, NextDensityView(), -1);
+            context.CSSetUnorderedAccessView(5, particleCountView, -1);
             DispatchLinear256(voxelCount);
             UnbindComputeResources();
         }
@@ -1455,6 +1808,7 @@ namespace Nuclei4
                     context.CSSetShaderResource(0, antWeightsView);
                     context.CSSetShaderResource(3, voxelFlagsView);
                     context.CSSetShaderResource(7, voxelDensityLimitsView);
+                    context.CSSetShaderResource(12, activeVoxelFlagsView);
                     context.CSSetUnorderedAccessView(0, foodField ? CurrentAntFoodView() : CurrentAntBaseView(), -1);
                     context.CSSetUnorderedAccessView(1, foodField ? NextAntFoodView() : NextAntBaseView(), -1);
                     DispatchLinear256(voxelCount);
@@ -1473,8 +1827,10 @@ namespace Nuclei4
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetShaderResource(3, voxelFlagsView);
             context.CSSetShaderResource(7, voxelDensityLimitsView);
+            context.CSSetShaderResource(12, activeVoxelFlagsView);
             context.CSSetUnorderedAccessView(0, foodField ? CurrentAntFoodView() : CurrentAntBaseView(), -1);
             context.CSSetUnorderedAccessView(1, foodField ? NextAntFoodView() : NextAntBaseView(), -1);
+            context.CSSetUnorderedAccessView(5, particleCountView, -1);
             DispatchLinear256(voxelCount);
             UnbindComputeResources();
             if (foodField) antFoodInA = !antFoodInA;
@@ -1772,13 +2128,14 @@ namespace Nuclei4
             parameters.AntSlime = (float)settings.AntSlime;
             parameters.AntPaddingFloat = 0;
             parameters.HasVoxelFlags = hasVoxelFlags ? 1 : 0;
+            parameters.HasActiveVoxelFlags = hasActiveVoxelFlags ? 1 : 0;
             parameters.HasVoxelBehavior = hasVoxelBehavior ? 1 : 0;
             parameters.HasVoxelVectors = hasVoxelVectors ? 1 : 0;
             parameters.HasVoxelDensityLimits = hasVoxelDensityLimits ? 1 : 0;
             parameters.HasVoxelVectorFrequencies = hasVoxelVectorFrequencies ? 1 : 0;
             parameters.VoxelVectorDefaultFrequency = voxelVectorDefaultFrequency;
             parameters.HasVoxelVectorData = hasVoxelVectorData ? 1 : 0;
-            parameters.VectorPadding0 = 0;
+            parameters.AntHomeYAxisZOffset = particleAntHomeYAxisZOffset;
             parameters.VoxelVectorDefaultX = voxelVectorDefaultX;
             parameters.VoxelVectorDefaultY = voxelVectorDefaultY;
             parameters.VoxelVectorDefaultZ = voxelVectorDefaultZ;
@@ -1789,8 +2146,8 @@ namespace Nuclei4
             parameters.RotationAngleOffset = rotationAngleOffset;
             parameters.MinimumDensityOffset = minimumDensityOffset;
             parameters.MaximumDensityOffset = maximumDensityOffset;
-            parameters.ChannelPadding0 = 0;
-            parameters.ChannelPadding1 = 0;
+            parameters.AntHomeYAxisXOffset = particleAntHomeYAxisXOffset;
+            parameters.AntHomeYAxisYOffset = particleAntHomeYAxisYOffset;
             parameters.SpeedDefault = speedDefault;
             parameters.SensorDistanceDefault = sensorDistanceDefault;
             parameters.SensorAngleDefault = sensorAngleDefault;
@@ -1808,7 +2165,7 @@ namespace Nuclei4
             parameters.RandomDeathProbability = (float)settings.RandomDeathProbability;
             parameters.RandomDivisionProbability = (float)settings.RandomDivisionProbability;
             parameters.HighDepositOffset = particleHighDepositOffset;
-            parameters.RandomPadding1 = 0;
+            parameters.AntLaunchBoundaryOffset = particleAntLaunchBoundaryOffset;
             parameters.FreeSlotOffset = freeSlotOffset;
             parameters.ParticleAgeOffset = particleAgeOffset;
             parameters.ParticleDeathNeighbourOffset = particleDeathNeighbourOffset;
@@ -1824,7 +2181,6 @@ namespace Nuclei4
             parameters.PlanarYZ = dimensionMode.PlanarYZ ? 1 : 0;
             parameters.Iteration = iteration;
             parameters.GroupCount = groupCount;
-            parameters.Padding0 = 0;
             parameters.Padding1 = 0;
             parameters.VoxelSize = voxelSize;
             parameters.DimX = dimX;
@@ -1896,11 +2252,13 @@ namespace Nuclei4
             }
 
             UpdateOptionalUIntBuffer(snapshot.VoxelFlags, ref voxelFlagsBuffer, ref voxelFlagsView);
+            UpdateOptionalUIntBuffer(snapshot.ActiveVoxelFlags, ref activeVoxelFlagsBuffer, ref activeVoxelFlagsView);
             UpdateOptionalFloatBuffer(snapshot.VoxelBehaviorData, ref voxelBehaviorBuffer, ref voxelBehaviorView, ref voxelBehaviorElementCount);
             UpdateOptionalFloat3Buffer(snapshot.VoxelVectorData, ref voxelVectorBuffer, ref voxelVectorView);
             UpdateOptionalIntBuffer(snapshot.VoxelVectorFrequencies, ref voxelVectorFrequencyBuffer, ref voxelVectorFrequencyView);
             UpdateOptionalFloatBuffer(snapshot.VoxelDensityLimits, ref voxelDensityLimitsBuffer, ref voxelDensityLimitsView, ref voxelDensityLimitElementCount);
             hasVoxelFlags = snapshot.VoxelFlags != null;
+            hasActiveVoxelFlags = snapshot.ActiveVoxelFlags != null;
             hasVoxelBehavior = HasVoxelBehavior(snapshot);
             hasVoxelVectorData = snapshot.VoxelVectorData != null;
             hasVoxelVectors = hasVoxelVectorData || snapshot.VoxelVectorDefaultX != 0 || snapshot.VoxelVectorDefaultY != 0 || snapshot.VoxelVectorDefaultZ != 0;
@@ -2017,7 +2375,7 @@ namespace Nuclei4
             valueIndex = VoxelPreviewField.SourceField(valueIndex);
             if (VoxelPreviewField.HasGpuDensityTexture(valueIndex))
             {
-                if (valueIndex == VoxelPreviewField.SlimeChemoattractants && !hasSlimeParticles)
+                if (valueIndex == VoxelPreviewField.SlimeChemoattractants && !processDensity)
                 {
                     return null;
                 }
@@ -2033,7 +2391,7 @@ namespace Nuclei4
                 // when only one of them is present. Requiring ants here meant a
                 // slime-only document rendered nothing at all.
                 if (valueIndex == VoxelPreviewField.AntsAndSlime
-                    && !hasAntParticles && !hasSlimeParticles)
+                    && !hasAntParticles && !processDensity)
                 {
                     return null;
                 }
@@ -2190,7 +2548,7 @@ namespace Nuclei4
         void EnsureParticleReadbackResources()
         {
             int floatCount = checked(particleCapacity * 4);
-            int auxiliaryCount = checked(particleCapacity * 5);
+            int auxiliaryCount = checked(particleCapacity * (hasAntParticles ? 13 : 6));
 
             if (particlePositionReadback == null || particlePositionReadback.Length != floatCount)
             {
@@ -2204,6 +2562,15 @@ namespace Nuclei4
             {
                 particleYAxisReadback = new float[floatCount];
             }
+            if (hasAntParticles && (particleHomeReadback == null || particleHomeReadback.Length != floatCount))
+            {
+                particleHomeReadback = new float[floatCount];
+            }
+            int homeAxesCount = checked(particleCapacity * 6);
+            if (hasAntParticles && (particleHomeAxesReadback == null || particleHomeAxesReadback.Length != homeAxesCount))
+            {
+                particleHomeAxesReadback = new float[homeAxesCount];
+            }
             if (particleAuxReadback == null || particleAuxReadback.Length != auxiliaryCount)
             {
                 particleAuxReadback = new int[auxiliaryCount];
@@ -2212,6 +2579,7 @@ namespace Nuclei4
             if (particlePositionReadbackBuffer == null) particlePositionReadbackBuffer = CreateReadbackBuffer(floatByteCount);
             if (particleDirectionReadbackBuffer == null) particleDirectionReadbackBuffer = CreateReadbackBuffer(floatByteCount);
             if (particleYAxisReadbackBuffer == null) particleYAxisReadbackBuffer = CreateReadbackBuffer(floatByteCount);
+            if (hasAntParticles && particleHomeReadbackBuffer == null) particleHomeReadbackBuffer = CreateReadbackBuffer(floatByteCount);
             if (particleAuxReadbackBuffer == null)
             {
                 particleAuxReadbackBuffer = CreateReadbackBuffer(Math.Max(sizeof(uint), checked(auxiliaryCount * sizeof(uint))));
@@ -2270,11 +2638,11 @@ namespace Nuclei4
         void ApplyDynamicFieldsToOutput()
         {
             outputSink.ApplyVoxelFields(new GpuVoxelReadbackView(
-                hasSlimeParticles ? densityReadback : null,
+                processDensity ? densityReadback : null,
                 hasAntParticles ? antFoodReadback : null,
                 hasAntParticles ? antBaseReadback : null,
                 hasAntParticles ? ConvertRemainingFood() : null,
-                hasSlimeParticles,
+                processDensity,
                 hasAntParticles));
         }
 
@@ -2393,6 +2761,42 @@ namespace Nuclei4
             return true;
         }
 
+        bool QueuePopulationReadback()
+        {
+            if (particleCountBuffer == null || populationAsyncReadback == null)
+            {
+                return false;
+            }
+
+            int index = FindFreePopulationReadback();
+            if (index < 0)
+            {
+                return false;
+            }
+
+            int sourceOffset = checked(voxelCount * sizeof(uint));
+            int byteCount = checked(populationAsyncReadback.Length * sizeof(uint));
+            context.CopySubresourceRegion(
+                populationAsyncReadbackBuffers[index],
+                0,
+                0,
+                0,
+                0,
+                particleCountBuffer,
+                0,
+                new Vortice.Mathematics.Box(
+                    sourceOffset,
+                    0,
+                    0,
+                    sourceOffset + byteCount,
+                    1,
+                    1));
+            populationReadbackPending[index] = true;
+            populationReadbackSequences[index] = ++populationReadbackSequenceCounter;
+            populationReadbackNextIndex = (index + 1) % PopulationReadbackBufferCount;
+            return true;
+        }
+
         public bool TryCompletePreviewCache()
         {
             if (particleCapacity <= 0)
@@ -2477,6 +2881,41 @@ namespace Nuclei4
             return -1;
         }
 
+        int FindFreePopulationReadback()
+        {
+            for (int offset = 0; offset < PopulationReadbackBufferCount; offset++)
+            {
+                int index = (populationReadbackNextIndex + offset) % PopulationReadbackBufferCount;
+                if (!populationReadbackPending[index] && populationAsyncReadbackBuffers[index] != null)
+                {
+                    return index;
+                }
+            }
+
+            return -1;
+        }
+
+        int FindNewestPendingPopulationReadback(bool[] attempted)
+        {
+            int bestIndex = -1;
+            int bestSequence = int.MinValue;
+            for (int i = 0; i < PopulationReadbackBufferCount; i++)
+            {
+                if (attempted[i] || !populationReadbackPending[i])
+                {
+                    continue;
+                }
+
+                if (populationReadbackSequences[i] > bestSequence)
+                {
+                    bestSequence = populationReadbackSequences[i];
+                    bestIndex = i;
+                }
+            }
+
+            return bestIndex;
+        }
+
         int FindNewestPendingPreviewReadbackBuffer(bool[] attempted)
         {
             int bestIndex = -1;
@@ -2512,6 +2951,11 @@ namespace Nuclei4
             previewReadbackCompletedSequence = 0;
         }
 
+        void InvalidatePendingPopulationReadbacks()
+        {
+            populationReadbackCompletedSequence = populationReadbackSequenceCounter;
+        }
+
         void ReadBackParticleAxes()
         {
             if (particleCapacity <= 0)
@@ -2521,6 +2965,10 @@ namespace Nuclei4
 
             ReadBackFloat4Buffer(particleDirectionReadbackBuffer, particleDirectionBuffer, particleDirectionReadback);
             ReadBackFloat4Buffer(particleYAxisReadbackBuffer, particleYAxisBuffer, particleYAxisReadback);
+            if (hasAntParticles)
+            {
+                ReadBackFloat4Buffer(particleHomeReadbackBuffer, particleHomeBuffer, particleHomeReadback);
+            }
         }
 
         void ReadBackParticleAuxiliaryState()
@@ -2550,6 +2998,13 @@ namespace Nuclei4
             finally
             {
                 context.Unmap(particleAuxReadbackBuffer);
+            }
+
+            if (hasAntParticles && particleHomeAxesReadback != null)
+            {
+                int sourceByteOffset = checked(particleCapacity * 7 * sizeof(uint));
+                int homeAxesByteCount = checked(particleHomeAxesReadback.Length * sizeof(float));
+                Buffer.BlockCopy(particleAuxReadback, sourceByteOffset, particleHomeAxesReadback, 0, homeAxesByteCount);
             }
         }
 
@@ -2582,6 +3037,10 @@ namespace Nuclei4
             }
 
             particleCount = Math.Max(0, Math.Min(particleCapacity, populationStateReadback[0]));
+            // This blocking result is newer than every staging copy queued before
+            // it. Leave those resources pending until a nonblocking Map can safely
+            // discard them, but prevent their sequences from replacing this state.
+            InvalidatePendingPopulationReadbacks();
         }
 
         void ReadBackFloat4Buffer(ID3D11Buffer readbackBuffer, ID3D11Buffer sourceBuffer, float[] destination)
@@ -2614,6 +3073,8 @@ namespace Nuclei4
                     particlePositionReadback,
                     particleDirectionReadback,
                     particleYAxisReadback,
+                    particleHomeReadback,
+                    particleHomeAxesReadback,
                     particleAuxReadback),
                 settings,
                 iteration,
@@ -3104,6 +3565,7 @@ namespace Nuclei4
                 case VoxelPreviewField.MinimumDensity:
                     return StaticScalarFieldValue(staticMinimumDensityValues, staticMinimumDensityDefault, flatIndex);
                 case VoxelPreviewField.MaximumDensity:
+                    if (StaticVoxelIsSolverBoundary(flatIndex)) return 0;
                     return StaticScalarFieldValue(staticMaximumDensityValues, staticMaximumDensityDefault, flatIndex);
                 case VoxelPreviewField.Speed:
                     return StaticScalarFieldValue(staticSpeedValues, staticSpeedDefault, flatIndex);
@@ -3122,6 +3584,50 @@ namespace Nuclei4
         {
             return staticActiveVoxelFlags == null
                 || (staticActiveVoxelFlags[flatIndex >> 5] & (1u << (flatIndex & 31))) != 0;
+        }
+
+        bool StaticVoxelIsSolverBoundary(int flatIndex)
+        {
+            int yz = resY * resZ;
+            int x = flatIndex / yz;
+            int remainder = flatIndex - x * yz;
+            int y = remainder / resZ;
+            int z = remainder - y * resZ;
+
+            if (!wrapBoundaryState)
+            {
+                bool tridimensional = resX > 1 && resY > 1 && resZ > 1;
+                if (tridimensional &&
+                    (x == 0 || x == resX - 1 || y == 0 || y == resY - 1 || z == 0 || z == resZ - 1))
+                {
+                    return true;
+                }
+                if (!tridimensional)
+                {
+                    if (resX == 1 && (y == 0 || y == resY - 1 || z == 0 || z == resZ - 1)) return true;
+                    if (resX != 1 && resY == 1 && (x == 0 || x == resX - 1 || z == 0 || z == resZ - 1)) return true;
+                    if (resX != 1 && resY != 1 && (x == 0 || x == resX - 1 || y == 0 || y == resY - 1)) return true;
+                }
+            }
+
+            if (staticActiveVoxelFlags == null)
+            {
+                return false;
+            }
+
+            for (int u = Math.Max(0, x - 1); u <= Math.Min(resX - 1, x + 1); u++)
+            {
+                for (int v = Math.Max(0, y - 1); v <= Math.Min(resY - 1, y + 1); v++)
+                {
+                    for (int w = Math.Max(0, z - 1); w <= Math.Min(resZ - 1, z + 1); w++)
+                    {
+                        int neighbourIndex = FlatIndex(u, v, w);
+                        if (!StaticVoxelIsActive(neighbourIndex)) return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         static float StaticScalarFieldValue(float[] values, double defaultValue, int flatIndex)
@@ -3858,6 +4364,12 @@ namespace Nuclei4
             particleYAxisBuffer = CreateFloat4Buffer(yAxes, BindFlags.UnorderedAccess);
             particleHomeBuffer = CreateFloat4Buffer(homes, BindFlags.UnorderedAccess);
             populationStateReadbackBuffer = CreateReadbackBuffer(4 * sizeof(uint));
+            populationAsyncReadback = new int[4 + groupCount];
+            int populationByteCount = checked(populationAsyncReadback.Length * sizeof(uint));
+            for (int i = 0; i < populationAsyncReadbackBuffers.Length; i++)
+            {
+                populationAsyncReadbackBuffers[i] = CreateReadbackBuffer(populationByteCount);
+            }
 
             particlePositionView = CreateUav(particlePositionBuffer, particleCapacity);
             particleDirectionView = CreateUav(particleDirectionBuffer, particleCapacity);
@@ -3917,8 +4429,27 @@ namespace Nuclei4
                     homes[target4 + 1] = positions[target4 + 1];
                     homes[target4 + 2] = positions[target4 + 2];
                 }
-                homes[target4 + 3] = 1;
+                homes[target4 + 3] = AntLaunchVariationBase(
+                    homes[target4],
+                    homes[target4 + 1],
+                    homes[target4 + 2],
+                    directions[target4],
+                    directions[target4 + 1],
+                    directions[target4 + 2]);
             }
+        }
+
+        static float AntLaunchVariationBase(
+            float homeX,
+            float homeY,
+            float homeZ,
+            float axisX,
+            float axisY,
+            float axisZ)
+        {
+            return (float)(
+                homeX * 0.1031 + homeY * 0.11369 + homeZ * 0.13787 +
+                axisX * 12.9898 + axisY * 78.233 + axisZ * 37.719);
         }
 
         void CreateGroupBuffers(GpuSolverInput snapshot)
@@ -3939,6 +4470,8 @@ namespace Nuclei4
         void CreateVoxelFlagBuffer(GpuSolverInput snapshot)
         {
             UpdateOptionalUIntBuffer(snapshot.VoxelFlags, ref voxelFlagsBuffer, ref voxelFlagsView);
+            UpdateOptionalUIntBuffer(snapshot.ActiveVoxelFlags, ref activeVoxelFlagsBuffer, ref activeVoxelFlagsView);
+            hasActiveVoxelFlags = snapshot.ActiveVoxelFlags != null;
 
             particleCountBuffer = device.CreateBuffer(
                 checked((voxelCount + 4 + groupCount) * sizeof(uint)),
@@ -3997,6 +4530,8 @@ namespace Nuclei4
             UploadParticleHighDepositFlags();
             UploadParticleAges(snapshot);
             UploadParticleAntStates(snapshot);
+            UploadParticleAntLaunchBoundaryStates(snapshot);
+            UploadParticleAntHomeAxes(snapshot);
         }
 
         void UploadFoodChannel(float[] initialFood, int channelOffset)
@@ -4031,14 +4566,11 @@ namespace Nuclei4
         }
 
         /// <summary>
-        /// V3 advances age inside particleCheckParentVoxel, which runs once during reset
-        /// and again every iteration, so by the time its population rules are evaluated a
-        /// particle's age is iteration + 1. V4 only advances age inside the move kernel,
-        /// which is skipped on iteration 1, giving iteration - 1. Seeding the uploaded
-        /// ages with those two missing increments makes every age gate -- death,
-        /// division and ant behaviour -- fire on the same iteration as V3.
+        /// V3 advances age once during reset. The two no-movement warm-up solutions
+        /// are advanced explicitly by AdvanceParticleAges; later increments happen
+        /// inside the movement kernel at the same post-move point as V3's parent check.
         /// </summary>
-        const int V3AgeAlignmentOffset = 2;
+        const int V3AgeAlignmentOffset = 1;
 
         /// <summary>
         /// V3 particles start with the flag clear, so a reset must not inherit stale
@@ -4097,6 +4629,56 @@ namespace Nuclei4
                     chunk[i] = slot < snapshot.ParticleAntStates.Length ? snapshot.ParticleAntStates[slot] : 0u;
                 }
                 UpdateUIntBufferRegion(depositBuffer, particleAntStateOffset + start, chunk, count);
+            }
+        }
+
+        void UploadParticleAntLaunchBoundaryStates(GpuSolverInput snapshot)
+        {
+            if (particleCount == 0 || particleAntLaunchBoundaryOffset < 0 || snapshot.ParticleAntLaunchBoundaryStates == null) return;
+
+            int uploadCount = Math.Min(particleCount, snapshot.ParticleAntLaunchBoundaryStates.Length);
+            if (uploadCount == 0) return;
+
+            const int chunkSize = 262144;
+            uint[] chunk = new uint[Math.Min(chunkSize, uploadCount)];
+            for (int start = 0; start < uploadCount; start += chunk.Length)
+            {
+                int count = Math.Min(chunk.Length, uploadCount - start);
+                Array.Copy(snapshot.ParticleAntLaunchBoundaryStates, start, chunk, 0, count);
+                UpdateUIntBufferRegion(depositBuffer, particleAntLaunchBoundaryOffset + start, chunk, count);
+            }
+        }
+
+        void UploadParticleAntHomeAxes(GpuSolverInput snapshot)
+        {
+            if (particleCount == 0 || particleAntHomeYAxisXOffset < 0) return;
+
+            UploadParticleAxisChannel(snapshot.ParticleYAxesXyz, 0, particleAntHomeYAxisXOffset, 0);
+            UploadParticleAxisChannel(snapshot.ParticleYAxesXyz, 1, particleAntHomeYAxisYOffset, 1);
+            UploadParticleAxisChannel(snapshot.ParticleYAxesXyz, 2, particleAntHomeYAxisZOffset, 0);
+            UploadParticleAxisChannel(snapshot.ParticleDirectionsXyz, 0, particleAntHomeXAxisXOffset, 1);
+            UploadParticleAxisChannel(snapshot.ParticleDirectionsXyz, 1, particleAntHomeXAxisYOffset, 0);
+            UploadParticleAxisChannel(snapshot.ParticleDirectionsXyz, 2, particleAntHomeXAxisZOffset, 0);
+        }
+
+        void UploadParticleAxisChannel(float[] source, int component, int channelOffset, float fallback)
+        {
+            const int chunkSize = 262144;
+            float[] floatChunk = new float[Math.Min(chunkSize, particleCount)];
+            uint[] uintChunk = new uint[floatChunk.Length];
+            for (int start = 0; start < particleCount; start += floatChunk.Length)
+            {
+                int count = Math.Min(floatChunk.Length, particleCount - start);
+                for (int i = 0; i < count; i++)
+                {
+                    int sourceIndex = (start + i) * 3 + component;
+                    floatChunk[i] = source != null && sourceIndex < source.Length
+                        ? source[sourceIndex]
+                        : fallback;
+                }
+
+                Buffer.BlockCopy(floatChunk, 0, uintChunk, 0, count * sizeof(float));
+                UpdateUIntBufferRegion(depositBuffer, channelOffset + start, uintChunk, count);
             }
         }
 
@@ -4492,10 +5074,12 @@ namespace Nuclei4
         {
             boundaryModeTransitionShader = CreateComputeShader("ApplyBoundaryModeTransition");
             moveShader = CreateComputeShader("MoveParticlesAndDeposit");
+            antMoveShader = CreateComputeShader("MoveAntParticlesAndDeposit");
             applyDepositsShader = CreateComputeShader("ApplyDeposits");
             projectFoodSourcesShader = CreateComputeShader("ProjectFoodSources");
             clearCountsShader = CreateComputeShader("ClearParticleCounts");
             countParticlesShader = CreateComputeShader("CountParticles");
+            advanceParticleAgesShader = CreateComputeShader("AdvanceParticleAges");
             seedNeighbourCountsShader = CreateComputeShader("SeedNeighbourCounts");
             sumNeighbourAxisShader = CreateComputeShader("SumNeighbourAxis");
             applyParticleDeathShader = CreateComputeShader("ApplyParticleDeath");
@@ -4643,7 +5227,7 @@ namespace Nuclei4
                 context.CSSetUnorderedAccessView(i, null, -1);
             }
 
-            for (int i = 0; i <= 11; i++)
+            for (int i = 0; i <= 12; i++)
             {
                 context.CSSetShaderResource(i, null);
             }
@@ -4722,6 +5306,7 @@ namespace Nuclei4
             if (groupData1View != null) groupData1View.Dispose();
             if (groupColorDataView != null) groupColorDataView.Dispose();
             if (voxelFlagsView != null) voxelFlagsView.Dispose();
+            if (activeVoxelFlagsView != null) activeVoxelFlagsView.Dispose();
             if (voxelBehaviorView != null) voxelBehaviorView.Dispose();
             if (voxelVectorView != null) voxelVectorView.Dispose();
             if (voxelVectorFrequencyView != null) voxelVectorFrequencyView.Dispose();
@@ -4747,6 +5332,7 @@ namespace Nuclei4
             if (particlePositionReadbackBuffer != null) particlePositionReadbackBuffer.Dispose();
             if (particleDirectionReadbackBuffer != null) particleDirectionReadbackBuffer.Dispose();
             if (particleYAxisReadbackBuffer != null) particleYAxisReadbackBuffer.Dispose();
+            if (particleHomeReadbackBuffer != null) particleHomeReadbackBuffer.Dispose();
             if (particleAuxReadbackBuffer != null) particleAuxReadbackBuffer.Dispose();
             if (populationStateReadbackBuffer != null) populationStateReadbackBuffer.Dispose();
             for (int i = 0; i < particlePositionPreviewReadbackBuffers.Length; i++)
@@ -4757,6 +5343,14 @@ namespace Nuclei4
                     particlePositionPreviewReadbackBuffers[i] = null;
                 }
             }
+            for (int i = 0; i < populationAsyncReadbackBuffers.Length; i++)
+            {
+                if (populationAsyncReadbackBuffers[i] != null)
+                {
+                    populationAsyncReadbackBuffers[i].Dispose();
+                    populationAsyncReadbackBuffers[i] = null;
+                }
+            }
             if (particleCountBuffer != null) particleCountBuffer.Dispose();
             if (depositBuffer != null) depositBuffer.Dispose();
             if (neighbourCountA != null) neighbourCountA.Dispose();
@@ -4765,6 +5359,7 @@ namespace Nuclei4
             if (groupData1Buffer != null) groupData1Buffer.Dispose();
             if (groupColorDataBuffer != null) groupColorDataBuffer.Dispose();
             if (voxelFlagsBuffer != null) voxelFlagsBuffer.Dispose();
+            if (activeVoxelFlagsBuffer != null) activeVoxelFlagsBuffer.Dispose();
             if (voxelBehaviorBuffer != null) voxelBehaviorBuffer.Dispose();
             if (voxelVectorBuffer != null) voxelVectorBuffer.Dispose();
             if (voxelVectorFrequencyBuffer != null) voxelVectorFrequencyBuffer.Dispose();
@@ -4773,9 +5368,12 @@ namespace Nuclei4
             if (volumeMeshParameterBuffer != null) volumeMeshParameterBuffer.Dispose();
             if (boundaryModeTransitionShader != null) boundaryModeTransitionShader.Dispose();
             if (moveShader != null) moveShader.Dispose();
+            if (antMoveShader != null) antMoveShader.Dispose();
             if (applyDepositsShader != null) applyDepositsShader.Dispose();
+            if (projectFoodSourcesShader != null) projectFoodSourcesShader.Dispose();
             if (clearCountsShader != null) clearCountsShader.Dispose();
             if (countParticlesShader != null) countParticlesShader.Dispose();
+            if (advanceParticleAgesShader != null) advanceParticleAgesShader.Dispose();
             if (seedNeighbourCountsShader != null) seedNeighbourCountsShader.Dispose();
             if (sumNeighbourAxisShader != null) sumNeighbourAxisShader.Dispose();
             if (applyParticleDeathShader != null) applyParticleDeathShader.Dispose();
@@ -4877,7 +5475,7 @@ namespace Nuclei4
             public int PlanarYZ;
             public int Iteration;
             public int GroupCount;
-            public int Padding0;
+            public int HasActiveVoxelFlags;
             public int Padding1;
             public float VoxelSize;
             public float DimX;
@@ -4930,7 +5528,7 @@ namespace Nuclei4
             public int HasVoxelVectorFrequencies;
             public int VoxelVectorDefaultFrequency;
             public int HasVoxelVectorData;
-            public int VectorPadding0;
+            public int AntHomeYAxisZOffset;
             public float VoxelVectorDefaultX;
             public float VoxelVectorDefaultY;
             public float VoxelVectorDefaultZ;
@@ -4941,8 +5539,8 @@ namespace Nuclei4
             public int RotationAngleOffset;
             public int MinimumDensityOffset;
             public int MaximumDensityOffset;
-            public int ChannelPadding0;
-            public int ChannelPadding1;
+            public int AntHomeYAxisXOffset;
+            public int AntHomeYAxisYOffset;
             public float SpeedDefault;
             public float SensorDistanceDefault;
             public float SensorAngleDefault;
@@ -4966,7 +5564,7 @@ namespace Nuclei4
             public float RandomDeathProbability;
             public float RandomDivisionProbability;
             public int HighDepositOffset;
-            public int RandomPadding1;
+            public int AntLaunchBoundaryOffset;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -5003,7 +5601,7 @@ cbuffer Params : register(b0)
     int PlanarYZ;
     int Iteration;
     int GroupCount;
-    int Padding0;
+    int HasActiveVoxelFlags;
     int Padding1;
     float VoxelSize;
     float DimX;
@@ -5056,7 +5654,7 @@ cbuffer Params : register(b0)
     int HasVoxelVectorFrequencies;
     int VoxelVectorDefaultFrequency;
     int HasVoxelVectorData;
-    int VectorPadding0;
+    int AntHomeYAxisZOffset;
     float VoxelVectorDefaultX;
     float VoxelVectorDefaultY;
     float VoxelVectorDefaultZ;
@@ -5067,8 +5665,8 @@ cbuffer Params : register(b0)
     int RotationAngleOffset;
     int MinimumDensityOffset;
     int MaximumDensityOffset;
-    int ChannelPadding0;
-    int ChannelPadding1;
+    int AntHomeYAxisXOffset;
+    int AntHomeYAxisYOffset;
     float SpeedDefault;
     float SensorDistanceDefault;
     float SensorAngleDefault;
@@ -5092,7 +5690,7 @@ cbuffer Params : register(b0)
     float RandomDeathProbability;
     float RandomDivisionProbability;
     int HighDepositOffset;
-    int RandomPadding1;
+    int AntLaunchBoundaryOffset;
 }
 
 cbuffer MeshParams : register(b1)
@@ -5148,6 +5746,7 @@ StructuredBuffer<float> AntFoodPheromone : register(t8);
 StructuredBuffer<float> AntBasePheromone : register(t9);
 Texture2D<float4> DensityPreviewSource : register(t10);
 StructuredBuffer<int> VoxelVectorFrequencies : register(t11);
+StructuredBuffer<uint> ActiveVoxelFlags : register(t12);
 
 uint LinearIndex256(uint3 dispatchThreadId)
 {
@@ -5182,6 +5781,41 @@ int FreeSlotIndex(int stackIndex)
 int HighDepositIndex(int particleIndex)
 {
     return HighDepositOffset + particleIndex;
+}
+
+int ParticleAntLaunchBoundaryIndex(int particleIndex)
+{
+    return AntLaunchBoundaryOffset + particleIndex;
+}
+
+int ParticleAntHomeYAxisXIndex(int particleIndex)
+{
+    return AntHomeYAxisXOffset + particleIndex;
+}
+
+int ParticleAntHomeYAxisYIndex(int particleIndex)
+{
+    return AntHomeYAxisYOffset + particleIndex;
+}
+
+int ParticleAntHomeYAxisZIndex(int particleIndex)
+{
+    return AntHomeYAxisZOffset + particleIndex;
+}
+
+int ParticleAntHomeXAxisXIndex(int particleIndex)
+{
+    return AntHomeYAxisZOffset + ParticleCapacity + particleIndex;
+}
+
+int ParticleAntHomeXAxisYIndex(int particleIndex)
+{
+    return AntHomeYAxisZOffset + ParticleCapacity * 2 + particleIndex;
+}
+
+int ParticleAntHomeXAxisZIndex(int particleIndex)
+{
+    return AntHomeYAxisZOffset + ParticleCapacity * 3 + particleIndex;
 }
 
 int ParticleAgeIndex(int particleIndex)
@@ -5288,6 +5922,14 @@ bool IsValidVoxelIndex(int index)
     return (word & (1u << ((uint)index & 31u))) != 0;
 }
 
+bool IsActiveVoxelIndex(int index)
+{
+    if (index < 0 || index >= VoxelCount) return false;
+    if (HasActiveVoxelFlags == 0) return true;
+    uint word = ActiveVoxelFlags[(uint)index >> 5];
+    return (word & (1u << ((uint)index & 31u))) != 0;
+}
+
 float ReadBehaviorChannel(int offset, int index, float fallback)
 {
     return offset >= 0 ? VoxelBehavior[offset + index] : fallback;
@@ -5308,7 +5950,12 @@ float ClampDensityLimits(float value, int index)
     float maxDensity = ReadDensityLimit(MaximumDensityOffset, index, MaximumDensityDefault);
 
     if (maxDensity >= 0.0 && value > maxDensity) value = maxDensity;
-    if (minDensity >= 0.0 && value > 0.0 && value < minDensity) value = minDensity;
+    // V3's scalar field only raises a positive value to its minimum. Both ant
+    // pheromone diffusion paths apply the authored minimum unconditionally,
+    // including when the diffused value is exactly zero.
+    if (minDensity >= 0.0
+        && value < minDensity
+        && (FieldMode != 0 || value > 0.0)) value = minDensity;
     return value;
 }
 
@@ -5343,6 +5990,20 @@ int VoxelIndexFromPosition(float3 position)
     int index = FlatIndex(x, y, z);
     if (!IsValidVoxelIndex(index)) return -1;
     return index;
+}
+
+int ActiveVoxelIndexFromPosition(float3 position)
+{
+    int x = PlanarYZ != 0 ? 0 : (int)floor(position.x / VoxelSize);
+    int y = PlanarXZ != 0 ? 0 : (int)floor(position.y / VoxelSize);
+    int z = PlanarXY != 0 ? 0 : (int)floor(position.z / VoxelSize);
+    if (x < 0 || x >= ResX || y < 0 || y >= ResY || z < 0 || z >= ResZ)
+    {
+        return -1;
+    }
+
+    int index = FlatIndex(x, y, z);
+    return IsActiveVoxelIndex(index) ? index : -1;
 }
 
 float3 NormalizeOr(float3 value, float3 fallback)
@@ -5405,11 +6066,18 @@ float PositiveModulo(float value, float extent)
     return value - floor(value / extent) * extent;
 }
 
+float V3WrapCoordinate(float position, float extent)
+{
+    if (position < 0.01) return extent - 0.1;
+    if (position > extent - 0.01) return 0.1;
+    return position;
+}
+
 float3 WrapSensorPosition(float3 p)
 {
-    if (PlanarYZ == 0) p.x = PositiveModulo(p.x, DimX);
-    if (PlanarXZ == 0) p.y = PositiveModulo(p.y, DimY);
-    if (PlanarXY == 0) p.z = PositiveModulo(p.z, DimZ);
+    if (PlanarYZ == 0) p.x = V3WrapCoordinate(p.x, DimX);
+    if (PlanarXZ == 0) p.y = V3WrapCoordinate(p.y, DimY);
+    if (PlanarXY == 0) p.z = V3WrapCoordinate(p.z, DimZ);
 
     return p;
 }
@@ -5446,7 +6114,7 @@ uint AntOrderKey(int particleIndex, uint salt)
     return Hash((uint)particleIndex + (uint)Iteration * 747796405u + salt);
 }
 
-float SampleAntField(float3 p, bool foundFood, int currentParentIndex, int particleIndex)
+float SampleAntField(float3 p, bool foundFood, int currentParentIndex, int particleIndex, bool antOnly)
 {
     if (Wrap != 0) p = WrapSensorPosition(p);
     int index = VoxelIndexFromPosition(p);
@@ -5459,7 +6127,9 @@ float SampleAntField(float3 p, bool foundFood, int currentParentIndex, int parti
     if (Wrap == 0 && IsBoundary(x, y, z)) return -1.0;
 
     float value = -99.0;
-    float slimeInfluence = HasSlimeParticles != 0 ? Source[index] * AntSlime : 0.0;
+    // V3 lets ants sense the scalar density field whenever ant_slime is enabled,
+    // including an ant-only retained population and its specialized move shader.
+    float slimeInfluence = AntSlime > 0.0 ? Source[index] * AntSlime : 0.0;
     if (foundFood)
     {
         value = AntBasePheromone[index] + slimeInfluence;
@@ -5537,6 +6207,90 @@ int ChooseBestSensor(float value0, float value1, float value2, float value3, flo
     return bestIndex;
 }
 
+float ConnectedSensorValue(float value)
+{
+    if (isnan(value) || value <= 0.0) return 0.0;
+    if (isinf(value)) return 3.402823466e+38;
+    return value;
+}
+
+float ConnectedSensorWeight(float value, float maxValue, float selectivityPower)
+{
+    if (value <= 0.0) return 0.0;
+    if (value >= maxValue) return 1.0;
+    return pow(value / maxValue, selectivityPower);
+}
+
+float ConnectedSteeringSample(int particleIndex)
+{
+    uint sampleKey = (uint)particleIndex ^ ((uint)Iteration * 2654435769u) ^ 2738958700u;
+    sampleKey ^= sampleKey >> 16;
+    sampleKey *= 2146121005u;
+    sampleKey ^= sampleKey >> 15;
+    sampleKey *= 2221713035u;
+    sampleKey ^= sampleKey >> 16;
+    // HLSL performs this multiplication in float precision. The largest hash
+    // can otherwise round to exactly 1.0 even though V3's random sample is
+    // strictly less than one, allowing a zero-weight fallthrough choice.
+    return min(sampleKey * (1.0 / 4294967296.0), asfloat(0x3f7fffffu));
+}
+
+int ChooseConnectedSensor(
+    float value0,
+    float value1,
+    float value2,
+    float value3,
+    float value4,
+    float exploration,
+    int particleIndex)
+{
+    exploration = saturate(exploration);
+    if (exploration <= 0.0)
+    {
+        return ChooseBestSensor(value0, value1, value2, value3, value4);
+    }
+
+    float positive0 = ConnectedSensorValue(value0);
+    float positive1 = ConnectedSensorValue(value1);
+    float positive2 = ConnectedSensorValue(value2);
+    float positive3 = Tridimensional != 0 ? ConnectedSensorValue(value3) : 0.0;
+    float positive4 = Tridimensional != 0 ? ConnectedSensorValue(value4) : 0.0;
+    float maxPositive = max(positive0, max(positive1, positive2));
+    if (Tridimensional != 0) maxPositive = max(maxPositive, max(positive3, positive4));
+    if (maxPositive <= 0.0)
+    {
+        return ChooseBestSensor(value0, value1, value2, value3, value4);
+    }
+
+    float selectivityPower = 7.0 * (1.0 - exploration);
+    float weight0 = ConnectedSensorWeight(positive0, maxPositive, selectivityPower);
+    float weight1 = ConnectedSensorWeight(positive1, maxPositive, selectivityPower);
+    float weight2 = ConnectedSensorWeight(positive2, maxPositive, selectivityPower);
+    float weight3 = Tridimensional != 0 ? ConnectedSensorWeight(positive3, maxPositive, selectivityPower) : 0.0;
+    float weight4 = Tridimensional != 0 ? ConnectedSensorWeight(positive4, maxPositive, selectivityPower) : 0.0;
+    float totalWeight = weight0 + weight1 + weight2 + weight3 + weight4;
+    if (totalWeight <= 0.0 || isnan(totalWeight))
+    {
+        return ChooseBestSensor(value0, value1, value2, value3, value4);
+    }
+
+    float target = ConnectedSteeringSample(particleIndex) * totalWeight;
+    float cumulativeWeight = weight0;
+    if (target < cumulativeWeight) return 0;
+    cumulativeWeight += weight1;
+    if (target < cumulativeWeight) return 1;
+    cumulativeWeight += weight2;
+    if (target < cumulativeWeight) return 2;
+    if (Tridimensional != 0)
+    {
+        cumulativeWeight += weight3;
+        if (target < cumulativeWeight) return 3;
+        return 4;
+    }
+
+    return 2;
+}
+
 float3 RotateForce(int bestIndex, float3 x, float3 y, float rotationCos, float rotationSin)
 {
     if (bestIndex == 0) return NormalizeOr(x * rotationCos - y * rotationSin, x);
@@ -5552,6 +6306,86 @@ float3 RotateForce(int bestIndex, float3 x, float3 y, float rotationCos, float r
     return x;
 }
 
+float3 RotateAroundAxis(float3 value, float3 axis, float rotationCos, float rotationSin)
+{
+    axis = NormalizeOr(axis, float3(0, 1, 0));
+    return value * rotationCos
+        + cross(axis, value) * rotationSin
+        + axis * dot(axis, value) * (1.0 - rotationCos);
+}
+
+void ReflectSensorPlane(inout float3 planeX, inout float3 planeY, int coordinate)
+{
+    // V3 reflects the current plane X axis, rotates that reflected vector by
+    // 90 degrees about the old plane Z axis, and reconstructs the plane. This
+    // is deliberately not the same as flipping one component of planeY.
+    float3 planeZ = NormalizeOr(cross(planeX, planeY), float3(0, 0, 1));
+    float3 reflectedX = NormalizeOr(planeX, float3(1, 0, 0));
+    if (coordinate == 0) reflectedX.x = -reflectedX.x;
+    else if (coordinate == 1) reflectedX.y = -reflectedX.y;
+    else reflectedX.z = -reflectedX.z;
+
+    float3 reconstructedY = RotateAroundAxis(reflectedX, planeZ, 0.0, 1.0);
+    planeX = NormalizeOr(reflectedX, planeX);
+    planeY = SafeYAxis(planeX, reconstructedY);
+}
+
+void ApplyNonWrappedSensorBoundaries(inout float3 sensorPosition, inout float3 planeX, inout float3 planeY)
+{
+    float boundaryDistance = VoxelSize;
+    if ((PlanarYZ != 0 || (sensorPosition.x > boundaryDistance && sensorPosition.x < DimX - boundaryDistance)) &&
+        (PlanarXZ != 0 || (sensorPosition.y > boundaryDistance && sensorPosition.y < DimY - boundaryDistance)) &&
+        (PlanarXY != 0 || (sensorPosition.z > boundaryDistance && sensorPosition.z < DimZ - boundaryDistance)))
+    {
+        return;
+    }
+
+    // Match V3 boundaries() exactly: X, then Y, then Z; lower and upper tests
+    // are independent so a degenerate extent can reflect twice. Planar Z is
+    // clamped but does not mutate the plane unless the solver is truly 3D.
+    if (PlanarYZ == 0)
+    {
+        if (sensorPosition.x <= boundaryDistance)
+        {
+            sensorPosition.x = boundaryDistance;
+            ReflectSensorPlane(planeX, planeY, 0);
+        }
+        if (sensorPosition.x >= DimX - boundaryDistance)
+        {
+            sensorPosition.x = DimX - boundaryDistance;
+            ReflectSensorPlane(planeX, planeY, 0);
+        }
+    }
+
+    if (PlanarXZ == 0)
+    {
+        if (sensorPosition.y <= boundaryDistance)
+        {
+            sensorPosition.y = boundaryDistance;
+            ReflectSensorPlane(planeX, planeY, 1);
+        }
+        if (sensorPosition.y >= DimY - boundaryDistance)
+        {
+            sensorPosition.y = DimY - boundaryDistance;
+            ReflectSensorPlane(planeX, planeY, 1);
+        }
+    }
+
+    if (PlanarXY == 0)
+    {
+        if (sensorPosition.z <= boundaryDistance)
+        {
+            sensorPosition.z = boundaryDistance;
+            if (Tridimensional != 0) ReflectSensorPlane(planeX, planeY, 2);
+        }
+        if (sensorPosition.z >= DimZ - boundaryDistance)
+        {
+            sensorPosition.z = DimZ - boundaryDistance;
+            if (Tridimensional != 0) ReflectSensorPlane(planeX, planeY, 2);
+        }
+    }
+}
+
 float3 ApplyPlanarMode(float3 value)
 {
     if (PlanarXY != 0) value.z = 0;
@@ -5562,6 +6396,16 @@ float3 ApplyPlanarMode(float3 value)
 
 float3 ApplyPlanarPosition(float3 value)
 {
+    // V3 flattens the direction axes but preserves the input plane's origin.
+    // Keeping the inactive coordinate also avoids a false ant home offset for
+    // valid planar particles that were not created on the voxel mid-plane.
+    return value;
+}
+
+float3 CenterPlanarMovePosition(float3 value)
+{
+    // Reset and boundary-mode transitions preserve an authored off-midplane
+    // origin, but V3 centers the inactive coordinate on every attempted move.
     if (PlanarXY != 0) value.z = DimZ * 0.5;
     if (PlanarXZ != 0) value.y = DimY * 0.5;
     if (PlanarYZ != 0) value.x = DimX * 0.5;
@@ -5570,54 +6414,31 @@ float3 ApplyPlanarPosition(float3 value)
 
 void WrapMovementCoordinate(inout float position, float extent, inout uint wrapped)
 {
-    if (position >= 0.0 && position < extent) return;
-    position = PositiveModulo(position, extent);
-    wrapped = 1u;
+    // V3 uses a fixed tolerance and teleports to a fixed inset, discarding all
+    // overshoot. Values exactly on either tolerance edge remain untouched.
+    float original = position;
+    position = V3WrapCoordinate(position, extent);
+    if (position != original)
+    {
+        wrapped = 1u;
+    }
 }
 
 void ReflectMovementCoordinate(inout float position, inout float direction, float extent)
 {
     float minimum = VoxelSize;
     float maximum = extent - VoxelSize;
-    if (maximum <= minimum)
-    {
-        position = extent * 0.5;
-        direction = -direction;
-        return;
-    }
-
-    if (position > minimum && position < maximum) return;
-
-    float span = maximum - minimum;
-    float phase = PositiveModulo(position - minimum, span * 2.0);
-    bool ascending = phase <= span;
-    position = ascending ? minimum + phase : maximum - (phase - span);
-    direction *= ascending ? 1.0 : -1.0;
-    position = clamp(position, minimum + 1e-4, maximum - 1e-4);
-}
-
-void ReconcileReflectiveCoordinate(inout float position, inout float direction, float extent, uint seed)
-{
-    float minimum = VoxelSize;
-    float maximum = extent - VoxelSize;
-    if (maximum <= minimum)
-    {
-        position = extent * 0.5;
-        direction = -direction;
-        return;
-    }
-
-    float inset = min(VoxelSize * 0.75, (maximum - minimum) * 0.25);
-    inset *= 0.25 + Hash01(seed) * 0.75;
+    // These are intentionally independent checks. V3 clamps to the exact voxel
+    // boundary and flips once for each crossed side, even in degenerate extents.
     if (position <= minimum)
     {
-        position = minimum + inset;
-        direction = abs(direction);
+        position = minimum;
+        direction = -direction;
     }
-    else if (position >= maximum)
+    if (position >= maximum)
     {
-        position = maximum - inset;
-        direction = -abs(direction);
+        position = maximum;
+        direction = -direction;
     }
 }
 
@@ -5637,7 +6458,69 @@ void ApplyMovementBoundaries(inout float3 position, inout float3 direction, inou
     if (PlanarXY == 0) ReflectMovementCoordinate(position.z, direction.z, DimZ);
 }
 
-bool CanDepositAtVoxel(int index, float sensorDistance)
+float AntLaunchVariation(float variationBase, float salt)
+{
+    float value = sin(variationBase + salt) * 43758.5453;
+    return value - floor(value);
+}
+
+uint AntLaunchDuration(float3 homePosition, float groupSpeed)
+{
+    float speed = abs(groupSpeed);
+    if (speed <= 2.3283064365386963e-10) return 0u;
+
+    float minimumBoundary = VoxelSize;
+    float dx = PlanarYZ != 0
+        ? 0.0
+        : max(abs(homePosition.x - minimumBoundary), abs(DimX - minimumBoundary - homePosition.x));
+    float dy = PlanarXZ != 0
+        ? 0.0
+        : max(abs(homePosition.y - minimumBoundary), abs(DimY - minimumBoundary - homePosition.y));
+    float dz = PlanarXY != 0
+        ? 0.0
+        : max(abs(homePosition.z - minimumBoundary), abs(DimZ - minimumBoundary - homePosition.z));
+    float farthestBoundaryDistance = sqrt(dx * dx + dy * dy + dz * dz) * 0.75;
+    float duration = ceil(farthestBoundaryDistance / speed);
+    if (isnan(duration) || isinf(duration) || duration >= 2147483520.0) return 2147483647u;
+    return (uint)max(0.0, duration);
+}
+
+float3 AntLaunchWaveVector(int particleIndex, uint particleAge, float variationBase)
+{
+    float3 lateralAxis = float3(
+        asfloat(DepositFixed[ParticleAntHomeYAxisXIndex(particleIndex)]),
+        asfloat(DepositFixed[ParticleAntHomeYAxisYIndex(particleIndex)]),
+        asfloat(DepositFixed[ParticleAntHomeYAxisZIndex(particleIndex)]));
+    float lengthSquared = dot(lateralAxis, lateralAxis);
+    if (lengthSquared <= 1e-12) return 0.0;
+    lateralAxis *= rsqrt(lengthSquared);
+
+    float frequency = 0.28 + AntLaunchVariation(variationBase, 73.91) * 0.14;
+    float phase = AntLaunchVariation(variationBase, 109.37) * 6.28318530718;
+    float wave = sin((float)particleAge * frequency + phase);
+    return lateralAxis * wave;
+}
+
+bool AntMoveTouchesBoundary(float3 nextPosition)
+{
+    float boundaryDistance = VoxelSize;
+    return (PlanarYZ == 0 && (nextPosition.x <= boundaryDistance || nextPosition.x >= DimX - boundaryDistance)) ||
+           (PlanarXZ == 0 && (nextPosition.y <= boundaryDistance || nextPosition.y >= DimY - boundaryDistance)) ||
+           (PlanarXY == 0 && (nextPosition.z <= boundaryDistance || nextPosition.z >= DimZ - boundaryDistance));
+}
+
+int BankersRoundToInt(float value)
+{
+    float magnitude = abs(value);
+    int lower = (int)floor(magnitude);
+    float fraction = magnitude - (float)lower;
+    int rounded = fraction > 0.5 || (fraction == 0.5 && (lower & 1) != 0)
+        ? lower + 1
+        : lower;
+    return value < 0.0 ? -rounded : rounded;
+}
+
+bool CanDepositAtVoxel(int index, float rawSensorDistance)
 {
     if (Wrap != 0) return true;
 
@@ -5647,13 +6530,13 @@ bool CanDepositAtVoxel(int index, float sensorDistance)
     Coordinates(index, x, y, z);
 
     int boundaryRange = 1;
-    float sensorDiameter = sensorDistance * 2.0;
+    float sensorDiameter = rawSensorDistance * 2.0;
 
     if (Tridimensional != 0)
     {
         if (DimX > sensorDiameter && DimY > sensorDiameter && DimZ > sensorDiameter)
         {
-            boundaryRange = (int)sensorDistance;
+            boundaryRange = BankersRoundToInt(rawSensorDistance);
         }
 
         return x >= boundaryRange && x < ResX - boundaryRange &&
@@ -5665,7 +6548,7 @@ bool CanDepositAtVoxel(int index, float sensorDistance)
     {
         if (DimX > sensorDiameter && DimY > sensorDiameter)
         {
-            boundaryRange = (int)sensorDistance;
+            boundaryRange = BankersRoundToInt(rawSensorDistance);
         }
 
         return x >= boundaryRange && x < ResX - boundaryRange &&
@@ -5676,7 +6559,7 @@ bool CanDepositAtVoxel(int index, float sensorDistance)
     {
         if (DimX > sensorDiameter && DimZ > sensorDiameter)
         {
-            boundaryRange = (int)sensorDistance;
+            boundaryRange = BankersRoundToInt(rawSensorDistance);
         }
 
         return x >= boundaryRange && x < ResX - boundaryRange &&
@@ -5685,7 +6568,7 @@ bool CanDepositAtVoxel(int index, float sensorDistance)
 
     if (DimY > sensorDiameter && DimZ > sensorDiameter)
     {
-        boundaryRange = (int)sensorDistance;
+        boundaryRange = BankersRoundToInt(rawSensorDistance);
     }
 
     return y >= boundaryRange && y < ResY - boundaryRange &&
@@ -5696,7 +6579,9 @@ bool TryRecoverWalkableStep(int currentParentIndex, int particleIndex, float spe
 {
     recoveredIndex = -1;
     recoveredPosition = 0.0;
-    if (!IsValidVoxelIndex(currentParentIndex)) return false;
+    // V3 recovers around the coordinates of any stored parent voxel, including
+    // an active max-density obstacle introduced by a live boundary-mode change.
+    if (!IsActiveVoxelIndex(currentParentIndex)) return false;
 
     int parentX;
     int parentY;
@@ -5726,7 +6611,7 @@ bool TryRecoverWalkableStep(int currentParentIndex, int particleIndex, float spe
                 if (PlanarXY != 0 && z != 0) continue;
 
                 int candidateIndex = FlatIndex(x, y, z);
-                if (!IsValidVoxelIndex(candidateIndex) || IsBoundary(x, y, z)) continue;
+                if (!IsValidVoxelIndex(candidateIndex) || (Wrap == 0 && IsBoundary(x, y, z))) continue;
 
                 candidateCount++;
                 if (Hash(selectionKey + candidateCount * 2246822519u) % candidateCount == 0u)
@@ -5761,36 +6646,13 @@ void ApplyBoundaryModeTransition(uint3 id : SV_DispatchThreadID)
     float3 direction = NormalizeOr(ApplyPlanarMode(dirParent.xyz), float3(1, 0, 0));
     uint wrapped = 0;
 
-    if (Wrap != 0)
-    {
-        ApplyMovementBoundaries(position, direction, wrapped);
-    }
-    else
-    {
-        if (PlanarYZ == 0) ReconcileReflectiveCoordinate(position.x, direction.x, DimX, Hash((uint)particleIndex ^ 0x68bc21ebu));
-        if (PlanarXZ == 0) ReconcileReflectiveCoordinate(position.y, direction.y, DimY, Hash((uint)particleIndex ^ 0x02e5be93u));
-        if (PlanarXY == 0) ReconcileReflectiveCoordinate(position.z, direction.z, DimZ, Hash((uint)particleIndex ^ 0x967a889bu));
-    }
+    ApplyMovementBoundaries(position, direction, wrapped);
     position = ApplyPlanarPosition(position);
 
-    int previousParentIndex = (int)round(dirParent.w);
-    int parentIndex = VoxelIndexFromPosition(position);
-    if (parentIndex < 0)
-    {
-        int recoveredIndex;
-        float3 recoveredPosition;
-        if (TryRecoverWalkableStep(previousParentIndex, particleIndex, 0.0, recoveredIndex, recoveredPosition))
-        {
-            parentIndex = recoveredIndex;
-            direction = NormalizeOr(ApplyPlanarMode(recoveredPosition - position), -direction);
-            position = recoveredPosition;
-        }
-        else
-        {
-            parentIndex = IsValidVoxelIndex(previousParentIndex) ? previousParentIndex : -1;
-            position = ApplyPlanarPosition(posGroup.xyz);
-        }
-    }
+    // V3's wrap-toggle reconciliation calls getParentVoxel directly after
+    // boundaries(); a blocked boundary remains the parent, while a sparse hole
+    // becomes null. Do not run movement recovery in this transition-only pass.
+    int parentIndex = ActiveVoxelIndexFromPosition(position);
 
     direction = NormalizeOr(ApplyPlanarMode(direction), float3(1, 0, 0));
     float3 yAxis = SafeYAxis(direction, yWrapped.xyz);
@@ -5799,8 +6661,7 @@ void ApplyBoundaryModeTransition(uint3 id : SV_DispatchThreadID)
     ParticleYAxis[particleIndex] = float4(yAxis, (float)wrapped);
 }
 
-[numthreads(256, 1, 1)]
-void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
+void MoveParticlesAndDepositCore(uint3 id, bool antOnly)
 {
     int particleIndex = (int)LinearIndex256(id);
     if (particleIndex >= ParticleCount) return;
@@ -5819,20 +6680,30 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
 
     float4 group0 = GroupData0[groupIndex];
     float4 group1 = GroupData1[groupIndex];
-    bool isAnt = group1.y > 0.5;
+    bool isAnt = antOnly || group1.y > 0.5;
+    bool connectedSteering = !antOnly && !isAnt && group1.y < -0.5;
     uint particleAge = DepositFixed[ParticleAgeIndex(particleIndex)];
     bool foundFood = isAnt && DepositFixed[ParticleAntStateIndex(particleIndex)] != 0u;
-    float3 homePosition = isAnt ? ParticleHome[particleIndex].xyz : position;
+    float4 homeState = isAnt ? ParticleHome[particleIndex] : float4(position, 0.0);
+    float3 homePosition = homeState.xyz;
+    bool antLaunchBoundaryHit = false;
+    if (isAnt)
+    {
+        antLaunchBoundaryHit = DepositFixed[ParticleAntLaunchBoundaryIndex(particleIndex)] != 0u;
+    }
 
     int currentParentIndex = (int)round(dirParent.w);
-    if (!IsValidVoxelIndex(currentParentIndex))
+    // A stored V3 parent remains usable for behavior and recovery while it is
+    // active, even when maxDensity makes it non-walkable. Keep the fallback
+    // strict so an actually missing parent is not resurrected from an obstacle.
+    if (!IsActiveVoxelIndex(currentParentIndex))
     {
         currentParentIndex = VoxelIndexFromPosition(position);
     }
 
     float4 behavior = float4(1.0, 1.0, 1.0, 1.0);
     float4 vectorField = float4(0.0, 0.0, 0.0, 0.0);
-    if (IsValidVoxelIndex(currentParentIndex))
+    if (IsActiveVoxelIndex(currentParentIndex))
     {
         if (HasVoxelBehavior != 0)
         {
@@ -5853,7 +6724,8 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
     }
 
     float speed = group0.x * behavior.x;
-    float sensorDistance = group0.y * behavior.y;
+    float rawSensorDistance = group0.y;
+    float sensorDistance = rawSensorDistance * behavior.y;
     float sensorAngle = group0.z * behavior.z;
     float sensorSin;
     float sensorCos;
@@ -5864,46 +6736,93 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
     sincos(rotationAngle, rotationSin, rotationCos);
     float depositValue = group1.z;
     uint wanderFrequency = group1.w <= 0.0 ? 0u : max(1u, (uint)round(group1.w));
-    if (DynamicPopulation != 0)
+    if (connectedSteering)
     {
-        float wander = saturate(group0.w);
+        wanderFrequency = 0u;
+    }
+    else if (DynamicPopulation != 0)
+    {
         float groupPopulation = (float)ParticleCounts[GroupPopulationIndex(groupIndex)];
-        wanderFrequency = wander <= 0.0
-            ? 0u
-            : max(1u, (uint)floor(pow(1.0 - wander, 3.0) * groupPopulation / 10.0));
+        if (isAnt)
+        {
+            // For ants group0.w carries the raw base-wander control. V3 derives
+            // its interval from the current retained population every solution.
+            float baseWander = saturate(group0.w);
+            wanderFrequency = max(1u, (uint)floor(baseWander * groupPopulation / 40.0));
+        }
+        else
+        {
+            float wander = saturate(group0.w);
+            wanderFrequency = wander <= 0.0
+                ? 0u
+                : max(1u, (uint)floor(pow(1.0 - wander, 3.0) * groupPopulation / 10.0));
+        }
     }
 
     float3 homeOffset = position - homePosition;
     float homeDistance = length(homeOffset);
     float3 towardsHome = NormalizeOr(-homeOffset, -x);
 
-    float3 leftSensor = position + (x * sensorCos - y * sensorSin) * sensorDistance;
-    float3 frontSensor = position + x * sensorDistance;
-    float3 rightSensor = position + (x * sensorCos + y * sensorSin) * sensorDistance;
+    // V3 snapshots these axes before constructing the first three sensors, but
+    // non-wrapped boundaries() mutates the particle plane after every sensor in
+    // left/front/right order. Keep the sensor geometry snapshot separate from
+    // the working axes used by the eventual steering force.
+    float3 sensorPlaneX = x;
+    float3 sensorPlaneY = y;
+    float3 leftSensor = position + (sensorPlaneX * sensorCos - sensorPlaneY * sensorSin) * sensorDistance;
+    float3 frontSensor = position + sensorPlaneX * sensorDistance;
+    float3 rightSensor = position + (sensorPlaneX * sensorCos + sensorPlaneY * sensorSin) * sensorDistance;
+    if (Wrap == 0)
+    {
+        ApplyNonWrappedSensorBoundaries(leftSensor, x, y);
+        ApplyNonWrappedSensorBoundaries(frontSensor, x, y);
+        ApplyNonWrappedSensorBoundaries(rightSensor, x, y);
+    }
 
-    float value0 = isAnt ? SampleAntField(leftSensor, foundFood, currentParentIndex, particleIndex) : SampleDensity(leftSensor);
-    float value1 = isAnt ? SampleAntField(frontSensor, foundFood, currentParentIndex, particleIndex) : SampleDensity(frontSensor);
-    float value2 = isAnt ? SampleAntField(rightSensor, foundFood, currentParentIndex, particleIndex) : SampleDensity(rightSensor);
+    float value0 = isAnt ? SampleAntField(leftSensor, foundFood, currentParentIndex, particleIndex, antOnly) : SampleDensity(leftSensor);
+    float value1 = isAnt ? SampleAntField(frontSensor, foundFood, currentParentIndex, particleIndex, antOnly) : SampleDensity(frontSensor);
+    float value2 = isAnt ? SampleAntField(rightSensor, foundFood, currentParentIndex, particleIndex, antOnly) : SampleDensity(rightSensor);
     float value3 = -1.0;
     float value4 = -1.0;
 
     if (Tridimensional != 0)
     {
-        float3 zAxis = NormalizeOr(cross(y, x), float3(0, 0, 1));
+        // V3 rotates each vertical sensor from the original X axis about the
+        // working Y axis. The up-sensor boundary mutation therefore affects the
+        // axis used to construct the down sensor.
+        float3 upSensor = position + RotateAroundAxis(sensorPlaneX, y, sensorCos, sensorSin) * sensorDistance;
+        if (Wrap == 0) ApplyNonWrappedSensorBoundaries(upSensor, x, y);
         value3 = isAnt
-            ? SampleAntField(position + (x * sensorCos + zAxis * sensorSin) * sensorDistance, foundFood, currentParentIndex, particleIndex)
-            : SampleDensity(position + (x * sensorCos + zAxis * sensorSin) * sensorDistance);
+            ? SampleAntField(upSensor, foundFood, currentParentIndex, particleIndex, antOnly)
+            : SampleDensity(upSensor);
+
+        float3 downSensor = position + RotateAroundAxis(sensorPlaneX, y, sensorCos, -sensorSin) * sensorDistance;
+        if (Wrap == 0) ApplyNonWrappedSensorBoundaries(downSensor, x, y);
         value4 = isAnt
-            ? SampleAntField(position + (x * sensorCos - zAxis * sensorSin) * sensorDistance, foundFood, currentParentIndex, particleIndex)
-            : SampleDensity(position + (x * sensorCos - zAxis * sensorSin) * sensorDistance);
+            ? SampleAntField(downSensor, foundFood, currentParentIndex, particleIndex, antOnly)
+            : SampleDensity(downSensor);
     }
 
-    int bestIndex = ChooseBestSensor(value0, value1, value2, value3, value4);
-    float3 force = x;
+    int bestIndex = connectedSteering
+        ? ChooseConnectedSensor(value0, value1, value2, value3, value4, group0.w, particleIndex)
+        : ChooseBestSensor(value0, value1, value2, value3, value4);
+    float3 force = 0.0;
     if (bestIndex < 0)
     {
-        uint turnSeed = Hash((uint)particleIndex + (uint)Iteration * 747796405u);
-        force = RotateForce((turnSeed & 1u) == 0u ? 0 : 2, x, y, rotationCos, rotationSin);
+        // V3 adds no sensor force for this sentinel. In non-wrap mode it still
+        // rotates the working plane deterministically by the raw group rotation
+        // angle times the particle index; its negative-degree normalization is
+        // equivalent to taking the absolute periodic angle.
+        if (Wrap == 0)
+        {
+            float noSensorSin;
+            float noSensorCos;
+            sincos(abs(group1.x) * (float)particleIndex, noSensorSin, noSensorCos);
+            float3 previousX = x;
+            float3 previousY = y;
+            x = NormalizeOr(previousX * noSensorCos + previousY * noSensorSin, previousX);
+            y = SafeYAxis(x, previousY * noSensorCos - previousX * noSensorSin);
+        }
     }
     else
     {
@@ -5932,9 +6851,25 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
         {
             force += RandomPlanarVector(Hash(antSteeringOrder + (uint)Iteration));
         }
-        if (particleAge < 30u && homeDistance < sensorDistance * 3.0)
+        if (!foundFood && !antLaunchBoundaryHit)
         {
-            force += NormalizeOr(homeOffset, x) * 10.0;
+            // Once the launch has ended at a boundary (or while carrying food),
+            // V3's launch force cannot affect this step. Keep the expensive
+            // distance/sqrt calculation inside that state gate so the steady ant
+            // path does not recompute an unused duration forever.
+            uint launchDuration = AntLaunchDuration(homePosition, group0.x);
+            if (particleAge < launchDuration)
+            {
+                float3 launchVector = NormalizeOr(homeOffset, x);
+                float launchProgress = launchDuration > 0u
+                    ? saturate((float)particleAge / (float)launchDuration)
+                    : 1.0;
+                float launchFade = 0.5 * (1.0 + cos(3.14159265359 * launchProgress));
+                float outwardStrength = (7.0 + AntLaunchVariation(homeState.w, 17.17) * 2.0) * launchFade;
+                float lateralStrength = outwardStrength * (0.55 + AntLaunchVariation(homeState.w, 41.73) * 0.20);
+                force += launchVector * outwardStrength;
+                force += AntLaunchWaveVector(particleIndex, particleAge, homeState.w) * lateralStrength;
+            }
         }
         if (foundFood && antSteeringOrder % wanderFrequency == 0u)
         {
@@ -5944,7 +6879,7 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
         {
             force += towardsHome * (0.01 * particleAge / 100.0);
         }
-        if (homeDistance <= sensorDistance * 2.0 && particleAge > 30u)
+        if (homeDistance <= rawSensorDistance * 2.0 && particleAge > 30u)
         {
             x = towardsHome;
             y = SafeYAxis(x, y);
@@ -5955,22 +6890,32 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
     float3 steeringDirection = NormalizeOr(force, x);
     float3 moveDirection = NormalizeOr(steeringDirection + x * 0.2, x);
     uint movementSeed = Hash((uint)particleIndex + (uint)Iteration * 2891336453u);
-    if (!isAnt && wanderFrequency > 0u && movementSeed % wanderFrequency == 0u)
+    if (!isAnt && !connectedSteering && wanderFrequency > 0u && movementSeed % wanderFrequency == 0u)
     {
         moveDirection = NormalizeOr(moveDirection + RandomPlanarVector(movementSeed) * 1.5, moveDirection);
     }
 
     moveDirection = NormalizeOr(ApplyPlanarMode(moveDirection), x);
     float3 nextPosition = position + moveDirection * speed;
-    nextPosition = ApplyPlanarPosition(nextPosition);
+    nextPosition = CenterPlanarMovePosition(nextPosition);
+
+    if (isAnt && !antLaunchBoundaryHit && AntMoveTouchesBoundary(nextPosition))
+    {
+        antLaunchBoundaryHit = true;
+    }
 
     uint wrapped = 0;
     ApplyMovementBoundaries(nextPosition, moveDirection, wrapped);
-    nextPosition = ApplyPlanarPosition(nextPosition);
+    nextPosition = CenterPlanarMovePosition(nextPosition);
 
     int parentIndex = VoxelIndexFromPosition(nextPosition);
     if (parentIndex < 0)
     {
+        if (isAnt)
+        {
+            antLaunchBoundaryHit = true;
+        }
+
         int recoveredIndex;
         float3 recoveredPosition;
         if (TryRecoverWalkableStep(currentParentIndex, particleIndex, speed, recoveredIndex, recoveredPosition))
@@ -5982,7 +6927,7 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
         else
         {
             parentIndex = currentParentIndex;
-            if (!IsValidVoxelIndex(parentIndex)) parentIndex = -1;
+            if (!IsActiveVoxelIndex(parentIndex)) parentIndex = -1;
             nextPosition = position;
             moveDirection = NormalizeOr(ApplyPlanarMode(-moveDirection), x);
         }
@@ -6002,7 +6947,7 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
             DepositFixed[HighDepositIndex(particleIndex)] = previousCount == 0u ? 1u : 0u;
         }
 
-        if (previousCount == 0u && CanDepositAtVoxel(parentIndex, sensorDistance))
+        if (previousCount == 0u && CanDepositAtVoxel(parentIndex, rawSensorDistance))
         {
             float ageT = saturate(particleAge / 99.0);
             float antMultiplier = foundFood ? lerp(1.0, 0.3, ageT) : lerp(1.0, 0.2, ageT);
@@ -6038,21 +6983,45 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
         // V3 treats every visit inside one movement step as a nest visit. Repeating
         // the age reset keeps the outward departure force active until the ant exits.
         float nextHomeDistance = length(nextPosition - homePosition);
-        if (nextHomeDistance < max(speed, 1e-4))
+        if (nextHomeDistance < group0.x)
         {
             foundFood = false;
             nextParticleAge = 1u;
+            antLaunchBoundaryHit = false;
         }
     }
 
     x = NormalizeOr(moveDirection, x);
     y = SafeYAxis(x, y);
 
-    ParticlePosition[particleIndex] = float4(nextPosition, (float)groupIndex);
+    // Keep the lightweight CPU preview self-contained. The integer portion is
+    // still the group index consumed by every solver path; an ant carrying food
+    // uses a small fractional tag that round(groupTag) safely ignores.
+    float previewGroupTag = (float)groupIndex + (isAnt && foundFood ? 0.25 : 0.0);
+    ParticlePosition[particleIndex] = float4(nextPosition, previewGroupTag);
     ParticleDirection[particleIndex] = float4(x, (float)parentIndex);
     ParticleYAxis[particleIndex] = float4(y, (float)wrapped);
     DepositFixed[ParticleAgeIndex(particleIndex)] = nextParticleAge;
-    if (isAnt) DepositFixed[ParticleAntStateIndex(particleIndex)] = foundFood ? 1u : 0u;
+    if (isAnt)
+    {
+        DepositFixed[ParticleAntStateIndex(particleIndex)] = foundFood ? 1u : 0u;
+        DepositFixed[ParticleAntLaunchBoundaryIndex(particleIndex)] = antLaunchBoundaryHit ? 1u : 0u;
+    }
+}
+
+[numthreads(256, 1, 1)]
+void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
+{
+    MoveParticlesAndDepositCore(id, false);
+}
+
+// Ant-only engines compile the same movement body with the population kind as
+// a constant. D3DCompiler can then remove the disconnected slime/connected
+// branches and their register pressure without maintaining a second algorithm.
+[numthreads(256, 1, 1)]
+void MoveAntParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
+{
+    MoveParticlesAndDepositCore(id, true);
 }
 
 // Mirrors V3 projectFoodSources. Runs before diffusion so the injected value
@@ -6063,12 +7032,14 @@ void ProjectFoodSources(uint3 id : SV_DispatchThreadID)
 {
     int index = (int)LinearIndex256(id);
     if (index >= VoxelCount) return;
-    if (!IsValidVoxelIndex(index)) return;
+    if (!IsActiveVoxelIndex(index)) return;
 
     float foodValue = FoodSourceAt(index);
     if (foodValue <= 0.0) return;
 
-    Source[index] = ClampDensityLimits(Source[index] + foodValue, index);
+    // V3 projects into every active voxel, including max-density-zero obstacle
+    // voxels, and applies density limits only if a diffusion pass follows.
+    Source[index] += foodValue;
 }
 
 [numthreads(256, 1, 1)]
@@ -6091,7 +7062,7 @@ void ApplyDeposits(uint3 id : SV_DispatchThreadID)
 
     if (fixedDeposit > 0u)
     {
-        Source[index] = ClampDensityLimits(Source[index] + fixedDeposit / DepositScale, index);
+        Source[index] += fixedDeposit / DepositScale;
     }
     if (HasSlimeParticles != 0) DepositFixed[SlimeDepositIndex(index)] = 0u;
 
@@ -6099,8 +7070,10 @@ void ApplyDeposits(uint3 id : SV_DispatchThreadID)
     {
         uint foodDeposit = DepositFixed[AntFoodDepositIndex(index)];
         uint baseDeposit = DepositFixed[AntBaseDepositIndex(index)];
-        if (foodDeposit > 0u) Destination[index] = min(1.0, Destination[index] + foodDeposit / DepositScale);
-        if (baseDeposit > 0u) AntBaseDestination[index] = min(1.0, AntBaseDestination[index] + baseDeposit / DepositScale);
+        // V3 applies upper/minimum density constraints only in diffusion. With
+        // a zero diffusion rate, deposits remain raw until the decay stage.
+        if (foodDeposit > 0u) Destination[index] += foodDeposit / DepositScale;
+        if (baseDeposit > 0u) AntBaseDestination[index] += baseDeposit / DepositScale;
         DepositFixed[AntFoodDepositIndex(index)] = 0u;
         DepositFixed[AntBaseDepositIndex(index)] = 0u;
     }
@@ -6128,7 +7101,9 @@ void CountParticles(uint3 id : SV_DispatchThreadID)
     if (!IsParticleAlive(index)) return;
 
     int parentIndex = (int)round(ParticleDirection[index].w);
-    if (IsValidVoxelIndex(parentIndex))
+    // V3 counts every non-null parent before marking max-density obstacles as
+    // blocked. Active and walkable are therefore deliberately different here.
+    if (IsActiveVoxelIndex(parentIndex))
     {
         InterlockedAdd(ParticleCounts[parentIndex], 1u);
     }
@@ -6138,6 +7113,16 @@ void CountParticles(uint3 id : SV_DispatchThreadID)
     {
         InterlockedAdd(ParticleCounts[GroupPopulationIndex(groupIndex)], 1u);
     }
+}
+
+[numthreads(256, 1, 1)]
+void AdvanceParticleAges(uint3 id : SV_DispatchThreadID)
+{
+    int index = (int)LinearIndex256(id);
+    if (index >= ParticleCapacity || !IsParticleAlive(index)) return;
+
+    uint ignored;
+    InterlockedAdd(DepositFixed[ParticleAgeIndex(index)], 1u, ignored);
 }
 
 [numthreads(256, 1, 1)]
@@ -6222,11 +7207,6 @@ void SumNeighbourAxis(uint3 id : SV_DispatchThreadID)
 // silently dropped claims once many particles contended on the one counter --
 // which made the observed death rate track contention instead of the
 // configured probability.
-// Reserve first, undo if we crossed the floor. A single atomic add always
-// succeeds, whereas the bounded compare-exchange retry loop this replaces
-// silently dropped claims once many particles contended on the one counter --
-// which made the observed death rate track contention instead of the
-// configured probability.
 bool TryClaimDeath()
 {
     uint minimum = (uint)max(MinimumPopulation, 0);
@@ -6247,23 +7227,36 @@ void ApplyParticleDeath(uint3 id : SV_DispatchThreadID)
 
     int parentIndex = (int)round(ParticleDirection[particleIndex].w);
     int neighbourCount = 0;
-    if (parentIndex >= 0 && parentIndex < VoxelCount)
+    if (DeathEnabled == 2)
     {
-        // Excludes the particle itself, matching V3, which subtracts one after
-        // summing the box (Solver.cs particleCheckNeighbourCount).
-        neighbourCount = max(0, (int)round(Source[parentIndex]) - 1);
+        neighbourCount = (int)DepositFixed[ParticleDeathNeighbourIndex(particleIndex)];
     }
-    DepositFixed[ParticleDeathNeighbourIndex(particleIndex)] = (uint)neighbourCount;
+    else if (DeathEnabled == -2)
+    {
+        // A negative V3 range participates in a positive shared scan but no
+        // offset can satisfy abs(offset) <= range, so the observable field is 0.
+        DepositFixed[ParticleDeathNeighbourIndex(particleIndex)] = 0u;
+    }
+    else if (DeathEnabled != 0)
+    {
+        if (parentIndex >= 0 && parentIndex < VoxelCount)
+        {
+            // Excludes the particle itself, matching V3, which subtracts one after
+            // summing the box (Solver.cs particleCheckNeighbourCount).
+            neighbourCount = max(0, (int)round(Source[parentIndex]) - 1);
+        }
+        DepositFixed[ParticleDeathNeighbourIndex(particleIndex)] = (uint)neighbourCount;
+    }
 
     uint age = DepositFixed[ParticleAgeIndex(particleIndex)];
     bool outsideNeighbourRange = neighbourCount < DeathMinimumNeighbours ||
                                  neighbourCount > DeathMaximumNeighbours;
     bool oldEnoughToDie = age >= (uint)max(DeathMinimumAge, 0);
-    bool shouldDie = DeathEnabled != 0 && oldEnoughToDie && outsideNeighbourRange;
+    bool shouldDie = DeathEnabled > 0 && oldEnoughToDie && outsideNeighbourRange;
 
-    // Random death is independent of the neighbour rule and of the age gate,
-    // matching V3 applyRandomParticleDeath. TryClaimDeath still enforces the
-    // minimum-population budget.
+    // C# dispatches this kernel once for the neighbour rule and, later, once for
+    // random death. The random-only pass runs after normal division, so normal
+    // newborns are deliberately eligible here, matching V3.
     if (!shouldDie && RandomDeathProbability > 0.0 && RandomPopulationDue())
     {
         uint deathSeed = Hash((uint)particleIndex ^ ((uint)Iteration * 2654435761u) ^ 0x9E3779B9u);
@@ -6291,12 +7284,8 @@ void ApplyParticleDeath(uint3 id : SV_DispatchThreadID)
     yAxis.w = -1.0;
     ParticleYAxis[particleIndex] = yAxis;
 
-    if (parentIndex >= 0 && parentIndex < VoxelCount)
-    {
-        uint previousCount;
-        InterlockedAdd(ParticleCounts[parentIndex], 0xffffffffu, previousCount);
-    }
-
+    // V3 removes the particle from its global list but intentionally leaves the
+    // current voxel's particleCount untouched until the next post-move recount.
     uint ignoredGroupCount;
     InterlockedAdd(ParticleCounts[GroupPopulationIndex(groupIndex)], 0xffffffffu, ignoredGroupCount);
 
@@ -6347,21 +7336,50 @@ void ApplyParticleDivision(uint3 id : SV_DispatchThreadID)
 {
     int particleIndex = (int)LinearIndex256(id);
     if (particleIndex >= ParticleCapacity || !IsParticleAlive(particleIndex)) return;
-    if (ParticleYAxis[particleIndex].w < -0.5) return;
+    float birthMarker = ParticleYAxis[particleIndex].w;
+    bool publishOnly = DivisionEnabled < 0;
+    bool randomOnlyPass = DivisionEnabled == 0 &&
+                          RandomDivisionProbability > 0.0 &&
+                          RandomPopulationDue();
+    // -2 marks a child born in the completed normal pass. V3 includes that
+    // child in the following random pass. -1 marks a child born in the current
+    // pass and prevents scheduling-dependent recursive division.
+    if (!publishOnly && birthMarker < -0.5 && !(randomOnlyPass && birthMarker < -1.5)) return;
+    if (!publishOnly && randomOnlyPass && birthMarker < -1.5)
+    {
+        float4 normalNewbornYAxis = ParticleYAxis[particleIndex];
+        normalNewbornYAxis.w = 0.0;
+        ParticleYAxis[particleIndex] = normalNewbornYAxis;
+    }
 
     int parentIndex = (int)round(ParticleDirection[particleIndex].w);
     if (!IsValidVoxelIndex(parentIndex)) return;
 
-    // Excludes the particle itself, matching V3.
-    int neighbourCount = max(0, (int)round(Source[parentIndex]) - 1);
-    DepositFixed[ParticleDivisionNeighbourIndex(particleIndex)] = (uint)neighbourCount;
+    int neighbourCount = 0;
+    if (DivisionEnabled == 2)
+    {
+        neighbourCount = (int)DepositFixed[ParticleDivisionNeighbourIndex(particleIndex)];
+    }
+    else if (DivisionEnabled == -2)
+    {
+        // See the matching death path: a negative range publishes zero when
+        // the other rule keeps V3's shared neighbour scan active.
+        DepositFixed[ParticleDivisionNeighbourIndex(particleIndex)] = 0u;
+    }
+    else if (DivisionEnabled != 0)
+    {
+        // Excludes the particle itself, matching V3.
+        neighbourCount = max(0, (int)round(Source[parentIndex]) - 1);
+        DepositFixed[ParticleDivisionNeighbourIndex(particleIndex)] = (uint)neighbourCount;
+    }
     uint age = DepositFixed[ParticleAgeIndex(particleIndex)];
-    bool neighbourEligible = DivisionEnabled != 0 &&
+    bool neighbourEligible = DivisionEnabled > 0 &&
                              age >= (uint)max(DivisionMinimumAge, 0) &&
                              neighbourCount >= DivisionMinimumNeighbours &&
                              neighbourCount <= DivisionMaximumNeighbours;
 
     bool divide = false;
+    bool randomDivide = false;
     if (neighbourEligible)
     {
         uint selectionSeed = Hash((uint)particleIndex + (uint)Iteration * 3266489917u);
@@ -6373,7 +7391,8 @@ void ApplyParticleDivision(uint3 id : SV_DispatchThreadID)
     if (!divide && RandomDivisionProbability > 0.0 && RandomPopulationDue())
     {
         uint divisionSeed = Hash((uint)particleIndex ^ ((uint)Iteration * 40503u) ^ 0x85EBCA6Bu);
-        divide = UnitFromHash(divisionSeed) < RandomDivisionProbability;
+        randomDivide = UnitFromHash(divisionSeed) < RandomDivisionProbability;
+        divide = randomDivide;
     }
 
     if (!divide) return;
@@ -6387,47 +7406,95 @@ void ApplyParticleDivision(uint3 id : SV_DispatchThreadID)
     int groupIndex = clamp((int)round(parentPosition.w), 0, max(GroupCount - 1, 0));
     float3 x = NormalizeOr(parentDirection.xyz, float3(1, 0, 0));
     float3 y = SafeYAxis(x, parentYAxis.xyz);
-    float3 childBase = x;
-
-    float splitAngle = GroupData1[groupIndex].x * 0.25;
-    float splitSin;
-    float splitCos;
-    sincos(splitAngle, splitSin, splitCos);
-    float3 parentX = NormalizeOr(RotateForce(2, childBase, y, splitCos, splitSin), x);
-    float3 childX = NormalizeOr(RotateForce(0, childBase, y, splitCos, splitSin), x);
-    float3 childY = SafeYAxis(childX, y);
+    float3 parentX = x;
+    float3 childX = x;
+    float3 childY = y;
+    if (randomDivide)
+    {
+        uint angleSeed = Hash((uint)particleIndex ^ ((uint)Iteration * 2246822519u) ^ 0x27d4eb2du);
+        float childAngle = Hash01(angleSeed) * 6.28318530718;
+        float childSin;
+        float childCos;
+        sincos(childAngle, childSin, childCos);
+        childX = NormalizeOr(x * childCos + y * childSin, x);
+        childY = NormalizeOr(-x * childSin + y * childCos, y);
+    }
+    else
+    {
+        float splitAngle = GroupData1[groupIndex].x * 0.25;
+        float splitSin;
+        float splitCos;
+        sincos(splitAngle, splitSin, splitCos);
+        parentX = NormalizeOr(RotateForce(2, x, y, splitCos, splitSin), x);
+        childX = NormalizeOr(RotateForce(0, x, y, splitCos, splitSin), x);
+        childY = SafeYAxis(childX, y);
+    }
 
     ParticleDirection[particleIndex] = float4(parentX, parentDirection.w);
     ParticleYAxis[particleIndex] = float4(SafeYAxis(parentX, y), parentYAxis.w);
 
-    ParticlePosition[childSlot] = float4(parentPosition.xyz, (float)groupIndex);
+    uint childAntState = randomDivide
+        ? DepositFixed[ParticleAntStateIndex(particleIndex)]
+        : 0u;
+    float childPreviewGroupTag = (float)groupIndex
+        + (GroupData1[groupIndex].y > 0.5 && childAntState != 0u ? 0.25 : 0.0);
+    ParticlePosition[childSlot] = float4(parentPosition.xyz, childPreviewGroupTag);
     ParticleDirection[childSlot] = float4(childX, (float)parentIndex);
-    ParticleYAxis[childSlot] = float4(childY, -1.0);
-    ParticleHome[childSlot] = ParticleHome[particleIndex];
-    DepositFixed[ParticleAgeIndex((int)childSlot)] = 0u;
+    ParticleYAxis[childSlot] = float4(childY, randomDivide ? -1.0 : -2.0);
+    ParticleHome[childSlot] = randomDivide ? ParticleHome[particleIndex] : 0.0;
+    DepositFixed[ParticleAgeIndex((int)childSlot)] = randomDivide ? age : 0u;
     DepositFixed[ParticleDeathNeighbourIndex((int)childSlot)] = 0u;
     DepositFixed[ParticleDivisionNeighbourIndex((int)childSlot)] = 0u;
     DepositFixed[ParticleGenerationIndex((int)childSlot)] = DepositFixed[ParticleGenerationIndex((int)childSlot)] + 1u;
-    DepositFixed[ParticleAntStateIndex((int)childSlot)] = DepositFixed[ParticleAntStateIndex(particleIndex)];
+    DepositFixed[ParticleAntStateIndex((int)childSlot)] = childAntState;
+    DepositFixed[HighDepositIndex((int)childSlot)] = 0u;
+    if (AntLaunchBoundaryOffset >= 0)
+    {
+        DepositFixed[ParticleAntLaunchBoundaryIndex((int)childSlot)] = randomDivide
+            ? DepositFixed[ParticleAntLaunchBoundaryIndex(particleIndex)]
+            : 0u;
+        DepositFixed[ParticleAntHomeYAxisXIndex((int)childSlot)] = randomDivide
+            ? DepositFixed[ParticleAntHomeYAxisXIndex(particleIndex)]
+            : 0u;
+        DepositFixed[ParticleAntHomeYAxisYIndex((int)childSlot)] = randomDivide
+            ? DepositFixed[ParticleAntHomeYAxisYIndex(particleIndex)]
+            : 0u;
+        DepositFixed[ParticleAntHomeYAxisZIndex((int)childSlot)] = randomDivide
+            ? DepositFixed[ParticleAntHomeYAxisZIndex(particleIndex)]
+            : 0u;
+        DepositFixed[ParticleAntHomeXAxisXIndex((int)childSlot)] = randomDivide
+            ? DepositFixed[ParticleAntHomeXAxisXIndex(particleIndex)]
+            : 0u;
+        DepositFixed[ParticleAntHomeXAxisYIndex((int)childSlot)] = randomDivide
+            ? DepositFixed[ParticleAntHomeXAxisYIndex(particleIndex)]
+            : 0u;
+        DepositFixed[ParticleAntHomeXAxisZIndex((int)childSlot)] = randomDivide
+            ? DepositFixed[ParticleAntHomeXAxisZIndex(particleIndex)]
+            : 0u;
+    }
 
     uint ignoredVoxelCount;
     InterlockedAdd(ParticleCounts[parentIndex], 1u, ignoredVoxelCount);
-    InterlockedAdd(DepositFixed[ParticleAgeIndex(particleIndex)], 1u, ignoredVoxelCount);
-
+    if (!randomDivide)
+    {
+        // V3's normal-division parent lookup advances the parent age before
+        // the subsequent random-division pass.
+        InterlockedAdd(DepositFixed[ParticleAgeIndex(particleIndex)], 1u, ignoredVoxelCount);
+    }
     uint ignoredGroupCount;
     InterlockedAdd(ParticleCounts[GroupPopulationIndex(groupIndex)], 1u, ignoredGroupCount);
 }
 
 float ClampPassDensity(float value, int index, int x, int y, int z)
 {
-    if (!IsValidVoxelIndex(index)) return 0.0;
+    // V3 advances every authored/active target. A max-density obstacle is not a
+    // valid neighbour or particle parent, but its own retained contribution is
+    // still diffused and then clamped to its authored maximum.
+    if (!IsActiveVoxelIndex(index)) return 0.0;
     if (value > 1.0) value = 1.0;
     value = ClampDensityLimits(value, index);
 
-    if (Wrap == 0 && IsBoundary(x, y, z) && value > 0.01)
-    {
-        value = 0.01;
-    }
+    if (Wrap == 0 && IsBoundary(x, y, z)) value = 0.0;
 
     return value;
 }
@@ -6495,20 +7562,30 @@ void ApplyDecay(uint3 id : SV_DispatchThreadID)
     int z;
     Coordinates(index, x, y, z);
 
-    if (Wrap == 0 && IsBoundary(x, y, z))
+    if (!IsActiveVoxelIndex(index))
     {
         Destination[index] = 0.0;
         return;
     }
 
-    if (!IsValidVoxelIndex(index))
+    // V3's post-diffusion parent check clears scalar density under a particle
+    // that could not escape an active max-density obstacle. CountParticles has
+    // already published those active blocked parents for this frame.
+    if (FieldMode == 0 && !IsValidVoxelIndex(index) && ParticleCounts[index] > 0u)
+    {
+        Destination[index] = 0.0;
+        return;
+    }
+
+    // V3 clears density and ant-food pheromone on non-wrapped outer faces, but
+    // ant-base pheromone is only decayed there. Preserve that asymmetry.
+    if (Wrap == 0 && IsBoundary(x, y, z) && FieldMode != 2)
     {
         Destination[index] = 0.0;
         return;
     }
 
     float value = Source[index] - Decay;
-    value = ClampDensityLimits(value, index);
     Destination[index] = value > 0.0 ? value : 0.0;
 }
 
@@ -6609,7 +7686,9 @@ void BuildDensityPreview(uint3 id : SV_DispatchThreadID)
 
 float4 CombinedPreviewVoxel(int index)
 {
-    float slime = HasSlimeParticles != 0 ? max(Source[index], 0.0) : 0.0;
+    // Scalar density evolves independently of retained species in V3 and remains
+    // visible in the combined preview for empty and ant-only populations.
+    float slime = max(Source[index], 0.0);
     float foodPheromone = HasAntParticles != 0 ? max(AntFoodPheromone[index], 0.0) : 0.0;
     float basePheromone = HasAntParticles != 0 ? max(AntBasePheromone[index], 0.0) : 0.0;
     float remainingFood = RemainingFoodAt(index);

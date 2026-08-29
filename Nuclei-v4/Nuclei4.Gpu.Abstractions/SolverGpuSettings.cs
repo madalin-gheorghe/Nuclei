@@ -156,12 +156,10 @@ namespace Nuclei4
             }
 
             parsed.DivisionMinimumAge = Math.Max(0, parsed.DivisionMinimumAge);
-            parsed.DivisionRange = Math.Max(0, parsed.DivisionRange);
             parsed.DivisionFrequency = Math.Max(1, parsed.DivisionFrequency);
             NormalizeNeighbourRange(ref parsed.DivisionMinimumNeighbours, ref parsed.DivisionMaximumNeighbours);
 
             parsed.DeathMinimumAge = Math.Max(0, parsed.DeathMinimumAge);
-            parsed.DeathRange = Math.Max(0, parsed.DeathRange);
             parsed.DeathFrequency = Math.Max(1, parsed.DeathFrequency);
             NormalizeNeighbourRange(ref parsed.DeathMinimumNeighbours, ref parsed.DeathMaximumNeighbours);
 
@@ -214,13 +212,19 @@ namespace Nuclei4
                 return mode;
             }
 
-            if (resX == 1)
+            // V3 performs three independent X/Y/Z planar checks; when more than
+            // one resolution is 1, the later Z check wins, then Y, then X.
+            if (resZ == 1)
             {
-                mode.PlanarYZ = true;
+                mode.PlanarXY = true;
             }
             else if (resY == 1)
             {
                 mode.PlanarXZ = true;
+            }
+            else if (resX == 1)
+            {
+                mode.PlanarYZ = true;
             }
             else
             {

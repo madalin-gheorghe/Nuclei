@@ -7,6 +7,8 @@ namespace Nuclei4
 {
     internal sealed class SolverGpuInputSnapshot : GpuSolverInput
     {
+        bool wrapBoundaries;
+
         public VoxelField Field;
         public Voxel[,,] Voxels;
         public ParticleList Particles;
@@ -27,27 +29,29 @@ namespace Nuclei4
             return snapshot;
         }
 
-        public static SolverGpuInputSnapshot Capture(VoxelField inputField, IList<ParticleGroup> particleGroups)
+        public static SolverGpuInputSnapshot Capture(VoxelField inputField, IList<ParticleGroup> particleGroups, bool wrapBoundaries = false)
         {
             SolverGpuInputSnapshot snapshot = new SolverGpuInputSnapshot();
             snapshot.DetectPopulationKinds(particleGroups);
-            snapshot.CaptureCompactVoxels(inputField, false);
+            snapshot.CaptureCompactVoxels(inputField, false, wrapBoundaries);
             snapshot.CaptureParticles(particleGroups);
             return snapshot;
         }
 
-        public static SolverGpuInputSnapshot CaptureVoxelFields(VoxelField inputField, IList<ParticleGroup> particleGroups)
+        public static SolverGpuInputSnapshot CaptureVoxelFields(VoxelField inputField, IList<ParticleGroup> particleGroups, bool wrapBoundaries = false)
         {
             SolverGpuInputSnapshot snapshot = new SolverGpuInputSnapshot();
             snapshot.DetectPopulationKinds(particleGroups);
-            snapshot.CaptureCompactVoxels(inputField, true);
+            snapshot.CaptureCompactVoxels(inputField, true, wrapBoundaries);
             return snapshot;
         }
 
-        void CaptureCompactVoxels(VoxelField inputField, bool includeDynamicState)
+        void CaptureCompactVoxels(VoxelField inputField, bool includeDynamicState, bool wrapBoundaries)
         {
+            this.wrapBoundaries = wrapBoundaries;
             VoxelField sourceField = inputField ?? new VoxelField(VoxelGridData.CreateFullDomain(0, 0, 0, 1.0));
             Field = includeDynamicState ? sourceField.ForkRuntimeState() : sourceField.ForkResetState();
+            Field.ConfigureSolverBoundaries(wrapBoundaries);
             VoxelGridData data = Field.Data;
             ResX = data.ResX;
             ResY = data.ResY;
@@ -111,7 +115,7 @@ namespace Nuclei4
             bool hasDynamicAntFood = includeDynamicState && Field.Dynamic != null && Field.Dynamic.AntFoodPheromone != null;
             bool hasDynamicAntBase = includeDynamicState && Field.Dynamic != null && Field.Dynamic.AntBasePheromone != null;
             bool hasDynamicFood = includeDynamicState && Field.Dynamic != null && Field.Dynamic.RemainingFood != null;
-            bool mayHaveDensity = HasSlimeParticles && (hasDynamicDensity || data.Density.Values != null || data.Density.DefaultValue != 0 || Field.LegacyVoxels != null);
+            bool mayHaveDensity = hasDynamicDensity || data.Density.Values != null || data.Density.DefaultValue != 0 || Field.LegacyVoxels != null;
             bool mayHaveAntFields = HasAntParticles && (hasDynamicAntFood || hasDynamicAntBase || Field.LegacyVoxels != null);
             // hasDynamicFood tracks the remaining-food readback, which is the ant map
             // after the food split. Both maps must be able to force the voxel scan;
@@ -130,7 +134,7 @@ namespace Nuclei4
             {
                 int flatIndex = data.ActiveFlatIndexAt(ordinal);
                 SetFlag(ActiveVoxelFlags, flatIndex);
-                if (HasSlimeParticles)
+                if (ProcessDensity)
                 {
                     float density = (float)Field.GetScalarValue(VoxelPreviewField.SlimeChemoattractants, flatIndex);
                     if (density != 0)
@@ -172,7 +176,7 @@ namespace Nuclei4
                     if (InitialAntFood == null) InitialAntFood = new float[voxelCount];
                     InitialAntFood[flatIndex] = antFood;
                 }
-                if (hasFlags && data.IsWalkableFlatIndex(flatIndex))
+                if (hasFlags && Field.IsSolverWalkableFlatIndex(flatIndex))
                 {
                     SetFlag(VoxelFlags, flatIndex);
                 }
@@ -207,7 +211,7 @@ namespace Nuclei4
             if (inputVoxels == null)
             {
                 Voxels = new Voxel[0, 0, 0];
-                VoxelDensity = HasSlimeParticles ? new float[0] : null;
+                VoxelDensity = ProcessDensity ? new float[0] : null;
                 AntFoodPheromone = HasAntParticles ? new float[0] : null;
                 AntBasePheromone = HasAntParticles ? new float[0] : null;
                 VoxelBehaviorData = new float[0];
@@ -241,7 +245,7 @@ namespace Nuclei4
             bool hasInputVoxels = ContainsAnyVoxel(inputVoxels);
 
             Voxels = new Voxel[ResX, ResY, ResZ];
-            VoxelDensity = HasSlimeParticles ? new float[voxelCount] : null;
+            VoxelDensity = ProcessDensity ? new float[voxelCount] : null;
             AntFoodPheromone = HasAntParticles ? new float[voxelCount] : null;
             AntBasePheromone = HasAntParticles ? new float[voxelCount] : null;
             SpeedOffset = 0;
@@ -284,7 +288,7 @@ namespace Nuclei4
                         Voxels[x, y, z] = voxel;
                         SetFlag(ActiveVoxelFlags, flatIndex);
 
-                        if (HasSlimeParticles)
+                        if (ProcessDensity)
                         {
                             VoxelDensity[flatIndex] = (float)voxel.density;
                         }
@@ -411,6 +415,12 @@ namespace Nuclei4
             Particles = new ParticleList();
             CaptureParticleGroups(particleGroups);
 
+            List<int> capturedGroupIndices = new List<int>();
+            List<int> capturedParentIndices = new List<int>();
+            Dictionary<int, Voxel> capturedParentVoxels = new Dictionary<int, Voxel>();
+            bool capturedAntParticles = false;
+            bool capturedSlimeParticles = false;
+
             if (particleGroups != null)
             {
                 for (int groupIndex = 0; groupIndex < particleGroups.Count; groupIndex++)
@@ -429,7 +439,9 @@ namespace Nuclei4
                             continue;
                         }
 
-                        if (FlatIndexFromPosition(particle.pPlane.Origin) < 0)
+                        Plane preparedPlane;
+                        int parentFlatIndex;
+                        if (!TryPrepareResetParticle(particle, group, out preparedPlane, out parentFlatIndex))
                         {
                             continue;
                         }
@@ -437,19 +449,54 @@ namespace Nuclei4
                         ParticleGroup simulationGroup = groupIndex < ParticleGroups.Length
                             ? ParticleGroups[groupIndex]
                             : null;
-                        Particle simulationParticle = new Particle(particle.pPlane);
+                        bool particleIsAnt = particle.parentParticleGroup != null
+                            ? particle.parentParticleGroup.ant
+                            : group.ant;
+                        if (particleIsAnt) capturedAntParticles = true;
+                        else capturedSlimeParticles = true;
+                        if (simulationGroup != null && particleIsAnt)
+                        {
+                            // V3 promotes the retained simulation group to ant only
+                            // after at least one eligible ant particle survives reset.
+                            simulationGroup.ant = true;
+                        }
+                        Particle simulationParticle = new Particle(preparedPlane);
                         simulationParticle.parentParticleGroup = simulationGroup;
-                        simulationParticle.home = group.ant ? particle.pPlane : particle.home;
-                        simulationParticle.foundFood = group.ant && particle.foundFood;
-                        simulationParticle.age = Math.Max(0, particle.age);
+                        simulationParticle.parentVoxel = CapturedParentVoxel(parentFlatIndex, capturedParentVoxels);
+                        if (particleIsAnt)
+                        {
+                            simulationParticle.home = preparedPlane;
+                        }
+                        // V3 reset constructs a fresh particle. Runtime ant state and
+                        // age are observable on readback, but are not continuation
+                        // state when a solver reset consumes those particles again.
+                        ResetCapturedParticleRuntimeState(simulationParticle);
                         Particles.Add(simulationParticle);
                         if (simulationGroup != null)
                         {
                             simulationGroup.particles.Add(simulationParticle);
                         }
+                        capturedGroupIndices.Add(groupIndex);
+                        capturedParentIndices.Add(parentFlatIndex);
                     }
                 }
             }
+
+            // V3 derives the solver frequencies from the retained population, not
+            // from the raw input-group count. Pack those values before the CPU-visible
+            // group metadata is converted from its raw controls to derived values.
+            bool ignoredHasAntParticles;
+            bool ignoredHasSlimeParticles;
+            CaptureRuntimeGroupSettings(
+                particleGroups,
+                ParticleGroups,
+                out GroupData0,
+                out GroupData1,
+                out ignoredHasAntParticles,
+                out ignoredHasSlimeParticles);
+            HasAntParticles = capturedAntParticles;
+            HasSlimeParticles = capturedSlimeParticles;
+            ApplyCapturedParticleGroupMetadata();
 
             ParticleCount = Particles.Count;
             ParticlePositionsXyz = new float[ParticleCount * 3];
@@ -457,65 +504,60 @@ namespace Nuclei4
             ParticleYAxesXyz = new float[ParticleCount * 3];
             ParticleHomesXyz = new float[ParticleCount * 3];
             ParticleAntStates = new uint[ParticleCount];
+            ParticleAntLaunchBoundaryStates = new uint[ParticleCount];
             ParticleAges = new int[ParticleCount];
             ParticleGroupIndices = new int[ParticleCount];
             ParticleParentIndices = new int[ParticleCount];
 
-            int particleIndex = 0;
-            if (particleGroups == null)
+            for (int particleIndex = 0; particleIndex < ParticleCount; particleIndex++)
             {
-                return;
+                Particle particle = Particles[particleIndex];
+                Plane plane = particle.pPlane;
+                Point3d origin = plane.Origin;
+                Vector3d xAxis = plane.XAxis;
+                Vector3d yAxis = plane.YAxis;
+
+                ParticlePositionsXyz[particleIndex * 3] = (float)origin.X;
+                ParticlePositionsXyz[particleIndex * 3 + 1] = (float)origin.Y;
+                ParticlePositionsXyz[particleIndex * 3 + 2] = (float)origin.Z;
+                ParticleDirectionsXyz[particleIndex * 3] = (float)xAxis.X;
+                ParticleDirectionsXyz[particleIndex * 3 + 1] = (float)xAxis.Y;
+                ParticleDirectionsXyz[particleIndex * 3 + 2] = (float)xAxis.Z;
+                ParticleYAxesXyz[particleIndex * 3] = (float)yAxis.X;
+                ParticleYAxesXyz[particleIndex * 3 + 1] = (float)yAxis.Y;
+                ParticleYAxesXyz[particleIndex * 3 + 2] = (float)yAxis.Z;
+                ParticleGroupIndices[particleIndex] = capturedGroupIndices[particleIndex];
+                ParticleParentIndices[particleIndex] = capturedParentIndices[particleIndex];
+                Point3d home = particle.home.Origin;
+                ParticleHomesXyz[particleIndex * 3] = (float)home.X;
+                ParticleHomesXyz[particleIndex * 3 + 1] = (float)home.Y;
+                ParticleHomesXyz[particleIndex * 3 + 2] = (float)home.Z;
+                ResetPackedParticleRuntimeState(
+                    particleIndex,
+                    ParticleAges,
+                    ParticleAntStates,
+                    ParticleAntLaunchBoundaryStates);
             }
+        }
 
-            for (int groupIndex = 0; groupIndex < particleGroups.Count; groupIndex++)
-            {
-                ParticleGroup group = particleGroups[groupIndex];
-                if (group == null || group.particles == null)
-                {
-                    continue;
-                }
+        static void ResetCapturedParticleRuntimeState(Particle particle)
+        {
+            particle.foundFood = false;
+            particle.antLaunchBoundaryHit = false;
+            // inheritParticleGroups is immediately followed by
+            // particleCheckParentVoxel on a V3 reset, which advances age once.
+            particle.age = 1;
+        }
 
-                for (int i = 0; i < group.particles.Count; i++)
-                {
-                    Particle particle = group.particles[i];
-                    if (particle == null)
-                    {
-                        continue;
-                    }
-
-                    Plane plane = particle.pPlane;
-                    Point3d origin = plane.Origin;
-                    int parentFlatIndex = FlatIndexFromPosition(origin);
-                    if (parentFlatIndex < 0)
-                    {
-                        continue;
-                    }
-
-                    Vector3d xAxis = plane.XAxis;
-                    Vector3d yAxis = plane.YAxis;
-                    NormalizeParticleAxes(ref xAxis, ref yAxis);
-
-                    ParticlePositionsXyz[particleIndex * 3] = (float)origin.X;
-                    ParticlePositionsXyz[particleIndex * 3 + 1] = (float)origin.Y;
-                    ParticlePositionsXyz[particleIndex * 3 + 2] = (float)origin.Z;
-                    ParticleDirectionsXyz[particleIndex * 3] = (float)xAxis.X;
-                    ParticleDirectionsXyz[particleIndex * 3 + 1] = (float)xAxis.Y;
-                    ParticleDirectionsXyz[particleIndex * 3 + 2] = (float)xAxis.Z;
-                    ParticleYAxesXyz[particleIndex * 3] = (float)yAxis.X;
-                    ParticleYAxesXyz[particleIndex * 3 + 1] = (float)yAxis.Y;
-                    ParticleYAxesXyz[particleIndex * 3 + 2] = (float)yAxis.Z;
-                    ParticleGroupIndices[particleIndex] = groupIndex;
-                    ParticleParentIndices[particleIndex] = parentFlatIndex;
-                    Point3d home = group.ant ? plane.Origin : particle.home.Origin;
-                    ParticleHomesXyz[particleIndex * 3] = (float)home.X;
-                    ParticleHomesXyz[particleIndex * 3 + 1] = (float)home.Y;
-                    ParticleHomesXyz[particleIndex * 3 + 2] = (float)home.Z;
-                    ParticleAntStates[particleIndex] = group.ant && particle.foundFood ? 1u : 0u;
-                    ParticleAges[particleIndex] = Math.Max(0, particle.age);
-
-                    particleIndex++;
-                }
-            }
+        static void ResetPackedParticleRuntimeState(
+            int particleIndex,
+            int[] ages,
+            uint[] antStates,
+            uint[] antLaunchBoundaryStates)
+        {
+            ages[particleIndex] = 0;
+            antStates[particleIndex] = 0u;
+            antLaunchBoundaryStates[particleIndex] = 0u;
         }
 
         void CaptureParticleGroups(IList<ParticleGroup> particleGroups)
@@ -533,7 +575,7 @@ namespace Nuclei4
                     continue;
                 }
 
-                ParticleGroups[i] = new ParticleGroup(
+                ParticleGroup simulationGroup = new ParticleGroup(
                     source.speed,
                     source.sensorDistance,
                     source.sensorAngle,
@@ -543,9 +585,62 @@ namespace Nuclei4
                     source.baseWanderFrequency,
                     source.color)
                 {
-                    ant = source.ant
+                    // V3 leaves a new retained group non-ant until an eligible ant
+                    // particle is actually copied into it.
+                    ant = false,
+                    connectedSteering = source.connectedSteering
                 };
+
+                if (simulationGroup.connectedSteering && !simulationGroup.ant)
+                {
+                    simulationGroup.clampConnectedExploration();
+                }
+
+                ParticleGroups[i] = simulationGroup;
             }
+        }
+
+        void ApplyCapturedParticleGroupMetadata()
+        {
+            if (ParticleGroups == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < ParticleGroups.Length; i++)
+            {
+                ApplyV3ParticleGroupMetadata(ParticleGroups[i]);
+            }
+        }
+
+        internal static void ApplyV3ParticleGroupMetadata(ParticleGroup group)
+        {
+            int population = group != null && group.particles != null
+                ? group.particles.Count
+                : 0;
+            ApplyV3ParticleGroupMetadata(group, population);
+        }
+
+        internal static void ApplyV3ParticleGroupMetadata(ParticleGroup group, int population)
+        {
+            if (group == null)
+            {
+                return;
+            }
+
+            population = Math.Max(0, population);
+            if (group.ant)
+            {
+                group.baseWanderFrequency = ComputeAntBaseWanderFrequency(
+                    group.baseWanderFrequency,
+                    population);
+                return;
+            }
+
+            if (group.connectedSteering) group.clampConnectedExploration();
+            else group.wanderFrequency = ComputeSlimeWanderFrequency(
+                group.wanderFrequency,
+                population);
         }
 
         public static float[] CaptureGroupColors(IList<ParticleGroup> particleGroups)
@@ -580,26 +675,67 @@ namespace Nuclei4
             out bool hasAntParticles,
             out bool hasSlimeParticles)
         {
-            int groupCount = particleGroups != null ? particleGroups.Count : 0;
+            CaptureRuntimeGroupSettings(
+                particleGroups,
+                particleGroups,
+                out groupData0,
+                out groupData1,
+                out hasAntParticles,
+                out hasSlimeParticles);
+        }
+
+        internal static void CaptureRuntimeGroupSettings(
+            IList<ParticleGroup> sourceGroups,
+            IList<ParticleGroup> runtimeGroups,
+            out float[] groupData0,
+            out float[] groupData1,
+            out bool hasAntParticles,
+            out bool hasSlimeParticles)
+        {
+            CaptureRuntimeGroupSettings(
+                sourceGroups,
+                runtimeGroups,
+                null,
+                out groupData0,
+                out groupData1,
+                out hasAntParticles,
+                out hasSlimeParticles);
+        }
+
+        internal static void CaptureRuntimeGroupSettings(
+            IList<ParticleGroup> sourceGroups,
+            IList<ParticleGroup> runtimeGroups,
+            int[] runtimePopulationCounts,
+            out float[] groupData0,
+            out float[] groupData1,
+            out bool hasAntParticles,
+            out bool hasSlimeParticles)
+        {
+            int groupCount = sourceGroups != null ? sourceGroups.Count : 0;
             groupData0 = new float[groupCount * 4];
             groupData1 = new float[groupCount * 4];
             hasAntParticles = false;
             hasSlimeParticles = false;
 
-            if (particleGroups == null)
+            if (sourceGroups == null)
             {
                 return;
             }
 
-            for (int groupIndex = 0; groupIndex < particleGroups.Count; groupIndex++)
+            for (int groupIndex = 0; groupIndex < sourceGroups.Count; groupIndex++)
             {
-                ParticleGroup group = particleGroups[groupIndex];
-                if (group == null)
+                ParticleGroup source = sourceGroups[groupIndex];
+                if (source == null)
                 {
                     continue;
                 }
 
-                if (group.ant)
+                ParticleGroup runtime = runtimeGroups != null && groupIndex < runtimeGroups.Count
+                    ? runtimeGroups[groupIndex]
+                    : source;
+                bool isAnt = runtime != null ? runtime.ant : source.ant;
+
+                if (isAnt)
                 {
                     hasAntParticles = true;
                 }
@@ -608,22 +744,36 @@ namespace Nuclei4
                     hasSlimeParticles = true;
                 }
 
-                double sensorAngle = Math.PI * group.sensorAngle / 180.0;
-                double rotationAngle = Math.PI * group.rotationAngle / 180.0;
-                int particleCount = group.particles != null ? group.particles.Count : 0;
-                float wanderFrequency = group.ant
-                    ? ComputeAntBaseWanderFrequency(group.baseWanderFrequency, particleCount)
-                    : ComputeSlimeWanderFrequency(group.wanderFrequency, particleCount);
+                double sensorAngle = Math.PI * source.sensorAngle / 180.0;
+                double rotationAngle = Math.PI * source.rotationAngle / 180.0;
+                int particleCount = runtimePopulationCounts != null && groupIndex < runtimePopulationCounts.Length
+                    ? Math.Max(0, runtimePopulationCounts[groupIndex])
+                    : runtime != null && runtime.particles != null
+                        ? runtime.particles.Count
+                        : 0;
+                bool connectedSteering = source.connectedSteering && !isAnt;
+                double exploration = connectedSteering
+                    ? NormalizeConnectedExploration(source.wanderFrequency)
+                    : source.wanderFrequency;
+                float wanderFrequency = isAnt
+                    ? ComputeAntBaseWanderFrequency(source.baseWanderFrequency, particleCount)
+                    : ComputeSlimeWanderFrequency(exploration, particleCount);
+                // Dynamic populations recompute the derived interval from the GPU's
+                // exact per-group count. Slime uses exploration; ants use their raw
+                // base-wander control in the otherwise-unused fourth channel.
+                double populationControl = isAnt
+                    ? NormalizeAntBaseWander(source.baseWanderFrequency)
+                    : exploration;
 
                 int offset = groupIndex * 4;
-                groupData0[offset] = (float)group.speed;
-                groupData0[offset + 1] = (float)group.sensorDistance;
+                groupData0[offset] = (float)source.speed;
+                groupData0[offset + 1] = (float)source.sensorDistance;
                 groupData0[offset + 2] = (float)sensorAngle;
-                groupData0[offset + 3] = (float)group.wanderFrequency;
+                groupData0[offset + 3] = (float)populationControl;
 
                 groupData1[offset] = (float)rotationAngle;
-                groupData1[offset + 1] = group.ant ? 1 : 0;
-                groupData1[offset + 2] = (float)group.depositValue;
+                groupData1[offset + 1] = isAnt ? 1 : (connectedSteering ? -1 : 0);
+                groupData1[offset + 2] = (float)source.depositValue;
                 groupData1[offset + 3] = wanderFrequency;
             }
         }
@@ -655,65 +805,236 @@ namespace Nuclei4
             return x * ResY * ResZ + y * ResZ + z;
         }
 
-        void NormalizeParticleAxes(ref Vector3d xAxis, ref Vector3d yAxis)
+        bool TryPrepareResetParticle(
+            Particle particle,
+            ParticleGroup group,
+            out Plane preparedPlane,
+            out int parentFlatIndex)
         {
-            if (ResZ == 1)
+            preparedPlane = new Plane();
+            parentFlatIndex = -1;
+            if (particle == null || group == null)
             {
-                xAxis = new Vector3d(xAxis.X, xAxis.Y, 0);
-                if (!xAxis.Unitize())
+                return false;
+            }
+
+            // V3 decides inclusion from the original input position. Boundary
+            // wrapping/reflection happens only after this parent is retained.
+            parentFlatIndex = FlatIndexFromPosition(particle.pPlane.Origin);
+            if (parentFlatIndex < 0)
+            {
+                return false;
+            }
+
+            double resetRotationAngle = particle.parentParticleGroup != null
+                ? particle.parentParticleGroup.rotationAngle
+                : group.rotationAngle;
+            preparedPlane = PrepareResetPlane(particle.pPlane, group, resetRotationAngle);
+            return true;
+        }
+
+        Plane PrepareResetPlane(Plane inputPlane, ParticleGroup group)
+        {
+            return PrepareResetPlane(inputPlane, group, group != null ? group.rotationAngle : 0);
+        }
+
+        Plane PrepareResetPlane(Plane inputPlane, ParticleGroup group, double rotationAngle)
+        {
+            bool tridimensional = ResX > 1 && ResY > 1 && ResZ > 1;
+            // V3 assigns these with three independent checks in X/Y/Z order,
+            // so Z has final priority for degenerate line/point grids.
+            bool planarXY = !tridimensional && ResZ == 1;
+            bool planarXZ = !tridimensional && !planarXY && ResY == 1;
+            bool planarYZ = !tridimensional && !planarXY && !planarXZ && ResX == 1;
+
+            Plane plane = inputPlane;
+            if (!tridimensional)
+            {
+                Point3d origin = inputPlane.Origin;
+                Vector3d xAxis;
+                Vector3d yAxis;
+                if (planarXY)
                 {
-                    xAxis = new Vector3d(1, 0, 0);
+                    xAxis = new Vector3d(inputPlane.XAxis.X, inputPlane.XAxis.Y, 0);
+                    xAxis.Unitize();
+                    yAxis = new Vector3d(xAxis);
+                    yAxis.Rotate(Math.PI / 2, Plane.WorldXY.ZAxis);
+                    plane = new Plane(origin, xAxis, yAxis);
+                }
+                else if (planarXZ)
+                {
+                    xAxis = new Vector3d(inputPlane.XAxis.X, 0, inputPlane.XAxis.Z);
+                    xAxis.Unitize();
+                    yAxis = new Vector3d(xAxis);
+                    yAxis.Rotate(Math.PI / 2, Plane.WorldXY.YAxis);
+                    plane = new Plane(origin, xAxis, yAxis);
+                }
+                else if (planarYZ)
+                {
+                    xAxis = new Vector3d(0, inputPlane.XAxis.Y, inputPlane.XAxis.Z);
+                    xAxis.Unitize();
+                    yAxis = new Vector3d(xAxis);
+                    yAxis.Rotate(Math.PI / 2, Plane.WorldXY.XAxis);
+                    plane = new Plane(origin, xAxis, yAxis);
+                }
+            }
+
+            double dimX = ResX * (double)VoxelSize;
+            double dimY = ResY * (double)VoxelSize;
+            double dimZ = ResZ * (double)VoxelSize;
+            if (tridimensional
+                && dimX > group.sensorDistance
+                && dimY > group.sensorDistance
+                && dimZ > group.sensorDistance)
+            {
+                plane.Rotate(
+                    Math.PI * rotationAngle / 180.0,
+                    plane.YAxis,
+                    plane.Origin);
+            }
+
+            Point3d boundedOrigin = ApplyResetBoundaries(
+                ref plane,
+                plane.Origin,
+                tridimensional,
+                planarXY,
+                planarXZ,
+                planarYZ,
+                dimX,
+                dimY,
+                dimZ);
+            return new Plane(boundedOrigin, plane.XAxis, plane.YAxis);
+        }
+
+        Point3d ApplyResetBoundaries(
+            ref Plane plane,
+            Point3d point,
+            bool tridimensional,
+            bool planarXY,
+            bool planarXZ,
+            bool planarYZ,
+            double dimX,
+            double dimY,
+            double dimZ)
+        {
+            Point3d next = point;
+            if (!wrapBoundaries)
+            {
+                double boundaryDistance = VoxelSize;
+                if ((planarYZ || (next.X > boundaryDistance && next.X < dimX - boundaryDistance))
+                    && (planarXZ || (next.Y > boundaryDistance && next.Y < dimY - boundaryDistance))
+                    && (planarXY || (next.Z > boundaryDistance && next.Z < dimZ - boundaryDistance)))
+                {
+                    return next;
                 }
 
-                yAxis = new Vector3d(-xAxis.Y, xAxis.X, 0);
-                return;
-            }
-
-            if (ResY == 1)
-            {
-                xAxis = new Vector3d(xAxis.X, 0, xAxis.Z);
-                if (!xAxis.Unitize())
+                if (!planarYZ)
                 {
-                    xAxis = new Vector3d(1, 0, 0);
+                    if (next.X <= boundaryDistance)
+                    {
+                        next.X = boundaryDistance;
+                        ReflectResetPlane(ref plane, 0);
+                    }
+                    if (next.X >= dimX - boundaryDistance)
+                    {
+                        next.X = dimX - boundaryDistance;
+                        ReflectResetPlane(ref plane, 0);
+                    }
                 }
 
-                yAxis = new Vector3d(xAxis.Z, 0, -xAxis.X);
-                return;
-            }
-
-            if (ResX == 1)
-            {
-                xAxis = new Vector3d(0, xAxis.Y, xAxis.Z);
-                if (!xAxis.Unitize())
+                if (!planarXZ)
                 {
-                    xAxis = new Vector3d(0, 1, 0);
+                    if (next.Y <= boundaryDistance)
+                    {
+                        next.Y = boundaryDistance;
+                        ReflectResetPlane(ref plane, 1);
+                    }
+                    if (next.Y >= dimY - boundaryDistance)
+                    {
+                        next.Y = dimY - boundaryDistance;
+                        ReflectResetPlane(ref plane, 1);
+                    }
                 }
 
-                yAxis = new Vector3d(0, -xAxis.Z, xAxis.Y);
-                return;
+                if (!planarXY)
+                {
+                    if (next.Z <= boundaryDistance)
+                    {
+                        next.Z = boundaryDistance;
+                        if (tridimensional) ReflectResetPlane(ref plane, 2);
+                    }
+                    if (next.Z >= dimZ - boundaryDistance)
+                    {
+                        next.Z = dimZ - boundaryDistance;
+                        if (tridimensional) ReflectResetPlane(ref plane, 2);
+                    }
+                }
+
+                return next;
             }
 
-            if (!xAxis.Unitize())
+            const double wrapDistance = 0.01;
+            if ((planarYZ || (next.X >= wrapDistance && next.X <= dimX - wrapDistance))
+                && (planarXZ || (next.Y >= wrapDistance && next.Y <= dimY - wrapDistance))
+                && (planarXY || (next.Z >= wrapDistance && next.Z <= dimZ - wrapDistance)))
             {
-                xAxis = new Vector3d(1, 0, 0);
+                return next;
             }
 
-            if (!yAxis.Unitize())
+            if (!planarYZ)
             {
-                yAxis = Math.Abs(xAxis.Z) < 0.9
-                    ? Vector3d.CrossProduct(Vector3d.ZAxis, xAxis)
-                    : Vector3d.CrossProduct(Vector3d.YAxis, xAxis);
+                if (next.X < wrapDistance) next.X = dimX - 0.1;
+                if (next.X > dimX - wrapDistance) next.X = 0.1;
+            }
+            if (!planarXZ)
+            {
+                if (next.Y < wrapDistance) next.Y = dimY - 0.1;
+                if (next.Y > dimY - wrapDistance) next.Y = 0.1;
+            }
+            if (!planarXY)
+            {
+                if (next.Z < wrapDistance) next.Z = dimZ - 0.1;
+                if (next.Z > dimZ - wrapDistance) next.Z = 0.1;
+            }
+            return next;
+        }
+
+        static void ReflectResetPlane(ref Plane plane, int axis)
+        {
+            Vector3d direction = plane.XAxis;
+            direction.Unitize();
+            if (axis == 0) direction.X = -direction.X;
+            else if (axis == 1) direction.Y = -direction.Y;
+            else direction.Z = -direction.Z;
+
+            Vector3d yAxis = new Vector3d(direction);
+            yAxis.Rotate(Math.PI / 2, plane.ZAxis);
+            plane = new Plane(plane.Origin, direction, yAxis);
+        }
+
+        Voxel CapturedParentVoxel(int flatIndex, Dictionary<int, Voxel> cache)
+        {
+            Voxel voxel = null;
+            if (cache.TryGetValue(flatIndex, out voxel))
+            {
+                return voxel;
             }
 
-            double dot = xAxis.X * yAxis.X + xAxis.Y * yAxis.Y + xAxis.Z * yAxis.Z;
-            yAxis -= xAxis * dot;
-            if (!yAxis.Unitize())
+            if (Field != null)
             {
-                yAxis = Math.Abs(xAxis.Z) < 0.9
-                    ? Vector3d.CrossProduct(Vector3d.ZAxis, xAxis)
-                    : Vector3d.CrossProduct(Vector3d.YAxis, xAxis);
-                yAxis.Unitize();
+                voxel = Field.CreateVoxel(flatIndex);
             }
+            else if (Voxels != null)
+            {
+                int x = flatIndex / (ResY * ResZ);
+                int remainder = flatIndex - x * ResY * ResZ;
+                int y = remainder / ResZ;
+                int z = remainder - y * ResZ;
+                voxel = Voxels[x, y, z];
+            }
+
+            cache[flatIndex] = voxel;
+            return voxel;
         }
 
         int FlatIndexFromPosition(Point3d point)
@@ -723,9 +1044,9 @@ namespace Nuclei4
                 return -1;
             }
 
-            int x = ResX == 1 ? 0 : (int)(point.X / VoxelSize);
-            int y = ResY == 1 ? 0 : (int)(point.Y / VoxelSize);
-            int z = ResZ == 1 ? 0 : (int)(point.Z / VoxelSize);
+            int x = (int)(point.X / VoxelSize);
+            int y = (int)(point.Y / VoxelSize);
+            int z = (int)(point.Z / VoxelSize);
 
             if (x < 0 || x >= ResX || y < 0 || y >= ResY || z < 0 || z >= ResZ)
             {
@@ -740,7 +1061,7 @@ namespace Nuclei4
         {
             if (Field != null)
             {
-                return Field.Data.IsWalkableFlatIndex(flatIndex);
+                return Field.IsSolverWalkableFlatIndex(flatIndex);
             }
 
             return VoxelFlags != null &&
@@ -760,10 +1081,23 @@ namespace Nuclei4
             return (float)frequency;
         }
 
+        static double NormalizeConnectedExploration(double exploration)
+        {
+            if (double.IsNaN(exploration) || exploration < 0) return 0;
+            if (double.IsPositiveInfinity(exploration) || exploration > 1) return 1;
+            return exploration;
+        }
+
+        static double NormalizeAntBaseWander(double wander)
+        {
+            if (double.IsNaN(wander) || wander < 0) return 0;
+            if (double.IsPositiveInfinity(wander) || wander > 1) return 1;
+            return wander;
+        }
+
         static float ComputeAntBaseWanderFrequency(double wander, int particleCount)
         {
-            if (wander < 0) wander = 0;
-            if (wander > 1) wander = 1;
+            wander = NormalizeAntBaseWander(wander);
 
             double frequency = Math.Floor(wander * particleCount / 40.0);
             if (frequency < 1) frequency = 1;

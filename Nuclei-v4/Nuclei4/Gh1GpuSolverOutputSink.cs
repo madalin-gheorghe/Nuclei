@@ -151,6 +151,12 @@ namespace Nuclei4
                 particle.foundFood = particle.parentParticleGroup != null
                     && particle.parentParticleGroup.ant
                     && auxiliary[view.Capacity * 4 + i] != 0;
+                particle.highDeposit = auxiliary.Length >= view.Capacity * 6
+                    && auxiliary[view.Capacity * 5 + i] != 0;
+                particle.antLaunchBoundaryHit = particle.parentParticleGroup != null
+                    && particle.parentParticleGroup.ant
+                    && auxiliary.Length >= view.Capacity * 7
+                    && auxiliary[view.Capacity * 6 + i] != 0;
 
                 Point3d origin = new Point3d(
                     positions[offset],
@@ -174,6 +180,46 @@ namespace Nuclei4
 
                 yAxis = OrthonormalYAxis(xAxis, yAxis);
                 particle.pPlane = PlaneFromOrthonormalAxes(origin, xAxis, yAxis);
+
+                if (particle.parentParticleGroup != null
+                    && particle.parentParticleGroup.ant
+                    && view.Homes != null
+                    && view.Homes.Length >= offset + 3
+                    && view.HomeAxes != null
+                    && view.HomeAxes.Length >= view.Capacity * 6)
+                {
+                    Point3d homeOrigin = new Point3d(
+                        view.Homes[offset],
+                        view.Homes[offset + 1],
+                        view.Homes[offset + 2]);
+                    Vector3d homeYAxis = new Vector3d(
+                        view.HomeAxes[i],
+                        view.HomeAxes[view.Capacity + i],
+                        view.HomeAxes[view.Capacity * 2 + i]);
+                    Vector3d homeXAxis = new Vector3d(
+                        view.HomeAxes[view.Capacity * 3 + i],
+                        view.HomeAxes[view.Capacity * 4 + i],
+                        view.HomeAxes[view.Capacity * 5 + i]);
+
+                    if (TryUnitize(ref homeXAxis) && TryUnitize(ref homeYAxis))
+                    {
+                        homeYAxis = OrthonormalYAxis(homeXAxis, homeYAxis);
+                        particle.home = PlaneFromOrthonormalAxes(homeOrigin, homeXAxis, homeYAxis);
+                    }
+                    else
+                    {
+                        // V3 normal division leaves an ant child's home plane at
+                        // its default value; only random division inherits it.
+                        particle.home = new Plane();
+                    }
+                }
+                else if (particle.parentParticleGroup == null || !particle.parentParticleGroup.ant)
+                {
+                    // A dead GPU slot can be claimed by a different species. V3
+                    // constructs a fresh slime Particle whose home is the default
+                    // plane; do not leak the previous ant occupant's home state.
+                    particle.home = new Plane();
+                }
 
                 int parentIndex = (int)Math.Round(directions[offset + 3]);
                 particle.parentVoxel = VoxelFromFlatIndex(parentIndex);
@@ -231,7 +277,8 @@ namespace Nuclei4
             for (int i = 0; i < view.Capacity; i++)
             {
                 int offset = i * 4;
-                int groupIndex = (int)Math.Round(view.Positions[offset + 3]);
+                double previewGroupTag = view.Positions[offset + 3];
+                int groupIndex = (int)Math.Round(previewGroupTag);
                 if (groupIndex < 0 || groupIndex >= view.GroupCount)
                 {
                     continue;
@@ -241,11 +288,18 @@ namespace Nuclei4
                 if (particle == null)
                 {
                     particle = new Particle();
-                    particle.parentParticleGroup = groupIndex < particleGroups.Length
-                        ? particleGroups[groupIndex]
-                        : null;
                     particleSlots[i] = particle;
                 }
+
+                // Dynamic population can reuse a dead slot for another group.
+                // Refresh classification on every lightweight preview readback;
+                // the fractional GPU tag carries the ant found-food state.
+                particle.parentParticleGroup = groupIndex < particleGroups.Length
+                    ? particleGroups[groupIndex]
+                    : null;
+                particle.foundFood = particle.parentParticleGroup != null
+                    && particle.parentParticleGroup.ant
+                    && Math.Abs(previewGroupTag - groupIndex) > 0.1;
 
                 Point3d origin = new Point3d(
                     view.Positions[offset],

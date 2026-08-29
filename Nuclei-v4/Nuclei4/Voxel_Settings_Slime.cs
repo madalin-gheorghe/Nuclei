@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
+using GH_IO.Serialization;
 using Grasshopper.Kernel;
 using Rhino.Geometry;
 
@@ -8,6 +9,8 @@ namespace Nuclei4
 {
     public class EnivronmentSettings : GH_Component
     {
+        const int CurrentInputSchema = 2;
+
         /// <summary>
         /// Initializes a new instance of the Solver_Settings class.
         /// </summary>
@@ -27,14 +30,13 @@ namespace Nuclei4
             pManager.AddNumberParameter("Diffuse Rate", "diffuse", "The rate of diffusion of the deposited values", GH_ParamAccess.item, 0.1);
             pManager[0].Optional = true;
             //1
-            pManager.AddIntegerParameter("Diffuse Range", "range", "The range of diffusion of the deposited values", GH_ParamAccess.item, 1);
+            pManager.AddNumberParameter("Decay Rate", "decay", "The rate of decay of the deposited values", GH_ParamAccess.item, 0.03);
             pManager[1].Optional = true;
             //2
-            pManager.AddNumberParameter("Decay Rate", "decay", "The rate of decay of the deposited values", GH_ParamAccess.item, 0.03);
+            pManager.AddNumberParameter("Falloff", "falloff", "The rate at which the diffusion is spread around the nearby voxels. VALUES FROM 0 TO 1", GH_ParamAccess.item, 0.0);
             pManager[2].Optional = true;
-
             //3
-            pManager.AddNumberParameter("Gradual", "gradual", "Controls diffusion behaviour. 0 is V2-like immediate averaging and 1 is the original gradual V3 diffusion", GH_ParamAccess.item, 1.0);
+            pManager.AddIntegerParameter("Diffuse Range", "range", "The range of diffusion of the deposited values", GH_ParamAccess.item, 1);
             pManager[3].Optional = true;
         }
 
@@ -51,20 +53,99 @@ namespace Nuclei4
             get { return GH_Exposure.secondary; }
         }
 
+        public override bool Write(GH_IWriter writer)
+        {
+            writer.SetInt32("VoxelSettingsSlimeSchema", CurrentInputSchema);
+            writer.SetBoolean("Input2StoresLegacyGradual", input2StoresLegacyGradual);
+            return base.Write(writer);
+        }
+
+        public override bool Read(GH_IReader reader)
+        {
+            int schema = 0;
+            reader.TryGetInt32("VoxelSettingsSlimeSchema", ref schema);
+
+            if (schema >= CurrentInputSchema)
+            {
+                bool result = base.Read(reader);
+                input2StoresLegacyGradual = false;
+                reader.TryGetBoolean("Input2StoresLegacyGradual", ref input2StoresLegacyGradual);
+                normalizeInputMetadata();
+                return result;
+            }
+
+            ArchivedInputSchema archivedSchema = detectArchivedInputSchema(reader);
+            if (archivedSchema == ArchivedInputSchema.LegacyFourInputs)
+            {
+                // Registered modern order is [Diffuse, Decay, Falloff, Range].
+                // Temporarily restore the pushed legacy order and matching types so
+                // GH_ComponentParamServer.Read deserializes each archived chunk into
+                // its original parameter object. Sorting those same objects back
+                // afterwards preserves InstanceGuids, sources and persistent data.
+                Params.SortInput(new[] { 0, 2, 3, 1 });
+                bool result;
+                try
+                {
+                    result = base.Read(reader);
+                }
+                finally
+                {
+                    Params.SortInput(new[] { 0, 3, 1, 2 });
+                }
+
+                input2StoresLegacyGradual = true;
+                normalizeInputMetadata();
+                return result;
+            }
+
+            if (archivedSchema == ArchivedInputSchema.LegacyThreeInputs)
+            {
+                // Early V4 archives predate Gradual. Remove the new Falloff input
+                // only while the three legacy chunks are read, then reinsert that
+                // untouched default parameter in the modern slot.
+                IGH_Param falloffParameter = Params.Input[2];
+                Params.UnregisterInputParameter(falloffParameter, false);
+                Params.SortInput(new[] { 0, 2, 1 });
+                bool result;
+                try
+                {
+                    result = base.Read(reader);
+                }
+                finally
+                {
+                    Params.SortInput(new[] { 0, 2, 1 });
+                    Params.RegisterInputParam(falloffParameter, 2);
+                    Params.OnParametersChanged();
+                }
+
+                input2StoresLegacyGradual = false;
+                normalizeInputMetadata();
+                return result;
+            }
+
+            bool modernResult = base.Read(reader);
+            input2StoresLegacyGradual = false;
+            normalizeInputMetadata();
+            return modernResult;
+        }
+
         /// <summary>
         /// This is the method that actually does the work.
         /// </summary>
         /// <param name="DA">The DA object is used to retrieve from inputs and store in outputs.</param>
         protected override void SolveInstance(IGH_DataAccess DA)
         {
-            DA.GetData("Diffuse Rate", ref diffuseRate);
-            DA.GetData("Diffuse Range", ref diffuseRange);
-            DA.GetData("Decay Rate", ref decayRate);
-            ensureGradualParameterMetadata();
-            DA.GetData(3, ref diffusionGradual);
+            DA.GetData(0, ref diffuseRate);
+            DA.GetData(1, ref decayRate);
+            DA.GetData(2, ref diffusionFalloff);
+            DA.GetData(3, ref diffuseRange);
 
-            if (double.IsNaN(diffusionGradual) || diffusionGradual < 0) diffusionGradual = 0;
-            if (double.IsPositiveInfinity(diffusionGradual) || diffusionGradual > 1) diffusionGradual = 1;
+            if (double.IsNaN(diffusionFalloff) || diffusionFalloff < 0) diffusionFalloff = 0;
+            if (double.IsPositiveInfinity(diffusionFalloff) || diffusionFalloff > 1) diffusionFalloff = 1;
+
+            double diffusionGradual = input2StoresLegacyGradual
+                ? diffusionFalloff
+                : 1.0 - diffusionFalloff;
 
             String voxelSettings = "VoxelSettingsSlime" + " " + diffuseRate + " " + diffuseRange + " " + decayRate + " " + diffusionGradual;
 
@@ -79,16 +160,83 @@ namespace Nuclei4
         double diffuseRate;
         int diffuseRange;
         double decayRate;
-        double diffusionGradual = 1.0;
+        double diffusionFalloff = 0.0;
+        bool input2StoresLegacyGradual;
 
-        void ensureGradualParameterMetadata()
+        enum ArchivedInputSchema
         {
-            if (Params.Input.Count <= 3) return;
+            Unknown,
+            Modern,
+            LegacyThreeInputs,
+            LegacyFourInputs
+        }
 
-            IGH_Param parameter = Params.Input[3];
-            parameter.Name = "Gradual";
-            parameter.NickName = "gradual";
-            parameter.Description = "Controls diffusion behaviour. 0 is V2-like immediate averaging and 1 is the original gradual V3 diffusion";
+        static ArchivedInputSchema detectArchivedInputSchema(GH_IReader reader)
+        {
+            int count = 0;
+            while (reader.ChunkExists("param_input", count)) count++;
+
+            string[] names = new string[count];
+            for (int i = 0; i < count; i++)
+            {
+                GH_IReader parameterReader = reader.FindChunk("param_input", i);
+                string name = string.Empty;
+                if (parameterReader != null) parameterReader.TryGetString("Name", ref name);
+                names[i] = name;
+            }
+
+            if (matches(names, "Diffuse Rate", "Decay Rate", "Falloff", "Diffuse Range"))
+            {
+                return ArchivedInputSchema.Modern;
+            }
+
+            if (matches(names, "Diffuse Rate", "Diffuse Range", "Decay Rate", "Gradual"))
+            {
+                return ArchivedInputSchema.LegacyFourInputs;
+            }
+
+            if (matches(names, "Diffuse Rate", "Diffuse Range", "Decay Rate"))
+            {
+                return ArchivedInputSchema.LegacyThreeInputs;
+            }
+
+            return ArchivedInputSchema.Unknown;
+        }
+
+        static bool matches(string[] values, params string[] expected)
+        {
+            if (values == null || values.Length != expected.Length) return false;
+            for (int i = 0; i < expected.Length; i++)
+            {
+                if (!string.Equals(values[i], expected[i], StringComparison.Ordinal)) return false;
+            }
+            return true;
+        }
+
+        void normalizeInputMetadata()
+        {
+            if (Params.Input.Count != 4) return;
+
+            setInputMetadata(0, "Diffuse Rate", "diffuse", "The rate of diffusion of the deposited values");
+            setInputMetadata(1, "Decay Rate", "decay", "The rate of decay of the deposited values");
+            if (input2StoresLegacyGradual)
+            {
+                setInputMetadata(2, "Gradual (legacy)", "gradual", "Legacy diffusion control preserved from this definition. Effective Falloff is 1 minus this value.");
+            }
+            else
+            {
+                setInputMetadata(2, "Falloff", "falloff", "The rate at which the diffusion is spread around the nearby voxels. VALUES FROM 0 TO 1");
+            }
+            setInputMetadata(3, "Diffuse Range", "range", "The range of diffusion of the deposited values");
+        }
+
+        void setInputMetadata(int index, string name, string nickname, string description)
+        {
+            IGH_Param parameter = Params.Input[index];
+            parameter.Name = name;
+            parameter.NickName = nickname;
+            parameter.Description = description;
+            parameter.Optional = true;
         }
 
         //-------------------------------------------------------------------

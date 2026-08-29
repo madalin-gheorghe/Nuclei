@@ -557,10 +557,7 @@ float ClampPassDensity(float value, int x, int y, int z)
 {
     if (value > 1.0) value = 1.0;
 
-    if (Wrap == 0 && IsBoundary(x, y, z) && value > 0.01)
-    {
-        value = 0.01;
-    }
+    if (Wrap == 0 && IsBoundary(x, y, z)) value = 0.0;
 
     return value;
 }

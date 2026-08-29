@@ -15,6 +15,10 @@ namespace Nuclei4
         const int DiscreteMethod = 1;
 
         object cachedOutput;
+        bool previousUpdate;
+        bool allowDownstreamExpiration;
+        bool publishScheduled;
+        bool publishCachedOutputOnly;
 
         public GpuVolumeToMesh()
           : base(
@@ -32,7 +36,7 @@ namespace Nuclei4
             pManager.AddNumberParameter("Iso Value", "iso", "Density level used to select the volume", GH_ParamAccess.item, 0.8);
             pManager.AddIntegerParameter("Method", "method", "Continuous uses GPU marching tetrahedra; Discrete uses selected voxel centres as Dendro point kernels", GH_ParamAccess.item, ContinuousMethod);
             pManager.AddIntegerParameter("Maximum Elements", "max", "Safety limit for triangles in Continuous mode or selected voxel centres in Discrete mode", GH_ParamAccess.item, 5000000);
-            pManager.AddBooleanParameter("Update", "update", "Rebuild the output whenever the component receives updated inputs", GH_ParamAccess.item, false);
+            pManager.AddBooleanParameter("Update", "update", "Pulse true to rebuild the cached output", GH_ParamAccess.item, false);
             pManager.AddIntegerParameter("Smoothing Iterations", "smooth", "GPU volume-smoothing passes used by Continuous mode; 0 disables smoothing", GH_ParamAccess.item, 1);
         }
 
@@ -59,7 +63,11 @@ namespace Nuclei4
             DA.GetData(4, ref update);
             DA.GetData(5, ref smoothingIterations);
 
-            if (update)
+            bool publicationPass = publishCachedOutputOnly;
+            publishCachedOutputOnly = false;
+            bool requested = ConsumeUpdatePulse(update);
+
+            if (requested && !publicationPass)
             {
                 if (field == null)
                 {
@@ -92,6 +100,24 @@ namespace Nuclei4
             else if (!update)
             {
                 Message = "Update Off";
+            }
+        }
+
+        bool ConsumeUpdatePulse(bool update)
+        {
+            bool requested = update && !previousUpdate;
+            previousUpdate = update;
+            return requested;
+        }
+
+        protected override void ExpireDownStreamObjects()
+        {
+            // Once an output has been cached, live solver updates must not keep
+            // waking downstream Dendro components. A successful rebuild
+            // explicitly publishes the replacement output instead.
+            if (cachedOutput == null || allowDownstreamExpiration)
+            {
+                base.ExpireDownStreamObjects();
             }
         }
 
@@ -310,9 +336,46 @@ namespace Nuclei4
         {
             if (!ReferenceEquals(cachedOutput, nextOutput))
             {
+                bool replacingCachedOutput = cachedOutput != null;
                 DisposeObject(cachedOutput);
                 cachedOutput = nextOutput;
+                if (replacingCachedOutput)
+                {
+                    ScheduleCachedOutputPublication();
+                }
             }
+        }
+
+        void ScheduleCachedOutputPublication()
+        {
+            GH_Document document = OnPingDocument();
+            if (document == null || publishScheduled)
+            {
+                return;
+            }
+
+            publishScheduled = true;
+            document.ScheduleSolution(1, _ =>
+            {
+                publishScheduled = false;
+                if (OnPingDocument() == null)
+                {
+                    return;
+                }
+
+                // Skip rebuilding during this publication solve. The rising-edge
+                // pulse has already produced the replacement cached output.
+                publishCachedOutputOnly = true;
+                allowDownstreamExpiration = true;
+                try
+                {
+                    ExpireSolution(false);
+                }
+                finally
+                {
+                    allowDownstreamExpiration = false;
+                }
+            });
         }
 
         static void DisposeObject(object value)

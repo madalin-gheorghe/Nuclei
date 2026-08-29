@@ -29,6 +29,8 @@ namespace Nuclei4
         internal long RuntimeId { get; private set; }
         internal Func<float, int, int, GpuVolumeMeshResult> GpuVolumeMeshProvider;
         internal Action DynamicStateSynchronizer;
+        bool solverBoundaryMode;
+        bool solverWrapBoundaries;
 
         public int ResX { get { return Data.ResX; } }
         public int ResY { get { return Data.ResY; } }
@@ -44,7 +46,9 @@ namespace Nuclei4
 
         internal VoxelField WithData(VoxelGridData data)
         {
-            return new VoxelField(data, Dynamic);
+            VoxelField result = new VoxelField(data, Dynamic);
+            CopySolverBoundaryModeTo(result);
+            return result;
         }
 
         internal VoxelField ForkRuntimeState()
@@ -61,14 +65,84 @@ namespace Nuclei4
                 };
             }
 
-            return new VoxelField(Data, dynamicCopy, LegacyVoxels);
+            VoxelField result = new VoxelField(Data, dynamicCopy, LegacyVoxels);
+            CopySolverBoundaryModeTo(result);
+            return result;
         }
 
         internal VoxelField ForkResetState()
         {
             // Solver-generated density, pheromones, and remaining food must never
             // become the source of a later reset.
-            return new VoxelField(Data);
+            VoxelField result = new VoxelField(Data);
+            CopySolverBoundaryModeTo(result);
+            return result;
+        }
+
+        internal void ConfigureSolverBoundaries(bool wrapBoundaries)
+        {
+            solverBoundaryMode = true;
+            solverWrapBoundaries = wrapBoundaries;
+        }
+
+        void CopySolverBoundaryModeTo(VoxelField target)
+        {
+            target.solverBoundaryMode = solverBoundaryMode;
+            target.solverWrapBoundaries = solverWrapBoundaries;
+        }
+
+        internal bool IsSolverWalkableFlatIndex(int flatIndex)
+        {
+            return Data.IsWalkableFlatIndex(flatIndex) && !IsSolverBoundary(flatIndex);
+        }
+
+        internal bool IsSolverBoundary(int flatIndex)
+        {
+            if (!solverBoundaryMode || flatIndex < 0 || flatIndex >= Data.Count || !Data.IsActive(flatIndex))
+            {
+                return false;
+            }
+
+            int x;
+            int y;
+            int z;
+            Data.CoordinatesFromFlatIndex(flatIndex, out x, out y, out z);
+
+            if (!solverWrapBoundaries)
+            {
+                bool tridimensional = ResX > 1 && ResY > 1 && ResZ > 1;
+                if (tridimensional &&
+                    (x == 0 || x == ResX - 1 || y == 0 || y == ResY - 1 || z == 0 || z == ResZ - 1))
+                {
+                    return true;
+                }
+                if (!tridimensional)
+                {
+                    // V3 applies independent X/Y/Z planar checks in that order,
+                    // so Z wins for line/point grids, followed by Y and then X.
+                    if (ResZ == 1 && (x == 0 || x == ResX - 1 || y == 0 || y == ResY - 1)) return true;
+                    if (ResZ != 1 && ResY == 1 && (x == 0 || x == ResX - 1 || z == 0 || z == ResZ - 1)) return true;
+                    if (ResZ != 1 && ResY != 1 && ResX == 1 && (y == 0 || y == ResY - 1 || z == 0 || z == ResZ - 1)) return true;
+                }
+            }
+
+            if (Data.AllVoxelsActive)
+            {
+                return false;
+            }
+
+            for (int u = Math.Max(0, x - 1); u <= Math.Min(ResX - 1, x + 1); u++)
+            {
+                for (int v = Math.Max(0, y - 1); v <= Math.Min(ResY - 1, y + 1); v++)
+                {
+                    for (int w = Math.Max(0, z - 1); w <= Math.Min(ResZ - 1, z + 1); w++)
+                    {
+                        if (!Data.IsActive(Data.FlatIndex(u, v, w))) return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         internal void ReplaceDynamicData(VoxelDynamicData dynamicData)
@@ -102,6 +176,11 @@ namespace Nuclei4
         internal double GetScalarValue(int fieldIndex, int flatIndex)
         {
             if (flatIndex < 0 || flatIndex >= Data.Count)
+            {
+                return 0;
+            }
+
+            if (fieldIndex == VoxelPreviewField.MaximumDensity && IsSolverBoundary(flatIndex))
             {
                 return 0;
             }
@@ -156,6 +235,13 @@ namespace Nuclei4
             voxel.towardsBasePheromone = GetScalarValue(VoxelPreviewField.AntBasePheromones, flatIndex);
             voxel.food = GetScalarValue(VoxelPreviewField.Food, flatIndex);
             voxel.antFood = GetScalarValue(VoxelPreviewField.AntFood, flatIndex);
+            if (solverBoundaryMode)
+            {
+                voxel.boundary = IsSolverBoundary(flatIndex);
+                voxel.maxDensity = voxel.boundary
+                    ? 0
+                    : Data.MaximumDensity.Get(flatIndex);
+            }
         }
 
         internal Voxel[,,] MaterializeLegacyArray()

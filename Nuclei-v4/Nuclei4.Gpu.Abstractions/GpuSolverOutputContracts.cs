@@ -39,7 +39,9 @@ namespace Nuclei4
     /// <summary>
     /// Array-reference view over a complete particle readback. Float arrays use
     /// the existing float4-per-particle layout; auxiliary data uses the existing
-    /// five capacity-sized age/death/division/generation/ant-state channels.
+    /// capacity-sized auxiliary channels. The first six are always
+    /// age/death/division/generation/ant-state/high-deposit; ant simulations
+    /// also include launch-boundary state.
     /// </summary>
     internal readonly struct GpuParticleReadbackView
     {
@@ -50,6 +52,8 @@ namespace Nuclei4
             float[] positions,
             float[] directions,
             float[] yAxes,
+            float[] homes,
+            float[] homeAxes,
             int[] auxiliary)
         {
             Capacity = capacity;
@@ -58,6 +62,8 @@ namespace Nuclei4
             Positions = positions;
             Directions = directions;
             YAxes = yAxes;
+            Homes = homes;
+            HomeAxes = homeAxes;
             Auxiliary = auxiliary;
         }
 
@@ -72,6 +78,15 @@ namespace Nuclei4
         public float[] Directions { get; }
 
         public float[] YAxes { get; }
+
+        /// <summary>GPU float4 home state; xyz is the inherited nest origin.</summary>
+        public float[] Homes { get; }
+
+        /// <summary>
+        /// Six capacity-sized channels: home Y xyz followed by home X xyz.
+        /// Null for simulations without ants.
+        /// </summary>
+        public float[] HomeAxes { get; }
 
         public int[] Auxiliary { get; }
     }
