@@ -1,0 +1,1871 @@
+{
+  "formatVersion": 1,
+  "createdUtc": "2026-08-29T14:20:50.9140062Z",
+  "sourceDirectory": "Nuclei Definitions\\v3",
+  "targetDirectory": "Nuclei Definitions\\v4_updated",
+  "mapFile": "tools\\Nuclei.DefinitionConverter\\v3.3-to-v4.json",
+  "sourceLibraryId": "fe53d2b8-e56d-da70-cde9-0b078f8bc65d",
+  "targetLibraryId": "a4810f34-10b6-480c-a6d0-607aac4e8d2a",
+  "targetAssemblyPath": "Nuclei-v4\\Nuclei4\\bin\\Release\\net7.0-windows\\Nuclei4.gha",
+  "targetAssemblyFullName": "Nuclei4, Version=4.1.0.0, Culture=neutral, PublicKeyToken=null",
+  "targetAssemblyVersion": "4.1.0.0",
+  "targetAssemblySha256": "1F8A5F1E56E0A5DB47C30757388BE703D1EAD5E47CF57A2C5C8B34D7B34BCACC",
+  "fileCount": 14,
+  "sourceWireCount": 841,
+  "targetWireCount": 840,
+  "intentionalDroppedWireCount": 1,
+  "archiveValidationPassed": true,
+  "files": [
+    {
+      "file": "01_Slime Intro_v3.gh",
+      "sourceSha256": "42D0DD4C43F0D392221BD3878583FB5B4973BAFC9F20808E6D990F76D9C529DC",
+      "targetSha256": "791B8AC18F5DB46FB4C2962A31F9247EC18640B8A2D8A2E3FE5B2617E291AAEB",
+      "sourceBytes": 13608,
+      "targetBytes": 13676,
+      "objectCount": 26,
+      "nucleiObjectCount": 6,
+      "sourceWireCount": 16,
+      "targetWireCount": 16,
+      "sourceWireHash": "0478FA3DE19AFA50C9BD4EB6FC289AF48712106C259FF4C24CDE3C29FF8F003D",
+      "targetWireHash": "0478FA3DE19AFA50C9BD4EB6FC289AF48712106C259FF4C24CDE3C29FF8F003D",
+      "sourceWireConnectionHash": "27FE0820F1A0A501E632F542A231D0AB37E833B5214FFCF6556AB8E338A3997F",
+      "expectedTargetWireConnectionHash": "27FE0820F1A0A501E632F542A231D0AB37E833B5214FFCF6556AB8E338A3997F",
+      "targetWireConnectionHash": "27FE0820F1A0A501E632F542A231D0AB37E833B5214FFCF6556AB8E338A3997F",
+      "graphConnectionsPreserved": true,
+      "intentionalDroppedWireCount": 0,
+      "wireMigrations": [],
+      "objectInstanceGuidHash": "E60A5182B7B6366DDE1F441824A433CBFCB2C8F2436CD1A9DE668EB5FFE37A7E",
+      "sourcePersistentDataHashExcludingSchemaAdapters": "E857B9029C98A7ABC543CB41DA8DCE7EAAEBC9119724DA55B3C28DE461DEA60C",
+      "targetPersistentDataHashExcludingSchemaAdapters": "E857B9029C98A7ABC543CB41DA8DCE7EAAEBC9119724DA55B3C28DE461DEA60C",
+      "persistentDataPreservedOutsideSchemaAdapters": true,
+      "convertedObjects": [
+        {
+          "index": 8,
+          "instanceGuid": "d0a77602-7d5b-4ee5-bc21-e38c3bed4f5f",
+          "sourceGuid": "feb0993f-6d5f-bfcf-76ae-1377559f335a",
+          "targetGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+          "name": "Construct Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 17,
+          "instanceGuid": "775fe0d2-5ebe-4b85-82b0-1d7f38732e81",
+          "sourceGuid": "c83ed292-a692-8d9a-a549-77e3391bd022",
+          "targetGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+          "name": "Nuclei3 Solver",
+          "adapter": "solver-gpu-extra-status-output",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 20,
+          "instanceGuid": "8556110e-65cb-45d8-8f8e-df992fd08398",
+          "sourceGuid": "2f97ab1f-8665-65dc-e43f-7a91cc981668",
+          "targetGuid": "fb2ea9fc-5963-4587-b09b-0422f61174db",
+          "name": "Preview Voxel Density",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 21,
+          "instanceGuid": "ff4ca24e-df15-4e88-ae0e-ecd129da2cb6",
+          "sourceGuid": "bd0659ad-1006-f5ac-3d9e-a20cb579ab36",
+          "targetGuid": "60649521-0784-4a2e-8dfa-27e4a04600ac",
+          "name": "Particle Preview Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 23,
+          "instanceGuid": "83e98b8b-3a0b-4ff7-aac6-3c9d58ed329a",
+          "sourceGuid": "5a2dfaa4-b7fb-4b04-a86c-e939f01886dd",
+          "targetGuid": "24ede5e7-2957-4f98-8f83-80c6f5dfd31f",
+          "name": "Construct Slime Particles",
+          "adapter": "slime-group-schema",
+          "probabilisticSteering": false
+        },
+        {
+          "index": 24,
+          "instanceGuid": "660a213e-1091-4f1f-bd82-68370b8690e1",
+          "sourceGuid": "343df7f6-ca68-637f-39db-c1318f2faf45",
+          "targetGuid": "dc1f1c7b-2376-487d-a4ac-d14d9cad856d",
+          "name": "Voxel Settings Slime",
+          "adapter": "slime-settings-schema",
+          "probabilisticSteering": null
+        }
+      ],
+      "adapters": [
+        "Solver: V3 outputs 0/1 retain their InstanceGuids, data, and wires; added serialized V4 GPU Status output 2 with a deterministic InstanceGuid and applied the native three-output V4 layout at the preserved component pivot.",
+        "Slime Particle Group: verified current input 8 Exploration schema; source wire, persistent data, and ProbabilisticSteering state were preserved.",
+        "Voxel Settings Slime: verified current [Diffuse Rate, Decay Rate, Falloff, Diffuse Range] schema; all source wires and persistent values were preserved by index."
+      ],
+      "archiveReloadPassed": true,
+      "noV3Residue": true
+    },
+    {
+      "file": "02_Gradient Map_v3.gh",
+      "sourceSha256": "096004818560ECE9368495E3AB26B2F64C29F6528566395C890CC30E685BD640",
+      "targetSha256": "3B379ACAEE96DF9DB5C3D208626846D61DF315CAC814419C254D26B441CB0589",
+      "sourceBytes": 522281,
+      "targetBytes": 522371,
+      "objectCount": 217,
+      "nucleiObjectCount": 12,
+      "sourceWireCount": 168,
+      "targetWireCount": 168,
+      "sourceWireHash": "BF71B53581B26D308E67722341381F30BF9D2CDBAD52D18DB30A171FCA8CB0CB",
+      "targetWireHash": "BF71B53581B26D308E67722341381F30BF9D2CDBAD52D18DB30A171FCA8CB0CB",
+      "sourceWireConnectionHash": "9CD95E91AFB6E29AA47F17D622C456FD06FCFF31CDAC9064D72EA0073663F12B",
+      "expectedTargetWireConnectionHash": "9CD95E91AFB6E29AA47F17D622C456FD06FCFF31CDAC9064D72EA0073663F12B",
+      "targetWireConnectionHash": "9CD95E91AFB6E29AA47F17D622C456FD06FCFF31CDAC9064D72EA0073663F12B",
+      "graphConnectionsPreserved": true,
+      "intentionalDroppedWireCount": 0,
+      "wireMigrations": [],
+      "objectInstanceGuidHash": "0B1B1FE5426681FF1C602665A9366FEE412E406E82B48B56EB3FAAA38AE9BE79",
+      "sourcePersistentDataHashExcludingSchemaAdapters": "6F54C8B63F3489118EDD76E22CB90CC35E83578E3F2CB9F82D886A04D423C534",
+      "targetPersistentDataHashExcludingSchemaAdapters": "6F54C8B63F3489118EDD76E22CB90CC35E83578E3F2CB9F82D886A04D423C534",
+      "persistentDataPreservedOutsideSchemaAdapters": true,
+      "convertedObjects": [
+        {
+          "index": 198,
+          "instanceGuid": "6bdb237a-e06c-486f-9ea5-116838082f5e",
+          "sourceGuid": "feb0993f-6d5f-bfcf-76ae-1377559f335a",
+          "targetGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+          "name": "Construct Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 199,
+          "instanceGuid": "efc82a5f-296b-414f-b5c3-6db2a1199bf1",
+          "sourceGuid": "dade8c20-c2ca-0331-075b-b7e67093f5e8",
+          "targetGuid": "deb55383-1cb3-4b17-8d01-cc05d1b9c635",
+          "name": "Extract Voxel Positions",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 200,
+          "instanceGuid": "4e98f65c-b7eb-4788-a98f-65c1cdd0b794",
+          "sourceGuid": "7bb29b30-5834-956d-6d0c-08383aab9a99",
+          "targetGuid": "6a35ef3b-11f7-4d48-8103-683e82b2dd5d",
+          "name": "Define Voxel Values",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 202,
+          "instanceGuid": "29ea53a5-15bd-462c-897e-bb83d1f5d3e9",
+          "sourceGuid": "23ff0742-52ee-b81b-997d-56c038d20605",
+          "targetGuid": "43b61a51-6086-4cea-98f9-e482a7b6d57f",
+          "name": "Voxel Wrap Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 203,
+          "instanceGuid": "b907455c-255b-42ba-8eba-a646d22635bc",
+          "sourceGuid": "979d61dd-324c-665b-7cc6-71459cc120e0",
+          "targetGuid": "117cfcd7-ca25-4b01-8d76-688e2661ebb6",
+          "name": "Nuclei3 Solver Iterations",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 205,
+          "instanceGuid": "675d4a03-645a-423a-b495-b169d6bef14b",
+          "sourceGuid": "7869ca3b-e735-980e-0fe7-523cc3425e62",
+          "targetGuid": "cd0bb03c-2b66-4dbb-864e-02015f0255e7",
+          "name": "Particle Trail Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 206,
+          "instanceGuid": "e4c25b66-b37e-47c6-af82-e4a756c55cd3",
+          "sourceGuid": "c83ed292-a692-8d9a-a549-77e3391bd022",
+          "targetGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+          "name": "Nuclei3 Solver",
+          "adapter": "solver-gpu-extra-status-output",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 207,
+          "instanceGuid": "8ef220f7-938d-4bf0-a51a-c82557b6d2d0",
+          "sourceGuid": "f778b939-e82f-86a7-e00b-c2ec18e0e5d5",
+          "targetGuid": "0a97c625-4da3-4143-89c6-d88249de8741",
+          "name": "Extract Particle Trails",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 208,
+          "instanceGuid": "dbea0f83-9be0-41fb-8afe-feff0f625c16",
+          "sourceGuid": "bd0659ad-1006-f5ac-3d9e-a20cb579ab36",
+          "targetGuid": "60649521-0784-4a2e-8dfa-27e4a04600ac",
+          "name": "Particle Preview Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 209,
+          "instanceGuid": "b9537fb8-2609-4cb3-8f1f-4380c2a69cbd",
+          "sourceGuid": "2f97ab1f-8665-65dc-e43f-7a91cc981668",
+          "targetGuid": "fb2ea9fc-5963-4587-b09b-0422f61174db",
+          "name": "Preview Voxel Density",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 212,
+          "instanceGuid": "a4ee636b-8491-47da-9ab6-626ea31d57a1",
+          "sourceGuid": "343df7f6-ca68-637f-39db-c1318f2faf45",
+          "targetGuid": "dc1f1c7b-2376-487d-a4ac-d14d9cad856d",
+          "name": "Voxel Settings Slime",
+          "adapter": "slime-settings-schema",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 215,
+          "instanceGuid": "7ffc8cda-a20f-4b75-b047-ea9ea232db54",
+          "sourceGuid": "5a2dfaa4-b7fb-4b04-a86c-e939f01886dd",
+          "targetGuid": "24ede5e7-2957-4f98-8f83-80c6f5dfd31f",
+          "name": "Construct Slime Particles",
+          "adapter": "slime-group-schema",
+          "probabilisticSteering": false
+        }
+      ],
+      "adapters": [
+        "Solver: V3 outputs 0/1 retain their InstanceGuids, data, and wires; added serialized V4 GPU Status output 2 with a deterministic InstanceGuid and applied the native three-output V4 layout at the preserved component pivot.",
+        "Voxel Settings Slime: verified current [Diffuse Rate, Decay Rate, Falloff, Diffuse Range] schema; all source wires and persistent values were preserved by index.",
+        "Slime Particle Group: verified current input 8 Exploration schema; source wire, persistent data, and ProbabilisticSteering state were preserved."
+      ],
+      "archiveReloadPassed": true,
+      "noV3Residue": true
+    },
+    {
+      "file": "03_Minimizing Transport Networks (Classic LIMITED).gh",
+      "sourceSha256": "FE4D17FC22DB7503C4736C66ADAB9284801E22A250C0E219E7E111A1BC7289DB",
+      "targetSha256": "8AC336C233CFCAABE09B5C880E459981C0A8F7042B1BA1423EBAE4ACC077E3AC",
+      "sourceBytes": 21011,
+      "targetBytes": 21074,
+      "objectCount": 65,
+      "nucleiObjectCount": 12,
+      "sourceWireCount": 55,
+      "targetWireCount": 55,
+      "sourceWireHash": "6FD0EA78170CD0AC7AF7076E31E10DD7CF62CC324E1D4A3AC3AEAF0EEA93E4CD",
+      "targetWireHash": "6FD0EA78170CD0AC7AF7076E31E10DD7CF62CC324E1D4A3AC3AEAF0EEA93E4CD",
+      "sourceWireConnectionHash": "4DF0B08E6D454E37671A9CACD937AB28A761A89A2C34C0AD230B199894450EE1",
+      "expectedTargetWireConnectionHash": "4DF0B08E6D454E37671A9CACD937AB28A761A89A2C34C0AD230B199894450EE1",
+      "targetWireConnectionHash": "4DF0B08E6D454E37671A9CACD937AB28A761A89A2C34C0AD230B199894450EE1",
+      "graphConnectionsPreserved": true,
+      "intentionalDroppedWireCount": 0,
+      "wireMigrations": [],
+      "objectInstanceGuidHash": "C0FF949A9D5383229FC63F72FCE04BE572556373BA3B59D95833BA108B3D3406",
+      "sourcePersistentDataHashExcludingSchemaAdapters": "B59A27CB6F1EA326C8529BA5B0BB87EB87573A10F24B67B02BA6FA99DE26AC07",
+      "targetPersistentDataHashExcludingSchemaAdapters": "B59A27CB6F1EA326C8529BA5B0BB87EB87573A10F24B67B02BA6FA99DE26AC07",
+      "persistentDataPreservedOutsideSchemaAdapters": true,
+      "convertedObjects": [
+        {
+          "index": 14,
+          "instanceGuid": "1813cd4b-fc38-4cac-b427-f541e7383626",
+          "sourceGuid": "5eb4ca15-78f2-57f6-a7c5-481ec682016e",
+          "targetGuid": "0224814f-9543-481b-9ec0-5f206c39b408",
+          "name": "Particle Population Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 19,
+          "instanceGuid": "331ade52-fade-4186-8f8c-fd4dd085453c",
+          "sourceGuid": "2f97ab1f-8665-65dc-e43f-7a91cc981668",
+          "targetGuid": "fb2ea9fc-5963-4587-b09b-0422f61174db",
+          "name": "Voxel Preview",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 22,
+          "instanceGuid": "bb354bbf-a661-4d44-9d27-b36b6daf6428",
+          "sourceGuid": "7bb29b30-5834-956d-6d0c-08383aab9a99",
+          "targetGuid": "6a35ef3b-11f7-4d48-8103-683e82b2dd5d",
+          "name": "Define Voxel Values",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 26,
+          "instanceGuid": "d3f9da9a-972e-4149-83ab-2fd5096242db",
+          "sourceGuid": "bd0659ad-1006-f5ac-3d9e-a20cb579ab36",
+          "targetGuid": "60649521-0784-4a2e-8dfa-27e4a04600ac",
+          "name": "Particle Preview",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 28,
+          "instanceGuid": "4e785e96-fdc8-48c0-a74f-500e375fcf51",
+          "sourceGuid": "c83ed292-a692-8d9a-a549-77e3391bd022",
+          "targetGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+          "name": "Nuclei3 Solver",
+          "adapter": "solver-gpu-extra-status-output",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 37,
+          "instanceGuid": "7e16a1c2-4c53-461c-a88a-5ea6ecb27faa",
+          "sourceGuid": "e77e3067-0a34-5b11-89b2-e9725a510eb8",
+          "targetGuid": "0e3c0d1c-1057-4f08-9368-a0078a3d9d35",
+          "name": "Voxel Selection Union",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 41,
+          "instanceGuid": "d692414d-e3c6-4100-accf-b66addcfba65",
+          "sourceGuid": "75c987f0-57a0-56c9-bf9f-f4ef4f3ebfed",
+          "targetGuid": "74684ab4-cbf5-4cc1-a75a-4253eb83599b",
+          "name": "Voxel Inclusion in Mesh",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 45,
+          "instanceGuid": "112ae5ba-6578-4435-bea6-b3628975ae14",
+          "sourceGuid": "318aa2ba-2e50-5abb-85fd-c23de2f9197c",
+          "targetGuid": "a0ac8ea3-c26e-4852-8e48-e507d0cc6132",
+          "name": "Point Attractor for Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 49,
+          "instanceGuid": "4bca03a7-235f-425b-9339-cd8f4636de74",
+          "sourceGuid": "65bed543-3aed-593f-bf4f-4a2a6a57e41d",
+          "targetGuid": "f02270d9-89f0-4465-93ac-750061478aed",
+          "name": "Extract Voxel Bounding Box",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 53,
+          "instanceGuid": "470e8a37-5658-4e0c-bce1-db9281c43e41",
+          "sourceGuid": "feb0993f-6d5f-bfcf-76ae-1377559f335a",
+          "targetGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+          "name": "Construct Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 62,
+          "instanceGuid": "0195acae-973b-4732-a672-e565900e46fd",
+          "sourceGuid": "343df7f6-ca68-637f-39db-c1318f2faf45",
+          "targetGuid": "dc1f1c7b-2376-487d-a4ac-d14d9cad856d",
+          "name": "Voxel Settings Slime",
+          "adapter": "slime-settings-schema",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 64,
+          "instanceGuid": "c9627248-39b0-4f84-9c68-4e6bfbf5d294",
+          "sourceGuid": "5a2dfaa4-b7fb-4b04-a86c-e939f01886dd",
+          "targetGuid": "24ede5e7-2957-4f98-8f83-80c6f5dfd31f",
+          "name": "Construct Slime Particles",
+          "adapter": "slime-group-schema",
+          "probabilisticSteering": false
+        }
+      ],
+      "adapters": [
+        "Solver: V3 outputs 0/1 retain their InstanceGuids, data, and wires; added serialized V4 GPU Status output 2 with a deterministic InstanceGuid and applied the native three-output V4 layout at the preserved component pivot.",
+        "Voxel Settings Slime: verified current [Diffuse Rate, Decay Rate, Falloff, Diffuse Range] schema; all source wires and persistent values were preserved by index.",
+        "Slime Particle Group: verified current input 8 Exploration schema; source wire, persistent data, and ProbabilisticSteering state were preserved."
+      ],
+      "archiveReloadPassed": true,
+      "noV3Residue": true
+    },
+    {
+      "file": "04_Minimizing Transport Networks (Probabilistic OPTIMAL).gh",
+      "sourceSha256": "F101BF13C220F7C42636AA94F4CBD0622DE5A448E4B17D9FC329C1B660DA11E0",
+      "targetSha256": "D56D6D4DADB5D031D5FE747CB4AD7C679263E36C2E931F65C29E112658C42218",
+      "sourceBytes": 21866,
+      "targetBytes": 21931,
+      "objectCount": 67,
+      "nucleiObjectCount": 12,
+      "sourceWireCount": 58,
+      "targetWireCount": 58,
+      "sourceWireHash": "D14A70FA3391516CF90550F0C91A5F625A6B4F95CB034AB7186828A28756A72F",
+      "targetWireHash": "D14A70FA3391516CF90550F0C91A5F625A6B4F95CB034AB7186828A28756A72F",
+      "sourceWireConnectionHash": "859FF891653945BE2D0466FF5232CF97D25FFB47C5C9B3CAA9F22F36579BD1EA",
+      "expectedTargetWireConnectionHash": "859FF891653945BE2D0466FF5232CF97D25FFB47C5C9B3CAA9F22F36579BD1EA",
+      "targetWireConnectionHash": "859FF891653945BE2D0466FF5232CF97D25FFB47C5C9B3CAA9F22F36579BD1EA",
+      "graphConnectionsPreserved": true,
+      "intentionalDroppedWireCount": 0,
+      "wireMigrations": [],
+      "objectInstanceGuidHash": "A6BC75DB9A632ED7EA5D1F4E7225AFB726013A66141703F83A54421B9C3F767A",
+      "sourcePersistentDataHashExcludingSchemaAdapters": "BACE5A80C860A1B6D2464B610AEFBB988C26F5B3874BC3827A946ABFAF5C0909",
+      "targetPersistentDataHashExcludingSchemaAdapters": "BACE5A80C860A1B6D2464B610AEFBB988C26F5B3874BC3827A946ABFAF5C0909",
+      "persistentDataPreservedOutsideSchemaAdapters": true,
+      "convertedObjects": [
+        {
+          "index": 14,
+          "instanceGuid": "1813cd4b-fc38-4cac-b427-f541e7383626",
+          "sourceGuid": "5eb4ca15-78f2-57f6-a7c5-481ec682016e",
+          "targetGuid": "0224814f-9543-481b-9ec0-5f206c39b408",
+          "name": "Particle Population Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 18,
+          "instanceGuid": "331ade52-fade-4186-8f8c-fd4dd085453c",
+          "sourceGuid": "2f97ab1f-8665-65dc-e43f-7a91cc981668",
+          "targetGuid": "fb2ea9fc-5963-4587-b09b-0422f61174db",
+          "name": "Voxel Preview",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 21,
+          "instanceGuid": "bb354bbf-a661-4d44-9d27-b36b6daf6428",
+          "sourceGuid": "7bb29b30-5834-956d-6d0c-08383aab9a99",
+          "targetGuid": "6a35ef3b-11f7-4d48-8103-683e82b2dd5d",
+          "name": "Define Voxel Values",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 25,
+          "instanceGuid": "d3f9da9a-972e-4149-83ab-2fd5096242db",
+          "sourceGuid": "bd0659ad-1006-f5ac-3d9e-a20cb579ab36",
+          "targetGuid": "60649521-0784-4a2e-8dfa-27e4a04600ac",
+          "name": "Particle Preview",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 27,
+          "instanceGuid": "4e785e96-fdc8-48c0-a74f-500e375fcf51",
+          "sourceGuid": "c83ed292-a692-8d9a-a549-77e3391bd022",
+          "targetGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+          "name": "Nuclei3 Solver",
+          "adapter": "solver-gpu-extra-status-output",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 36,
+          "instanceGuid": "7e16a1c2-4c53-461c-a88a-5ea6ecb27faa",
+          "sourceGuid": "e77e3067-0a34-5b11-89b2-e9725a510eb8",
+          "targetGuid": "0e3c0d1c-1057-4f08-9368-a0078a3d9d35",
+          "name": "Voxel Selection Union",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 40,
+          "instanceGuid": "d692414d-e3c6-4100-accf-b66addcfba65",
+          "sourceGuid": "75c987f0-57a0-56c9-bf9f-f4ef4f3ebfed",
+          "targetGuid": "74684ab4-cbf5-4cc1-a75a-4253eb83599b",
+          "name": "Voxel Inclusion in Mesh",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 44,
+          "instanceGuid": "112ae5ba-6578-4435-bea6-b3628975ae14",
+          "sourceGuid": "318aa2ba-2e50-5abb-85fd-c23de2f9197c",
+          "targetGuid": "a0ac8ea3-c26e-4852-8e48-e507d0cc6132",
+          "name": "Point Attractor for Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 48,
+          "instanceGuid": "4bca03a7-235f-425b-9339-cd8f4636de74",
+          "sourceGuid": "65bed543-3aed-593f-bf4f-4a2a6a57e41d",
+          "targetGuid": "f02270d9-89f0-4465-93ac-750061478aed",
+          "name": "Extract Voxel Bounding Box",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 52,
+          "instanceGuid": "470e8a37-5658-4e0c-bce1-db9281c43e41",
+          "sourceGuid": "feb0993f-6d5f-bfcf-76ae-1377559f335a",
+          "targetGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+          "name": "Construct Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 64,
+          "instanceGuid": "5f6d73a2-4799-4431-a474-d6260133bb66",
+          "sourceGuid": "5a2dfaa4-b7fb-4b04-a86c-e939f01886dd",
+          "targetGuid": "24ede5e7-2957-4f98-8f83-80c6f5dfd31f",
+          "name": "Construct Slime Particles",
+          "adapter": "slime-group-schema",
+          "probabilisticSteering": true
+        },
+        {
+          "index": 65,
+          "instanceGuid": "1e792a34-3f5e-4d54-82d9-cf9743c51aa4",
+          "sourceGuid": "343df7f6-ca68-637f-39db-c1318f2faf45",
+          "targetGuid": "dc1f1c7b-2376-487d-a4ac-d14d9cad856d",
+          "name": "Voxel Settings Slime",
+          "adapter": "slime-settings-schema",
+          "probabilisticSteering": null
+        }
+      ],
+      "adapters": [
+        "Solver: V3 outputs 0/1 retain their InstanceGuids, data, and wires; added serialized V4 GPU Status output 2 with a deterministic InstanceGuid and applied the native three-output V4 layout at the preserved component pivot.",
+        "Slime Particle Group: verified current input 8 Exploration schema; source wire, persistent data, and ProbabilisticSteering state were preserved.",
+        "Voxel Settings Slime: verified current [Diffuse Rate, Decay Rate, Falloff, Diffuse Range] schema; all source wires and persistent values were preserved by index."
+      ],
+      "archiveReloadPassed": true,
+      "noV3Residue": true
+    },
+    {
+      "file": "05_City Map_v3.gh",
+      "sourceSha256": "771CA544A007440FF61402C8CA37B8A44343943DB29B17A14BC1140D5D7E858B",
+      "targetSha256": "71DFCF6F8030AAFCC67EB626D55ECD674421B46D318A302066DAFBCC9FA5BC8A",
+      "sourceBytes": 1082363,
+      "targetBytes": 1082442,
+      "objectCount": 97,
+      "nucleiObjectCount": 11,
+      "sourceWireCount": 55,
+      "targetWireCount": 55,
+      "sourceWireHash": "2630FAAEFBBC932E6C4FB270A00F870C6E88E8049B0C30EAE5217B45F721E5B3",
+      "targetWireHash": "2630FAAEFBBC932E6C4FB270A00F870C6E88E8049B0C30EAE5217B45F721E5B3",
+      "sourceWireConnectionHash": "AE8221070A8B6FA1C228CC93C34F0EFDC8810F2616433EAA96604FAB7978D11B",
+      "expectedTargetWireConnectionHash": "AE8221070A8B6FA1C228CC93C34F0EFDC8810F2616433EAA96604FAB7978D11B",
+      "targetWireConnectionHash": "AE8221070A8B6FA1C228CC93C34F0EFDC8810F2616433EAA96604FAB7978D11B",
+      "graphConnectionsPreserved": true,
+      "intentionalDroppedWireCount": 0,
+      "wireMigrations": [],
+      "objectInstanceGuidHash": "2F856FF45CBC3B79FD67D0A4324FE2A5955CBD373FD336BEE72C481956BBAC59",
+      "sourcePersistentDataHashExcludingSchemaAdapters": "2B91609689F06A9EE071962B4758BB8B374BC418795160238211E14CAD258005",
+      "targetPersistentDataHashExcludingSchemaAdapters": "2B91609689F06A9EE071962B4758BB8B374BC418795160238211E14CAD258005",
+      "persistentDataPreservedOutsideSchemaAdapters": true,
+      "convertedObjects": [
+        {
+          "index": 65,
+          "instanceGuid": "4d2248ac-ef21-421e-8be1-c6dc477a09ca",
+          "sourceGuid": "feb0993f-6d5f-bfcf-76ae-1377559f335a",
+          "targetGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+          "name": "Construct Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 66,
+          "instanceGuid": "3b79ab87-13a8-4593-b5cc-d9d2c8485b68",
+          "sourceGuid": "dade8c20-c2ca-0331-075b-b7e67093f5e8",
+          "targetGuid": "deb55383-1cb3-4b17-8d01-cc05d1b9c635",
+          "name": "Extract Voxel Positions",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 67,
+          "instanceGuid": "9995f93e-f32b-41c9-a794-87c82c7b08c4",
+          "sourceGuid": "7bb29b30-5834-956d-6d0c-08383aab9a99",
+          "targetGuid": "6a35ef3b-11f7-4d48-8103-683e82b2dd5d",
+          "name": "Define Voxel Values",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 68,
+          "instanceGuid": "aa18ca4f-cc4d-4947-b77f-66a46a0cd5ea",
+          "sourceGuid": "7869ca3b-e735-980e-0fe7-523cc3425e62",
+          "targetGuid": "cd0bb03c-2b66-4dbb-864e-02015f0255e7",
+          "name": "Particle Trail Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 70,
+          "instanceGuid": "4a23e074-306c-41aa-bda2-5c0f750eb692",
+          "sourceGuid": "c83ed292-a692-8d9a-a549-77e3391bd022",
+          "targetGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+          "name": "Nuclei3 Solver",
+          "adapter": "solver-gpu-extra-status-output",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 71,
+          "instanceGuid": "96a6e07e-3a07-4738-8d7d-3a84bad55a05",
+          "sourceGuid": "23ff0742-52ee-b81b-997d-56c038d20605",
+          "targetGuid": "43b61a51-6086-4cea-98f9-e482a7b6d57f",
+          "name": "Voxel Wrap Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 72,
+          "instanceGuid": "8191c292-8b8c-45d4-bfcc-94b08b3ebed5",
+          "sourceGuid": "bd0659ad-1006-f5ac-3d9e-a20cb579ab36",
+          "targetGuid": "60649521-0784-4a2e-8dfa-27e4a04600ac",
+          "name": "Particle Preview Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 73,
+          "instanceGuid": "5302b068-8e89-4e37-9ddd-af9ce1d620cb",
+          "sourceGuid": "f778b939-e82f-86a7-e00b-c2ec18e0e5d5",
+          "targetGuid": "0a97c625-4da3-4143-89c6-d88249de8741",
+          "name": "Extract Particle Trails",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 90,
+          "instanceGuid": "1d4bccab-b694-4cb1-b13f-3b41695129f9",
+          "sourceGuid": "2f97ab1f-8665-65dc-e43f-7a91cc981668",
+          "targetGuid": "fb2ea9fc-5963-4587-b09b-0422f61174db",
+          "name": "Preview Voxel Density",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 92,
+          "instanceGuid": "2fae682f-e36b-45f7-b2c8-545c131b7034",
+          "sourceGuid": "343df7f6-ca68-637f-39db-c1318f2faf45",
+          "targetGuid": "dc1f1c7b-2376-487d-a4ac-d14d9cad856d",
+          "name": "Voxel Settings Slime",
+          "adapter": "slime-settings-schema",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 94,
+          "instanceGuid": "f71ed333-9559-4020-a347-b871ead9ed9e",
+          "sourceGuid": "5a2dfaa4-b7fb-4b04-a86c-e939f01886dd",
+          "targetGuid": "24ede5e7-2957-4f98-8f83-80c6f5dfd31f",
+          "name": "Construct Slime Particles",
+          "adapter": "slime-group-schema",
+          "probabilisticSteering": false
+        }
+      ],
+      "adapters": [
+        "Solver: V3 outputs 0/1 retain their InstanceGuids, data, and wires; added serialized V4 GPU Status output 2 with a deterministic InstanceGuid and applied the native three-output V4 layout at the preserved component pivot.",
+        "Voxel Settings Slime: verified current [Diffuse Rate, Decay Rate, Falloff, Diffuse Range] schema; all source wires and persistent values were preserved by index.",
+        "Slime Particle Group: verified current input 8 Exploration schema; source wire, persistent data, and ProbabilisticSteering state were preserved."
+      ],
+      "archiveReloadPassed": true,
+      "noV3Residue": true
+    },
+    {
+      "file": "06_Attractor Curves 1_v3.gh",
+      "sourceSha256": "17FE2EAC45711D8578D9C0AA096372E94EB2422528918A3F9F126C0396FC3C86",
+      "targetSha256": "8B6B6245073E7A25CA6D051E19BBDC790189E3366B35EAF4B59E76ECB9EDEFE9",
+      "sourceBytes": 23134,
+      "targetBytes": 23202,
+      "objectCount": 108,
+      "nucleiObjectCount": 13,
+      "sourceWireCount": 70,
+      "targetWireCount": 70,
+      "sourceWireHash": "CF17BE2D74321F1F540C048C06D2851E4A2E441C27E0BEA6CE447FB186EB388F",
+      "targetWireHash": "CF17BE2D74321F1F540C048C06D2851E4A2E441C27E0BEA6CE447FB186EB388F",
+      "sourceWireConnectionHash": "590A80B99457810E89536D62281C1AE77590C1AC3C94EC9DE71F577A1D2055E0",
+      "expectedTargetWireConnectionHash": "590A80B99457810E89536D62281C1AE77590C1AC3C94EC9DE71F577A1D2055E0",
+      "targetWireConnectionHash": "590A80B99457810E89536D62281C1AE77590C1AC3C94EC9DE71F577A1D2055E0",
+      "graphConnectionsPreserved": true,
+      "intentionalDroppedWireCount": 0,
+      "wireMigrations": [],
+      "objectInstanceGuidHash": "41D6C3F322ABB0B5FDBD62C961FC0DFDDB0042EDEA757492E2A98C1AD29B10C8",
+      "sourcePersistentDataHashExcludingSchemaAdapters": "D7A542F5AC08588F9B5C1F43DFE1BAA2B3824DC70D85AD5A00F9F2229A304950",
+      "targetPersistentDataHashExcludingSchemaAdapters": "D7A542F5AC08588F9B5C1F43DFE1BAA2B3824DC70D85AD5A00F9F2229A304950",
+      "persistentDataPreservedOutsideSchemaAdapters": true,
+      "convertedObjects": [
+        {
+          "index": 87,
+          "instanceGuid": "b7d2bfdc-66be-43f2-b7d2-8752f2297d35",
+          "sourceGuid": "feb0993f-6d5f-bfcf-76ae-1377559f335a",
+          "targetGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+          "name": "Construct Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 88,
+          "instanceGuid": "167edab1-ec46-4368-a004-8becdfaebee5",
+          "sourceGuid": "f618a21c-b7b3-533b-96b8-8130db1882c2",
+          "targetGuid": "59741edd-30fb-42a7-93cb-26f7dee3e03b",
+          "name": "Curve Attractor for Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 89,
+          "instanceGuid": "5e9d74fb-1f68-4b70-93bc-71defc997a7f",
+          "sourceGuid": "65bed543-3aed-593f-bf4f-4a2a6a57e41d",
+          "targetGuid": "f02270d9-89f0-4465-93ac-750061478aed",
+          "name": "Extract Voxel Bounding Box",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 90,
+          "instanceGuid": "1ffa42cf-f44b-4f49-a779-3639fc224cff",
+          "sourceGuid": "2f97ab1f-8665-65dc-e43f-7a91cc981668",
+          "targetGuid": "fb2ea9fc-5963-4587-b09b-0422f61174db",
+          "name": "Preview Voxel Density",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 91,
+          "instanceGuid": "340786e7-6257-427e-aace-4850fb9f63ae",
+          "sourceGuid": "7bb29b30-5834-956d-6d0c-08383aab9a99",
+          "targetGuid": "6a35ef3b-11f7-4d48-8103-683e82b2dd5d",
+          "name": "Define Voxel Values",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 92,
+          "instanceGuid": "8374aef9-ee04-47f4-9bd1-55f0982795ce",
+          "sourceGuid": "7bb29b30-5834-956d-6d0c-08383aab9a99",
+          "targetGuid": "6a35ef3b-11f7-4d48-8103-683e82b2dd5d",
+          "name": "Define Voxel Values",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 93,
+          "instanceGuid": "6630d197-f3c5-4862-8560-f05cc6a4bc9b",
+          "sourceGuid": "7869ca3b-e735-980e-0fe7-523cc3425e62",
+          "targetGuid": "cd0bb03c-2b66-4dbb-864e-02015f0255e7",
+          "name": "Particle Trail Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 94,
+          "instanceGuid": "59e658dc-1475-4822-bb2e-631904a4b0da",
+          "sourceGuid": "e77e3067-0a34-5b11-89b2-e9725a510eb8",
+          "targetGuid": "0e3c0d1c-1057-4f08-9368-a0078a3d9d35",
+          "name": "Voxel Selection Union",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 95,
+          "instanceGuid": "d811ae79-ed80-4a1b-a559-9f588afa8164",
+          "sourceGuid": "c83ed292-a692-8d9a-a549-77e3391bd022",
+          "targetGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+          "name": "Nuclei3 Solver",
+          "adapter": "solver-gpu-extra-status-output",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 96,
+          "instanceGuid": "d081e647-9c58-4fcb-9377-9fd06c329bdf",
+          "sourceGuid": "bd0659ad-1006-f5ac-3d9e-a20cb579ab36",
+          "targetGuid": "60649521-0784-4a2e-8dfa-27e4a04600ac",
+          "name": "Particle Preview Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 104,
+          "instanceGuid": "44141dad-33c8-47a7-9738-457b59df2bf8",
+          "sourceGuid": "311bd82d-56cc-592b-aae4-69f8824a0a3b",
+          "targetGuid": "f11f6319-1d69-4c97-8734-17c3f6a13b4a",
+          "name": "Extract Particle Positions",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 105,
+          "instanceGuid": "411fb761-c544-4409-8418-c6050255b85a",
+          "sourceGuid": "343df7f6-ca68-637f-39db-c1318f2faf45",
+          "targetGuid": "dc1f1c7b-2376-487d-a4ac-d14d9cad856d",
+          "name": "Voxel Settings Slime",
+          "adapter": "slime-settings-schema",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 107,
+          "instanceGuid": "7265ceb8-e0d4-430b-bce9-22ec8449b09e",
+          "sourceGuid": "5a2dfaa4-b7fb-4b04-a86c-e939f01886dd",
+          "targetGuid": "24ede5e7-2957-4f98-8f83-80c6f5dfd31f",
+          "name": "Construct Slime Particles",
+          "adapter": "slime-group-schema",
+          "probabilisticSteering": false
+        }
+      ],
+      "adapters": [
+        "Solver: V3 outputs 0/1 retain their InstanceGuids, data, and wires; added serialized V4 GPU Status output 2 with a deterministic InstanceGuid and applied the native three-output V4 layout at the preserved component pivot.",
+        "Voxel Settings Slime: verified current [Diffuse Rate, Decay Rate, Falloff, Diffuse Range] schema; all source wires and persistent values were preserved by index.",
+        "Slime Particle Group: verified current input 8 Exploration schema; source wire, persistent data, and ProbabilisticSteering state were preserved."
+      ],
+      "archiveReloadPassed": true,
+      "noV3Residue": true
+    },
+    {
+      "file": "07 ____ 3D maybe Attractor Curves 3_v3.gh",
+      "sourceSha256": "1A48C4B881BD252F290774E9E10831918E2702885E2849433F98E186C9EBEDC5",
+      "targetSha256": "8EA802D9EA8195F700F37773EF39D3DC35D2C141CAC50E051BC8F01D14A06DE4",
+      "sourceBytes": 24174,
+      "targetBytes": 24235,
+      "objectCount": 108,
+      "nucleiObjectCount": 14,
+      "sourceWireCount": 66,
+      "targetWireCount": 66,
+      "sourceWireHash": "062368B6169B602C8895A5B83ACC0BB1DF2346AC85519A7226A02EAAFDABE705",
+      "targetWireHash": "062368B6169B602C8895A5B83ACC0BB1DF2346AC85519A7226A02EAAFDABE705",
+      "sourceWireConnectionHash": "D822AC754531BE6CDAC698D253F80A96E4F00E70FB6643DC4ED349589AF3FC27",
+      "expectedTargetWireConnectionHash": "D822AC754531BE6CDAC698D253F80A96E4F00E70FB6643DC4ED349589AF3FC27",
+      "targetWireConnectionHash": "D822AC754531BE6CDAC698D253F80A96E4F00E70FB6643DC4ED349589AF3FC27",
+      "graphConnectionsPreserved": true,
+      "intentionalDroppedWireCount": 0,
+      "wireMigrations": [],
+      "objectInstanceGuidHash": "1DFE4F928FA6914D09213966F98A711561013FAD9C9DD9D1A77AEC584E3179F3",
+      "sourcePersistentDataHashExcludingSchemaAdapters": "FD6887390DD9D9C08E7ADB345CF8E0A1000322845E80AE4EFA831E151E418A15",
+      "targetPersistentDataHashExcludingSchemaAdapters": "FD6887390DD9D9C08E7ADB345CF8E0A1000322845E80AE4EFA831E151E418A15",
+      "persistentDataPreservedOutsideSchemaAdapters": true,
+      "convertedObjects": [
+        {
+          "index": 92,
+          "instanceGuid": "ed00bf69-4179-4ded-a7a4-8cea0f6d5940",
+          "sourceGuid": "feb0993f-6d5f-bfcf-76ae-1377559f335a",
+          "targetGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+          "name": "Construct Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 93,
+          "instanceGuid": "c246e9d3-8bb8-4cac-bb6e-f579095e0f05",
+          "sourceGuid": "f618a21c-b7b3-533b-96b8-8130db1882c2",
+          "targetGuid": "59741edd-30fb-42a7-93cb-26f7dee3e03b",
+          "name": "Curve Attractor for Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 94,
+          "instanceGuid": "f785335b-b304-4be9-aeab-aa78fa391901",
+          "sourceGuid": "f618a21c-b7b3-533b-96b8-8130db1882c2",
+          "targetGuid": "59741edd-30fb-42a7-93cb-26f7dee3e03b",
+          "name": "Curve Attractor for Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 95,
+          "instanceGuid": "4072073e-6902-499b-bd0b-70bee61f92ee",
+          "sourceGuid": "7bb29b30-5834-956d-6d0c-08383aab9a99",
+          "targetGuid": "6a35ef3b-11f7-4d48-8103-683e82b2dd5d",
+          "name": "Define Voxel Values",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 96,
+          "instanceGuid": "94877d3c-315d-46ef-9139-bc11fdf9df43",
+          "sourceGuid": "7bb29b30-5834-956d-6d0c-08383aab9a99",
+          "targetGuid": "6a35ef3b-11f7-4d48-8103-683e82b2dd5d",
+          "name": "Define Voxel Values",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 97,
+          "instanceGuid": "000d52e9-0c65-4340-8ea7-79df229a2225",
+          "sourceGuid": "e77e3067-0a34-5b11-89b2-e9725a510eb8",
+          "targetGuid": "0e3c0d1c-1057-4f08-9368-a0078a3d9d35",
+          "name": "Voxel Selection Union",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 98,
+          "instanceGuid": "5a1884e3-a74a-40fb-82dc-613bbd20491a",
+          "sourceGuid": "a8c1c617-ce15-5e8b-a4d9-f7322e1d5d61",
+          "targetGuid": "0a968da4-646c-41fb-b48c-7e1d6c258d94",
+          "name": "Voxel Values Blend",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 99,
+          "instanceGuid": "17855282-9d88-4b4d-bff8-2ec89e68e296",
+          "sourceGuid": "2f97ab1f-8665-65dc-e43f-7a91cc981668",
+          "targetGuid": "fb2ea9fc-5963-4587-b09b-0422f61174db",
+          "name": "Preview Voxel Density",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 101,
+          "instanceGuid": "3c325513-05be-4eca-a2dc-7be527d33747",
+          "sourceGuid": "e77e3067-0a34-5b11-89b2-e9725a510eb8",
+          "targetGuid": "0e3c0d1c-1057-4f08-9368-a0078a3d9d35",
+          "name": "Voxel Selection Union",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 102,
+          "instanceGuid": "aff3a2b9-63c8-4db4-96a7-3209675e8768",
+          "sourceGuid": "c83ed292-a692-8d9a-a549-77e3391bd022",
+          "targetGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+          "name": "Nuclei3 Solver",
+          "adapter": "solver-gpu-extra-status-output",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 103,
+          "instanceGuid": "045fbca4-9640-4e9f-9c11-9a3d4ae35603",
+          "sourceGuid": "311bd82d-56cc-592b-aae4-69f8824a0a3b",
+          "targetGuid": "f11f6319-1d69-4c97-8734-17c3f6a13b4a",
+          "name": "Extract Particle Positions",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 104,
+          "instanceGuid": "618d636d-a8b1-4971-8921-259b07aa787e",
+          "sourceGuid": "bd0659ad-1006-f5ac-3d9e-a20cb579ab36",
+          "targetGuid": "60649521-0784-4a2e-8dfa-27e4a04600ac",
+          "name": "Particle Preview Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 105,
+          "instanceGuid": "dc60d17e-cbbc-47de-ac0d-ba45a6bc0bd7",
+          "sourceGuid": "343df7f6-ca68-637f-39db-c1318f2faf45",
+          "targetGuid": "dc1f1c7b-2376-487d-a4ac-d14d9cad856d",
+          "name": "Voxel Settings Slime",
+          "adapter": "slime-settings-schema",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 107,
+          "instanceGuid": "29b8f847-9657-4935-8252-1e80fa17e5fa",
+          "sourceGuid": "5a2dfaa4-b7fb-4b04-a86c-e939f01886dd",
+          "targetGuid": "24ede5e7-2957-4f98-8f83-80c6f5dfd31f",
+          "name": "Construct Slime Particles",
+          "adapter": "slime-group-schema",
+          "probabilisticSteering": false
+        }
+      ],
+      "adapters": [
+        "Solver: V3 outputs 0/1 retain their InstanceGuids, data, and wires; added serialized V4 GPU Status output 2 with a deterministic InstanceGuid and applied the native three-output V4 layout at the preserved component pivot.",
+        "Voxel Settings Slime: verified current [Diffuse Rate, Decay Rate, Falloff, Diffuse Range] schema; all source wires and persistent values were preserved by index.",
+        "Slime Particle Group: verified current input 8 Exploration schema; source wire, persistent data, and ProbabilisticSteering state were preserved."
+      ],
+      "archiveReloadPassed": true,
+      "noV3Residue": true
+    },
+    {
+      "file": "08_Vector Fields 1_v3.gh",
+      "sourceSha256": "2B7DBF575F62E6FE837E3539554BC7462A5797E941E03093C61E5EE4E7A312AF",
+      "targetSha256": "6F6087292543447C096C93E534BA9F153BB76CAB4A54D78FE854846897912BC7",
+      "sourceBytes": 23729,
+      "targetBytes": 23794,
+      "objectCount": 118,
+      "nucleiObjectCount": 12,
+      "sourceWireCount": 70,
+      "targetWireCount": 70,
+      "sourceWireHash": "F319C3E9FFF2A089BAD0AE75A4571BAFEBE0999379D91085B512EC2E6C1F1F08",
+      "targetWireHash": "F319C3E9FFF2A089BAD0AE75A4571BAFEBE0999379D91085B512EC2E6C1F1F08",
+      "sourceWireConnectionHash": "C26FA156F2A125485A20C07F44F1494DC2F1C75E4BE7B6A83C9DE9DA7561E9EB",
+      "expectedTargetWireConnectionHash": "C26FA156F2A125485A20C07F44F1494DC2F1C75E4BE7B6A83C9DE9DA7561E9EB",
+      "targetWireConnectionHash": "C26FA156F2A125485A20C07F44F1494DC2F1C75E4BE7B6A83C9DE9DA7561E9EB",
+      "graphConnectionsPreserved": true,
+      "intentionalDroppedWireCount": 0,
+      "wireMigrations": [],
+      "objectInstanceGuidHash": "2C251B5622E0CE5398250939E962162C4B9AFB3DE8FB66B91FDFF99AAB4F7BD9",
+      "sourcePersistentDataHashExcludingSchemaAdapters": "E21F5FA6904E2701E732463448A41FC3CCE10724B86C5931B327FF212F485295",
+      "targetPersistentDataHashExcludingSchemaAdapters": "E21F5FA6904E2701E732463448A41FC3CCE10724B86C5931B327FF212F485295",
+      "persistentDataPreservedOutsideSchemaAdapters": true,
+      "convertedObjects": [
+        {
+          "index": 89,
+          "instanceGuid": "ef13c797-9440-4630-aea6-81cf5773de75",
+          "sourceGuid": "feb0993f-6d5f-bfcf-76ae-1377559f335a",
+          "targetGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+          "name": "Construct Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 90,
+          "instanceGuid": "db4be634-0540-4660-8985-4ac385a28f3a",
+          "sourceGuid": "65bed543-3aed-593f-bf4f-4a2a6a57e41d",
+          "targetGuid": "f02270d9-89f0-4465-93ac-750061478aed",
+          "name": "Extract Voxel Bounding Box",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 92,
+          "instanceGuid": "b2e6695f-ce64-40f7-9c02-6cc2c9b35e1b",
+          "sourceGuid": "318aa2ba-2e50-5abb-85fd-c23de2f9197c",
+          "targetGuid": "a0ac8ea3-c26e-4852-8e48-e507d0cc6132",
+          "name": "Point Attractor for Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 93,
+          "instanceGuid": "3256659f-7db0-4ba1-8af4-0843fb4e12f5",
+          "sourceGuid": "a7c860c9-1406-519a-b581-af729a8e79f8",
+          "targetGuid": "fd6a6fc7-5500-464d-9c1f-94de266ab994",
+          "name": "Define Voxel Vectors",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 94,
+          "instanceGuid": "3d6a3b9b-a805-490e-897d-e511934021e2",
+          "sourceGuid": "e77e3067-0a34-5b11-89b2-e9725a510eb8",
+          "targetGuid": "0e3c0d1c-1057-4f08-9368-a0078a3d9d35",
+          "name": "Voxel Selection Union",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 95,
+          "instanceGuid": "f9e32775-06d3-4f10-9abf-95e3b007562a",
+          "sourceGuid": "979d61dd-324c-665b-7cc6-71459cc120e0",
+          "targetGuid": "117cfcd7-ca25-4b01-8d76-688e2661ebb6",
+          "name": "Nuclei3 Solver Iterations",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 96,
+          "instanceGuid": "0d512cfe-3e5a-4ce9-b4f5-97a74061d45a",
+          "sourceGuid": "c83ed292-a692-8d9a-a549-77e3391bd022",
+          "targetGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+          "name": "Nuclei3 Solver",
+          "adapter": "solver-gpu-extra-status-output",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 97,
+          "instanceGuid": "88b54fb4-1443-4428-a890-27b65f20d476",
+          "sourceGuid": "bd0659ad-1006-f5ac-3d9e-a20cb579ab36",
+          "targetGuid": "60649521-0784-4a2e-8dfa-27e4a04600ac",
+          "name": "Particle Preview Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 98,
+          "instanceGuid": "b73ea85a-5539-4de4-a17b-55305ebc7bb1",
+          "sourceGuid": "f778b939-e82f-86a7-e00b-c2ec18e0e5d5",
+          "targetGuid": "0a97c625-4da3-4143-89c6-d88249de8741",
+          "name": "Extract Particle Trails",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 114,
+          "instanceGuid": "e5283c09-fa81-4b45-b182-25420ace5451",
+          "sourceGuid": "7869ca3b-e735-980e-0fe7-523cc3425e62",
+          "targetGuid": "cd0bb03c-2b66-4dbb-864e-02015f0255e7",
+          "name": "Particle Trail Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 115,
+          "instanceGuid": "8e90a23a-8a7b-4bcd-a01b-ca10914ae868",
+          "sourceGuid": "343df7f6-ca68-637f-39db-c1318f2faf45",
+          "targetGuid": "dc1f1c7b-2376-487d-a4ac-d14d9cad856d",
+          "name": "Voxel Settings Slime",
+          "adapter": "slime-settings-schema",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 117,
+          "instanceGuid": "96d4d991-cbd2-4b19-b5ad-45e76929833d",
+          "sourceGuid": "5a2dfaa4-b7fb-4b04-a86c-e939f01886dd",
+          "targetGuid": "24ede5e7-2957-4f98-8f83-80c6f5dfd31f",
+          "name": "Construct Slime Particles",
+          "adapter": "slime-group-schema",
+          "probabilisticSteering": false
+        }
+      ],
+      "adapters": [
+        "Solver: V3 outputs 0/1 retain their InstanceGuids, data, and wires; added serialized V4 GPU Status output 2 with a deterministic InstanceGuid and applied the native three-output V4 layout at the preserved component pivot.",
+        "Voxel Settings Slime: verified current [Diffuse Rate, Decay Rate, Falloff, Diffuse Range] schema; all source wires and persistent values were preserved by index.",
+        "Slime Particle Group: verified current input 8 Exploration schema; source wire, persistent data, and ProbabilisticSteering state were preserved."
+      ],
+      "archiveReloadPassed": true,
+      "noV3Residue": true
+    },
+    {
+      "file": "09_Vector Fields 2_v3.gh",
+      "sourceSha256": "1461939E2D21DBA592740C3FEB9162FD61DB74F5940D0F04AC332DFE4CA2F431",
+      "targetSha256": "74892BBD9C78DBFAFDDFC968FAEF770F1A77C6FD032F275BAD5D596E223862BB",
+      "sourceBytes": 26721,
+      "targetBytes": 26778,
+      "objectCount": 132,
+      "nucleiObjectCount": 12,
+      "sourceWireCount": 71,
+      "targetWireCount": 71,
+      "sourceWireHash": "A3FCB037C19A52426A9AE9FAF6DBB8C7242468B3F46BA10C9E7D7DF6186DE721",
+      "targetWireHash": "A3FCB037C19A52426A9AE9FAF6DBB8C7242468B3F46BA10C9E7D7DF6186DE721",
+      "sourceWireConnectionHash": "F86B8189A57041E0097686C507A78D367C3A35169FE220F4A717CF9DBF09E3B7",
+      "expectedTargetWireConnectionHash": "F86B8189A57041E0097686C507A78D367C3A35169FE220F4A717CF9DBF09E3B7",
+      "targetWireConnectionHash": "F86B8189A57041E0097686C507A78D367C3A35169FE220F4A717CF9DBF09E3B7",
+      "graphConnectionsPreserved": true,
+      "intentionalDroppedWireCount": 0,
+      "wireMigrations": [],
+      "objectInstanceGuidHash": "7677223CCC52A9CFB1CD6B8B76B49A949D0A33E84ED41B5C292736D6336CDEA5",
+      "sourcePersistentDataHashExcludingSchemaAdapters": "E517B945C547C4EBB1E76B19908027E44A31801458AE898DF1E5688D5DD9E1AD",
+      "targetPersistentDataHashExcludingSchemaAdapters": "E517B945C547C4EBB1E76B19908027E44A31801458AE898DF1E5688D5DD9E1AD",
+      "persistentDataPreservedOutsideSchemaAdapters": true,
+      "convertedObjects": [
+        {
+          "index": 105,
+          "instanceGuid": "ee6af43c-78ed-4df8-beeb-1b72ea7e7a49",
+          "sourceGuid": "feb0993f-6d5f-bfcf-76ae-1377559f335a",
+          "targetGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+          "name": "Construct Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 106,
+          "instanceGuid": "f2fdadd7-9eea-493c-a1ca-192fbbc3e67d",
+          "sourceGuid": "65bed543-3aed-593f-bf4f-4a2a6a57e41d",
+          "targetGuid": "f02270d9-89f0-4465-93ac-750061478aed",
+          "name": "Extract Voxel Bounding Box",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 107,
+          "instanceGuid": "a238bc1d-c44b-4d88-9f28-fcdea03ca8f3",
+          "sourceGuid": "318aa2ba-2e50-5abb-85fd-c23de2f9197c",
+          "targetGuid": "a0ac8ea3-c26e-4852-8e48-e507d0cc6132",
+          "name": "Point Attractor for Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 108,
+          "instanceGuid": "d43cafdc-12dd-4f46-a44e-48fbd6cf96d0",
+          "sourceGuid": "e77e3067-0a34-5b11-89b2-e9725a510eb8",
+          "targetGuid": "0e3c0d1c-1057-4f08-9368-a0078a3d9d35",
+          "name": "Voxel Selection Union",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 109,
+          "instanceGuid": "dafa8d59-c333-4f47-81ec-635d5264e602",
+          "sourceGuid": "a7c860c9-1406-519a-b581-af729a8e79f8",
+          "targetGuid": "fd6a6fc7-5500-464d-9c1f-94de266ab994",
+          "name": "Define Voxel Vectors",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 110,
+          "instanceGuid": "a11d64d1-2e16-45cb-9ee1-71c210463c89",
+          "sourceGuid": "23ff0742-52ee-b81b-997d-56c038d20605",
+          "targetGuid": "43b61a51-6086-4cea-98f9-e482a7b6d57f",
+          "name": "Voxel Wrap Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 111,
+          "instanceGuid": "0633c598-aa5e-4133-bb87-75fd5245860b",
+          "sourceGuid": "c83ed292-a692-8d9a-a549-77e3391bd022",
+          "targetGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+          "name": "Nuclei3 Solver",
+          "adapter": "solver-gpu-extra-status-output",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 112,
+          "instanceGuid": "54de03a2-e8fc-4865-a767-5416226a7415",
+          "sourceGuid": "bd0659ad-1006-f5ac-3d9e-a20cb579ab36",
+          "targetGuid": "60649521-0784-4a2e-8dfa-27e4a04600ac",
+          "name": "Particle Preview Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 113,
+          "instanceGuid": "8b5f3f8b-a9d6-490c-b2c5-02501b69b5a4",
+          "sourceGuid": "f778b939-e82f-86a7-e00b-c2ec18e0e5d5",
+          "targetGuid": "0a97c625-4da3-4143-89c6-d88249de8741",
+          "name": "Extract Particle Trails",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 116,
+          "instanceGuid": "6e8804c7-16ad-44a1-a82a-f47a77609d05",
+          "sourceGuid": "979d61dd-324c-665b-7cc6-71459cc120e0",
+          "targetGuid": "117cfcd7-ca25-4b01-8d76-688e2661ebb6",
+          "name": "Nuclei3 Solver Iterations",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 129,
+          "instanceGuid": "07fb05ed-3f27-42d3-96b7-205c5e936ace",
+          "sourceGuid": "343df7f6-ca68-637f-39db-c1318f2faf45",
+          "targetGuid": "dc1f1c7b-2376-487d-a4ac-d14d9cad856d",
+          "name": "Voxel Settings Slime",
+          "adapter": "slime-settings-schema",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 131,
+          "instanceGuid": "8f1f74e3-49e7-476f-a297-c21ef44bff25",
+          "sourceGuid": "5a2dfaa4-b7fb-4b04-a86c-e939f01886dd",
+          "targetGuid": "24ede5e7-2957-4f98-8f83-80c6f5dfd31f",
+          "name": "Construct Slime Particles",
+          "adapter": "slime-group-schema",
+          "probabilisticSteering": false
+        }
+      ],
+      "adapters": [
+        "Solver: V3 outputs 0/1 retain their InstanceGuids, data, and wires; added serialized V4 GPU Status output 2 with a deterministic InstanceGuid and applied the native three-output V4 layout at the preserved component pivot.",
+        "Voxel Settings Slime: verified current [Diffuse Rate, Decay Rate, Falloff, Diffuse Range] schema; all source wires and persistent values were preserved by index.",
+        "Slime Particle Group: verified current input 8 Exploration schema; source wire, persistent data, and ProbabilisticSteering state were preserved."
+      ],
+      "archiveReloadPassed": true,
+      "noV3Residue": true
+    },
+    {
+      "file": "10_Multiple Populations_v3.gh",
+      "sourceSha256": "D99F4C0281D4B2D78EFC863C80010C27CAF520DA82AFE68911C34460C8C1758E",
+      "targetSha256": "A1B560F1E27A1D6CF7DE15842547C259AE6BBFBE4E93F84A5054ECA42311736C",
+      "sourceBytes": 19875,
+      "targetBytes": 19939,
+      "objectCount": 43,
+      "nucleiObjectCount": 7,
+      "sourceWireCount": 32,
+      "targetWireCount": 32,
+      "sourceWireHash": "85000AE67F43D601B06C963E408538D881691EB7A549F4A3C8D321C9C727844B",
+      "targetWireHash": "85000AE67F43D601B06C963E408538D881691EB7A549F4A3C8D321C9C727844B",
+      "sourceWireConnectionHash": "EC3504F99842F40B7EB78B42AE731587C20D6C625AC25D26725DAB7A42D4DA2F",
+      "expectedTargetWireConnectionHash": "EC3504F99842F40B7EB78B42AE731587C20D6C625AC25D26725DAB7A42D4DA2F",
+      "targetWireConnectionHash": "EC3504F99842F40B7EB78B42AE731587C20D6C625AC25D26725DAB7A42D4DA2F",
+      "graphConnectionsPreserved": true,
+      "intentionalDroppedWireCount": 0,
+      "wireMigrations": [],
+      "objectInstanceGuidHash": "9B869F3F30776BFA242709281C78B0B38F2194E7C0FB90058EADC1A1B4BD642B",
+      "sourcePersistentDataHashExcludingSchemaAdapters": "8250427424B064D1653B31341B763ED94017AA2549E335315B43B1B941B768D2",
+      "targetPersistentDataHashExcludingSchemaAdapters": "8250427424B064D1653B31341B763ED94017AA2549E335315B43B1B941B768D2",
+      "persistentDataPreservedOutsideSchemaAdapters": true,
+      "convertedObjects": [
+        {
+          "index": 6,
+          "instanceGuid": "ca0500eb-2bae-45b6-8d7e-caeafeb08add",
+          "sourceGuid": "feb0993f-6d5f-bfcf-76ae-1377559f335a",
+          "targetGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+          "name": "Construct Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 9,
+          "instanceGuid": "cf32c528-fa52-47b6-8fae-fb2769eff455",
+          "sourceGuid": "c83ed292-a692-8d9a-a549-77e3391bd022",
+          "targetGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+          "name": "Nuclei3 Solver",
+          "adapter": "solver-gpu-extra-status-output",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 12,
+          "instanceGuid": "5cc555bc-1162-4ff1-80f6-2bcbdcef2c43",
+          "sourceGuid": "bd0659ad-1006-f5ac-3d9e-a20cb579ab36",
+          "targetGuid": "60649521-0784-4a2e-8dfa-27e4a04600ac",
+          "name": "Particle Preview",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 15,
+          "instanceGuid": "2300ffed-38aa-444e-96ce-205a39c4454c",
+          "sourceGuid": "23ff0742-52ee-b81b-997d-56c038d20605",
+          "targetGuid": "43b61a51-6086-4cea-98f9-e482a7b6d57f",
+          "name": "Voxel Wrap Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 28,
+          "instanceGuid": "344bd4e8-8933-49ba-9b9a-8cb37732a33a",
+          "sourceGuid": "343df7f6-ca68-637f-39db-c1318f2faf45",
+          "targetGuid": "dc1f1c7b-2376-487d-a4ac-d14d9cad856d",
+          "name": "Voxel Settings Slime",
+          "adapter": "slime-settings-schema",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 30,
+          "instanceGuid": "41bfc1d9-4688-4712-9d93-ea5b3bd82b95",
+          "sourceGuid": "5a2dfaa4-b7fb-4b04-a86c-e939f01886dd",
+          "targetGuid": "24ede5e7-2957-4f98-8f83-80c6f5dfd31f",
+          "name": "Construct Slime Particles",
+          "adapter": "slime-group-schema",
+          "probabilisticSteering": false
+        },
+        {
+          "index": 38,
+          "instanceGuid": "8aa78e04-5456-402d-a042-230e9c18e5f0",
+          "sourceGuid": "5a2dfaa4-b7fb-4b04-a86c-e939f01886dd",
+          "targetGuid": "24ede5e7-2957-4f98-8f83-80c6f5dfd31f",
+          "name": "Construct Slime Particles",
+          "adapter": "slime-group-schema",
+          "probabilisticSteering": true
+        }
+      ],
+      "adapters": [
+        "Solver: V3 outputs 0/1 retain their InstanceGuids, data, and wires; added serialized V4 GPU Status output 2 with a deterministic InstanceGuid and applied the native three-output V4 layout at the preserved component pivot.",
+        "Voxel Settings Slime: verified current [Diffuse Rate, Decay Rate, Falloff, Diffuse Range] schema; all source wires and persistent values were preserved by index.",
+        "Slime Particle Group: verified current input 8 Exploration schema; source wire, persistent data, and ProbabilisticSteering state were preserved."
+      ],
+      "archiveReloadPassed": true,
+      "noV3Residue": true
+    },
+    {
+      "file": "12_Growth 1_v3.gh",
+      "sourceSha256": "8C731ED217895F89106EA347449486ABDCC69537AB100E1C5D7408E3C6712EBA",
+      "targetSha256": "CBF0FE4F69939F8858BD19F55F7B40A049D3D977ABFCFC2AAA629051B856DD72",
+      "sourceBytes": 20550,
+      "targetBytes": 20608,
+      "objectCount": 66,
+      "nucleiObjectCount": 11,
+      "sourceWireCount": 51,
+      "targetWireCount": 51,
+      "sourceWireHash": "6D7E887592537121A96FE49FBD33694277329342A2EBFEDC77B89D1F61D5B17E",
+      "targetWireHash": "6D7E887592537121A96FE49FBD33694277329342A2EBFEDC77B89D1F61D5B17E",
+      "sourceWireConnectionHash": "2A0607B1DDA603C6C9F4C60D0597187E6DCBEF32953D307F03D21ADF0C9D1CAE",
+      "expectedTargetWireConnectionHash": "2A0607B1DDA603C6C9F4C60D0597187E6DCBEF32953D307F03D21ADF0C9D1CAE",
+      "targetWireConnectionHash": "2A0607B1DDA603C6C9F4C60D0597187E6DCBEF32953D307F03D21ADF0C9D1CAE",
+      "graphConnectionsPreserved": true,
+      "intentionalDroppedWireCount": 0,
+      "wireMigrations": [],
+      "objectInstanceGuidHash": "9177F10023D0359EB2BAE212E29E8B196F90C0CD121B960C9B02BBFD6B8D7362",
+      "sourcePersistentDataHashExcludingSchemaAdapters": "1A5807EAABD0EB33613044E6EFF570C495721531D1227F022841206B5725A590",
+      "targetPersistentDataHashExcludingSchemaAdapters": "1A5807EAABD0EB33613044E6EFF570C495721531D1227F022841206B5725A590",
+      "persistentDataPreservedOutsideSchemaAdapters": true,
+      "convertedObjects": [
+        {
+          "index": 42,
+          "instanceGuid": "7d70b1b4-d3e5-45d8-b8fa-c332f6f031ff",
+          "sourceGuid": "feb0993f-6d5f-bfcf-76ae-1377559f335a",
+          "targetGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+          "name": "Construct Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 43,
+          "instanceGuid": "1fa06024-56fc-4bb6-ba40-0aeac43275b3",
+          "sourceGuid": "65bed543-3aed-593f-bf4f-4a2a6a57e41d",
+          "targetGuid": "f02270d9-89f0-4465-93ac-750061478aed",
+          "name": "Extract Voxel Bounding Box",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 45,
+          "instanceGuid": "d455aadc-0051-49fa-bbeb-8495e6b9e9f2",
+          "sourceGuid": "318aa2ba-2e50-5abb-85fd-c23de2f9197c",
+          "targetGuid": "a0ac8ea3-c26e-4852-8e48-e507d0cc6132",
+          "name": "Point Attractor for Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 46,
+          "instanceGuid": "b565d330-78eb-4a62-ba1d-c7a0d0a59be0",
+          "sourceGuid": "7d3b2b62-1694-5636-ae54-e5a682bb9dd5",
+          "targetGuid": "b8f690ec-1e23-46c8-8fa4-4d3369cacfdf",
+          "name": "Particle Death Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 47,
+          "instanceGuid": "5a93ea5f-b32e-4260-97b9-8429b848e06c",
+          "sourceGuid": "e5f74d55-8425-5cce-bd51-d671e1066d63",
+          "targetGuid": "7e505abb-dc4f-4226-a922-f92e25ab70da",
+          "name": "Particle Division Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 48,
+          "instanceGuid": "7bfffbf9-f678-45a5-8e0e-30abcc4d4805",
+          "sourceGuid": "5eb4ca15-78f2-57f6-a7c5-481ec682016e",
+          "targetGuid": "0224814f-9543-481b-9ec0-5f206c39b408",
+          "name": "Particle Population Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 49,
+          "instanceGuid": "e2de6bac-17ec-4104-862a-89febfd0f4e3",
+          "sourceGuid": "c83ed292-a692-8d9a-a549-77e3391bd022",
+          "targetGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+          "name": "Nuclei3 Solver",
+          "adapter": "solver-gpu-extra-status-output",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 50,
+          "instanceGuid": "39718e3a-e8d8-41e5-89bf-245a2866bdde",
+          "sourceGuid": "2f97ab1f-8665-65dc-e43f-7a91cc981668",
+          "targetGuid": "fb2ea9fc-5963-4587-b09b-0422f61174db",
+          "name": "Preview Voxel Density",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 51,
+          "instanceGuid": "b7b28583-a343-4d50-ac9e-eb98c19ba001",
+          "sourceGuid": "bd0659ad-1006-f5ac-3d9e-a20cb579ab36",
+          "targetGuid": "60649521-0784-4a2e-8dfa-27e4a04600ac",
+          "name": "Particle Preview Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 62,
+          "instanceGuid": "c7bab7a0-b102-437c-8356-8b41e78f512f",
+          "sourceGuid": "343df7f6-ca68-637f-39db-c1318f2faf45",
+          "targetGuid": "dc1f1c7b-2376-487d-a4ac-d14d9cad856d",
+          "name": "Voxel Settings Slime",
+          "adapter": "slime-settings-schema",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 64,
+          "instanceGuid": "c3034ddc-4ca9-4910-a2ac-88a504bd5872",
+          "sourceGuid": "5a2dfaa4-b7fb-4b04-a86c-e939f01886dd",
+          "targetGuid": "24ede5e7-2957-4f98-8f83-80c6f5dfd31f",
+          "name": "Construct Slime Particles",
+          "adapter": "slime-group-schema",
+          "probabilisticSteering": false
+        }
+      ],
+      "adapters": [
+        "Solver: V3 outputs 0/1 retain their InstanceGuids, data, and wires; added serialized V4 GPU Status output 2 with a deterministic InstanceGuid and applied the native three-output V4 layout at the preserved component pivot.",
+        "Voxel Settings Slime: verified current [Diffuse Rate, Decay Rate, Falloff, Diffuse Range] schema; all source wires and persistent values were preserved by index.",
+        "Slime Particle Group: verified current input 8 Exploration schema; source wire, persistent data, and ProbabilisticSteering state were preserved."
+      ],
+      "archiveReloadPassed": true,
+      "noV3Residue": true
+    },
+    {
+      "file": "13_Ants Intro_v3.gh",
+      "sourceSha256": "0FE31E65C5A828261264C05D4BCEF3953BBA9896B270030D7EA45024CD9F27DC",
+      "targetSha256": "F67F199F29A9E4A69C77F6DC233B916F43DD92C96FD3576281D2235C468A0B20",
+      "sourceBytes": 18317,
+      "targetBytes": 18383,
+      "objectCount": 60,
+      "nucleiObjectCount": 11,
+      "sourceWireCount": 43,
+      "targetWireCount": 43,
+      "sourceWireHash": "ECD7EB818B6A1F8A578BB240A4A24561CF27F7CA932183EEEA325EDF9967BF0B",
+      "targetWireHash": "ECD7EB818B6A1F8A578BB240A4A24561CF27F7CA932183EEEA325EDF9967BF0B",
+      "sourceWireConnectionHash": "DB5D6BEE359F7D38D557249838B9BA369DDCBB7C37BFD4591605D5EBF3306BC1",
+      "expectedTargetWireConnectionHash": "DB5D6BEE359F7D38D557249838B9BA369DDCBB7C37BFD4591605D5EBF3306BC1",
+      "targetWireConnectionHash": "DB5D6BEE359F7D38D557249838B9BA369DDCBB7C37BFD4591605D5EBF3306BC1",
+      "graphConnectionsPreserved": true,
+      "intentionalDroppedWireCount": 0,
+      "wireMigrations": [],
+      "objectInstanceGuidHash": "D410FA8EBA64DD9ACF4085828ACFB65E3FA9EE3A2A39EB7B5DA9E1C277B7441E",
+      "sourcePersistentDataHashExcludingSchemaAdapters": "1BEC870AD62D46FB5FCC8C1D1A52A29B3F4174EA009E29CE3F84F5FDF6EC2E4B",
+      "targetPersistentDataHashExcludingSchemaAdapters": "1BEC870AD62D46FB5FCC8C1D1A52A29B3F4174EA009E29CE3F84F5FDF6EC2E4B",
+      "persistentDataPreservedOutsideSchemaAdapters": true,
+      "convertedObjects": [
+        {
+          "index": 48,
+          "instanceGuid": "66bae92c-a33e-4ad3-ac5c-c2538ecde4cd",
+          "sourceGuid": "feb0993f-6d5f-bfcf-76ae-1377559f335a",
+          "targetGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+          "name": "Construct Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 49,
+          "instanceGuid": "3fbe02ad-44dd-402f-9c25-acda9445bdf8",
+          "sourceGuid": "318aa2ba-2e50-5abb-85fd-c23de2f9197c",
+          "targetGuid": "a0ac8ea3-c26e-4852-8e48-e507d0cc6132",
+          "name": "Point Attractor for Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 50,
+          "instanceGuid": "40c92ae4-3afe-488f-9f15-a23eba011cd6",
+          "sourceGuid": "318aa2ba-2e50-5abb-85fd-c23de2f9197c",
+          "targetGuid": "a0ac8ea3-c26e-4852-8e48-e507d0cc6132",
+          "name": "Point Attractor for Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 51,
+          "instanceGuid": "bcd00842-9c35-41ea-b8c1-9903d3baba19",
+          "sourceGuid": "65bed543-3aed-593f-bf4f-4a2a6a57e41d",
+          "targetGuid": "f02270d9-89f0-4465-93ac-750061478aed",
+          "name": "Extract Voxel Bounding Box",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 53,
+          "instanceGuid": "ad8d3a08-f7cd-4897-bd26-eca580272e00",
+          "sourceGuid": "c0609c94-26cb-5275-8da2-1b67ba5d05ee",
+          "targetGuid": "3eab04d8-68ed-476d-b33d-a8633418ab12",
+          "name": "Construct Ant Particles",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 54,
+          "instanceGuid": "86d4c54a-5e53-4874-b24b-031b5a1c14f7",
+          "sourceGuid": "a0acc69f-9759-57ab-9f35-ca254d4fbaa8",
+          "targetGuid": "3486cda4-b3f3-47a1-886b-f047d6d7a13a",
+          "name": "Voxel Settings Ant",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 55,
+          "instanceGuid": "ca47dc7c-e849-45aa-a85b-bf051867bda2",
+          "sourceGuid": "7bb29b30-5834-956d-6d0c-08383aab9a99",
+          "targetGuid": "6a35ef3b-11f7-4d48-8103-683e82b2dd5d",
+          "name": "Define Voxel Values",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 56,
+          "instanceGuid": "1909585b-5de7-4d11-9117-450b1881b2ef",
+          "sourceGuid": "e77e3067-0a34-5b11-89b2-e9725a510eb8",
+          "targetGuid": "0e3c0d1c-1057-4f08-9368-a0078a3d9d35",
+          "name": "Voxel Selection Union",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 57,
+          "instanceGuid": "f856a1d6-b7cb-45b7-ba32-621e6f573d5b",
+          "sourceGuid": "c83ed292-a692-8d9a-a549-77e3391bd022",
+          "targetGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+          "name": "Nuclei3 Solver",
+          "adapter": "solver-gpu-extra-status-output",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 58,
+          "instanceGuid": "fd890e97-728b-461e-be58-5680623da43f",
+          "sourceGuid": "2f97ab1f-8665-65dc-e43f-7a91cc981668",
+          "targetGuid": "fb2ea9fc-5963-4587-b09b-0422f61174db",
+          "name": "Preview Voxel Density",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 59,
+          "instanceGuid": "95be9bd8-1968-4d12-b732-d7c206698097",
+          "sourceGuid": "bd0659ad-1006-f5ac-3d9e-a20cb579ab36",
+          "targetGuid": "60649521-0784-4a2e-8dfa-27e4a04600ac",
+          "name": "Particle Preview Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        }
+      ],
+      "adapters": [
+        "Solver: V3 outputs 0/1 retain their InstanceGuids, data, and wires; added serialized V4 GPU Status output 2 with a deterministic InstanceGuid and applied the native three-output V4 layout at the preserved component pivot."
+      ],
+      "archiveReloadPassed": true,
+      "noV3Residue": true
+    },
+    {
+      "file": "14_Ants Complex_v3.gh",
+      "sourceSha256": "F685CACA192E00821A21697D3DC550446BEC90F2C2542B20FA1A8D2C4D4CD170",
+      "targetSha256": "9F402CC07FA9518399E2397981E0565A96F628CDD3FC0B85C9B19B8ADA2D8855",
+      "sourceBytes": 22196,
+      "targetBytes": 22261,
+      "objectCount": 75,
+      "nucleiObjectCount": 14,
+      "sourceWireCount": 53,
+      "targetWireCount": 53,
+      "sourceWireHash": "8E3DF01F8FDB2010A1B11CBA960AE3F3A48DC379E659909447E82F8D2F21EB50",
+      "targetWireHash": "8E3DF01F8FDB2010A1B11CBA960AE3F3A48DC379E659909447E82F8D2F21EB50",
+      "sourceWireConnectionHash": "E51D4D4D6613A949888217F5AB7E55469D113113F0A508EC595C1BCF7118142C",
+      "expectedTargetWireConnectionHash": "E51D4D4D6613A949888217F5AB7E55469D113113F0A508EC595C1BCF7118142C",
+      "targetWireConnectionHash": "E51D4D4D6613A949888217F5AB7E55469D113113F0A508EC595C1BCF7118142C",
+      "graphConnectionsPreserved": true,
+      "intentionalDroppedWireCount": 0,
+      "wireMigrations": [],
+      "objectInstanceGuidHash": "A0230290A60A2634DF9BA4EDFEE2E9ABD1534D66AEEE1AB2C9FCE7DF86012AD5",
+      "sourcePersistentDataHashExcludingSchemaAdapters": "A07B4B98E22A3B5F5A24A9B58EDF2FB1DE64394FD76C042650A505AF4FDD2E51",
+      "targetPersistentDataHashExcludingSchemaAdapters": "A07B4B98E22A3B5F5A24A9B58EDF2FB1DE64394FD76C042650A505AF4FDD2E51",
+      "persistentDataPreservedOutsideSchemaAdapters": true,
+      "convertedObjects": [
+        {
+          "index": 58,
+          "instanceGuid": "9f509ce4-c272-4311-acea-f4667d90bad1",
+          "sourceGuid": "feb0993f-6d5f-bfcf-76ae-1377559f335a",
+          "targetGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+          "name": "Construct Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 59,
+          "instanceGuid": "219f3563-460c-4681-b1ab-ad9e2f15da3c",
+          "sourceGuid": "318aa2ba-2e50-5abb-85fd-c23de2f9197c",
+          "targetGuid": "a0ac8ea3-c26e-4852-8e48-e507d0cc6132",
+          "name": "Point Attractor for Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 60,
+          "instanceGuid": "1308fc05-a747-42a4-b685-61369ba2d9ee",
+          "sourceGuid": "f618a21c-b7b3-533b-96b8-8130db1882c2",
+          "targetGuid": "59741edd-30fb-42a7-93cb-26f7dee3e03b",
+          "name": "Curve Attractor for Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 61,
+          "instanceGuid": "f5cff448-5a72-477a-be85-8ff66ac0b0ff",
+          "sourceGuid": "318aa2ba-2e50-5abb-85fd-c23de2f9197c",
+          "targetGuid": "a0ac8ea3-c26e-4852-8e48-e507d0cc6132",
+          "name": "Point Attractor for Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 62,
+          "instanceGuid": "f0fe01d9-9918-4203-b59f-e27d5d5cd31d",
+          "sourceGuid": "318aa2ba-2e50-5abb-85fd-c23de2f9197c",
+          "targetGuid": "a0ac8ea3-c26e-4852-8e48-e507d0cc6132",
+          "name": "Point Attractor for Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 63,
+          "instanceGuid": "366970f0-7c26-4c10-9a69-9d1bc85566e0",
+          "sourceGuid": "7bb29b30-5834-956d-6d0c-08383aab9a99",
+          "targetGuid": "6a35ef3b-11f7-4d48-8103-683e82b2dd5d",
+          "name": "Define Voxel Values",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 64,
+          "instanceGuid": "4a466ddb-13c5-4d63-92d2-bbc6b99a39e8",
+          "sourceGuid": "7bb29b30-5834-956d-6d0c-08383aab9a99",
+          "targetGuid": "6a35ef3b-11f7-4d48-8103-683e82b2dd5d",
+          "name": "Define Voxel Values",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 65,
+          "instanceGuid": "b1c4964b-d7ea-4d64-bed4-f18dafe8bc3a",
+          "sourceGuid": "7bb29b30-5834-956d-6d0c-08383aab9a99",
+          "targetGuid": "6a35ef3b-11f7-4d48-8103-683e82b2dd5d",
+          "name": "Define Voxel Values",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 66,
+          "instanceGuid": "7aa9f06d-8954-41d5-b0b4-cb19803f4831",
+          "sourceGuid": "c0609c94-26cb-5275-8da2-1b67ba5d05ee",
+          "targetGuid": "3eab04d8-68ed-476d-b33d-a8633418ab12",
+          "name": "Construct Ant Particles",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 67,
+          "instanceGuid": "6c6f4d59-511c-41d9-ba9b-6a4704e3df5f",
+          "sourceGuid": "a0acc69f-9759-57ab-9f35-ca254d4fbaa8",
+          "targetGuid": "3486cda4-b3f3-47a1-886b-f047d6d7a13a",
+          "name": "Voxel Settings Ant",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 68,
+          "instanceGuid": "3b3ce9d4-08d3-428e-8f2e-b35b67c6e0a2",
+          "sourceGuid": "e77e3067-0a34-5b11-89b2-e9725a510eb8",
+          "targetGuid": "0e3c0d1c-1057-4f08-9368-a0078a3d9d35",
+          "name": "Voxel Selection Union",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 69,
+          "instanceGuid": "8cd19689-fa2b-4c1d-8bb4-1a7694997f0f",
+          "sourceGuid": "c83ed292-a692-8d9a-a549-77e3391bd022",
+          "targetGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+          "name": "Nuclei3 Solver",
+          "adapter": "solver-gpu-extra-status-output",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 70,
+          "instanceGuid": "2e4cf275-f337-4049-9e5e-0ffd1858d7dc",
+          "sourceGuid": "bd0659ad-1006-f5ac-3d9e-a20cb579ab36",
+          "targetGuid": "60649521-0784-4a2e-8dfa-27e4a04600ac",
+          "name": "Particle Preview",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 71,
+          "instanceGuid": "27251174-7e3a-4708-84a8-c4506c6a6abd",
+          "sourceGuid": "2f97ab1f-8665-65dc-e43f-7a91cc981668",
+          "targetGuid": "fb2ea9fc-5963-4587-b09b-0422f61174db",
+          "name": "Preview Voxel Density",
+          "adapter": null,
+          "probabilisticSteering": null
+        }
+      ],
+      "adapters": [
+        "Solver: V3 outputs 0/1 retain their InstanceGuids, data, and wires; added serialized V4 GPU Status output 2 with a deterministic InstanceGuid and applied the native three-output V4 layout at the preserved component pivot."
+      ],
+      "archiveReloadPassed": true,
+      "noV3Residue": true
+    },
+    {
+      "file": "15_3D Intro_v3.gh",
+      "sourceSha256": "8166C23141A48E54AFDBBFD3429EB072757BDDB543D048F9CFF8AD12BBD27365",
+      "targetSha256": "69D5AA590A7560A4C72FF4D4B8C0F72FA3C8FFA6B09848A22F5AEA93683B1D19",
+      "sourceBytes": 19156,
+      "targetBytes": 19449,
+      "objectCount": 42,
+      "nucleiObjectCount": 8,
+      "sourceWireCount": 33,
+      "targetWireCount": 32,
+      "sourceWireHash": "DA043AFD52505286D801C0BF949370EF8723A79723B3D2D48116758FC24D17F9",
+      "targetWireHash": "C67C3E478B37A550DCA43F139CE1519F4F4D1C52146489AEF18CEB8F2A5983B3",
+      "sourceWireConnectionHash": "C316284A7CC8CE5679C4866DF31795FA0C97B8AA5C5DAD33E1E227993DEF6EE0",
+      "expectedTargetWireConnectionHash": "0DA7FBD81C3E11A271EC1EDB271968BAC7871944D83335270C6568DE4B69F19C",
+      "targetWireConnectionHash": "0DA7FBD81C3E11A271EC1EDB271968BAC7871944D83335270C6568DE4B69F19C",
+      "graphConnectionsPreserved": true,
+      "intentionalDroppedWireCount": 1,
+      "wireMigrations": [
+        {
+          "change": "removed-obsolete-endpoint",
+          "destinationComponentInstanceGuid": "cbe185ac-5375-4dbb-810a-f79a4b88815f",
+          "destinationParameterInstanceGuid": "a1a0648e-9253-42c0-a929-3bf838de4f3f",
+          "destinationInput": "Type",
+          "sourceParameterInstanceGuid": "7c72cfb8-d409-4aa2-b2cf-f6a9f39c674d",
+          "sourceObject": "Value List",
+          "preservedSourceObject": true,
+          "reason": "V4 has no Type input and always meshes its slime-density field; the V3 selection Slime Chemoattractants is therefore preserved implicitly."
+        }
+      ],
+      "objectInstanceGuidHash": "68A80E597177CCBD8B73F40071E5056FAAF4637712FD3248F081C65923473816",
+      "sourcePersistentDataHashExcludingSchemaAdapters": "43E056561E82F5677C8E614444DD32435BE72124B450417124FAD503E75E67A3",
+      "targetPersistentDataHashExcludingSchemaAdapters": "43E056561E82F5677C8E614444DD32435BE72124B450417124FAD503E75E67A3",
+      "persistentDataPreservedOutsideSchemaAdapters": true,
+      "convertedObjects": [
+        {
+          "index": 7,
+          "instanceGuid": "d0a77602-7d5b-4ee5-bc21-e38c3bed4f5f",
+          "sourceGuid": "feb0993f-6d5f-bfcf-76ae-1377559f335a",
+          "targetGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+          "name": "Construct Voxels",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 11,
+          "instanceGuid": "775fe0d2-5ebe-4b85-82b0-1d7f38732e81",
+          "sourceGuid": "c83ed292-a692-8d9a-a549-77e3391bd022",
+          "targetGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+          "name": "Nuclei3 Solver",
+          "adapter": "solver-gpu-extra-status-output",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 14,
+          "instanceGuid": "8556110e-65cb-45d8-8f8e-df992fd08398",
+          "sourceGuid": "2f97ab1f-8665-65dc-e43f-7a91cc981668",
+          "targetGuid": "fb2ea9fc-5963-4587-b09b-0422f61174db",
+          "name": "Preview Voxel Density",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 15,
+          "instanceGuid": "ff4ca24e-df15-4e88-ae0e-ecd129da2cb6",
+          "sourceGuid": "bd0659ad-1006-f5ac-3d9e-a20cb579ab36",
+          "targetGuid": "60649521-0784-4a2e-8dfa-27e4a04600ac",
+          "name": "Particle Preview Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 17,
+          "instanceGuid": "179b568f-6133-421f-abbf-8a4cc647d8fe",
+          "sourceGuid": "23ff0742-52ee-b81b-997d-56c038d20605",
+          "targetGuid": "43b61a51-6086-4cea-98f9-e482a7b6d57f",
+          "name": "Voxel Wrap Settings",
+          "adapter": null,
+          "probabilisticSteering": null
+        },
+        {
+          "index": 26,
+          "instanceGuid": "cbe185ac-5375-4dbb-810a-f79a4b88815f",
+          "sourceGuid": "a112e5da-aca3-48f2-9c7a-23181d627e54",
+          "targetGuid": "2cc99696-1f20-4add-82d5-a317c252edb8",
+          "name": "Nuclei3 To Dendro Volume",
+          "adapter": "dendro-schema",
+          "probabilisticSteering": null
+        },
+        {
+          "index": 38,
+          "instanceGuid": "3f750ad1-7c03-492e-87da-e3dd193520db",
+          "sourceGuid": "5a2dfaa4-b7fb-4b04-a86c-e939f01886dd",
+          "targetGuid": "24ede5e7-2957-4f98-8f83-80c6f5dfd31f",
+          "name": "Construct Slime Particles",
+          "adapter": "slime-group-schema",
+          "probabilisticSteering": false
+        },
+        {
+          "index": 39,
+          "instanceGuid": "18067333-62ae-4529-b7f6-fa5ca58a9411",
+          "sourceGuid": "343df7f6-ca68-637f-39db-c1318f2faf45",
+          "targetGuid": "dc1f1c7b-2376-487d-a4ac-d14d9cad856d",
+          "name": "Voxel Settings Slime",
+          "adapter": "slime-settings-schema",
+          "probabilisticSteering": null
+        }
+      ],
+      "adapters": [
+        "Solver: V3 outputs 0/1 retain their InstanceGuids, data, and wires; added serialized V4 GPU Status output 2 with a deterministic InstanceGuid and applied the native three-output V4 layout at the preserved component pivot.",
+        "Dendro: inputs Voxels 0-\u003E0, Iso Value 2-\u003E1, Convert 4-\u003EUpdate 4; removed Type and Dendro Settings; added Method=0, Maximum Elements=5000000, Smoothing Iterations=1.",
+        "Slime Particle Group: verified current input 8 Exploration schema; source wire, persistent data, and ProbabilisticSteering state were preserved.",
+        "Voxel Settings Slime: verified current [Diffuse Rate, Decay Rate, Falloff, Diffuse Range] schema; all source wires and persistent values were preserved by index."
+      ],
+      "archiveReloadPassed": true,
+      "noV3Residue": true
+    }
+  ]
+}

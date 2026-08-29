@@ -1,0 +1,42 @@
+{
+  "sourceLibrary": {
+    "id": "fe53d2b8-e56d-da70-cde9-0b078f8bc65d",
+    "name": "Nuclei3",
+    "assemblyFullName": "Nuclei3, Version=3.3.0.0, Culture=neutral, PublicKeyToken=null"
+  },
+  "targetLibrary": {
+    "id": "a4810f34-10b6-480c-a6d0-607aac4e8d2a",
+    "name": "Nuclei4",
+    "assemblyFullName": "Nuclei4, Version=4.1.0.0, Culture=neutral, PublicKeyToken=null",
+    "assemblyVersion": "4.1.0.0",
+    "author": "Madalin Gheorghe"
+  },
+  "components": [
+    { "source": "5a2dfaa4-b7fb-4b04-a86c-e939f01886dd", "target": "24ede5e7-2957-4f98-8f83-80c6f5dfd31f", "sourceName": "Construct Slime Particles", "targetType": "Nuclei4.ParticleGroup_Constructor_Slime", "adapter": "slime-group-schema" },
+    { "source": "c0609c94-26cb-5275-8da2-1b67ba5d05ee", "target": "3eab04d8-68ed-476d-b33d-a8633418ab12", "sourceName": "Construct Ant Particles", "targetType": "Nuclei4.ParticleGroup_Constructor_Ant" },
+    { "source": "feb0993f-6d5f-bfcf-76ae-1377559f335a", "target": "a3940a4d-9015-411c-9ffa-e38ecc90d394", "sourceName": "Construct Voxels", "targetType": "Nuclei4.VoxelConstructor" },
+    { "source": "f618a21c-b7b3-533b-96b8-8130db1882c2", "target": "59741edd-30fb-42a7-93cb-26f7dee3e03b", "sourceName": "Curve Attractor for Voxels", "targetType": "Nuclei4.Voxel_Attractor_Curve" },
+    { "source": "7bb29b30-5834-956d-6d0c-08383aab9a99", "target": "6a35ef3b-11f7-4d48-8103-683e82b2dd5d", "sourceName": "Define Voxel Values", "targetType": "Nuclei4.Voxel_Values" },
+    { "source": "a7c860c9-1406-519a-b581-af729a8e79f8", "target": "fd6a6fc7-5500-464d-9c1f-94de266ab994", "sourceName": "Define Voxel Vectors", "targetType": "Nuclei4.Voxel_Vectors" },
+    { "source": "311bd82d-56cc-592b-aae4-69f8824a0a3b", "target": "f11f6319-1d69-4c97-8734-17c3f6a13b4a", "sourceName": "Extract Particle Positions", "targetType": "Nuclei4.Particle_Extractor_Point" },
+    { "source": "f778b939-e82f-86a7-e00b-c2ec18e0e5d5", "target": "0a97c625-4da3-4143-89c6-d88249de8741", "sourceName": "Extract Particle Trails", "targetType": "Nuclei4.Particle_Extractor_TrailPoints" },
+    { "source": "65bed543-3aed-593f-bf4f-4a2a6a57e41d", "target": "f02270d9-89f0-4465-93ac-750061478aed", "sourceName": "Extract Voxel Bounding Box", "targetType": "Nuclei4.Voxel_Extractor_Box" },
+    { "source": "dade8c20-c2ca-0331-075b-b7e67093f5e8", "target": "deb55383-1cb3-4b17-8d01-cc05d1b9c635", "sourceName": "Extract Voxel Positions", "targetType": "Nuclei4.Voxel_Extractor_Point" },
+    { "source": "c83ed292-a692-8d9a-a549-77e3391bd022", "target": "e794ab27-6d27-4107-929f-b88e16209976", "sourceName": "Nuclei3 Solver", "targetType": "Nuclei4.SolverGPU", "adapter": "solver-gpu-extra-status-output" },
+    { "source": "979d61dd-324c-665b-7cc6-71459cc120e0", "target": "117cfcd7-ca25-4b01-8d76-688e2661ebb6", "sourceName": "Nuclei3 Solver Iterations", "targetType": "Nuclei4.Iterations" },
+    { "source": "a112e5da-aca3-48f2-9c7a-23181d627e54", "target": "2cc99696-1f20-4add-82d5-a317c252edb8", "sourceName": "Nuclei3 To Dendro Volume", "targetType": "Nuclei4.GpuVolumeToMesh", "adapter": "dendro-schema" },
+    { "source": "7d3b2b62-1694-5636-ae54-e5a682bb9dd5", "target": "b8f690ec-1e23-46c8-8fa4-4d3369cacfdf", "sourceName": "Particle Death Settings", "targetType": "Nuclei4.Particle_Settings_Death" },
+    { "source": "e5f74d55-8425-5cce-bd51-d671e1066d63", "target": "7e505abb-dc4f-4226-a922-f92e25ab70da", "sourceName": "Particle Division Settings", "targetType": "Nuclei4.Particle_Settings_Division" },
+    { "source": "5eb4ca15-78f2-57f6-a7c5-481ec682016e", "target": "0224814f-9543-481b-9ec0-5f206c39b408", "sourceName": "Particle Population Settings", "targetType": "Nuclei4.Particle_Settings_Population" },
+    { "source": "bd0659ad-1006-f5ac-3d9e-a20cb579ab36", "target": "60649521-0784-4a2e-8dfa-27e4a04600ac", "sourceName": "Particle Preview", "targetType": "Nuclei4.Preview_Particle" },
+    { "source": "7869ca3b-e735-980e-0fe7-523cc3425e62", "target": "cd0bb03c-2b66-4dbb-864e-02015f0255e7", "sourceName": "Particle Trail Settings", "targetType": "Nuclei4.Particle_Settings_Trail" },
+    { "source": "318aa2ba-2e50-5abb-85fd-c23de2f9197c", "target": "a0ac8ea3-c26e-4852-8e48-e507d0cc6132", "sourceName": "Point Attractor for Voxels", "targetType": "Nuclei4.Voxel_Attractor_Point" },
+    { "source": "2f97ab1f-8665-65dc-e43f-7a91cc981668", "target": "fb2ea9fc-5963-4587-b09b-0422f61174db", "sourceName": "Preview Voxel Density", "targetType": "Nuclei4.Preview_Voxel" },
+    { "source": "75c987f0-57a0-56c9-bf9f-f4ef4f3ebfed", "target": "74684ab4-cbf5-4cc1-a75a-4253eb83599b", "sourceName": "Voxel Inclusion in Mesh", "targetType": "Nuclei4.Voxel_MeshInclusion" },
+    { "source": "e77e3067-0a34-5b11-89b2-e9725a510eb8", "target": "0e3c0d1c-1057-4f08-9368-a0078a3d9d35", "sourceName": "Voxel Selection Union", "targetType": "Nuclei4.Voxels_OR" },
+    { "source": "a0acc69f-9759-57ab-9f35-ca254d4fbaa8", "target": "3486cda4-b3f3-47a1-886b-f047d6d7a13a", "sourceName": "Voxel Settings Ant", "targetType": "Nuclei4.EnivronmentSettings_Ant" },
+    { "source": "343df7f6-ca68-637f-39db-c1318f2faf45", "target": "dc1f1c7b-2376-487d-a4ac-d14d9cad856d", "sourceName": "Voxel Settings Slime", "targetType": "Nuclei4.EnivronmentSettings", "adapter": "slime-settings-schema" },
+    { "source": "a8c1c617-ce15-5e8b-a4d9-f7322e1d5d61", "target": "0a968da4-646c-41fb-b48c-7e1d6c258d94", "sourceName": "Voxel Values Blend", "targetType": "Nuclei4.Voxel_Values_BlendAll" },
+    { "source": "23ff0742-52ee-b81b-997d-56c038d20605", "target": "43b61a51-6086-4cea-98f9-e482a7b6d57f", "sourceName": "Voxel Wrap Settings", "targetType": "Nuclei4.Voxel_Settings_Wrap" }
+  ]
+}

@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Nuclei.DefinitionValidationHost'">
+    <BaseIntermediateOutputPath>obj\net8-host\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>obj\net8-host\</MSBuildProjectExtensionsPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Nuclei.DefinitionValidationHost.NetFx'">
+    <BaseIntermediateOutputPath>obj\net48-host\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>obj\net48-host\</MSBuildProjectExtensionsPath>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AssemblyName>Nuclei.DefinitionValidationHost</AssemblyName>
+    <RootNamespace>Nuclei.DefinitionValidationHost</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <!--
+    These are intentionally direct references to the installed Rhino 9 WIP
+    runtime. The probe must exercise the same Grasshopper build as Rhino, and
+    it must remain buildable without restoring Rhino/Grasshopper NuGet packages.
+  -->
+  <ItemGroup>
+    <Compile Include="Bootstrap.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="GrasshopperStage.cs" />
+    <Compile Include="PythonValidationStage.cs" />
+    <Reference Include="RhinoCommon">
+      <HintPath>C:\Program Files\Rhino 9 WIP\System\netcore\RhinoCommon.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Grasshopper">
+      <HintPath>C:\Program Files\Rhino 9 WIP\Plug-ins\Grasshopper\Grasshopper.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="GH_IO">
+      <HintPath>C:\Program Files\Rhino 9 WIP\Plug-ins\Grasshopper\GH_IO.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
