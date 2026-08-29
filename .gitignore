@@ -14,6 +14,7 @@ packages/
 # Local Codex / diagnostic workspaces
 .codex-backups/
 .codex-baseline-worktree/
+.codex-temp/
 .diag-work/
 .build-appdata*/
 .codex-build-appdata/
@@ -36,6 +37,8 @@ packages/
 *.log
 *.tmp
 *.cache
+**/_rhino9_validation.progress.json
+Nuclei Definitions/v4_updated/_rhino9_validation.json
 
 # OS files
 Thumbs.db
@@ -45,3 +48,7 @@ Thumbs.db
 Nuclei-v2-old/
 .tools/
 tmp/
+
+# Local definition references and one-off nested SDK selection
+Nuclei Definitions/v4/
+Nuclei-v4/Nuclei4/global.json

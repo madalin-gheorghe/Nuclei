@@ -13,7 +13,8 @@ smoothing correction recorded below.
 ## Identity baseline
 
 - Output and assembly identity: `Nuclei4.gha`, `Nuclei4, Version=4.1.0.0`.
-- Namespace: `Nuclei4`; V4 source, probes, and benchmarks contain no `Nuclei3`.
+- Namespace: `Nuclei4`; V4 source contains no `Nuclei3`. The architecture probe
+  names V3 types only inside its explicit cross-version parity harness.
 - Grasshopper assembly ID: `a4810f34-10b6-480c-a6d0-607aac4e8d2a`.
 - COM typelib GUID: `67e300d2-061e-4987-b6e6-ffbb4810a624`.
 - Component identities: 39 `GH_Component` types plus 2 hidden parameter types;
@@ -279,11 +280,11 @@ Run from the repository root:
 ```powershell
 dotnet build .\Nuclei-v4\Nuclei4\Nuclei4.csproj -c Release -f net48 --no-incremental -p:SkipGrasshopperInstall=true
 dotnet build .\Nuclei-v4\Nuclei4\Nuclei4.csproj -c Release -f net7.0-windows --no-incremental -p:SkipGrasshopperInstall=true
-dotnet run --project .\tools\Nuclei.ArchitectureProbe\Nuclei.ArchitectureProbe.csproj -c Release
-dotnet run --project .\tools\Nuclei.ArchitectureProbe\Nuclei.ArchitectureProbe.csproj -c Release -- --gpu
-dotnet run --project .\tools\Nuclei.ArchitectureProbe\Nuclei.ArchitectureProbe.csproj -c Release -- --benchmark-gpu
+dotnet run --project .\tools\Nuclei.ArchitectureProbe\Nuclei.ArchitectureProbe.csproj -c Release -- --rhino-inside
+dotnet run --project .\tools\Nuclei.ArchitectureProbe\Nuclei.ArchitectureProbe.csproj -c Release -- --rhino-inside --gpu
+dotnet run --project .\tools\Nuclei.ArchitectureProbe\Nuclei.ArchitectureProbe.csproj -c Release -- --rhino-inside --benchmark-gpu
 pwsh -NoProfile -File .\tools\Verify-V4Preservation.ps1
-rg -n "Nuclei3" Nuclei-v4 tools\Nuclei.ArchitectureProbe
+rg -n "Nuclei3" Nuclei-v4
 ```
 
 The final command must return no matches. The normal probe must retain its large
@@ -425,3 +426,76 @@ reproduced exactly by enabling High Resolution.
 `AppendAdditionalComponentMenuItems`, `highResolutionHandler`), taking the public API
 to 728 records with SHA-256
 `1ADB075EA91D2B043F890CF2249A57EDBB62A1076BE295736C10DAAA0F0AA433`. No GUID, resource name or shader changed.
+
+## Post-push V3 parity release evidence
+
+### Trail Settings frequency retirement
+
+**User-authorized:** Particle Trail Settings exposes only `Trail Size`; both V3 and
+V4 serialize `TrailSettings <size> 1` internally. Its compatibility reader accepts
+the former two-input archive schema and discards the retired frequency parameter,
+including its persistent value and source wire. The four shipped definitions that
+used the component were migrated directly to the one-input schema. This removes one
+GH schema record and adds the `Read` override to the public API; component GUIDs,
+shaders, resources, and solver ABI remain unchanged.
+
+The 2026-08-28 V3 parity port preserves demand-driven full-state output: particle
+and voxel state are still read back only when the Grasshopper graph requests
+them. Dynamic-population steps stage a tiny, nonblocking snapshot containing four
+global counters plus one counter per group; this is required to publish V3-exact
+group metadata without synchronizing either full state buffer. Ant-only states
+select a specialized movement shader that removes unreachable slime work. Input
+group kind is part of the state-match invariant, so changing between ant and
+slime groups forces a reset before another shader can be required. A focused
+probe verified that the generic and ant-only paths produce bit-identical particle
+and field state.
+
+The final preservation verifier records:
+
+| Contract | Final value |
+| --- | --- |
+| Component/parameter GUIDs | 40; `BA5DD56D2DB434E2FEEC0AD489F1DF481FAFC4FA2E3843C3C21E49DED4DCB126` |
+| Exported types / GH components | 51 / 38 |
+| Public API | 741 records; `24B466B99A06FFEB9F24730E411EA53549639C70C8C4BEDAA17100905F8DE037` |
+| GH schema | 214 records; `2C82F4DDC84E50A154F6F48DAB9C1E1C82E3A4700F99146FC2DFF128E8518DDB` |
+| Full-solver / mesh ABI | 416 bytes / 104 fields; 48 bytes / 12 fields |
+| Main resources | 28; name hash `5A304C5A9EE3117A8D33B999B27677FC0B5B98CA527657FC0A02E44DBE8993A7`; content hash `A76B6974498D3430B6140BE010AF04D570364F3725866B4DD455734F7253D602` |
+| Compute shaders | 27; `C005808A049C53BB021251D0D1C0FD16538FA945153E121AE6D7FECF4740BF83` |
+| D3D11 GPU resources | 22; `76A587C8C31492F0E597DD47A6A0B55A537F6368F7E460B17D1AFF0D1A7CBA9F` |
+| D3D11 display resources | 5; unchanged `7962C5E6C8BCAE08EEB74E649239601E884515546EA8E8C926A809224896C695` |
+
+Four compute binaries changed after the preceding lock, each for an explicit V3
+behavioral-parity correction:
+
+| Shader | SHA-256 | Locked behavior |
+| --- | --- | --- |
+| `ApplyDecay.cso` | `B240272B2F8B628CAB4773110EED4569577ABE9F017C3A4049D9798FB4288A44` | Clears scalar density beneath an occupied active obstacle and preserves V3's field-specific outer-boundary decay. |
+| `CountParticles.cso` | `815E7A1AF6EC98A66FECFEC14B7E0026D79E2E3D90308F896B87AAAA5D56B7B9` | Counts particles whose stored parent is active even when that parent is not walkable. |
+| `MoveAntParticlesAndDeposit.cso` | `55F5A9AB23D458E9A5B4012E7B9B267C17FF1FFC7BE328862A53BE756DF994EE` | Applies the corrected sequential non-wrap sensor-plane mutation, no-sensor steering sentinel, and active blocked-parent recovery in the ant-only specialization. |
+| `MoveParticlesAndDeposit.cso` | `83D9B6B5EF977163ED72A5BA6A128A0A662D8009540370FA09DC600F3E343E42` | Applies those same sensor, sentinel, and blocked-parent corrections in the generic movement kernel. |
+
+All other 23 CSOs retain their previous exact hashes. The verifier checks every
+CSO independently in the compatibility assembly and its support assembly, in
+addition to the aggregate hashes above.
+
+The final synchronized median/p95 performance comparisons pass the 5% gate:
+
+| Scenario | `535cde6` HEAD | Final | Change |
+| --- | ---: | ---: | ---: |
+| Default equivalent behavior | 2.854 / 3.063 ms | 2.873 / 3.079 ms | +0.67% / +0.52% |
+| Ant-only equivalent behavior | 5.577 / 5.590 ms | 4.995 / 5.336 ms | -10.44% / -4.54% |
+
+The sparse normal-division diagnostic changes from 2.7243 / 2.789 ms to
+3.6824 / 4.058 ms (+35.17% / +45.50%). That case is not equivalent behavior:
+the baseline skipped V3's required every-step neighbour recount and publication,
+while the final build performs it exactly.
+
+The previous alive-only population divergence is closed. Focused ordering tests
+lock V3's same-pass ghost-inclusive neighbour publication, while the asynchronous
+group counters are checked against both live slots and their stored group tags.
+The current GHA SHA-256 values, recorded for artifact traceability rather than
+used as preservation gates, are
+`1F8A5F1E56E0A5DB47C30757388BE703D1EAD5E47CF57A2C5C8B34D7B34BCACC`
+for net7 and
+`C995A80D32073AF56BB041EF1FC4F9EC197D3AEA2DEF1F7CDE43E67749E1A943`
+for net48.

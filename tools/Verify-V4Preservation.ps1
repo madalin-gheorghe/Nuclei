@@ -21,18 +21,18 @@ $expected = [ordered]@{
     ComponentGuidCount = 40
     ComponentGuidHash = "BA5DD56D2DB434E2FEEC0AD489F1DF481FAFC4FA2E3843C3C21E49DED4DCB126"
     ExportedTypeCount = 51
-    PublicApiRecordCount = 728
-    PublicApiHash = "1ADB075EA91D2B043F890CF2249A57EDBB62A1076BE295736C10DAAA0F0AA433"
+    PublicApiRecordCount = 741
+    PublicApiHash = "24B466B99A06FFEB9F24730E411EA53549639C70C8C4BEDAA17100905F8DE037"
     ComponentCount = 38
-    ComponentSchemaRecordCount = 215
-    ComponentSchemaHash = "83EDE30503D7F16B5EF4788AE0EF7C4E58EA6DFCCB1A1BC0032B5DB08DA2F70F"
-    MainResourceCount = 26
-    MainResourceNameHash = "5DFD765D509A50F5942F8E0C8758AD2F8DEC6319AAD2B2A24FF9311798FB77C7"
-    MainResourceHash = "305C30BCD4E18CC281178DB6F3C01E1266FEBEBFADE6D2C8103D9ED2DBD2AE26"
-    ShaderCount = 25
-    ShaderHash = "CFE49D9298411644D315E7F7287F639E87A58119E28142D9A9780B3218467592"
-    GpuShaderCount = 20
-    GpuShaderHash = "5804E55E013B16BEC25ECB90F390C5C8E2916FFB36D252AFAA5C9530F71625E3"
+    ComponentSchemaRecordCount = 214
+    ComponentSchemaHash = "2C82F4DDC84E50A154F6F48DAB9C1E1C82E3A4700F99146FC2DFF128E8518DDB"
+    MainResourceCount = 28
+    MainResourceNameHash = "5A304C5A9EE3117A8D33B999B27677FC0B5B98CA527657FC0A02E44DBE8993A7"
+    MainResourceHash = "A76B6974498D3430B6140BE010AF04D570364F3725866B4DD455734F7253D602"
+    ShaderCount = 27
+    ShaderHash = "C005808A049C53BB021251D0D1C0FD16538FA945153E121AE6D7FECF4740BF83"
+    GpuShaderCount = 22
+    GpuShaderHash = "76A587C8C31492F0E597DD47A6A0B55A537F6368F7E460B17D1AFF0D1A7CBA9F"
     DisplayShaderCount = 5
     DisplayShaderHash = "7962C5E6C8BCAE08EEB74E649239601E884515546EA8E8C926A809224896C695"
     FullSolverParameterSize = 416
@@ -44,31 +44,33 @@ $expected = [ordered]@{
 # Per-shader hashes. The full authorization history for every intentional
 # change lives in docs/V4_PRESERVATION_CONTRACT.md.
 $expectedShaderHashes = [ordered]@{
-    "Nuclei4.GpuShaders.ApplyBoundaryModeTransition.cso" = "A8EEEA7FDB19BE7C956CD3616985046271E35F3BE6B6AE6B961CF43D218C6E66"
-    "Nuclei4.GpuShaders.ApplyDecay.cso" = "95CF08F35F24B5301BD0E7691834E1987F869F7D14BD197FDA97FDB1EECB6A6C"
-    "Nuclei4.GpuShaders.ApplyDeposits.cso" = "D57C35725B5C2D43336B3E91417519C57557CD83C4E17D593A37FD47A6B9F174"
-    "Nuclei4.GpuShaders.ApplyParticleDeath.cso" = "2C93605F0DFB4EEFF56DAA8F79D213C369999221D49910E0E5E2C32FFD5C82AF"
-    "Nuclei4.GpuShaders.ApplyParticleDivision.cso" = "97D8910455F44BA29BDA13A1F2277CE87D582C17EE0692B44275F6736782B113"
-    "Nuclei4.GpuShaders.BuildCombinedDensityPreview.cso" = "14AEF84D5173D234A0A9AB71F443A4FB64353FB3690869BC8228B9E4B616235B"
-    "Nuclei4.GpuShaders.BuildDensityGradientPreview.cso" = "F8578CFDC34B499080FB20C56F9D51CA887089FED6112F2E0F24E6A2B4E042DA"
-    "Nuclei4.GpuShaders.BuildDensityPreview.cso" = "8ECF654EB3C1963DA529819DD47B56D18124DC0BF20329D21B662169BEB18E6E"
-    "Nuclei4.GpuShaders.BuildParticlePreview.cso" = "409005CB547E04EE204EA04A313EEE1FC355435F6AC72EDD56F6C56C6AD813AC"
-    "Nuclei4.GpuShaders.BuildParticleTrailPreview.cso" = "9F1542D6ADC14EC6BCA8181B5D1BF9CEDF01626518DD8A618DAC623F5BEBF878"
+    "Nuclei4.GpuShaders.AdvanceParticleAges.cso" = "2CB04C974ACC57DBD36C642AAEF613E7F527A9E87B7FDB28A83A65069B645F55"
+    "Nuclei4.GpuShaders.ApplyBoundaryModeTransition.cso" = "38B4EB0C603DEE40DF7F699232DA28C1FE5D5FBBBAA58B54BA1158EA8AD0FE1A"
+    "Nuclei4.GpuShaders.ApplyDecay.cso" = "B240272B2F8B628CAB4773110EED4569577ABE9F017C3A4049D9798FB4288A44"
+    "Nuclei4.GpuShaders.ApplyDeposits.cso" = "4F74E47D92D520CF4039BE62A88C88E905656745A2A82E229571B87706EBFCB2"
+    "Nuclei4.GpuShaders.ApplyParticleDeath.cso" = "497185664BCE555F07B856D4BA42C26ECF0EF04E933E3E0505244210A17CF0EC"
+    "Nuclei4.GpuShaders.ApplyParticleDivision.cso" = "41A46FC86062D15C6D9B3088CC4DBCDFC0C98F9CD27FA39E859775818D2AB0C0"
+    "Nuclei4.GpuShaders.BuildCombinedDensityPreview.cso" = "51ADE67292000D4D6F14C2959948E86F9D7EE14024D55378D15A380890A46AB1"
+    "Nuclei4.GpuShaders.BuildDensityGradientPreview.cso" = "337A3E2D32791C157C5CFC4DA265F440EBD16C91A5257B5D47AACDE88DB04361"
+    "Nuclei4.GpuShaders.BuildDensityPreview.cso" = "4E174B493379C39D29BD0D6E92B54BEC8285E0626AB4F4DEBBA988318C850769"
+    "Nuclei4.GpuShaders.BuildParticlePreview.cso" = "62694E8D1874B8DB950EE1EB368BCCEB67FB1CA226D91B3935E3818712ED6FA1"
+    "Nuclei4.GpuShaders.BuildParticleTrailPreview.cso" = "CE12342F1A54C9EADCC9A4659C37FAC9E8D355D75B149A629803FFB3B57A977C"
     "Nuclei4.GpuShaders.ClassifyVolumeCells.cso" = "A03DA35D1E6AE35110B61B001C6B5A3F9F4006F14B9488E5649157DC46CBEB83"
-    "Nuclei4.GpuShaders.ClearParticleCounts.cso" = "93708D7F9151EE659C3FDB718854C482F9F1628683DECE73F6B5504A7385D1ED"
-    "Nuclei4.GpuShaders.CountParticles.cso" = "878DE2D2911DE86E4A5C5E6BB63F9492821C9ED02A30D3704679A121D1FAF0AF"
+    "Nuclei4.GpuShaders.ClearParticleCounts.cso" = "B897D598443626092911F3C6ED565C153D2F492CAB5423E1C4125888A997D3B0"
+    "Nuclei4.GpuShaders.CountParticles.cso" = "815E7A1AF6EC98A66FECFEC14B7E0026D79E2E3D90308F896B87AAAA5D56B7B9"
     "Nuclei4.GpuShaders.DensityPreviewComposite.cso" = "D335CF53593BDFFBA2BEAA5E50A2D9A8F44ACF78FC29551B8EBFE6F544D3C689"
     "Nuclei4.GpuShaders.DensityPreviewOccupancy.cso" = "A8BC8583F7881E43B9FE48CD9C4546E102E0578782F708F85AC9F2ACE37C3146"
     "Nuclei4.GpuShaders.DensityPreviewPS.cso" = "8A0990EC6CA082044E898F8204F3AFE04FC7ED7891A278E0DE25F545B4DE2E4C"
     "Nuclei4.GpuShaders.DensityPreviewShadow.cso" = "B3F61209F2E463FF89D3E00311CDC257DD1A46E933689A0D1BCADF0EB334FA88"
     "Nuclei4.GpuShaders.DensityPreviewVS.cso" = "23EBF36C6D05E654B6DF3FCCE422997E7D611448D44225FBEFC6EBDC822B99FC"
-    "Nuclei4.GpuShaders.DiffuseAxis.cso" = "8C94DE636B272334CACEA3B0EEE6222402AD27525E246E2BB09396A8ADDCD334"
+    "Nuclei4.GpuShaders.DiffuseAxis.cso" = "D1E283E2C4CB0F7ABAF60D5A06F3B71CDB9151B8D8700250FCE4571CF3C60A04"
     "Nuclei4.GpuShaders.EmitVolumeTriangles.cso" = "4D03AFDDB6C0DDD2BDC285DE397E9196DEDA4D7442798B9D0E322A5DE2C0DBC9"
-    "Nuclei4.GpuShaders.MoveParticlesAndDeposit.cso" = "3F235146E7103B594DB69F6D2E247CE70D9D61705BAA1E8499C1C8116833D68C"
-    "Nuclei4.GpuShaders.ProjectFoodSources.cso" = "CCB9D425A2904D1BDFB1CC61DF59E74DBDE5C923463A0700DB9EA2C6D071E786"
-    "Nuclei4.GpuShaders.SeedNeighbourCounts.cso" = "BB8E58AD51A26088A50B34F1E9B72A02BC94AF171587BB670B045C1203D15AC1"
+    "Nuclei4.GpuShaders.MoveAntParticlesAndDeposit.cso" = "55F5A9AB23D458E9A5B4012E7B9B267C17FF1FFC7BE328862A53BE756DF994EE"
+    "Nuclei4.GpuShaders.MoveParticlesAndDeposit.cso" = "83D9B6B5EF977163ED72A5BA6A128A0A662D8009540370FA09DC600F3E343E42"
+    "Nuclei4.GpuShaders.ProjectFoodSources.cso" = "EBA2BFE646728DB5A6B3D0027A98DDF361738EC9C09B483A183C3A6788531600"
+    "Nuclei4.GpuShaders.SeedNeighbourCounts.cso" = "93DC8E10D67B82AFC24313810ECFAADC25921EFBB1ECF4BDDCF6AC12D772D510"
     "Nuclei4.GpuShaders.SmoothVolumeForMesh.cso" = "34129D9DB7C789296F2A55945C58CE580F1A3D8E572DE1065390965C695F5595"
-    "Nuclei4.GpuShaders.SumNeighbourAxis.cso" = "A0E276F6A6508CA9BD7A1EFD857714F8057C8E1117AF10D3CD5B8FE29DC968C8"
+    "Nuclei4.GpuShaders.SumNeighbourAxis.cso" = "F06E0C0D6F9687B836A4806B3C60B6A55D0722CCB58015E8547111228C9F906E"
 }
 
 $failures = [System.Collections.Generic.List[string]]::new()
@@ -243,7 +245,6 @@ function Get-OptionalPropertyValue($target, [string]$name) {
 $mainPath = Join-Path $BuildDirectory "Nuclei4.gha"
 foreach ($requiredFile in @(
     "Nuclei4.gha",
-    "Nuclei4.deps.json",
     "Nuclei4.Core.dll",
     "Nuclei4.Gpu.Abstractions.dll",
     "Nuclei4.Gpu.D3D11.dll",
@@ -276,6 +277,29 @@ $mainAssembly = Load-AssemblyPath $context $mainPath
 $gpuAssembly = $context.Assemblies | Where-Object { $_.GetName().Name -eq "Nuclei4.Gpu.D3D11" } | Select-Object -First 1
 $displayAssembly = $context.Assemblies | Where-Object { $_.GetName().Name -eq "Nuclei4.Display.D3D11" } | Select-Object -First 1
 $grasshopperAssembly = $context.Assemblies | Where-Object { $_.GetName().Name -eq "Grasshopper" } | Select-Object -First 1
+
+$targetFrameworkAttribute = $mainAssembly.GetCustomAttributes(
+    [Runtime.Versioning.TargetFrameworkAttribute],
+    $false) | Select-Object -First 1
+if ($null -eq $targetFrameworkAttribute) {
+    $failures.Add("assembly target framework metadata missing")
+}
+elseif ($targetFrameworkAttribute.FrameworkName.StartsWith(".NETCoreApp,", [StringComparison]::Ordinal)) {
+    if (Test-Path -LiteralPath (Join-Path $BuildDirectory "Nuclei4.deps.json")) {
+        $passes.Add("deployment file present: Nuclei4.deps.json")
+    }
+    else {
+        $failures.Add("deployment file missing: Nuclei4.deps.json")
+    }
+}
+elseif ($targetFrameworkAttribute.FrameworkName.StartsWith(".NETFramework,", [StringComparison]::Ordinal)) {
+    # SDK-style .NET Framework class-library builds do not emit deps.json. Their
+    # deployed managed closure is still verified below from assembly references.
+    $passes.Add("framework-appropriate deployment metadata: $($targetFrameworkAttribute.FrameworkName)")
+}
+else {
+    $failures.Add("unsupported assembly target framework: $($targetFrameworkAttribute.FrameworkName)")
+}
 
 Test-Equal "assembly name" $mainAssembly.GetName().Name $expected.AssemblyName
 Test-Equal "assembly version" $mainAssembly.GetName().Version.ToString() $expected.AssemblyVersion

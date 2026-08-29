@@ -17,6 +17,8 @@ Stable public releases are published on
 
 - `Nuclei-v3/Nuclei-v3.sln` - V3.3 CPU implementation for Rhino 8.
 - `Nuclei-v4/Nuclei-v4.sln` - V4.1 GPU implementation for Rhino 9 on Windows.
+- `Nuclei Definitions/v3` - canonical V3.3 Grasshopper examples.
+- `Nuclei Definitions/v4_updated` - structurally verified V4 conversions of those examples.
 - `docs` - milestone, architecture, behavior-parity, and performance notes.
 - `tools` - shared repository verification and maintenance utilities.
 
@@ -31,6 +33,11 @@ silently changing component identity.
 V3.x is the CPU behavioral reference. It includes internal particle generation,
 scalar-array solver paths, wrap/no-wrap behavior, balanced diffusion, ant and slime
 systems, CPU previews, and the Nuclei-to-Dendro bridge. It contains no GPU solver.
+Slime groups support persisted Classic and Probabilistic steering, including the
+connected weighted-sensor behavior used as the V4 parity reference. Trail Settings
+now exposes only Trail Size while safely reading the retired frequency schema, and
+Voxel Settings Slime migrates legacy input layouts to Diffuse Rate, Decay Rate,
+Falloff, and Diffuse Range.
 
 ### V4.1 GPU
 
@@ -41,6 +48,12 @@ wrap changes, on-demand paused-state extraction and preview refresh, and GPU
 volume-to-mesh conversion with scalar and mesh smoothing. Its trail preview keeps
 the latest ordered GPU segment current while hidden, so enabling the preview on a
 paused solver does not connect stale particle positions.
+
+The final V3 parity pass adds matching connected steering, non-wrapped boundary
+and blocked-parent behavior, species-aware density processing, ant home and launch
+state, V3-compatible ageing and dynamic-population ordering, nonblocking population
+readback, and a dedicated ant movement dispatch. Dendro output is published on an
+Update rising edge and caches the last successful volume between updates.
 
 V4 source types now use the `Nuclei4` namespace while preserving the existing
 `Nuclei4.gha` assembly name and all Grasshopper component identities.
@@ -58,6 +71,25 @@ the GPU. Known differences are documented in
 [CPU to GPU Behavior Parity](docs/GPU_BEHAVIOR_PARITY.md).
 The latest compatibility and feature checkpoint is summarized in
 [Development Status](docs/DEVELOPMENT_STATUS.md).
+
+## Definition Conversion and Validation
+
+The fail-closed definition converter under `tools/Nuclei.DefinitionConverter`
+maps the canonical V3.3 examples to V4 component identities while preserving
+object IDs, wire endpoints, and persistent data outside documented schema
+adapters. It also migrates the retired Trail Frequency input without editing the
+source definitions.
+
+The converted 14-definition set in `Nuclei Definitions/v4_updated` includes its
+conversion manifest. The Rhino 9 validation workflow loads and reopens every
+definition against an exact V4 binary hash, rejects missing objects or V3 residue,
+and exercises the saved GPU-to-Dendro-to-mesh path. Machine-specific validation
+reports remain local rather than becoming repository inputs.
+The isolated net8 and net48 hosts and validator scripts live under
+`tools/Nuclei.DefinitionValidationHost` and `tools/Nuclei.DefinitionValidator`.
+
+The repository-level `global.json` pins the verification toolchain to .NET SDK
+8.0.418 with latest-patch roll-forward.
 
 ## Performance Evidence
 

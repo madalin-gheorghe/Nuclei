@@ -1,15 +1,17 @@
 # CPU to GPU Behavior Parity
 
-The V3.x CPU solver is the behavioral reference for V4 GPU implementations.
-Every translated feature must be checked for operation order, conditions, state
-changes, and side effects. Any intentional or unavoidable difference is recorded
-here.
+The current V3 CPU solver is the behavioral reference for the V4 GPU solver.
+Translation includes operation order, conditions, state changes, and observable
+side effects; matching only the final particle count is not sufficient. The
+post-push parity work described below is implemented and guarded by focused
+regressions. The remaining intentional execution differences are listed
+explicitly.
 
 ## Ant food and nest cycle
 
-Status: behavior aligned on 2026-08-12.
+Status: behavior aligned.
 
-The GPU implementation now follows the CPU order:
+The GPU implementation follows the CPU order:
 
 1. Sense using the current `foundFood` state and particle age.
 2. Move and deposit using that same state.
@@ -17,206 +19,218 @@ The GPU implementation now follows the CPU order:
 4. Check the new position for a nest visit.
 5. Store pickup or nest-visit age as `1`.
 
-This preserves the CPU behavior in which an arriving ant deposits its previous
-trail type before changing state. A nest visit resets age while the ant remains
-within one movement step, keeping the outward departure force active.
+An arriving ant therefore deposits its previous trail type before changing
+state. Nest visits use the raw signed group speed as V3 does, while close-to-home
+alignment and the deposit boundary guard use the raw, unscaled sensor distance.
+Midpoint conversion in that guard uses V3/.NET midpoint-to-even rounding. Reset
+clears found-food and launch-boundary state and restores the original home plane.
 
-## Known execution differences
+## Intentional execution differences
 
-- CPU ant selection uses repeated Fisher-Yates list shuffles and list indices.
-  GPU selection uses iteration-dependent hashes because GPU particles execute in
-  parallel without a shared shuffled order. The probability and intent match,
-  but individual ant trajectories are not expected to match exactly.
-- CPU food and pheromone fields use floating-point object mutations. GPU food and
-  deposits use fixed-point atomic updates so simultaneous particles cannot lose
-  updates. Fractional food below one unit is clamped to zero on GPU instead of
-  becoming negative as it can on CPU.
+- CPU ant and population selection follows shuffled sequential particle lists.
+  CPU connected steering hashes each shuffled list ordinal, while GPU connected
+  steering hashes each stable slot; other GPU selections likewise use
+  deterministic, iteration-dependent hashes because particles execute in
+  parallel. Eligibility, stage order, inherited state, probabilities, and
+  population limits match; individual selected identities, the particle
+  receiving a connected-sensor sample, and trajectories need not.
+- CPU fields use floating-point object mutations. GPU food and deposits use
+  fixed-point atomic updates so simultaneous writes are not lost. Fractional food
+  below one unit becomes zero on GPU instead of becoming negative as it can on
+  CPU.
+
+## Post-push V3 parity port (2026-08-28)
+
+V4 mirrors the V3 changes made after commit `535cde6` in the following areas.
+
+### Steering, movement, and particle state
+
+- Slime groups expose Classic and Probabilistic steering. Probabilistic mode uses
+  V3's connected weighted sensor choice and clamps Exploration to `[0, 1]` in
+  both GPU parameters and CPU-visible group metadata.
+- In non-wrap mode, sensor boundary handling mutates the working particle plane
+  sequentially in V3 order. A no-sensor result applies no steering force and
+  retains V3's deterministic plane rotation instead of choosing a random turn.
+- An active stored parent remains usable even when its maximum density makes it
+  non-walkable. V4 reads that parent's authored behavior and vectors, attempts
+  recovery from it, and retains it while reversing direction when no valid
+  neighbour exists.
+- Planar reset preserves the authored origin and axes. The first move is centered
+  on the active plane without shifting the reset geometry.
+- Ant launch duration scales to the farthest field boundary, uses the inherited
+  home-plane wave, stops after boundary contact, and clears that contact at the
+  nest.
+- `highDeposit`, ant food state, launch state, and home axes survive requested
+  particle synchronization. Slime deposits use V3's quarter-strength rule after
+  an occupied destination and clear the flag on reset.
+
+### Voxel topology and field evolution
+
+- Non-wrapped outer voxels and holes are solver boundaries with maximum density
+  zero. Wrapped outer voxels remain active; holes remain boundaries. Degenerate
+  grids use V3's dimension priority: Z, then Y, then X.
+- Authored-active and walkable are distinct states. Boundary transitions,
+  particle counting, scalar diffusion, ant diffusion, decay, movement, deposits,
+  and food projection all receive the active-state binding they require.
+- Particle counts include active blocked parents as V3 does. Scalar density under
+  an occupied active blocked parent is cleared during decay, while V3's distinct
+  scalar, ant-food, and ant-base outer-boundary behavior is preserved.
+- Density processing is species-aware rather than being gated only by the
+  presence of slime particles. Ant-only and empty simulations therefore still
+  diffuse and decay an existing scalar field, matching V3.
+- Slime food and ant food remain separate channels. Slime food is projected into
+  scalar density before diffusion; ant food remains consumable and its live CPU
+  preview synchronizes only on demand.
+- Slime diffusion exposes the V3 input order `Diffuse Rate`, `Decay Rate`,
+  `Falloff`, `Diffuse Range`, with `Gradual = 1 - Falloff`.
+
+### Ageing and dynamic population
+
+- Reset uploads one V3 age increment. The two no-movement warm-up solutions run
+  `AdvanceParticleAges`; subsequent ages advance at the post-move parent check.
+  Minimum-age gates therefore observe the same iteration as V3.
+- Population stages run in V3 order: normal death, normal division, random death,
+  random division. Random stages see normal newborns and the current population
+  budget.
+- When either normal rule is enabled, both per-particle neighbour fields are
+  refreshed every step. Division retains its pre-death counts, a due normal
+  division republishes post-division counts before random changes, range zero
+  consumes stored state, and negative paired ranges publish zero.
+- V3's one-frame death occupancy and same-pass ghost-inclusive neighbour
+  publication are preserved. Global and per-group GPU counters are independently
+  validated against the live slots and their stored group tags.
+- Death and birth claims use an atomic reserve-then-undo operation, eliminating
+  the contention-dependent dropped claims caused by the former bounded retry
+  loop.
+- Normal-division children start at age zero with cleared ant home/launch state.
+  Random-division children inherit age, food state, home plane, and launch state.
+- Reset reconstructs fresh particle runtime state, including age, found-food,
+  high-deposit, launch, home, walkability, and free-slot state.
+
+### Grasshopper integration and lifecycle
+
+- Runtime particle-group metadata applies the same ant/slime classification and
+  V3 population transforms as the CPU solver. Group kind is part of the engine
+  state invariant, so switching between ant and slime requires a reset before a
+  different movement specialization is selected.
+- Legacy three- and four-input Voxel Settings Slime archives migrate in place,
+  preserving parameter GUIDs, wires, and persistent data. The slime-group
+  constructor separately normalizes the historical Exploration/Wander metadata.
+- The Dendro converter uses a rising-edge Update pulse, caches successful output,
+  prefers the native Dendro path, and republishes only successful replacements.
+- Reset, live voxel replacement, and disposal detach voxel, particle, preview,
+  and mesh callbacks before an engine is replaced. Previously emitted objects can
+  no longer call a disposed or unrelated engine.
+- Dynamic voxel preview synchronization remains on demand and updates live Ant
+  Food rather than retaining reset-time data.
+
+## GPU residency and readback
+
+Full particle and voxel state remains demand-driven: it is synchronized only when
+the Grasshopper graph or a CPU preview explicitly requests it. Dynamic-population
+steps do stage a tiny snapshot containing four global counters plus one counter
+per group. The snapshot uses a three-slot staging ring and is polled on the next
+solution with `DoNotWait`; it does not block the GPU or copy the full particle or
+voxel buffers. A newer blocking synchronization invalidates older queued counter
+snapshots.
+
+Ant-only workloads use `MoveAntParticlesAndDeposit`, a specialization of the
+shared movement core that removes unreachable slime branches. The generic and
+specialized ant paths are checked for bit-identical particle and field state at
+every focused checkpoint.
+
+## Regression evidence
+
+The architecture probe contains focused entry points for the behaviors most
+likely to regress:
+
+| Probe | Contract covered |
+| --- | --- |
+| `--ant-reset-parity` | reset state, raw speed/sensor thresholds, food/nest cycle |
+| `--ant-shader-specialization` | generic versus ant-only movement equivalence |
+| `--density-species-parity` | scalar/ant field evolution, active targets, ant minimum semantics |
+| `--planar-origin-parity` | authored planar reset and first-move centering |
+| `--population-ordering` | stage order, atomic limits, neighbour publication, group counters, stale-readback guard |
+| `--blocked-parent-parity` | movement, recovery, fallback, counting, and density for active blocked parents |
+| `--sparse-active-bindings` | sparse boundary transition and scalar/ant diffusion bindings |
+| `--voxel-preview-sync` | on-demand live dynamic-field preview synchronization |
+| `--connected-steering-oracle` | actual-GPU strongest/exploratory endpoints and a locked known-hash sensor choice |
+| `--connected-parity-regression` | fixed-seed V3/V4 connected-steering population and coarse density-distribution bounds |
+
+The default probe also covers retained group metadata, Dendro pulse/cache
+behavior, solver-boundary priority, output callback detachment, reset/disposal,
+large sparse fields, public compatibility contracts, and embedded shader copies.
+The preservation verifier passes the same exact contracts for both net7 and
+net48 outputs.
+
+## Validated performance evidence
+
+The existing synchronized median/p95 measurements passed the 5%
+equivalent-behavior gate:
+
+| Scenario | `535cde6` HEAD | Final | Change |
+| --- | ---: | ---: | ---: |
+| Default | 2.854 / 3.063 ms | 2.873 / 3.079 ms | +0.67% / +0.52% |
+| Ant-only | 5.577 / 5.590 ms | 4.995 / 5.336 ms | -10.44% / -4.54% |
+
+The sparse normal-division diagnostic is not an equivalent-behavior performance
+comparison: HEAD omitted V3's required every-step neighbour recount and
+publication. Enabling that required work changes median/p95 from 2.7243 / 2.789
+ms to 3.6824 / 4.058 ms (+35.17% / +45.50%). It is the measured cost of the
+additional reference behavior, not a regression in an equivalent workload.
+
+No new performance values are inferred from functional probes; the table above
+remains the validated measurement record until the benchmark is rerun under the
+same hardware and synchronization conditions.
+
+## Final compatibility and artifact record
+
+| Contract | Final value |
+| --- | --- |
+| Component/parameter GUIDs | 40; `BA5DD56D2DB434E2FEEC0AD489F1DF481FAFC4FA2E3843C3C21E49DED4DCB126` |
+| Exported types / GH components | 51 / 38 |
+| Public API | 741 records; `24B466B99A06FFEB9F24730E411EA53549639C70C8C4BEDAA17100905F8DE037` |
+| GH schema | 214 records; `2C82F4DDC84E50A154F6F48DAB9C1E1C82E3A4700F99146FC2DFF128E8518DDB` |
+| Main resources | 28; name hash `5A304C5A9EE3117A8D33B999B27677FC0B5B98CA527657FC0A02E44DBE8993A7`; content hash `A76B6974498D3430B6140BE010AF04D570364F3725866B4DD455734F7253D602` |
+| Embedded shaders | 27; `C005808A049C53BB021251D0D1C0FD16538FA945153E121AE6D7FECF4740BF83` |
+| D3D11 GPU resources | 22; `76A587C8C31492F0E597DD47A6A0B55A537F6368F7E460B17D1AFF0D1A7CBA9F` |
+| D3D11 display resources | 5; `7962C5E6C8BCAE08EEB74E649239601E884515546EA8E8C926A809224896C695` |
+| Full-solver / mesh ABI | 416 bytes / 104 fields; 48 bytes / 12 fields |
+
+The current artifact SHA-256 values, for traceability rather than compatibility
+gating, are:
+
+- net7 `Nuclei4.gha`:
+  `1F8A5F1E56E0A5DB47C30757388BE703D1EAD5E47CF57A2C5C8B34D7B34BCACC`
+- net48 `Nuclei4.gha`:
+  `C995A80D32073AF56BB041EF1FC4F9EC197D3AEA2DEF1F7CDE43E67749E1A943`
+
+Per-CSO hashes and their authorized behavioral reasons are locked in
+[`V4_PRESERVATION_CONTRACT.md`](V4_PRESERVATION_CONTRACT.md).
+
+## Historical investigation notes (resolved)
+
+Earlier investigations correctly exposed age misalignment, the missing
+high-deposit rule, population-claim contention, population-stage ordering, and
+neighbour-publication differences. They also contained intermediate claims that
+no longer describe the final implementation: that V4 always deposited at full
+strength, that V4 age remained two iterations behind, that the division-rate
+diagnosis had no resolution, and that zero neighbour samples necessarily
+represented a live solver defect.
+
+Some early distribution comparisons were additionally produced with mismatched
+starting positions/headings or included newborn auxiliary defaults. Those values
+were useful for repairing the harness but are not release evidence. The final
+focused tests above replace those intermediate observations.
 
 ## Translation checklist
 
-- Compare against the active V3.x CPU path, not an older archived implementation.
+- Compare against the active V3 CPU path, not an older archived implementation.
 - Record the CPU order of sensing, movement, deposits, state transitions, and age.
-- Compare all conditions and threshold inequalities.
+- Compare every condition, threshold inequality, and midpoint conversion.
 - Compare reset state and persistent per-particle state.
-- Compare voxel field side effects and particle output state.
-- Report intentional differences before considering the translation complete.
-
-## Particle ageing
-
-V3 advances age inside `particleCheckParentVoxel`, which runs once during reset and
-again every iteration, so when its population rules are evaluated a particle's age is
-`iteration + 1`. V4 advances age only inside the `MoveParticlesAndDeposit` kernel,
-which is skipped on iteration 1, giving `iteration - 1`. V4 was therefore two
-iterations behind on every age gate: with a minimum age of 10 and a frequency of 5,
-V3's first death pass landed on iteration 10 and V4's on iteration 15.
-
-V4 now seeds uploaded ages with those two missing increments
-(`V3AgeAlignmentOffset`). Verified with the `--parity` harness: at minimum ages of 4,
-10 and 20 both solvers now apply their first population pass on the same iteration.
-
-Divided children are unaffected -- both toolsets create them at age 0 and advance
-them on the following iteration.
-
-**Still open: division rate.** The `09_Growth 1` example definitions were compared
-directly (`--gh-xml` dumps a .gh to XML): every setting, every toggle state and even
-the component instance GUIDs are identical between the V3 and V4 files, so the
-population difference is solver behaviour, not configuration.
-
-Replaying those settings through `--parity` localizes it to division alone:
-
-| Configuration | V3 at iteration 120 | V4 at iteration 120 |
-| --- | --- | --- |
-| death only (`--no-division`) | 2,000 | 2,000 |
-| division only (`--no-death`) | 8,478 | 7,679 |
-
-Death agrees exactly. Division does not, and the sign of the difference changes with
-iteration count -- V4 trails early and overtakes later -- which is why a
-100-iteration comparison in Grasshopper shows V4 ahead while short runs show it
-behind.
-
-Widening the division band isolates the cause. With `Minimum Neighbours 0` and an
-effectively unbounded maximum, so that nearly every particle qualifies, the two
-solvers agree to within 0.3%:
-
-| Iteration | V3 | V4 |
-| --- | --- | --- |
-| 8 | 4,958 | 4,962 |
-| 20 | 23,990 | 24,109 |
-| 24 | 40,324 | 40,395 |
-
-So the population machinery itself is in parity: the age gate, the 50% selection,
-the birth claim and the population limits all behave identically. The neighbour
-counting algorithm also matches -- both seed from per-voxel particle counts and take
-a separable box sum of radius `Range`, clamped at the grid edge, then subtract the
-particle itself.
-
-What differs is **which particles fall inside a narrow band**. In the `09_Growth 1`
-configuration the mean neighbour count is around 43 against a division band of 3 to
-12, so eligibility is a rare tail event -- roughly 12% of the population. Small
-differences in where particles end up, which are expected between a sequential CPU
-solver and a parallel GPU one with different random streams and ordering, are then
-amplified into large population differences.
-
-**Practical consequence.** A band sitting far in the tail of the neighbour
-distribution will always magnify small movement differences between the two solvers.
-Bands closer to the distribution mean reproduce much more consistently.
-
-### Neighbour-count distributions
-
-Comparing the distributions directly rather than the resulting populations (the
-`--trace-distribution` option reads V4's per-particle division-neighbour counts back
-out of the auxiliary channel):
-
-| Iteration | V3 mean | V3 median | V4 mean | V4 median |
-| --- | --- | --- | --- | --- |
-| 20 | 40.8 | 43 | **383.9** | **401** |
-| 40 | 47.2 | 43 | 114.0 | 116 |
-| 60 | 41.0 | 36 | 39.5 | 29 |
-| 80 | 39.2 | 32 | 28.8 | 25 |
-
-From identical starting positions V4's particles are far more clustered through the
-first tens of iterations, then disperse past V3 and end up more spread out. So the
-population difference is downstream of a **spatial** difference, not of the
-population rules, which the wide-band test shows are in parity.
-
-Two harness faults distorted the early readings of this and had to be fixed first:
-every particle was seeded with the same +X heading, and -- more seriously -- the two
-solvers were started from **different positions**. The shared snapshot builder packs
-particles into a fixed 17-wide block, while the V3 side spread them across the grid,
-so on a 48-cube domain V4 began roughly five times denser. That alone accounted for
-the early "V4 clusters more" reading, which was wrong.
-
-With identical positions and identical randomised headings on both sides:
-
-| Iteration | V3 mean | V4 mean | V3 in band | V4 in band | V3 pop | V4 pop |
-| --- | --- | --- | --- | --- | --- | --- |
-| 2 | 45.52 | **45.52** | 0% | 0% | 2,000 | 2,000 |
-| 20 | 24.7 | 17.4 | 16.7% | 19.1% | 4,053 | 5,253 |
-| 40 | 27.1 | 27.2 | 7.2% | 5.2% | 5,961 | 7,502 |
-| 60 | 30.5 | 32.2 | 3.0% | 2.0% | 7,069 | 8,473 |
-| 80 | 33.2 | 35.8 | 1.6% | 1.4% | 7,695 | 9,130 |
-
-**At iteration 2 the two are identical** -- same mean, same percentiles -- which
-establishes that the neighbour counting, the initial state and the first movement
-step all agree exactly. Divergence begins at iteration 4 and is systematic rather
-than noise: V4 disperses faster over roughly the first twenty iterations, which puts
-more of its particles inside the 3-to-12 band, so it divides more and pulls ahead.
-The distributions converge again by iteration 40, but the population lead established
-early persists.
-
-The resulting ratio of 1.18 to 1.30 reproduces what the `09_Growth 1` definitions
-show in Grasshopper (31,254 against 23,217, a ratio of 1.35), so the harness now
-models the real discrepancy and can be used to validate any fix.
-
-### Root cause: the high-deposit rule is missing from V4
-
-Comparing the density fields directly (`--trace-density`) shows they diverge at the
-first deposit, before any movement difference could accumulate:
-
-| Iteration | V3 density sum | V4 density sum | Ratio |
-| --- | --- | --- | --- |
-| 2 | 142.1 | 289.7 | 2.04 |
-| 4 | 1,314.6 | 1,715.7 | 1.31 |
-| 6 | 2,338.6 | 3,225.3 | 1.38 |
-| 12 | 3,986.8 | 5,244.4 | 1.32 |
-
-(The V3 figure was cross-checked against the voxel objects themselves and agrees
-exactly, so this is not a measurement artifact.)
-
-Both solvers deposit only when a particle moves into a voxel that was empty. V3 then
-scales that deposit by the particle's `highDeposit` flag, in `depositAtVoxel`:
-
-```
-double slimeDeposit = P.highDeposit ? depositValue : depositValue / 4;
-```
-
-`highDeposit` is set true when the particle's previous move landed in an empty voxel
-and false when it landed in an occupied one (`Solver.cs` around line 5353), so a
-particle that has just been travelling through crowded space deposits a quarter of
-the normal amount. **V4 has no equivalent: it always deposits the full value.**
-
-`Particle.highDeposit` exists in the V4 compatibility assembly but nothing on the GPU
-reads or writes it.
-
-The consequence chain is: V4 lays down a denser chemoattractant trail, so sensing
-sees a different field, so particles disperse differently, so a different fraction
-falls inside the division neighbour band, so the populations diverge. That is the
-whole path from this one missing rule to the 1.2-to-1.35 population ratio seen in
-both the harness and the `09_Growth 1` definitions.
-
-**Ported, user-authorized.** V4 now keeps a per-particle high-deposit flag in its own
-auxiliary channel (`HighDepositOffset`, claimed from a spare constant-buffer padding
-slot, so the layout stays at 416 bytes / 104 fields) and scales the slime deposit by
-0.25 when the previous move landed in an occupied voxel. The flag is cleared on reset
-so a reused buffer cannot leak state.
-
-Cost: none measurable. At 64 cubed with 200,000 particles -- the particle-sensitive
-case -- the step time is unchanged at about 2.0 ms. At 300 cubed the run is
-voxel-bound: raising the particle count from 20,000 to 262,144 costs only 2.2 ms in
-total, so two extra buffer operations per particle are lost in the noise.
-
-Density parity improves substantially:
-
-| Iteration | Ratio before | Ratio after |
-| --- | --- | --- |
-| 2 | 2.04 | 1.38 |
-| 4 | 1.31 | 1.06 |
-| 8 | 1.32 | 0.99 |
-
-**But it does not close the population gap**, which stays at about 1.21 against 1.18
-before. So the density difference, although real and now largely corrected, was not
-what drove the population divergence. V4 still disperses faster -- mean neighbour
-count 10.4 against 17.1 at iteration 8 -- for a reason that has not been identified.
-
-The residual density difference at iteration 2 is a concurrency-ordering effect that
-may not be reproducible on a GPU: V3 tests `nextVoxel.particleCount == 0` against a
-live count that other particles are mutating during the same parallel pass, whereas
-V4 tests a snapshot taken before the move.
-
-**Caveat on the distribution figures.** V4's fifth percentile reads 0 through much of
-the run. Newly divided particles carry `ParticleYAxis.w = -1`, which makes the
-division kernel return before writing their neighbour count, so they report a stale
-zero. The V4 distribution statistics are therefore contaminated by roughly the birth
-rate and should not be compared too finely against V3's until that is excluded. Also worth checking: V4's fifth percentile sits at 0 for part of the run,
-meaning some particles record no neighbours at all, which may be a stale auxiliary
-value for particles that skip the division kernel rather than a real reading.
+- Distinguish authored-active voxels from walkable voxels in every shader pass.
+- Compare voxel-field side effects, group metadata, and particle output state.
+- Validate both demand-driven full-state synchronization and lightweight
+  telemetry ordering.
+- Record intentional differences before considering a translation complete.
