@@ -60,7 +60,8 @@ dotnet run --project .\tools\Nuclei.DefinitionValidationHost\Nuclei.DefinitionVa
 Validator mode executes the repository's authoritative `ValidateInRhino.py`.
 It mirrors that script's atomic progress file to the host watchdog, requires its durable
 report to identify the exact V4 hash and expected file count, and independently
-checks the seven runtime stages, native Dendro volume flow, final Rhino mesh,
+checks the eight runtime stages, held-true Dendro output identity replacement,
+native Dendro volume flow, final Rhino mesh,
 zero path errors, the pinned final GHA hash, and unchanged hashes for every
 saved definition covered by the report.
 

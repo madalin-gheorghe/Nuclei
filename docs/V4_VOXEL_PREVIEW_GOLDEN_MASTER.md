@@ -6,13 +6,11 @@ change its appearance without explicit user approval.
 
 ## Authoritative implementation
 
-- Source snapshot: `C:\Nuclei\.codex-backups\component-nicknames-before-20260817-075815\Nuclei-v4\Nuclei4`
+- Source snapshot: local recovery backup (not tracked)
 - Installed assembly: `Nuclei4, Version=4.1.0.0`
 - Installed `Nuclei4.gha` SHA-256 after the approved build:
   `A8A86CFC99C698EC450F4C2016CBC93CD8A65A6A87EBCEDF941A86E323DC8A0E`
-- Visual reference: [right-voxel-preview.png](reference/right-voxel-preview.png)
-- Visual reference SHA-256:
-  `D545F32132E57604EE06237F0A779CE4404F224DF5C5D6C6DBD7DF75E461F0D1`
+- Visual comparison captures are local-only and intentionally not tracked.
 
 The assembly hash records this exact build, but source and shader parity are the
 primary gates because a managed assembly can contain nondeterministic metadata.
@@ -49,6 +47,6 @@ their voxel-preview behavior and values must remain equivalent.
 
 Architecture work may change assembly boundaries and adapters only. Before any
 voxel-preview-related change is accepted, compare the rendered result in Rhino
-against the golden image using the same Grasshopper definition, inputs, camera,
-viewport mode, resolution, and simulation frame. Any visible difference is a
-regression unless the user explicitly requests it.
+against a locally held user-approved capture using the same Grasshopper
+definition, inputs, camera, viewport mode, resolution, and simulation frame. Any
+visible difference is a regression unless the user explicitly requests it.

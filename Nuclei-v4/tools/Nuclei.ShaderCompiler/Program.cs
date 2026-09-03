@@ -18,6 +18,8 @@ string solverShaderSource = ExtractVerbatimString(solverSourcePath, "FullSolverS
 string[] entryPoints =
 {
     "ApplyBoundaryModeTransition",
+    "ClaimParticleOwners",
+    "CullParticleOwnerConflicts",
     "MoveParticlesAndDeposit",
     "MoveAntParticlesAndDeposit",
     "ApplyDeposits",
@@ -30,6 +32,9 @@ string[] entryPoints =
     "ApplyParticleDeath",
     "ApplyParticleDivision",
     "DiffuseAxis",
+    "DiffuseAxisXTiled",
+    "DiffuseAxisYTiled",
+    "DiffuseAxisZTiled",
     "ApplyDecay",
     "BuildDensityPreview",
     "BuildCombinedDensityPreview",

@@ -37,13 +37,14 @@ namespace Nuclei4
                 return new List<Particle>();
             }
 
-            Particle[] particles = new Particle[count];
+            int generatedCount = Math.Min(count, voxelCount);
+            Particle[] particles = new Particle[generatedCount];
             uint sequenceSeed = Hash((uint)count ^ (uint)voxelCount ^ 0x4A7C15D1u);
 
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < generatedCount; i++)
             {
                 uint sampleSeed = Hash((uint)i ^ sequenceSeed ^ 0xB5297A4Du);
-                int ordinal = (int)(sampleSeed % (uint)voxelCount);
+                int ordinal = PermuteOrdinal(i, voxelCount, sequenceSeed);
                 int flatIndex = walkableIndices != null ? walkableIndices.FlatIndexAt(ordinal) : voxelData.ActiveFlatIndexAt(ordinal);
                 Point3d point = ScatteredPointInVoxel(voxelData, flatIndex, sampleSeed);
                 uint directionSeed = Hash(sampleSeed ^ (uint)flatIndex ^ 0x9E3779B9u);
@@ -51,6 +52,46 @@ namespace Nuclei4
             }
 
             return new List<Particle>(particles);
+        }
+
+        static int PermuteOrdinal(int ordinal, int count, uint seed)
+        {
+            if (count <= 1) return 0;
+
+            // A balanced Feistel network gives every ordinal one unique,
+            // pseudo-random destination without allocating a full shuffle array.
+            // Cycle-walking restricts that permutation to the actual voxel count.
+            uint largestOrdinal = (uint)(count - 1);
+            int domainBits = 0;
+            while (largestOrdinal != 0)
+            {
+                domainBits++;
+                largestOrdinal >>= 1;
+            }
+            if ((domainBits & 1) != 0) domainBits++;
+
+            int halfBits = domainBits / 2;
+            uint halfMask = (1u << halfBits) - 1u;
+            uint value = (uint)ordinal;
+
+            do
+            {
+                uint left = value >> halfBits;
+                uint right = value & halfMask;
+                for (int round = 0; round < 6; round++)
+                {
+                    uint roundKey = Hash(seed + (uint)round * 0x9E3779B9u);
+                    uint nextLeft = right;
+                    uint nextRight = left ^ (Hash(right ^ roundKey) & halfMask);
+                    left = nextLeft;
+                    right = nextRight;
+                }
+
+                value = (left << halfBits) | right;
+            }
+            while (value >= (uint)count);
+
+            return (int)value;
         }
 
         static Point3d ScatteredPointInVoxel(VoxelGridData voxelData, int flatIndex, uint seed)

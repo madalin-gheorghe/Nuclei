@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -24,6 +25,20 @@ namespace Nuclei4
         public double Milliseconds;
     }
 
+    internal sealed class GpuPassTimestampSample
+    {
+        public string PassName;
+        public int StepOrdinal;
+        public int Occurrence;
+        public double Milliseconds;
+    }
+
+    internal sealed class GpuPassTimestampBatchResult
+    {
+        public double TotalMilliseconds;
+        public GpuPassTimestampSample[] Samples;
+    }
+
     /// <summary>Windows D3D11 compute backend; host objects stay behind the output sink.</summary>
     internal sealed class GpuFullSlimeSolverEngine : IGpuSimulationBackend
     {
@@ -34,6 +49,8 @@ namespace Nuclei4
         const int PopulationNeighbourPublishZero = -2;
         const int PreviewReadbackBufferCount = 3;
         const int PopulationReadbackBufferCount = 3;
+        const int TiledDiffusionTileSize = 16;
+        const int MaximumTiledDiffusionRange = 16;
         const int MaxSharedPreviewTextureDimension = 16384;
         const long MaxSharedDensityPreviewTexturePixels = 33554432;
         static readonly SolverGpuSettings GradientPreviewSettings = new SolverGpuSettings();
@@ -53,7 +70,30 @@ namespace Nuclei4
 
         ID3D11Device device;
         ID3D11DeviceContext context;
+        ID3D11Query benchmarkTimestampDisjointQuery;
+        ID3D11Query benchmarkTimestampStartQuery;
+        ID3D11Query benchmarkTimestampEndQuery;
+        readonly List<ID3D11Query> benchmarkPassTimestampQueries = new List<ID3D11Query>();
+        string[] benchmarkPassTimestampNames = Array.Empty<string>();
+        int[] benchmarkPassTimestampStepOrdinals = Array.Empty<int>();
+        int benchmarkPassTimestampCount;
+        int benchmarkPassTimestampStepOrdinal;
+        bool benchmarkPassTimestampStepOpen;
+        bool benchmarkPassTimestampProfiling;
+        bool benchmarkPassTimestampPending;
+        bool benchmarkPassTimestampOverflow;
+        bool benchmarkTimestampOpen;
+        bool benchmarkTimestampPending;
+        // Internal A/B switches used by the architecture probe. Production
+        // retains the coalesced voxel deposit resolver and persistent counts;
+        // particle-scattered deposits and full recounts are validation controls.
+        bool forceDirectDiffusionForValidation = false;
+        bool disableScalarDecayFusionForValidation = false;
+        bool forceParticleDrivenDepositForValidation = false;
+        bool forceFullParticleCountRebuildForValidation = false;
         ID3D11ComputeShader boundaryModeTransitionShader;
+        ID3D11ComputeShader claimParticleOwnersShader;
+        ID3D11ComputeShader cullParticleOwnerConflictsShader;
         ID3D11ComputeShader moveShader;
         ID3D11ComputeShader antMoveShader;
         ID3D11ComputeShader applyDepositsShader;
@@ -66,6 +106,9 @@ namespace Nuclei4
         ID3D11ComputeShader applyParticleDeathShader;
         ID3D11ComputeShader applyParticleDivisionShader;
         ID3D11ComputeShader diffusionShader;
+        ID3D11ComputeShader diffusionXTiledShader;
+        ID3D11ComputeShader diffusionYTiledShader;
+        ID3D11ComputeShader diffusionZTiledShader;
         ID3D11ComputeShader decayShader;
         ID3D11ComputeShader densityPreviewShader;
         ID3D11ComputeShader combinedDensityPreviewShader;
@@ -99,6 +142,7 @@ namespace Nuclei4
         readonly ID3D11Buffer[] particlePositionPreviewReadbackBuffers = new ID3D11Buffer[PreviewReadbackBufferCount];
         readonly ID3D11Buffer[] populationAsyncReadbackBuffers = new ID3D11Buffer[PopulationReadbackBufferCount];
         ID3D11Buffer particleCountBuffer;
+        ID3D11Buffer particleOwnerBuffer;
         ID3D11Buffer depositBuffer;
         ID3D11Buffer neighbourCountA;
         ID3D11Buffer neighbourCountB;
@@ -138,6 +182,7 @@ namespace Nuclei4
         ID3D11UnorderedAccessView particleYAxisView;
         ID3D11UnorderedAccessView particleHomeView;
         ID3D11UnorderedAccessView particleCountView;
+        ID3D11UnorderedAccessView particleOwnerView;
         ID3D11UnorderedAccessView depositView;
         ID3D11UnorderedAccessView neighbourCountAView;
         ID3D11UnorderedAccessView neighbourCountBView;
@@ -468,8 +513,13 @@ namespace Nuclei4
             CreateParticleBuffers(snapshot);
             CreateGroupBuffers(snapshot);
 
-            DispatchClearParticleCounts(0);
+            DispatchRebuildParticleOwnership(
+                settings ?? new SolverGpuSettings(),
+                SolverGpuDimensionMode.FromResolution(resX, resY, resZ),
+                0);
+            DispatchClearParticleCounts(0, false);
             DispatchCountParticles(0);
+            ReadBackPopulationState();
             if (enableSharedParticlePreview)
             {
                 DispatchParticlePreviewPass(new SolverGpuSettings(), SolverGpuDimensionMode.FromResolution(resX, resY, resZ), 0);
@@ -838,8 +888,10 @@ namespace Nuclei4
             ResetPreviewReadbackState();
             InvalidatePendingPopulationReadbacks();
             ResetParticleTrailPreviewHistory();
-            DispatchClearParticleCounts(0);
+            DispatchRebuildParticleOwnership(settings, SolverGpuDimensionMode.FromResolution(resX, resY, resZ), 0);
+            DispatchClearParticleCounts(0, false);
             DispatchCountParticles(0);
+            ReadBackPopulationState();
 
             SolverGpuDimensionMode dimensionMode = SolverGpuDimensionMode.FromResolution(resX, resY, resZ);
             if (enableSharedDensityPreview && densityPreviewTextureView != null)
@@ -864,6 +916,257 @@ namespace Nuclei4
         {
             ReadBackPopulationState();
             return particleCount;
+        }
+
+        /// <summary>
+        /// Opens a hardware GPU timestamp scope for an offline benchmark batch.
+        /// The matching end timestamp is issued before the blocking validation
+        /// fence so query time excludes readback overhead.
+        /// </summary>
+        public void BeginGpuTimestampBatch()
+        {
+            BeginGpuTimestampBatchCore(false, 0);
+        }
+
+        /// <summary>
+        /// Opens the same hardware timestamp scope with additional offline-only
+        /// pass boundaries. Query objects and metadata storage are allocated
+        /// before the disjoint scope so no resources are created while timing.
+        /// </summary>
+        public void BeginGpuPassTimestampBatch(int expectedSteps)
+        {
+            if (expectedSteps <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(expectedSteps));
+            }
+
+            int markerCapacity = checked(expectedSteps * 32 + 1);
+            EnsureBenchmarkPassTimestampQueries(markerCapacity);
+            if (benchmarkPassTimestampNames.Length < markerCapacity)
+            {
+                benchmarkPassTimestampNames = new string[markerCapacity];
+                benchmarkPassTimestampStepOrdinals = new int[markerCapacity];
+            }
+            BeginGpuTimestampBatchCore(true, markerCapacity);
+        }
+
+        void BeginGpuTimestampBatchCore(bool profilePasses, int markerCapacity)
+        {
+            if (benchmarkTimestampOpen || benchmarkTimestampPending)
+            {
+                throw new InvalidOperationException("A GPU timestamp batch is already open or awaiting resolution.");
+            }
+
+            EnsureBenchmarkTimestampQueries();
+            benchmarkPassTimestampProfiling = profilePasses;
+            benchmarkPassTimestampPending = false;
+            benchmarkPassTimestampCount = 0;
+            benchmarkPassTimestampStepOrdinal = -1;
+            benchmarkPassTimestampStepOpen = false;
+            benchmarkPassTimestampOverflow = false;
+            if (profilePasses)
+            {
+                Array.Clear(benchmarkPassTimestampNames, 0, markerCapacity);
+            }
+            context.Begin(benchmarkTimestampDisjointQuery);
+            context.End(benchmarkTimestampStartQuery);
+            benchmarkTimestampOpen = true;
+        }
+
+        public void EndGpuTimestampBatch()
+        {
+            if (!benchmarkTimestampOpen)
+            {
+                throw new InvalidOperationException("No GPU timestamp batch is open.");
+            }
+            if (benchmarkPassTimestampStepOpen)
+            {
+                throw new InvalidOperationException("A profiled GPU step was not closed before the batch ended.");
+            }
+
+            context.End(benchmarkTimestampEndQuery);
+            context.End(benchmarkTimestampDisjointQuery);
+            benchmarkTimestampOpen = false;
+            benchmarkTimestampPending = true;
+            benchmarkPassTimestampPending = benchmarkPassTimestampProfiling;
+        }
+
+        public double ResolveGpuTimestampBatchMilliseconds()
+        {
+            if (benchmarkTimestampOpen || !benchmarkTimestampPending)
+            {
+                throw new InvalidOperationException("No completed GPU timestamp batch is awaiting resolution.");
+            }
+            if (benchmarkPassTimestampPending)
+            {
+                throw new InvalidOperationException(
+                    "This batch contains pass timestamps; resolve it with ResolveGpuPassTimestampBatch.");
+            }
+
+            ReadBenchmarkTimestampRange(out ulong start, out ulong end, out QueryDataTimestampDisjoint timing);
+            benchmarkTimestampPending = false;
+            benchmarkPassTimestampProfiling = false;
+            return TimestampMilliseconds(start, end, timing);
+        }
+
+        public GpuPassTimestampBatchResult ResolveGpuPassTimestampBatch()
+        {
+            if (benchmarkTimestampOpen || !benchmarkTimestampPending || !benchmarkPassTimestampPending)
+            {
+                throw new InvalidOperationException("No completed GPU pass-timestamp batch is awaiting resolution.");
+            }
+            if (benchmarkPassTimestampOverflow)
+            {
+                benchmarkTimestampPending = false;
+                benchmarkPassTimestampPending = false;
+                benchmarkPassTimestampProfiling = false;
+                throw new InvalidOperationException("GPU pass-timestamp query capacity was exceeded.");
+            }
+
+            ReadBenchmarkTimestampRange(out ulong start, out ulong end, out QueryDataTimestampDisjoint timing);
+            double totalMilliseconds = TimestampMilliseconds(start, end, timing);
+            ulong[] timestamps = new ulong[benchmarkPassTimestampCount];
+            for (int i = 0; i < timestamps.Length; i++)
+            {
+                if (!context.GetData(benchmarkPassTimestampQueries[i], out timestamps[i]))
+                {
+                    throw new InvalidOperationException(
+                        "GPU pass timestamp data was not ready after the synchronized validation fence.");
+                }
+            }
+
+            List<GpuPassTimestampSample> samples = new List<GpuPassTimestampSample>(
+                Math.Max(0, benchmarkPassTimestampCount - 1));
+            Dictionary<string, int> occurrences = new Dictionary<string, int>(StringComparer.Ordinal);
+            int occurrenceStep = -1;
+            for (int i = 0; i + 1 < benchmarkPassTimestampCount; i++)
+            {
+                string passName = benchmarkPassTimestampNames[i];
+                int stepOrdinal = benchmarkPassTimestampStepOrdinals[i];
+                if (passName == null || benchmarkPassTimestampStepOrdinals[i + 1] != stepOrdinal)
+                {
+                    continue;
+                }
+                if (timestamps[i + 1] < timestamps[i])
+                {
+                    throw new InvalidOperationException("GPU pass timestamp sample was invalid.");
+                }
+                if (stepOrdinal != occurrenceStep)
+                {
+                    occurrences.Clear();
+                    occurrenceStep = stepOrdinal;
+                }
+                occurrences.TryGetValue(passName, out int occurrence);
+                occurrence++;
+                occurrences[passName] = occurrence;
+                samples.Add(new GpuPassTimestampSample
+                {
+                    PassName = passName,
+                    StepOrdinal = stepOrdinal,
+                    Occurrence = occurrence,
+                    Milliseconds = (timestamps[i + 1] - timestamps[i]) * 1000.0 / timing.Frequency
+                });
+            }
+
+            benchmarkTimestampPending = false;
+            benchmarkPassTimestampPending = false;
+            benchmarkPassTimestampProfiling = false;
+            return new GpuPassTimestampBatchResult
+            {
+                TotalMilliseconds = totalMilliseconds,
+                Samples = samples.ToArray()
+            };
+        }
+
+        void ReadBenchmarkTimestampRange(
+            out ulong start,
+            out ulong end,
+            out QueryDataTimestampDisjoint timing)
+        {
+            if (!context.GetData(benchmarkTimestampStartQuery, out start)
+                || !context.GetData(benchmarkTimestampEndQuery, out end)
+                || !context.GetData(benchmarkTimestampDisjointQuery, out timing))
+            {
+                throw new InvalidOperationException(
+                    "GPU timestamp data was not ready after the synchronized validation fence.");
+            }
+        }
+
+        static double TimestampMilliseconds(
+            ulong start,
+            ulong end,
+            QueryDataTimestampDisjoint timing)
+        {
+            if (timing.Disjoint)
+            {
+                throw new InvalidOperationException(
+                    "GPU timestamp sample was disjoint because the hardware clock changed during the batch.");
+            }
+            if (timing.Frequency == 0 || end < start)
+            {
+                throw new InvalidOperationException("GPU timestamp sample was invalid.");
+            }
+            return (end - start) * 1000.0 / timing.Frequency;
+        }
+
+        void EnsureBenchmarkTimestampQueries()
+        {
+            if (benchmarkTimestampDisjointQuery != null) return;
+
+            benchmarkTimestampDisjointQuery = device.CreateQuery(
+                new QueryDescription(QueryType.TimestampDisjoint, QueryFlags.None));
+            benchmarkTimestampStartQuery = device.CreateQuery(
+                new QueryDescription(QueryType.Timestamp, QueryFlags.None));
+            benchmarkTimestampEndQuery = device.CreateQuery(
+                new QueryDescription(QueryType.Timestamp, QueryFlags.None));
+        }
+
+        void EnsureBenchmarkPassTimestampQueries(int capacity)
+        {
+            while (benchmarkPassTimestampQueries.Count < capacity)
+            {
+                benchmarkPassTimestampQueries.Add(device.CreateQuery(
+                    new QueryDescription(QueryType.Timestamp, QueryFlags.None)));
+            }
+        }
+
+        void BeginGpuPassTimestampStep()
+        {
+            if (!benchmarkPassTimestampProfiling) return;
+            if (benchmarkPassTimestampStepOpen)
+            {
+                throw new InvalidOperationException("A profiled GPU step is already open.");
+            }
+            benchmarkPassTimestampStepOrdinal++;
+            benchmarkPassTimestampStepOpen = true;
+            MarkGpuPassTimestampBoundary("Other");
+        }
+
+        void MarkGpuPassTimestampBoundary(string nextPassName)
+        {
+            if (!benchmarkPassTimestampProfiling) return;
+            if (benchmarkPassTimestampCount >= benchmarkPassTimestampQueries.Count
+                || benchmarkPassTimestampCount >= benchmarkPassTimestampNames.Length)
+            {
+                benchmarkPassTimestampOverflow = true;
+                return;
+            }
+
+            int index = benchmarkPassTimestampCount++;
+            benchmarkPassTimestampNames[index] = nextPassName;
+            benchmarkPassTimestampStepOrdinals[index] = benchmarkPassTimestampStepOrdinal;
+            context.End(benchmarkPassTimestampQueries[index]);
+        }
+
+        void EndGpuPassTimestampStep()
+        {
+            if (!benchmarkPassTimestampProfiling) return;
+            if (!benchmarkPassTimestampStepOpen)
+            {
+                throw new InvalidOperationException("No profiled GPU step is open.");
+            }
+            MarkGpuPassTimestampBoundary(null);
+            benchmarkPassTimestampStepOpen = false;
         }
 
         public bool TryCompletePopulationReadback(int[] groupPopulations, out int totalPopulation)
@@ -977,6 +1280,13 @@ namespace Nuclei4
             }
 
             return count;
+        }
+
+        static string DiffusionTimestampPassName(int axis, bool scalarDecayFused)
+        {
+            if (axis == 0) return scalarDecayFused ? "DiffusionX+ScalarDecay" : "DiffusionX";
+            if (axis == 1) return scalarDecayFused ? "DiffusionY+ScalarDecay" : "DiffusionY";
+            return scalarDecayFused ? "DiffusionZ+ScalarDecay" : "DiffusionZ";
         }
 
         public void SetSharedDensityPreviewEnabled(bool enabled, SolverGpuDimensionMode dimensionMode, int previewScale)
@@ -1113,15 +1423,25 @@ namespace Nuclei4
             Stopwatch stage = Stopwatch.StartNew();
             int passCount = 0;
             bool movedParticles = false;
+            BeginGpuPassTimestampStep();
 
             if (settings.WrapBoundaries != wrapBoundaryState)
             {
+                MarkGpuPassTimestampBoundary("BoundaryTransition");
                 DispatchBoundaryModeTransition(settings, dimensionMode, iteration);
                 wrapBoundaryState = settings.WrapBoundaries;
                 DisposeStaticFieldPreviewTexture(VoxelPreviewField.MaximumDensity);
                 staticFieldPreviewScaleValid[VoxelPreviewField.MaximumDensity] = false;
-                DispatchClearParticleCounts(iteration);
-                DispatchCountParticles(iteration);
+                // Boundary transitions use the same persistent ownership update as
+                // movement and cannot change active/free/group totals. The legacy
+                // rebuild remains available for same-binary validation.
+                if (forceFullParticleCountRebuildForValidation)
+                {
+                    MarkGpuPassTimestampBoundary("ClearCounts.LegacyVoxel");
+                    DispatchClearParticleCounts(iteration, true);
+                    MarkGpuPassTimestampBoundary("CountParticles");
+                    DispatchCountParticles(iteration);
+                }
             }
 
             if (processDensity)
@@ -1131,10 +1451,30 @@ namespace Nuclei4
 
             if (particleCount > 0 && iteration > 1)
             {
+                MarkGpuPassTimestampBoundary("Move");
                 DispatchMoveParticlesAndDeposit(settings, dimensionMode, iteration);
+                MarkGpuPassTimestampBoundary(
+                    forceParticleDrivenDepositForValidation
+                        ? "ApplyDeposits.ParticleExperimental"
+                        : "ApplyDeposits.CoalescedVoxel");
                 DispatchApplyDeposits(settings, dimensionMode, iteration);
-                DispatchClearParticleCounts(iteration);
-                DispatchCountParticles(iteration);
+                // Movement maintains binary voxel occupancy incrementally. Static
+                // populations also keep their aggregate counters unchanged, so the
+                // old 27M-voxel clear and capacity-wide recount are unnecessary.
+                // Dynamic populations retain the recount because it rebuilds the
+                // legacy free-slot ordering before death/division.
+                if (settings.DynamicPopulation || forceFullParticleCountRebuildForValidation)
+                {
+                    MarkGpuPassTimestampBoundary(
+                        forceFullParticleCountRebuildForValidation
+                            ? "ClearCounts.LegacyVoxel"
+                            : "ClearCounts.Aggregates");
+                    DispatchClearParticleCounts(
+                        iteration,
+                        forceFullParticleCountRebuildForValidation);
+                    MarkGpuPassTimestampBoundary("CountParticles");
+                    DispatchCountParticles(iteration);
+                }
                 movedParticles = true;
             }
             else if (particleCount > 0)
@@ -1142,6 +1482,7 @@ namespace Nuclei4
                 // V3 still runs particleCheckParentVoxel during iterations 0 and 1.
                 // Movement is gated, but every live particle ages once on each of
                 // those warm-up solutions before iteration 2 starts sensing.
+                MarkGpuPassTimestampBoundary("AdvanceAges");
                 DispatchAdvanceParticleAges(iteration);
             }
 
@@ -1151,6 +1492,7 @@ namespace Nuclei4
             stage.Restart();
             if (settings.DynamicPopulation && particleCapacity > 0 && iteration > 1)
             {
+                MarkGpuPassTimestampBoundary("DynamicPopulation");
                 DispatchDynamicPopulation(settings, dimensionMode, iteration);
                 if (!syncParticleState)
                 {
@@ -1165,10 +1507,12 @@ namespace Nuclei4
             stage.Restart();
             if (hasSlimeParticles && foodSourceOffset >= 0)
             {
+                MarkGpuPassTimestampBoundary("FoodProjection");
                 DispatchFoodSourceProjection(settings, dimensionMode, iteration);
                 passCount++;
             }
 
+            bool scalarDecayFused = false;
             if (processDensity && (settings.Diffuse > 0 || settings.DiffusionGradual < 1))
             {
                 int axisCount = GetDiffusionAxisOrder(dimensionMode, iteration, diffusionAxisScratch);
@@ -1180,46 +1524,59 @@ namespace Nuclei4
                 {
                     // Retention applies only on the final axis so a multi-axis
                     // pass does not compound it, matching V3.
-                    double finalScale = i == axisCount - 1 ? retention : 1;
+                    bool finalAxis = i == axisCount - 1;
+                    bool fuseDecay = finalAxis && !disableScalarDecayFusionForValidation;
+                    double finalScale = finalAxis ? retention : 1;
+                    MarkGpuPassTimestampBoundary(
+                        DiffusionTimestampPassName(diffusionAxisScratch[i], fuseDecay));
                     DispatchDiffusionPass(
                         diffusionAxisScratch[i],
                         settings,
                         dimensionMode,
                         iteration,
                         baseKeep * finalScale,
-                        strength * finalScale);
+                        strength * finalScale,
+                        fuseDecay);
                     SwapDensityBuffers();
                     passCount++;
+                    scalarDecayFused |= fuseDecay;
                 }
             }
 
-            if (processDensity)
+            if (processDensity && !scalarDecayFused)
             {
+                MarkGpuPassTimestampBoundary("ScalarDecay");
                 DispatchDecayPass(settings, dimensionMode, iteration);
                 SwapDensityBuffers();
                 passCount++;
             }
             if (hasAntParticles)
             {
+                MarkGpuPassTimestampBoundary("AntFoodField");
                 passCount += DispatchAntPheromoneField(true, settings, dimensionMode, iteration);
+                MarkGpuPassTimestampBoundary("AntBaseField");
                 passCount += DispatchAntPheromoneField(false, settings, dimensionMode, iteration);
             }
             if (enableSharedDensityPreview)
             {
+                MarkGpuPassTimestampBoundary("DensityPreview");
                 DispatchSelectedDensityPreviewPass(settings, dimensionMode, iteration);
             }
             if (enableSharedParticlePreview)
             {
+                MarkGpuPassTimestampBoundary("ParticlePreview");
                 DispatchParticlePreviewPass(settings, dimensionMode, iteration);
             }
             if (enableSharedParticleTrailPreview)
             {
+                MarkGpuPassTimestampBoundary("TrailPreview");
                 DispatchParticleTrailPreviewPass(settings, dimensionMode, iteration);
             }
             stage.Stop();
             double diffusionMs = stage.Elapsed.TotalMilliseconds;
 
             stage.Restart();
+            MarkGpuPassTimestampBoundary("Readback");
             if (syncVoxels)
             {
                 if (processDensity) ReadBackDensity();
@@ -1242,6 +1599,7 @@ namespace Nuclei4
             }
             stage.Stop();
             double readbackMs = stage.Elapsed.TotalMilliseconds;
+            EndGpuPassTimestampStep();
 
             total.Stop();
 
@@ -1282,7 +1640,7 @@ namespace Nuclei4
 
         void DispatchMoveParticlesAndDeposit(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
         {
-            if (particleCapacity <= 0 || particlePositionView == null)
+            if (particleCapacity <= 0 || particlePositionView == null || particleOwnerView == null)
             {
                 return;
             }
@@ -1301,6 +1659,7 @@ namespace Nuclei4
                 context.CSSetUnorderedAccessView(7, particleHomeView, -1);
             }
             context.CSSetUnorderedAccessView(0, CurrentDensityView(), -1);
+            context.CSSetUnorderedAccessView(1, particleOwnerView, -1);
             context.CSSetUnorderedAccessView(2, particlePositionView, -1);
             context.CSSetUnorderedAccessView(3, particleDirectionView, -1);
             context.CSSetUnorderedAccessView(4, particleYAxisView, -1);
@@ -1310,9 +1669,56 @@ namespace Nuclei4
             UnbindComputeResources();
         }
 
+        /// <summary>
+        /// Rebuilds the persistent voxel-owner map from particle positions. An
+        /// atomic minimum makes duplicate resolution stable: the lowest live slot
+        /// owns the voxel and every other claimant is retired before recounting.
+        /// </summary>
+        void DispatchRebuildParticleOwnership(
+            SolverGpuSettings settings,
+            SolverGpuDimensionMode dimensionMode,
+            int iteration)
+        {
+            if (particleCapacity <= 0
+                || particleOwnerView == null
+                || claimParticleOwnersShader == null
+                || cullParticleOwnerConflictsShader == null)
+            {
+                return;
+            }
+
+            context.ClearUnorderedAccessView(
+                particleOwnerView,
+                new Vortice.Mathematics.Int4(-1));
+
+            UpdateParameters(CreateParameters(0, settings, dimensionMode, iteration));
+            context.CSSetShader(claimParticleOwnersShader);
+            context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+            context.CSSetShaderResource(3, voxelFlagsView);
+            context.CSSetShaderResource(12, activeVoxelFlagsView);
+            context.CSSetUnorderedAccessView(1, particleOwnerView, -1);
+            context.CSSetUnorderedAccessView(2, particlePositionView, -1);
+            DispatchLinear256(particleCapacity);
+            UnbindComputeResources();
+
+            context.CSSetShader(cullParticleOwnerConflictsShader);
+            context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
+            context.CSSetShaderResource(3, voxelFlagsView);
+            context.CSSetShaderResource(12, activeVoxelFlagsView);
+            context.CSSetUnorderedAccessView(1, particleOwnerView, -1);
+            context.CSSetUnorderedAccessView(2, particlePositionView, -1);
+            context.CSSetUnorderedAccessView(3, particleDirectionView, -1);
+            context.CSSetUnorderedAccessView(4, particleYAxisView, -1);
+            DispatchLinear256(particleCapacity);
+            UnbindComputeResources();
+        }
+
         void DispatchBoundaryModeTransition(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
         {
-            if (particleCapacity <= 0 || boundaryModeTransitionShader == null || particlePositionView == null)
+            if (particleCapacity <= 0
+                || boundaryModeTransitionShader == null
+                || particlePositionView == null
+                || particleOwnerView == null)
             {
                 return;
             }
@@ -1322,12 +1728,14 @@ namespace Nuclei4
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetShaderResource(3, voxelFlagsView);
             context.CSSetShaderResource(12, activeVoxelFlagsView);
+            context.CSSetUnorderedAccessView(1, particleOwnerView, -1);
             context.CSSetUnorderedAccessViews(2, new ID3D11UnorderedAccessView[]
             {
                 particlePositionView,
                 particleDirectionView,
                 particleYAxisView
             });
+            context.CSSetUnorderedAccessView(5, particleCountView, -1);
             DispatchLinear256(particleCapacity);
             UnbindComputeResources();
         }
@@ -1351,7 +1759,11 @@ namespace Nuclei4
 
         void DispatchApplyDeposits(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
         {
-            UpdateParameters(CreateParameters(0, settings, dimensionMode, iteration));
+            FullSolverParameters parameters = CreateParameters(0, settings, dimensionMode, iteration);
+            // ApplyDeposits uses this otherwise-irrelevant parameter as an internal
+            // dispatch-mode selector without changing the preserved cbuffer ABI.
+            parameters.PreviewPadding0 = forceParticleDrivenDepositForValidation ? 0 : 1;
+            UpdateParameters(parameters);
 
             context.CSSetShader(applyDepositsShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
@@ -1364,24 +1776,38 @@ namespace Nuclei4
                 context.CSSetUnorderedAccessView(1, CurrentAntFoodView(), -1);
                 context.CSSetUnorderedAccessView(7, CurrentAntBaseView(), -1);
             }
+            if (forceParticleDrivenDepositForValidation)
+            {
+                context.CSSetUnorderedAccessView(2, particlePositionView, -1);
+                context.CSSetUnorderedAccessView(3, particleDirectionView, -1);
+            }
             context.CSSetUnorderedAccessView(6, depositView, -1);
-            DispatchLinear256(voxelCount);
+            DispatchLinear256(
+                forceParticleDrivenDepositForValidation ? particleCapacity : voxelCount);
             UnbindComputeResources();
         }
 
-        void DispatchClearParticleCounts(int iteration)
+        void DispatchClearParticleCounts(int iteration, bool clearVoxelOccupancy)
         {
             if (particleCountView == null)
             {
                 return;
             }
 
-            UpdateParameters(CreateParameters(0, new SolverGpuSettings(), SolverGpuDimensionMode.FromResolution(resX, resY, resZ), iteration));
+            FullSolverParameters parameters = CreateParameters(
+                0,
+                new SolverGpuSettings(),
+                SolverGpuDimensionMode.FromResolution(resX, resY, resZ),
+                iteration);
+            // ClearParticleCounts shares the selector with ApplyDeposits. Zero is
+            // the production counter-only path; one reproduces the old full scan.
+            parameters.PreviewPadding0 = clearVoxelOccupancy ? 1 : 0;
+            UpdateParameters(parameters);
 
             context.CSSetShader(clearCountsShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetUnorderedAccessView(5, particleCountView, -1);
-            DispatchLinear256(Math.Max(voxelCount, groupCount));
+            DispatchLinear256(Math.Max(clearVoxelOccupancy ? voxelCount : 1, groupCount));
             UnbindComputeResources();
         }
 
@@ -1398,9 +1824,11 @@ namespace Nuclei4
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetShaderResource(3, voxelFlagsView);
             context.CSSetShaderResource(12, activeVoxelFlagsView);
+            context.CSSetUnorderedAccessView(1, particleOwnerView, -1);
             context.CSSetUnorderedAccessView(2, particlePositionView, -1);
             context.CSSetUnorderedAccessView(3, particleDirectionView, -1);
             context.CSSetUnorderedAccessView(5, particleCountView, -1);
+            context.CSSetUnorderedAccessView(6, depositView, -1);
             DispatchLinear256(particleCapacity);
             UnbindComputeResources();
         }
@@ -1698,6 +2126,7 @@ namespace Nuclei4
             context.CSSetShader(applyParticleDeathShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetUnorderedAccessView(0, neighbourView, -1);
+            context.CSSetUnorderedAccessView(1, particleOwnerView, -1);
             context.CSSetUnorderedAccessView(2, particlePositionView, -1);
             context.CSSetUnorderedAccessView(3, particleDirectionView, -1);
             context.CSSetUnorderedAccessView(4, particleYAxisView, -1);
@@ -1738,6 +2167,7 @@ namespace Nuclei4
                 voxelDensityLimitsView
             });
             context.CSSetUnorderedAccessView(0, neighbourView, -1);
+            context.CSSetUnorderedAccessView(1, particleOwnerView, -1);
             context.CSSetUnorderedAccessView(2, particlePositionView, -1);
             context.CSSetUnorderedAccessView(3, particleDirectionView, -1);
             context.CSSetUnorderedAccessView(4, particleYAxisView, -1);
@@ -1748,14 +2178,35 @@ namespace Nuclei4
             UnbindComputeResources();
         }
 
-        void DispatchDiffusionPass(int axis, SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration, double keep, double diffuseAmount)
+        void DispatchDiffusionPass(
+            int axis,
+            SolverGpuSettings settings,
+            SolverGpuDimensionMode dimensionMode,
+            int iteration,
+            double keep,
+            double diffuseAmount,
+            bool applyDecay)
         {
             FullSolverParameters parameters = CreateParameters(axis, settings, dimensionMode, iteration);
             parameters.Keep = (float)keep;
             parameters.Diffuse = (float)diffuseAmount;
+            parameters.ApplyScalarDecayAfterDiffusion = applyDecay ? 1 : 0;
             UpdateParameters(parameters);
 
-            context.CSSetShader(diffusionShader);
+            ID3D11ComputeShader selectedShader;
+            int groupsX;
+            int groupsY;
+            int groupsZ;
+            bool tiled = TryGetTiledDiffusionDispatch(
+                axis,
+                settings.DiffuseRange,
+                dimensionMode,
+                out selectedShader,
+                out groupsX,
+                out groupsY,
+                out groupsZ);
+
+            context.CSSetShader(selectedShader);
             context.CSSetConstantBuffers(0, new ID3D11Buffer[] { parameterBuffer });
             context.CSSetShaderResources(0, new ID3D11ShaderResourceView[] { weightsView });
             context.CSSetShaderResource(3, voxelFlagsView);
@@ -1763,8 +2214,86 @@ namespace Nuclei4
             context.CSSetShaderResource(12, activeVoxelFlagsView);
             context.CSSetUnorderedAccessView(0, CurrentDensityView(), -1);
             context.CSSetUnorderedAccessView(1, NextDensityView(), -1);
-            DispatchLinear256(voxelCount);
+            if (applyDecay)
+            {
+                context.CSSetUnorderedAccessView(5, particleCountView, -1);
+            }
+
+            if (tiled)
+            {
+                context.Dispatch(groupsX, groupsY, groupsZ);
+            }
+            else
+            {
+                DispatchLinear256(voxelCount);
+            }
             UnbindComputeResources();
+        }
+
+        bool TryGetTiledDiffusionDispatch(
+            int axis,
+            int range,
+            SolverGpuDimensionMode dimensionMode,
+            out ID3D11ComputeShader shader,
+            out int groupsX,
+            out int groupsY,
+            out int groupsZ)
+        {
+            shader = diffusionShader;
+            groupsX = 0;
+            groupsY = 0;
+            groupsZ = 0;
+
+            if (forceDirectDiffusionForValidation
+                || !dimensionMode.Tridimensional
+                || range < 2
+                || range > MaximumTiledDiffusionRange)
+            {
+                return false;
+            }
+
+            if (axis == 0)
+            {
+                shader = diffusionXTiledShader;
+                groupsX = DivideRoundUpTiledDiffusion(resX);
+                groupsY = DivideRoundUpTiledDiffusion(resZ);
+                groupsZ = resY;
+            }
+            else if (axis == 1)
+            {
+                shader = diffusionYTiledShader;
+                groupsX = DivideRoundUpTiledDiffusion(resY);
+                groupsY = DivideRoundUpTiledDiffusion(resZ);
+                groupsZ = resX;
+            }
+            else if (axis == 2)
+            {
+                shader = diffusionZTiledShader;
+                groupsX = DivideRoundUpTiledDiffusion(resZ);
+                groupsY = DivideRoundUpTiledDiffusion(resY);
+                groupsZ = resX;
+            }
+            else
+            {
+                shader = diffusionShader;
+                return false;
+            }
+
+            if (shader == null
+                || groupsX <= 0 || groupsX > 65535
+                || groupsY <= 0 || groupsY > 65535
+                || groupsZ <= 0 || groupsZ > 65535)
+            {
+                shader = diffusionShader;
+                return false;
+            }
+
+            return true;
+        }
+
+        static int DivideRoundUpTiledDiffusion(int value)
+        {
+            return (int)(((long)value + TiledDiffusionTileSize - 1) / TiledDiffusionTileSize);
         }
 
         void DispatchDecayPass(SolverGpuSettings settings, SolverGpuDimensionMode dimensionMode, int iteration)
@@ -2181,7 +2710,7 @@ namespace Nuclei4
             parameters.PlanarYZ = dimensionMode.PlanarYZ ? 1 : 0;
             parameters.Iteration = iteration;
             parameters.GroupCount = groupCount;
-            parameters.Padding1 = 0;
+            parameters.ApplyScalarDecayAfterDiffusion = 0;
             parameters.VoxelSize = voxelSize;
             parameters.DimX = dimX;
             parameters.DimY = dimY;
@@ -2727,6 +3256,50 @@ namespace Nuclei4
             ReadBackParticleAxes();
             ReadBackParticleAuxiliaryState();
             ReadBackPopulationState();
+        }
+
+        public int[] ReadBackValidationParticleCounts()
+        {
+            return ReadBackValidationUIntBuffer(
+                particleCountBuffer,
+                checked(voxelCount + 4 + groupCount));
+        }
+
+        public int[] ReadBackValidationParticleOwners()
+        {
+            return ReadBackValidationUIntBuffer(particleOwnerBuffer, voxelCount);
+        }
+
+        public int[] ReadBackValidationDeposits()
+        {
+            return ReadBackValidationUIntBuffer(depositBuffer, depositElementCount);
+        }
+
+        int[] ReadBackValidationUIntBuffer(ID3D11Buffer source, int elementCount)
+        {
+            if (source == null || elementCount <= 0)
+            {
+                return Array.Empty<int>();
+            }
+
+            int[] values = new int[elementCount];
+            using (ID3D11Buffer staging = CreateReadbackBuffer(checked(elementCount * sizeof(uint))))
+            {
+                context.CopyResource(staging, source);
+                MappedSubresource mapped = context.Map(
+                    staging,
+                    MapMode.Read,
+                    Vortice.Direct3D11.MapFlags.None);
+                try
+                {
+                    Marshal.Copy(mapped.DataPointer, values, 0, values.Length);
+                }
+                finally
+                {
+                    context.Unmap(staging);
+                }
+            }
+            return values;
         }
 
         void ReadBackParticlePositions()
@@ -4396,6 +4969,7 @@ namespace Nuclei4
                 yAxes[i * 4] = 0;
                 yAxes[i * 4 + 1] = 1;
                 yAxes[i * 4 + 2] = 0;
+                yAxes[i * 4 + 3] = -1;
                 homes[i * 4 + 3] = -1;
             }
 
@@ -4481,6 +5055,14 @@ namespace Nuclei4
                 ResourceOptionFlags.BufferStructured,
                 sizeof(uint));
 
+            particleOwnerBuffer = device.CreateBuffer(
+                checked(voxelCount * sizeof(uint)),
+                BindFlags.UnorderedAccess,
+                ResourceUsage.Default,
+                CpuAccessFlags.None,
+                ResourceOptionFlags.BufferStructured,
+                sizeof(uint));
+
             depositBuffer = device.CreateBuffer(
                 checked(depositElementCount * sizeof(uint)),
                 BindFlags.UnorderedAccess,
@@ -4490,6 +5072,7 @@ namespace Nuclei4
                 sizeof(uint));
 
             particleCountView = CreateUav(particleCountBuffer, voxelCount + 4 + groupCount);
+            particleOwnerView = CreateUav(particleOwnerBuffer, voxelCount);
             depositView = CreateUav(depositBuffer, depositElementCount);
             ResetAuxiliaryState(snapshot);
         }
@@ -5073,6 +5656,8 @@ namespace Nuclei4
         void CompileShaders()
         {
             boundaryModeTransitionShader = CreateComputeShader("ApplyBoundaryModeTransition");
+            claimParticleOwnersShader = CreateComputeShader("ClaimParticleOwners");
+            cullParticleOwnerConflictsShader = CreateComputeShader("CullParticleOwnerConflicts");
             moveShader = CreateComputeShader("MoveParticlesAndDeposit");
             antMoveShader = CreateComputeShader("MoveAntParticlesAndDeposit");
             applyDepositsShader = CreateComputeShader("ApplyDeposits");
@@ -5085,6 +5670,9 @@ namespace Nuclei4
             applyParticleDeathShader = CreateComputeShader("ApplyParticleDeath");
             applyParticleDivisionShader = CreateComputeShader("ApplyParticleDivision");
             diffusionShader = CreateComputeShader("DiffuseAxis");
+            diffusionXTiledShader = CreateComputeShader("DiffuseAxisXTiled");
+            diffusionYTiledShader = CreateComputeShader("DiffuseAxisYTiled");
+            diffusionZTiledShader = CreateComputeShader("DiffuseAxisZTiled");
             decayShader = CreateComputeShader("ApplyDecay");
             densityPreviewShader = CreateComputeShader("BuildDensityPreview");
             combinedDensityPreviewShader = CreateComputeShader("BuildCombinedDensityPreview");
@@ -5299,6 +5887,7 @@ namespace Nuclei4
             if (particleYAxisView != null) particleYAxisView.Dispose();
             if (particleHomeView != null) particleHomeView.Dispose();
             if (particleCountView != null) particleCountView.Dispose();
+            if (particleOwnerView != null) particleOwnerView.Dispose();
             if (depositView != null) depositView.Dispose();
             if (neighbourCountAView != null) neighbourCountAView.Dispose();
             if (neighbourCountBView != null) neighbourCountBView.Dispose();
@@ -5352,6 +5941,7 @@ namespace Nuclei4
                 }
             }
             if (particleCountBuffer != null) particleCountBuffer.Dispose();
+            if (particleOwnerBuffer != null) particleOwnerBuffer.Dispose();
             if (depositBuffer != null) depositBuffer.Dispose();
             if (neighbourCountA != null) neighbourCountA.Dispose();
             if (neighbourCountB != null) neighbourCountB.Dispose();
@@ -5367,6 +5957,8 @@ namespace Nuclei4
             if (parameterBuffer != null) parameterBuffer.Dispose();
             if (volumeMeshParameterBuffer != null) volumeMeshParameterBuffer.Dispose();
             if (boundaryModeTransitionShader != null) boundaryModeTransitionShader.Dispose();
+            if (claimParticleOwnersShader != null) claimParticleOwnersShader.Dispose();
+            if (cullParticleOwnerConflictsShader != null) cullParticleOwnerConflictsShader.Dispose();
             if (moveShader != null) moveShader.Dispose();
             if (antMoveShader != null) antMoveShader.Dispose();
             if (applyDepositsShader != null) applyDepositsShader.Dispose();
@@ -5379,6 +5971,9 @@ namespace Nuclei4
             if (applyParticleDeathShader != null) applyParticleDeathShader.Dispose();
             if (applyParticleDivisionShader != null) applyParticleDivisionShader.Dispose();
             if (diffusionShader != null) diffusionShader.Dispose();
+            if (diffusionXTiledShader != null) diffusionXTiledShader.Dispose();
+            if (diffusionYTiledShader != null) diffusionYTiledShader.Dispose();
+            if (diffusionZTiledShader != null) diffusionZTiledShader.Dispose();
             if (decayShader != null) decayShader.Dispose();
             if (densityPreviewShader != null) densityPreviewShader.Dispose();
             if (combinedDensityPreviewShader != null) combinedDensityPreviewShader.Dispose();
@@ -5388,6 +5983,14 @@ namespace Nuclei4
             if (volumeSmoothShader != null) volumeSmoothShader.Dispose();
             if (volumeCellClassifyShader != null) volumeCellClassifyShader.Dispose();
             if (volumeTriangleShader != null) volumeTriangleShader.Dispose();
+            if (benchmarkTimestampDisjointQuery != null) benchmarkTimestampDisjointQuery.Dispose();
+            if (benchmarkTimestampStartQuery != null) benchmarkTimestampStartQuery.Dispose();
+            if (benchmarkTimestampEndQuery != null) benchmarkTimestampEndQuery.Dispose();
+            for (int i = 0; i < benchmarkPassTimestampQueries.Count; i++)
+            {
+                benchmarkPassTimestampQueries[i].Dispose();
+            }
+            benchmarkPassTimestampQueries.Clear();
             if (context != null) context.Dispose();
             if (device != null) device.Dispose();
         }
@@ -5476,7 +6079,7 @@ namespace Nuclei4
             public int Iteration;
             public int GroupCount;
             public int HasActiveVoxelFlags;
-            public int Padding1;
+            public int ApplyScalarDecayAfterDiffusion;
             public float VoxelSize;
             public float DimX;
             public float DimY;
@@ -5602,7 +6205,7 @@ cbuffer Params : register(b0)
     int Iteration;
     int GroupCount;
     int HasActiveVoxelFlags;
-    int Padding1;
+    int ApplyScalarDecayAfterDiffusion;
     float VoxelSize;
     float DimX;
     float DimY;
@@ -5718,6 +6321,7 @@ struct MeshTriangle
 
 RWStructuredBuffer<float> Source : register(u0);
 RWStructuredBuffer<float> Destination : register(u1);
+RWStructuredBuffer<uint> ParticleOwners : register(u1);
 AppendStructuredBuffer<uint> MeshActiveCells : register(u1);
 AppendStructuredBuffer<MeshTriangle> MeshTriangles : register(u1);
 RWStructuredBuffer<float4> ParticlePosition : register(u2);
@@ -5747,6 +6351,13 @@ StructuredBuffer<float> AntBasePheromone : register(t9);
 Texture2D<float4> DensityPreviewSource : register(t10);
 StructuredBuffer<int> VoxelVectorFrequencies : register(t11);
 StructuredBuffer<uint> ActiveVoxelFlags : register(t12);
+
+// A 16-wide output tile plus a maximum 16-cell halo on either side. Invalid
+// neighbour samples are masked to zero while loading the tile. Each thread
+// keeps its unmasked center value in a register because V3 retains a blocked
+// target's own density through Keep while excluding it from neighbour sums.
+groupshared float TiledWeightedDensity[768];
+groupshared float TiledDiffusionWeights[33];
 
 uint LinearIndex256(uint3 dispatchThreadId)
 {
@@ -5873,6 +6484,78 @@ bool IsParticleAlive(int particleIndex)
     return particleIndex >= 0 && particleIndex < ParticleCapacity && ParticlePosition[particleIndex].w >= -0.5;
 }
 
+uint EmptyParticleOwner()
+{
+    return 0xffffffffu;
+}
+
+bool ParticleOwnsVoxel(int particleIndex, int voxelIndex)
+{
+    return voxelIndex >= 0 && voxelIndex < VoxelCount &&
+           ParticleOwners[voxelIndex] == (uint)particleIndex;
+}
+
+bool TryClaimParticleMove(int particleIndex, int currentVoxelIndex, int targetVoxelIndex)
+{
+    if (!ParticleOwnsVoxel(particleIndex, currentVoxelIndex)) return false;
+    if (targetVoxelIndex == currentVoxelIndex) return true;
+    if (targetVoxelIndex < 0 || targetVoxelIndex >= VoxelCount) return false;
+
+    uint token = (uint)particleIndex;
+    uint previousTargetOwner;
+    InterlockedCompareExchange(
+        ParticleOwners[targetVoxelIndex],
+        EmptyParticleOwner(),
+        token,
+        previousTargetOwner);
+    if (previousTargetOwner != EmptyParticleOwner()) return false;
+
+    // Keep the old voxel reserved until the new claim is established. Clearing
+    // its count before publishing the empty owner prevents a later claimant's
+    // count from being erased by this thread.
+    ParticleCounts[currentVoxelIndex] = 0u;
+    uint previousCurrentOwner;
+    InterlockedCompareExchange(
+        ParticleOwners[currentVoxelIndex],
+        token,
+        EmptyParticleOwner(),
+        previousCurrentOwner);
+    if (previousCurrentOwner != token)
+    {
+        ParticleCounts[currentVoxelIndex] = 1u;
+        uint ignored;
+        InterlockedCompareExchange(
+            ParticleOwners[targetVoxelIndex],
+            token,
+            EmptyParticleOwner(),
+            ignored);
+        return false;
+    }
+
+    ParticleCounts[targetVoxelIndex] = 1u;
+    return true;
+}
+
+void ReleaseParticleVoxel(int particleIndex, int voxelIndex)
+{
+    if (voxelIndex < 0 || voxelIndex >= VoxelCount) return;
+
+    uint token = (uint)particleIndex;
+    // Clear the count while this particle still owns the voxel. Once the empty
+    // owner is published, another thread may claim and restore the count to one.
+    ParticleCounts[voxelIndex] = 0u;
+    uint previousOwner;
+    InterlockedCompareExchange(
+        ParticleOwners[voxelIndex],
+        token,
+        EmptyParticleOwner(),
+        previousOwner);
+    if (previousOwner != token)
+    {
+        ParticleCounts[voxelIndex] = 1u;
+    }
+}
+
 int FlatIndex(int x, int y, int z)
 {
     return x * ResY * ResZ + y * ResZ + z;
@@ -5885,6 +6568,22 @@ void Coordinates(int index, out int x, out int y, out int z)
     int rem = index - x * yz;
     y = rem / ResZ;
     z = rem - y * ResZ;
+}
+
+float3 VoxelCenter(int index)
+{
+    int x;
+    int y;
+    int z;
+    Coordinates(index, x, y, z);
+    float3 center = float3(
+        (x + 0.5) * VoxelSize,
+        (y + 0.5) * VoxelSize,
+        (z + 0.5) * VoxelSize);
+    if (PlanarXY != 0) center.z = DimZ * 0.5;
+    if (PlanarXZ != 0) center.y = DimY * 0.5;
+    if (PlanarYZ != 0) center.x = DimX * 0.5;
+    return center;
 }
 
 int WrapIndex(int value, int count)
@@ -6060,6 +6759,19 @@ float3 RandomPlanarVector(uint seed)
     return float3(c, s, 0);
 }
 
+float3 RandomUnitDirection(uint seed)
+{
+    if (Tridimensional == 0)
+    {
+        return RandomPlanarVector(seed);
+    }
+
+    float z = Hash01(seed ^ 0x68bc21ebu) * 2.0 - 1.0;
+    float angle = Hash01(seed ^ 0x02e5be93u) * 6.28318530718;
+    float radius = sqrt(max(0.0, 1.0 - z * z));
+    return float3(cos(angle) * radius, sin(angle) * radius, z);
+}
+
 float PositiveModulo(float value, float extent)
 {
     if (extent <= 0.0) return 0.0;
@@ -6099,6 +6811,13 @@ float SampleDensity(float3 p)
     if (Wrap == 0 && IsBoundary(x, y, z)) return -1.0;
 
     float value = Source[index];
+    float foodValue = FoodSourceAt(index);
+    if (foodValue > 0.0)
+    {
+        // V3 senses the authored slime-food strength directly, even when the
+        // diffused density field has already saturated at one.
+        value = max(value, foodValue);
+    }
 
     if (HasAntParticles != 0)
     {
@@ -6631,17 +7350,62 @@ bool TryRecoverWalkableStep(int currentParentIndex, int particleIndex, float spe
     return true;
 }
 
+// Ownership is rebuilt in two passes. Atomic minimum makes reset and boundary
+// transition collisions independent of GPU thread scheduling: the lowest live
+// particle slot is retained for each walkable voxel.
+[numthreads(256, 1, 1)]
+void ClaimParticleOwners(uint3 id : SV_DispatchThreadID)
+{
+    int particleIndex = (int)LinearIndex256(id);
+    if (particleIndex >= ParticleCapacity || !IsParticleAlive(particleIndex)) return;
+
+    int voxelIndex = VoxelIndexFromPosition(ParticlePosition[particleIndex].xyz);
+    if (voxelIndex < 0) return;
+
+    uint ignored;
+    InterlockedMin(ParticleOwners[voxelIndex], (uint)particleIndex, ignored);
+}
+
+[numthreads(256, 1, 1)]
+void CullParticleOwnerConflicts(uint3 id : SV_DispatchThreadID)
+{
+    int particleIndex = (int)LinearIndex256(id);
+    if (particleIndex >= ParticleCapacity || !IsParticleAlive(particleIndex)) return;
+
+    float4 position = ParticlePosition[particleIndex];
+    int voxelIndex = VoxelIndexFromPosition(position.xyz);
+    if (ParticleOwnsVoxel(particleIndex, voxelIndex))
+    {
+        float4 direction = ParticleDirection[particleIndex];
+        direction.w = (float)voxelIndex;
+        ParticleDirection[particleIndex] = direction;
+        return;
+    }
+
+    position.w = -1.0;
+    ParticlePosition[particleIndex] = position;
+
+    float4 direction = ParticleDirection[particleIndex];
+    direction.w = -1.0;
+    ParticleDirection[particleIndex] = direction;
+
+    float4 yAxis = ParticleYAxis[particleIndex];
+    yAxis.w = -1.0;
+    ParticleYAxis[particleIndex] = yAxis;
+}
+
 [numthreads(256, 1, 1)]
 void ApplyBoundaryModeTransition(uint3 id : SV_DispatchThreadID)
 {
     int particleIndex = (int)LinearIndex256(id);
-    if (particleIndex >= ParticleCount) return;
+    if (particleIndex >= ParticleCapacity) return;
 
     float4 posGroup = ParticlePosition[particleIndex];
     if (posGroup.w < -0.5) return;
 
     float4 dirParent = ParticleDirection[particleIndex];
     float4 yWrapped = ParticleYAxis[particleIndex];
+    int currentParentIndex = (int)round(dirParent.w);
     float3 position = ApplyPlanarPosition(posGroup.xyz);
     float3 direction = NormalizeOr(ApplyPlanarMode(dirParent.xyz), float3(1, 0, 0));
     uint wrapped = 0;
@@ -6649,10 +7413,29 @@ void ApplyBoundaryModeTransition(uint3 id : SV_DispatchThreadID)
     ApplyMovementBoundaries(position, direction, wrapped);
     position = ApplyPlanarPosition(position);
 
-    // V3's wrap-toggle reconciliation calls getParentVoxel directly after
-    // boundaries(); a blocked boundary remains the parent, while a sparse hole
-    // becomes null. Do not run movement recovery in this transition-only pass.
-    int parentIndex = ActiveVoxelIndexFromPosition(position);
+    int parentIndex = VoxelIndexFromPosition(position);
+    if (parentIndex < 0)
+    {
+        // An invalid transition target leaves the complete previous state alone.
+        return;
+    }
+
+    if (parentIndex != currentParentIndex &&
+        !TryClaimParticleMove(particleIndex, currentParentIndex, parentIndex))
+    {
+        // Preserve the source voxel and position when a transition collides.
+        // Only the next-step orientation changes, so no particle is culled and
+        // the source owner cannot be stolen by the winning transition.
+        uint boundarySeed = Hash(
+            (uint)particleIndex +
+            ((uint)Iteration * 747796405u) ^
+            0xd1b54a35u);
+        direction = NormalizeOr(ApplyPlanarMode(RandomUnitDirection(boundarySeed)), direction);
+        float3 blockedYAxis = SafeYAxis(direction, yWrapped.xyz);
+        ParticleDirection[particleIndex] = float4(direction, dirParent.w);
+        ParticleYAxis[particleIndex] = float4(blockedYAxis, 0.0);
+        return;
+    }
 
     direction = NormalizeOr(ApplyPlanarMode(direction), float3(1, 0, 0));
     float3 yAxis = SafeYAxis(direction, yWrapped.xyz);
@@ -6664,7 +7447,7 @@ void ApplyBoundaryModeTransition(uint3 id : SV_DispatchThreadID)
 void MoveParticlesAndDepositCore(uint3 id, bool antOnly)
 {
     int particleIndex = (int)LinearIndex256(id);
-    if (particleIndex >= ParticleCount) return;
+    if (particleIndex >= ParticleCapacity) return;
 
     float4 posGroup = ParticlePosition[particleIndex];
     if (posGroup.w < -0.5) return;
@@ -6691,6 +7474,7 @@ void MoveParticlesAndDepositCore(uint3 id, bool antOnly)
     {
         antLaunchBoundaryHit = DepositFixed[ParticleAntLaunchBoundaryIndex(particleIndex)] != 0u;
     }
+    bool originalAntLaunchBoundaryHit = antLaunchBoundaryHit;
 
     int currentParentIndex = (int)round(dirParent.w);
     // A stored V3 parent remains usable for behavior and recovery while it is
@@ -6909,7 +7693,8 @@ void MoveParticlesAndDepositCore(uint3 id, bool antOnly)
     nextPosition = CenterPlanarMovePosition(nextPosition);
 
     int parentIndex = VoxelIndexFromPosition(nextPosition);
-    if (parentIndex < 0)
+    bool hasWalkableTarget = parentIndex >= 0;
+    if (!hasWalkableTarget)
     {
         if (isAnt)
         {
@@ -6921,6 +7706,7 @@ void MoveParticlesAndDepositCore(uint3 id, bool antOnly)
         if (TryRecoverWalkableStep(currentParentIndex, particleIndex, speed, recoveredIndex, recoveredPosition))
         {
             parentIndex = recoveredIndex;
+            hasWalkableTarget = true;
             moveDirection = NormalizeOr(ApplyPlanarMode(recoveredPosition - position), -moveDirection);
             nextPosition = recoveredPosition;
         }
@@ -6933,40 +7719,50 @@ void MoveParticlesAndDepositCore(uint3 id, bool antOnly)
         }
     }
 
-    if (parentIndex >= 0 && parentIndex < VoxelCount)
+    bool moveAccepted = hasWalkableTarget &&
+                        TryClaimParticleMove(particleIndex, currentParentIndex, parentIndex);
+    bool occupiedTargetRejected = hasWalkableTarget && !moveAccepted;
+    if (occupiedTargetRejected)
     {
-        uint previousCount = ParticleCounts[parentIndex];
-        // Mirrors V3: the deposit is scaled by whether the *previous* move landed in
-        // an empty voxel, and the flag is then updated for the next step. V3 updates
-        // the flag whenever the destination is empty, even if the boundary guard
-        // suppresses the deposit itself, so the update sits outside that check.
-        bool wasHighDeposit = HighDepositOffset < 0
-            || DepositFixed[HighDepositIndex(particleIndex)] != 0u;
-        if (HighDepositOffset >= 0)
-        {
-            DepositFixed[HighDepositIndex(particleIndex)] = previousCount == 0u ? 1u : 0u;
-        }
+        // The occupied destination never displaces the current owner. It stays
+        // in place, emits no trail, and receives a fresh orientation for the next
+        // step, matching the particle/gel transition in the reference model.
+        parentIndex = currentParentIndex;
+        nextPosition = position;
+        wrapped = 0u;
+        antLaunchBoundaryHit = originalAntLaunchBoundaryHit;
+        moveDirection = NormalizeOr(
+            ApplyPlanarMode(RandomUnitDirection(movementSeed ^ 0xd1b54a35u)),
+            x);
+    }
 
-        if (previousCount == 0u && CanDepositAtVoxel(parentIndex, rawSensorDistance))
+    bool wasHighDeposit = HighDepositOffset < 0
+        || DepositFixed[HighDepositIndex(particleIndex)] != 0u;
+    bool enteredEmptyVoxel = moveAccepted && parentIndex != currentParentIndex;
+    if (HighDepositOffset >= 0)
+    {
+        DepositFixed[HighDepositIndex(particleIndex)] = enteredEmptyVoxel ? 1u : 0u;
+    }
+
+    if (enteredEmptyVoxel && CanDepositAtVoxel(parentIndex, rawSensorDistance))
+    {
+        float ageT = saturate(particleAge / 99.0);
+        float antMultiplier = foundFood ? lerp(1.0, 0.3, ageT) : lerp(1.0, 0.2, ageT);
+        float antTrailFactor = !foundFood && AntFoodPheromone[parentIndex] > 0.0 ? 1.1 : 0.9;
+        float slimeScale = wasHighDeposit ? 1.0 : 0.25;
+        float effectiveDeposit = isAnt
+            ? depositValue * antMultiplier * (foundFood ? 1.0 : antTrailFactor)
+            : depositValue * slimeScale;
+        uint fixedDeposit = (uint)round(max(0.0, effectiveDeposit * DepositScale));
+        if (fixedDeposit > 0u)
         {
-            float ageT = saturate(particleAge / 99.0);
-            float antMultiplier = foundFood ? lerp(1.0, 0.3, ageT) : lerp(1.0, 0.2, ageT);
-            float antTrailFactor = !foundFood && AntFoodPheromone[parentIndex] > 0.0 ? 1.1 : 0.9;
-            float slimeScale = wasHighDeposit ? 1.0 : 0.25;
-            float effectiveDeposit = isAnt
-                ? depositValue * antMultiplier * (foundFood ? 1.0 : antTrailFactor)
-                : depositValue * slimeScale;
-            uint fixedDeposit = (uint)round(max(0.0, effectiveDeposit * DepositScale));
-            if (fixedDeposit > 0u)
+            if (isAnt)
             {
-                if (isAnt)
-                {
-                    InterlockedAdd(DepositFixed[foundFood ? AntFoodDepositIndex(parentIndex) : AntBaseDepositIndex(parentIndex)], fixedDeposit);
-                }
-                else
-                {
-                    InterlockedAdd(DepositFixed[SlimeDepositIndex(parentIndex)], fixedDeposit);
-                }
+                InterlockedAdd(DepositFixed[foundFood ? AntFoodDepositIndex(parentIndex) : AntBaseDepositIndex(parentIndex)], fixedDeposit);
+            }
+            else
+            {
+                InterlockedAdd(DepositFixed[SlimeDepositIndex(parentIndex)], fixedDeposit);
             }
         }
     }
@@ -7042,12 +7838,8 @@ void ProjectFoodSources(uint3 id : SV_DispatchThreadID)
     Source[index] += foodValue;
 }
 
-[numthreads(256, 1, 1)]
-void ApplyDeposits(uint3 id : SV_DispatchThreadID)
+void ApplyDepositsAtVoxel(int index)
 {
-    int index = (int)LinearIndex256(id);
-    if (index >= VoxelCount) return;
-
     uint fixedDeposit = HasSlimeParticles != 0 ? DepositFixed[SlimeDepositIndex(index)] : 0u;
     if (!IsValidVoxelIndex(index))
     {
@@ -7080,16 +7872,47 @@ void ApplyDeposits(uint3 id : SV_DispatchThreadID)
 }
 
 [numthreads(256, 1, 1)]
+void ApplyDeposits(uint3 id : SV_DispatchThreadID)
+{
+    int index = (int)LinearIndex256(id);
+    if (PreviewPadding0 != 0)
+    {
+        // Production path: visit every voxel in contiguous order. Despite the
+        // larger dispatch, this is faster for the high3d workload than scattered
+        // particle-addressed writes.
+        if (index >= VoxelCount) return;
+        ApplyDepositsAtVoxel(index);
+        return;
+    }
+
+    // Experimental validation path: every pending deposit belongs to the unique live
+    // particle that successfully claimed this stored parent in the preceding
+    // movement dispatch. Keeping this as a separate dispatch preserves the
+    // rule that movement sensing cannot observe same-step deposits.
+    if (index >= ParticleCapacity || !IsParticleAlive(index)) return;
+    int parentIndex = (int)round(ParticleDirection[index].w);
+    if (parentIndex < 0 || parentIndex >= VoxelCount) return;
+    ApplyDepositsAtVoxel(parentIndex);
+}
+
+[numthreads(256, 1, 1)]
 void ClearParticleCounts(uint3 id : SV_DispatchThreadID)
 {
     int index = (int)LinearIndex256(id);
-    if (index < VoxelCount)
+    if (PreviewPadding0 != 0 && index < VoxelCount)
     {
+        // Exact legacy validation path. Production retains persistent binary
+        // occupancy and clears only the aggregate population counters below.
         ParticleCounts[index] = 0u;
     }
     if (index < GroupCount)
     {
         ParticleCounts[GroupPopulationIndex(index)] = 0u;
+    }
+    if (index == 0)
+    {
+        ParticleCounts[ActivePopulationIndex()] = 0u;
+        ParticleCounts[FreePopulationIndex()] = 0u;
     }
 }
 
@@ -7097,15 +7920,28 @@ void ClearParticleCounts(uint3 id : SV_DispatchThreadID)
 void CountParticles(uint3 id : SV_DispatchThreadID)
 {
     int index = (int)LinearIndex256(id);
-    if (index >= ParticleCount) return;
-    if (!IsParticleAlive(index)) return;
+    if (index >= ParticleCapacity) return;
+
+    if (!IsParticleAlive(index))
+    {
+        uint freeIndex;
+        InterlockedAdd(ParticleCounts[FreePopulationIndex()], 1u, freeIndex);
+        if (freeIndex < (uint)ParticleCapacity)
+        {
+            DepositFixed[FreeSlotIndex((int)freeIndex)] = (uint)index;
+        }
+        return;
+    }
+
+    uint ignoredActive;
+    InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 1u, ignoredActive);
 
     int parentIndex = (int)round(ParticleDirection[index].w);
-    // V3 counts every non-null parent before marking max-density obstacles as
-    // blocked. Active and walkable are therefore deliberately different here.
-    if (IsActiveVoxelIndex(parentIndex))
+    if (ParticleOwnsVoxel(index, parentIndex))
     {
-        InterlockedAdd(ParticleCounts[parentIndex], 1u);
+        // Ownership guarantees no competing writer can represent another live
+        // particle in this voxel. The count remains a binary occupancy field.
+        ParticleCounts[parentIndex] = 1u;
     }
 
     int groupIndex = (int)round(ParticlePosition[index].w);
@@ -7202,20 +8038,25 @@ void SumNeighbourAxis(uint3 id : SV_DispatchThreadID)
     }
 }
 
-// Reserve first, undo if we crossed the floor. A single atomic add always
-// succeeds, whereas the bounded compare-exchange retry loop this replaces
-// silently dropped claims once many particles contended on the one counter --
-// which made the observed death rate track contention instead of the
-// configured probability.
+// The active population only decreases during a death dispatch. Claim with a
+// compare-exchange loop so failed contenders never publish a transient value
+// below the configured minimum (and can therefore never underflow it).
 bool TryClaimDeath()
 {
     uint minimum = (uint)max(MinimumPopulation, 0);
-    uint previous;
-    InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0xffffffffu, previous);
-    if (previous > minimum) return true;
-
-    uint ignored;
-    InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 1u, ignored);
+    uint current;
+    InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0u, current);
+    while (current > minimum)
+    {
+        uint previous;
+        InterlockedCompareExchange(
+            ParticleCounts[ActivePopulationIndex()],
+            current,
+            current - 1u,
+            previous);
+        if (previous == current) return true;
+        current = previous;
+    }
     return false;
 }
 
@@ -7273,6 +8114,7 @@ void ApplyParticleDeath(uint3 id : SV_DispatchThreadID)
 
     float4 position = ParticlePosition[particleIndex];
     int groupIndex = clamp((int)round(position.w), 0, max(GroupCount - 1, 0));
+    ReleaseParticleVoxel(particleIndex, parentIndex);
     position.w = -1.0;
     ParticlePosition[particleIndex] = position;
 
@@ -7284,8 +8126,8 @@ void ApplyParticleDeath(uint3 id : SV_DispatchThreadID)
     yAxis.w = -1.0;
     ParticleYAxis[particleIndex] = yAxis;
 
-    // V3 removes the particle from its global list but intentionally leaves the
-    // current voxel's particleCount untouched until the next post-move recount.
+    // Release the voxel immediately so later population stages in this same
+    // solution can claim it without ever producing duplicate occupancy.
     uint ignoredGroupCount;
     InterlockedAdd(ParticleCounts[GroupPopulationIndex(groupIndex)], 0xffffffffu, ignoredGroupCount);
 
@@ -7297,38 +8139,139 @@ void ApplyParticleDeath(uint3 id : SV_DispatchThreadID)
     }
 }
 
-// Same reserve-then-undo shape as TryClaimDeath, for the same reason.
 bool TryClaimBirth(out uint particleSlot)
 {
     particleSlot = 0u;
     uint maximum = (uint)min(max(MaximumPopulation, 0), ParticleCapacity);
     uint ignored;
-    uint previous;
-    InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 1u, previous);
-    if (previous >= maximum)
+    uint currentActive;
+    InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0u, currentActive);
+    bool activeReserved = false;
+    while (currentActive < maximum)
     {
-        InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0xffffffffu, ignored);
-        return false;
+        uint previousActive;
+        InterlockedCompareExchange(
+            ParticleCounts[ActivePopulationIndex()],
+            currentActive,
+            currentActive + 1u,
+            previousActive);
+        if (previousActive == currentActive)
+        {
+            activeReserved = true;
+            break;
+        }
+        currentActive = previousActive;
+    }
+    if (!activeReserved) return false;
+
+    // Free slots only decrease during a division dispatch. Pop with CAS rather
+    // than decrement-and-undo: the latter exposes UINT_MAX while an empty-stack
+    // loser repairs its decrement, and another contender can mistake that
+    // transient underflow for a valid stack depth.
+    uint currentFree;
+    InterlockedAdd(ParticleCounts[FreePopulationIndex()], 0u, currentFree);
+    while (currentFree > 0u)
+    {
+        uint previousFree;
+        InterlockedCompareExchange(
+            ParticleCounts[FreePopulationIndex()],
+            currentFree,
+            currentFree - 1u,
+            previousFree);
+        if (previousFree == currentFree)
+        {
+            particleSlot = DepositFixed[FreeSlotIndex((int)currentFree - 1)];
+            if (particleSlot >= (uint)ParticleCapacity)
+            {
+                InterlockedAdd(ParticleCounts[FreePopulationIndex()], 1u, ignored);
+                InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0xffffffffu, ignored);
+                return false;
+            }
+            return true;
+        }
+        currentFree = previousFree;
     }
 
-    uint previousFree;
-    InterlockedAdd(ParticleCounts[FreePopulationIndex()], 0xffffffffu, previousFree);
-    if (previousFree == 0u)
+    InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0xffffffffu, ignored);
+    return false;
+}
+
+uint BirthReservationToken(int particleIndex)
+{
+    return 0x80000000u | (uint)particleIndex;
+}
+
+bool TryReserveBirthVoxel(
+    int parentVoxelIndex,
+    int particleIndex,
+    out int childVoxelIndex,
+    out uint reservationToken)
+{
+    childVoxelIndex = -1;
+    reservationToken = BirthReservationToken(particleIndex);
+    if (!IsValidVoxelIndex(parentVoxelIndex)) return false;
+
+    int parentX;
+    int parentY;
+    int parentZ;
+    Coordinates(parentVoxelIndex, parentX, parentY, parentZ);
+
+    uint start = Hash((uint)particleIndex ^ ((uint)Iteration * 2246822519u) ^ 0x51ed270bu) % 27u;
+    [unroll]
+    for (uint attempt = 0u; attempt < 27u; attempt++)
     {
-        InterlockedAdd(ParticleCounts[FreePopulationIndex()], 1u, ignored);
-        InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0xffffffffu, ignored);
-        return false;
+        uint ordinal = (start + attempt) % 27u;
+        int offsetX = (int)(ordinal / 9u) - 1;
+        int offsetY = (int)((ordinal / 3u) % 3u) - 1;
+        int offsetZ = (int)(ordinal % 3u) - 1;
+        if (offsetX == 0 && offsetY == 0 && offsetZ == 0) continue;
+        if (PlanarYZ != 0 && offsetX != 0) continue;
+        if (PlanarXZ != 0 && offsetY != 0) continue;
+        if (PlanarXY != 0 && offsetZ != 0) continue;
+
+        int x = parentX + offsetX;
+        int y = parentY + offsetY;
+        int z = parentZ + offsetZ;
+        if (Wrap != 0)
+        {
+            x = WrapIndex(x, ResX);
+            y = WrapIndex(y, ResY);
+            z = WrapIndex(z, ResZ);
+        }
+        else if (x < 0 || x >= ResX || y < 0 || y >= ResY || z < 0 || z >= ResZ)
+        {
+            continue;
+        }
+        if (Wrap == 0 && IsBoundary(x, y, z)) continue;
+
+        int candidate = FlatIndex(x, y, z);
+        if (!IsValidVoxelIndex(candidate)) continue;
+
+        uint previousOwner;
+        InterlockedCompareExchange(
+            ParticleOwners[candidate],
+            EmptyParticleOwner(),
+            reservationToken,
+            previousOwner);
+        if (previousOwner == EmptyParticleOwner())
+        {
+            childVoxelIndex = candidate;
+            return true;
+        }
     }
 
-    particleSlot = DepositFixed[FreeSlotIndex((int)previousFree - 1)];
-    if (particleSlot >= (uint)ParticleCapacity)
-    {
-        InterlockedAdd(ParticleCounts[FreePopulationIndex()], 1u, ignored);
-        InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 0xffffffffu, ignored);
-        return false;
-    }
+    return false;
+}
 
-    return true;
+void ReleaseBirthReservation(int voxelIndex, uint reservationToken)
+{
+    if (voxelIndex < 0 || voxelIndex >= VoxelCount) return;
+    uint ignored;
+    InterlockedCompareExchange(
+        ParticleOwners[voxelIndex],
+        reservationToken,
+        EmptyParticleOwner(),
+        ignored);
 }
 
 [numthreads(256, 1, 1)]
@@ -7397,8 +8340,25 @@ void ApplyParticleDivision(uint3 id : SV_DispatchThreadID)
 
     if (!divide) return;
 
+    int childVoxelIndex;
+    uint birthReservation;
+    if (!TryReserveBirthVoxel(
+        parentIndex,
+        particleIndex,
+        childVoxelIndex,
+        birthReservation)) return;
+
     uint childSlot;
-    if (!TryClaimBirth(childSlot)) return;
+    if (!TryClaimBirth(childSlot))
+    {
+        ReleaseBirthReservation(childVoxelIndex, birthReservation);
+        return;
+    }
+
+    // This thread is the only writer allowed to replace its reservation token.
+    // Publishing the child slot before making the slot live keeps the target
+    // unavailable to every other movement/division thread throughout creation.
+    ParticleOwners[childVoxelIndex] = childSlot;
 
     float4 parentPosition = ParticlePosition[particleIndex];
     float4 parentDirection = ParticleDirection[particleIndex];
@@ -7438,8 +8398,8 @@ void ApplyParticleDivision(uint3 id : SV_DispatchThreadID)
         : 0u;
     float childPreviewGroupTag = (float)groupIndex
         + (GroupData1[groupIndex].y > 0.5 && childAntState != 0u ? 0.25 : 0.0);
-    ParticlePosition[childSlot] = float4(parentPosition.xyz, childPreviewGroupTag);
-    ParticleDirection[childSlot] = float4(childX, (float)parentIndex);
+    float3 childPosition = VoxelCenter(childVoxelIndex);
+    ParticleDirection[childSlot] = float4(childX, (float)childVoxelIndex);
     ParticleYAxis[childSlot] = float4(childY, randomDivide ? -1.0 : -2.0);
     ParticleHome[childSlot] = randomDivide ? ParticleHome[particleIndex] : 0.0;
     DepositFixed[ParticleAgeIndex((int)childSlot)] = randomDivide ? age : 0u;
@@ -7473,8 +8433,8 @@ void ApplyParticleDivision(uint3 id : SV_DispatchThreadID)
             : 0u;
     }
 
+    ParticleCounts[childVoxelIndex] = 1u;
     uint ignoredVoxelCount;
-    InterlockedAdd(ParticleCounts[parentIndex], 1u, ignoredVoxelCount);
     if (!randomDivide)
     {
         // V3's normal-division parent lookup advances the parent age before
@@ -7483,6 +8443,12 @@ void ApplyParticleDivision(uint3 id : SV_DispatchThreadID)
     }
     uint ignoredGroupCount;
     InterlockedAdd(ParticleCounts[GroupPopulationIndex(groupIndex)], 1u, ignoredGroupCount);
+
+    // Position.w is the slot's live flag. Publish it only after every other
+    // child field (especially the negative birth marker) is globally visible,
+    // so the child slot's own thread cannot recursively divide partial state.
+    DeviceMemoryBarrier();
+    ParticlePosition[childSlot] = float4(childPosition, childPreviewGroupTag);
 }
 
 float ClampPassDensity(float value, int index, int x, int y, int z)
@@ -7497,6 +8463,74 @@ float ClampPassDensity(float value, int index, int x, int y, int z)
     if (Wrap == 0 && IsBoundary(x, y, z)) value = 0.0;
 
     return value;
+}
+
+float ApplyDecayToValue(float value, int index, int x, int y, int z)
+{
+    if (!IsActiveVoxelIndex(index)) return 0.0;
+
+    // V3's post-diffusion parent check clears scalar density under a particle
+    // that could not escape an active max-density obstacle. CountParticles has
+    // already published those active blocked parents for this frame.
+    if (FieldMode == 0 && !IsValidVoxelIndex(index) && ParticleCounts[index] > 0u)
+    {
+        return 0.0;
+    }
+
+    // V3 clears density and ant-food pheromone on non-wrapped outer faces, but
+    // ant-base pheromone is only decayed there. Preserve that asymmetry.
+    if (Wrap == 0 && IsBoundary(x, y, z) && FieldMode != 2)
+    {
+        return 0.0;
+    }
+
+    return max(value - Decay, 0.0);
+}
+
+float FinalizeDiffusionValue(float value, int index, int x, int y, int z)
+{
+    value = ClampPassDensity(value, index, x, y, z);
+    if (ApplyScalarDecayAfterDiffusion != 0 && FieldMode == 0)
+    {
+        value = ApplyDecayToValue(value, index, x, y, z);
+    }
+    return value;
+}
+
+int ResolveTiledDiffusionAxis(int coordinate, int count, out bool include)
+{
+    if (Wrap != 0)
+    {
+        include = count > 0;
+        return include ? WrapIndex(coordinate, count) : 0;
+    }
+
+    include = coordinate >= 0 && coordinate < count;
+    return coordinate;
+}
+
+float StoreTiledDiffusionSample(int slot, bool include, int x, int y, int z)
+{
+    if (!include || x < 0 || x >= ResX || y < 0 || y >= ResY || z < 0 || z >= ResZ)
+    {
+        TiledWeightedDensity[slot] = 0.0;
+        return 0.0;
+    }
+
+    int index = FlatIndex(x, y, z);
+    float rawDensity = Source[index];
+    TiledWeightedDensity[slot] = IsValidVoxelIndex(index) ? rawDensity : 0.0;
+    return rawDensity;
+}
+
+void LoadTiledDiffusionWeight(uint3 groupThreadId)
+{
+    int threadIndex = (int)(groupThreadId.y * 16u + groupThreadId.x);
+    int weightCount = Range * 2 + 1;
+    if (threadIndex < weightCount)
+    {
+        TiledDiffusionWeights[threadIndex] = Weights[threadIndex];
+    }
 }
 
 [numthreads(256, 1, 1)]
@@ -7548,7 +8582,166 @@ void DiffuseAxis(uint3 id : SV_DispatchThreadID)
     }
 
     float value = Source[index] * Keep + Diffuse * weighted;
-    Destination[index] = ClampPassDensity(value, index, x, y, z);
+    Destination[index] = FinalizeDiffusionValue(value, index, x, y, z);
+}
+
+[numthreads(16, 16, 1)]
+void DiffuseAxisXTiled(
+    uint3 groupThreadId : SV_GroupThreadID,
+    uint3 groupId : SV_GroupID)
+{
+    int localZ = (int)groupThreadId.x;
+    int localX = (int)groupThreadId.y;
+    int tileX = (int)groupId.x * 16;
+    int x = tileX + localX;
+    int z = (int)groupId.y * 16 + localZ;
+    int y = (int)groupId.z;
+    bool lineIncluded = y >= 0 && y < ResY && z >= 0 && z < ResZ;
+
+    bool centerIncluded;
+    int centerX = ResolveTiledDiffusionAxis(x, ResX, centerIncluded);
+    int centerSlot = (16 + localX) * 16 + localZ;
+    float rawCenter = StoreTiledDiffusionSample(
+        centerSlot,
+        lineIncluded && centerIncluded,
+        centerX,
+        y,
+        z);
+
+    if (localX < Range)
+    {
+        bool leftIncluded;
+        int leftX = ResolveTiledDiffusionAxis(tileX + localX - Range, ResX, leftIncluded);
+        int leftSlot = (16 - Range + localX) * 16 + localZ;
+        StoreTiledDiffusionSample(leftSlot, lineIncluded && leftIncluded, leftX, y, z);
+
+        bool rightIncluded;
+        int rightX = ResolveTiledDiffusionAxis(tileX + 16 + localX, ResX, rightIncluded);
+        int rightSlot = (32 + localX) * 16 + localZ;
+        StoreTiledDiffusionSample(rightSlot, lineIncluded && rightIncluded, rightX, y, z);
+    }
+
+    LoadTiledDiffusionWeight(groupThreadId);
+    GroupMemoryBarrierWithGroupSync();
+
+    if (x >= ResX || y >= ResY || z >= ResZ) return;
+
+    float weighted = 0.0;
+    for (int offset = -Range; offset <= Range; offset++)
+    {
+        int slot = (16 + localX + offset) * 16 + localZ;
+        weighted += TiledWeightedDensity[slot] * TiledDiffusionWeights[offset + Range];
+    }
+
+    int index = FlatIndex(x, y, z);
+    float value = rawCenter * Keep + Diffuse * weighted;
+    Destination[index] = FinalizeDiffusionValue(value, index, x, y, z);
+}
+
+[numthreads(16, 16, 1)]
+void DiffuseAxisYTiled(
+    uint3 groupThreadId : SV_GroupThreadID,
+    uint3 groupId : SV_GroupID)
+{
+    int localZ = (int)groupThreadId.x;
+    int localY = (int)groupThreadId.y;
+    int tileY = (int)groupId.x * 16;
+    int y = tileY + localY;
+    int z = (int)groupId.y * 16 + localZ;
+    int x = (int)groupId.z;
+    bool lineIncluded = x >= 0 && x < ResX && z >= 0 && z < ResZ;
+
+    bool centerIncluded;
+    int centerY = ResolveTiledDiffusionAxis(y, ResY, centerIncluded);
+    int centerSlot = (16 + localY) * 16 + localZ;
+    float rawCenter = StoreTiledDiffusionSample(
+        centerSlot,
+        lineIncluded && centerIncluded,
+        x,
+        centerY,
+        z);
+
+    if (localY < Range)
+    {
+        bool leftIncluded;
+        int leftY = ResolveTiledDiffusionAxis(tileY + localY - Range, ResY, leftIncluded);
+        int leftSlot = (16 - Range + localY) * 16 + localZ;
+        StoreTiledDiffusionSample(leftSlot, lineIncluded && leftIncluded, x, leftY, z);
+
+        bool rightIncluded;
+        int rightY = ResolveTiledDiffusionAxis(tileY + 16 + localY, ResY, rightIncluded);
+        int rightSlot = (32 + localY) * 16 + localZ;
+        StoreTiledDiffusionSample(rightSlot, lineIncluded && rightIncluded, x, rightY, z);
+    }
+
+    LoadTiledDiffusionWeight(groupThreadId);
+    GroupMemoryBarrierWithGroupSync();
+
+    if (x >= ResX || y >= ResY || z >= ResZ) return;
+
+    float weighted = 0.0;
+    for (int offset = -Range; offset <= Range; offset++)
+    {
+        int slot = (16 + localY + offset) * 16 + localZ;
+        weighted += TiledWeightedDensity[slot] * TiledDiffusionWeights[offset + Range];
+    }
+
+    int index = FlatIndex(x, y, z);
+    float value = rawCenter * Keep + Diffuse * weighted;
+    Destination[index] = FinalizeDiffusionValue(value, index, x, y, z);
+}
+
+[numthreads(16, 16, 1)]
+void DiffuseAxisZTiled(
+    uint3 groupThreadId : SV_GroupThreadID,
+    uint3 groupId : SV_GroupID)
+{
+    int localZ = (int)groupThreadId.x;
+    int localY = (int)groupThreadId.y;
+    int tileZ = (int)groupId.x * 16;
+    int z = tileZ + localZ;
+    int y = (int)groupId.y * 16 + localY;
+    int x = (int)groupId.z;
+    bool lineIncluded = x >= 0 && x < ResX && y >= 0 && y < ResY;
+
+    bool centerIncluded;
+    int centerZ = ResolveTiledDiffusionAxis(z, ResZ, centerIncluded);
+    int centerSlot = localY * 48 + 16 + localZ;
+    float rawCenter = StoreTiledDiffusionSample(
+        centerSlot,
+        lineIncluded && centerIncluded,
+        x,
+        y,
+        centerZ);
+
+    if (localZ < Range)
+    {
+        bool leftIncluded;
+        int leftZ = ResolveTiledDiffusionAxis(tileZ + localZ - Range, ResZ, leftIncluded);
+        int leftSlot = localY * 48 + 16 - Range + localZ;
+        StoreTiledDiffusionSample(leftSlot, lineIncluded && leftIncluded, x, y, leftZ);
+
+        bool rightIncluded;
+        int rightZ = ResolveTiledDiffusionAxis(tileZ + 16 + localZ, ResZ, rightIncluded);
+        int rightSlot = localY * 48 + 32 + localZ;
+        StoreTiledDiffusionSample(rightSlot, lineIncluded && rightIncluded, x, y, rightZ);
+    }
+
+    LoadTiledDiffusionWeight(groupThreadId);
+    GroupMemoryBarrierWithGroupSync();
+
+    if (x >= ResX || y >= ResY || z >= ResZ) return;
+
+    float weighted = 0.0;
+    for (int offset = -Range; offset <= Range; offset++)
+    {
+        int slot = localY * 48 + 16 + localZ + offset;
+        weighted += TiledWeightedDensity[slot] * TiledDiffusionWeights[offset + Range];
+    }
+
+    int index = FlatIndex(x, y, z);
+    float value = rawCenter * Keep + Diffuse * weighted;
+    Destination[index] = FinalizeDiffusionValue(value, index, x, y, z);
 }
 
 [numthreads(256, 1, 1)]
@@ -7562,31 +8755,7 @@ void ApplyDecay(uint3 id : SV_DispatchThreadID)
     int z;
     Coordinates(index, x, y, z);
 
-    if (!IsActiveVoxelIndex(index))
-    {
-        Destination[index] = 0.0;
-        return;
-    }
-
-    // V3's post-diffusion parent check clears scalar density under a particle
-    // that could not escape an active max-density obstacle. CountParticles has
-    // already published those active blocked parents for this frame.
-    if (FieldMode == 0 && !IsValidVoxelIndex(index) && ParticleCounts[index] > 0u)
-    {
-        Destination[index] = 0.0;
-        return;
-    }
-
-    // V3 clears density and ant-food pheromone on non-wrapped outer faces, but
-    // ant-base pheromone is only decayed there. Preserve that asymmetry.
-    if (Wrap == 0 && IsBoundary(x, y, z) && FieldMode != 2)
-    {
-        Destination[index] = 0.0;
-        return;
-    }
-
-    float value = Source[index] - Decay;
-    Destination[index] = value > 0.0 ? value : 0.0;
+    Destination[index] = ApplyDecayToValue(Source[index], index, x, y, z);
 }
 
 [numthreads(16, 16, 1)]
@@ -7856,7 +9025,7 @@ void BuildDensityGradientPreview(uint3 id : SV_DispatchThreadID)
 void BuildParticlePreview(uint3 id : SV_DispatchThreadID)
 {
     int particleIndex = (int)LinearIndex256(id);
-    if (particleIndex >= ParticleCount) return;
+    if (particleIndex >= ParticleCapacity) return;
 
     int texX = particleIndex % PreviewWidth;
     int row = particleIndex / PreviewWidth;
@@ -7893,7 +9062,7 @@ void BuildParticlePreview(uint3 id : SV_DispatchThreadID)
 void BuildParticleTrailPreview(uint3 id : SV_DispatchThreadID)
 {
     int particleIndex = (int)LinearIndex256(id);
-    if (particleIndex >= ParticleCount) return;
+    if (particleIndex >= ParticleCapacity) return;
 
     int textureWidth = max(PreviewWidth, 1);
     int trailSize = max(PreviewAtlasColumns, 2);

@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 
+using Grasshopper.GUI.Canvas;
+using Grasshopper.Kernel;
 using Rhino.Display;
 using Rhino.Geometry;
 
@@ -14,9 +16,11 @@ namespace Nuclei3
 
         readonly object syncRoot = new object();
         readonly Dictionary<Guid, Preview_Particle> previews = new Dictionary<Guid, Preview_Particle>();
+        GH_Canvas subscribedCanvas;
 
         ParticlePreviewDisplayConduit()
         {
+            EnsureCanvasSubscription();
         }
 
         public static void Register(Preview_Particle preview)
@@ -32,6 +36,8 @@ namespace Nuclei3
 
         void RegisterInternal(Preview_Particle preview)
         {
+            EnsureCanvasSubscription();
+
             lock (syncRoot)
             {
                 previews[preview.InstanceGuid] = preview;
@@ -105,12 +111,50 @@ namespace Nuclei3
 
         Preview_Particle[] Snapshot()
         {
+            GH_Document activeDocument = Grasshopper.Instances.ActiveCanvas?.Document;
+            if (activeDocument == null)
+            {
+                return Array.Empty<Preview_Particle>();
+            }
+
             lock (syncRoot)
             {
-                Preview_Particle[] snapshot = new Preview_Particle[previews.Count];
-                previews.Values.CopyTo(snapshot, 0);
-                return snapshot;
+                List<Preview_Particle> snapshot = new List<Preview_Particle>(previews.Count);
+                foreach (Preview_Particle preview in previews.Values)
+                {
+                    GH_Document ownerDocument = preview?.OnPingDocument();
+                    if (ownerDocument != null &&
+                        ownerDocument.Enabled &&
+                        ReferenceEquals(ownerDocument, activeDocument))
+                    {
+                        snapshot.Add(preview);
+                    }
+                }
+
+                return snapshot.ToArray();
             }
+        }
+
+        void EnsureCanvasSubscription()
+        {
+            GH_Canvas activeCanvas = Grasshopper.Instances.ActiveCanvas;
+            if (ReferenceEquals(activeCanvas, subscribedCanvas)) return;
+
+            if (subscribedCanvas != null)
+            {
+                subscribedCanvas.DocumentChanged -= activeCanvasDocumentChanged;
+            }
+
+            subscribedCanvas = activeCanvas;
+            if (subscribedCanvas != null)
+            {
+                subscribedCanvas.DocumentChanged += activeCanvasDocumentChanged;
+            }
+        }
+
+        void activeCanvasDocumentChanged(GH_Canvas sender, GH_CanvasDocumentChangedEventArgs e)
+        {
+            Rhino.RhinoDoc.ActiveDoc?.Views.Redraw();
         }
     }
 

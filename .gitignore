@@ -48,6 +48,17 @@ Thumbs.db
 Nuclei-v2-old/
 .tools/
 tmp/
+/backups/
+/output/
+/docs/reference/
+/CLAUDE.md
+/Nuclei Definitions/map/
+/tools/_city_*.xml
+/tools/Nuclei.ArchitectureProbe/LocalProjectReferenceTargets.targets
+
+# Keep performance evidence consolidated in one public document
+/docs/performance/*
+!/docs/performance/README.md
 
 # Local definition references and one-off nested SDK selection
 Nuclei Definitions/v4/

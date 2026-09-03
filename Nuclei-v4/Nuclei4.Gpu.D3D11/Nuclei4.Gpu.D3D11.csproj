@@ -21,6 +21,8 @@
 
   <ItemGroup>
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyBoundaryModeTransition.cso" LogicalName="Nuclei4.GpuShaders.ApplyBoundaryModeTransition.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ClaimParticleOwners.cso" LogicalName="Nuclei4.GpuShaders.ClaimParticleOwners.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\CullParticleOwnerConflicts.cso" LogicalName="Nuclei4.GpuShaders.CullParticleOwnerConflicts.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\MoveParticlesAndDeposit.cso" LogicalName="Nuclei4.GpuShaders.MoveParticlesAndDeposit.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\MoveAntParticlesAndDeposit.cso" LogicalName="Nuclei4.GpuShaders.MoveAntParticlesAndDeposit.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyDeposits.cso" LogicalName="Nuclei4.GpuShaders.ApplyDeposits.cso" />
@@ -33,6 +35,9 @@
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyParticleDeath.cso" LogicalName="Nuclei4.GpuShaders.ApplyParticleDeath.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyParticleDivision.cso" LogicalName="Nuclei4.GpuShaders.ApplyParticleDivision.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\DiffuseAxis.cso" LogicalName="Nuclei4.GpuShaders.DiffuseAxis.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\DiffuseAxisXTiled.cso" LogicalName="Nuclei4.GpuShaders.DiffuseAxisXTiled.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\DiffuseAxisYTiled.cso" LogicalName="Nuclei4.GpuShaders.DiffuseAxisYTiled.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\DiffuseAxisZTiled.cso" LogicalName="Nuclei4.GpuShaders.DiffuseAxisZTiled.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\ApplyDecay.cso" LogicalName="Nuclei4.GpuShaders.ApplyDecay.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\BuildDensityPreview.cso" LogicalName="Nuclei4.GpuShaders.BuildDensityPreview.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\BuildCombinedDensityPreview.cso" LogicalName="Nuclei4.GpuShaders.BuildCombinedDensityPreview.cso" />

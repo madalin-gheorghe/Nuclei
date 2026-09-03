@@ -12,7 +12,7 @@ import traceback
 
 import clr
 import Rhino
-from System import Guid
+from System import Guid, Object
 from System.IO import File
 from System.Reflection import AssemblyName, BindingFlags
 from System.Threading import Thread
@@ -393,8 +393,8 @@ def solve_dendro_path(path, expected, components_by_target, progress_path):
 
     The saved timer is locked. We explicitly perform reset, five non-reset
     solver solutions so the saved Iso 0.5 has deposited density to cross, then
-    one Update rising edge
-    and restore both toggles without saving.
+    enable Update and advance the solver once more while Update remains true.
+    Both toggles are restored without saving.
     """
     filename = os.path.basename(path)
 
@@ -472,16 +472,58 @@ def solve_dendro_path(path, expected, components_by_target, progress_path):
 
         set_boolean_source(update_source, True)
         stage = time.time()
-        report_progress("dendro-update-solution-started")
+        report_progress("dendro-update-enabled-solution-started")
         document.NewSolution(False)
-        report_progress("dendro-update-solution-complete")
+        report_progress("dendro-update-enabled-solution-complete")
         stages.append(targeted_stage_state(
-            "dendro-update-rising-edge", (time.time() - stage) * 1000.0,
+            "dendro-update-enabled", (time.time() - stage) * 1000.0,
             solver, dendro, smooth, volume_to_mesh))
 
+        enabled_dendro_types = volatile_type_names(dendro.Params.Output[0])
+        enabled_smooth_types = volatile_type_names(smooth.Params.Output[0])
+        enabled_mesh_types = volatile_type_names(volume_to_mesh.Params.Output[0])
+        enabled_dendro_outputs = list(dendro.Params.Output[0].VolatileData.AllData(True))
+        if len(enabled_dendro_outputs) != 1:
+            raise Exception("Enabled Dendro Update did not emit exactly one cached output: "
+                + repr(enabled_dendro_types) + "; stages=" + json.dumps(stages, sort_keys=True))
+        enabled_dendro_output = enabled_dendro_outputs[0]
+        enabled_dendro_volume = enabled_dendro_output.Value
+        if not any("DendroGH.VolumeGOO" in value and "DendroGH.DendroVolume" in value for value in enabled_dendro_types):
+            raise Exception("Enabled Dendro Update did not emit a native Dendro VolumeGOO: "
+                + repr(enabled_dendro_types) + "; stages=" + json.dumps(stages, sort_keys=True))
+        if not any("DendroGH.VolumeGOO" in value and "DendroGH.DendroVolume" in value for value in enabled_smooth_types):
+            raise Exception("Smooth Volume did not accept the enabled-update Dendro volume: " + repr(enabled_smooth_types))
+        if not any("Rhino.Geometry.Mesh" in value for value in enabled_mesh_types):
+            raise Exception("Dendro Volume to Mesh did not emit a Rhino mesh after enabling Update: " + repr(enabled_mesh_types))
+
+        solver.ExpireSolution(False)
+        stage = time.time()
+        report_progress("dendro-update-held-true-solution-started")
+        document.NewSolution(False)
+        report_progress("dendro-update-held-true-solution-complete")
+        stages.append(targeted_stage_state(
+            "dendro-update-held-true", (time.time() - stage) * 1000.0,
+            solver, dendro, smooth, volume_to_mesh))
+
+        held_update_values = volatile_values(dendro.Params.Input[4])
+        if held_update_values != ["True"]:
+            raise Exception("Dendro Update was not held true for the second solver solution: "
+                + repr(held_update_values) + "; stages=" + json.dumps(stages, sort_keys=True))
         dendro_types = volatile_type_names(dendro.Params.Output[0])
         smooth_types = volatile_type_names(smooth.Params.Output[0])
         mesh_types = volatile_type_names(volume_to_mesh.Params.Output[0])
+        held_dendro_outputs = list(dendro.Params.Output[0].VolatileData.AllData(True))
+        if len(held_dendro_outputs) != 1:
+            raise Exception("Held-true Dendro Update did not emit exactly one cached output: "
+                + repr(dendro_types) + "; stages=" + json.dumps(stages, sort_keys=True))
+        held_dendro_output = held_dendro_outputs[0]
+        held_dendro_volume = held_dendro_output.Value
+        dendro_output_identity_changed = (
+            not Object.ReferenceEquals(enabled_dendro_output, held_dendro_output)
+            and not Object.ReferenceEquals(enabled_dendro_volume, held_dendro_volume))
+        if not dendro_output_identity_changed:
+            raise Exception("Dendro Update reused its cached output while held true; stages="
+                + json.dumps(stages, sort_keys=True))
         method_runtime_values = [int(item.Value) for item in dendro.Params.Input[2].VolatileData.AllData(True)]
         if method_runtime_values != [0]:
             raise Exception("Targeted Dendro runtime Method value is not Continuous 0: " + repr(method_runtime_values))
@@ -523,6 +565,7 @@ def solve_dendro_path(path, expected, components_by_target, progress_path):
             "methodName": "Continuous",
             "methodRuntimeValues": method_runtime_values,
             "methodRuntimeSourceCount": int(dendro.Params.Input[2].SourceCount),
+            "dendroOutputIdentityChangedWhileUpdateHeldTrue": dendro_output_identity_changed,
             "runtimeDocumentObjectCount": len(list(document.Objects)),
             "runtimeAddedObjectCount": len(list(document.Objects)) - len(objects),
             "dendroOutputTypes": dendro_types,
@@ -813,7 +856,7 @@ def run():
         "noV3Residue": True,
         "structurePreserved": True,
         "fullDefinitionsSolved": False,
-        "runtimeValidationScope": "Targeted saved 15_3D graph: GPU reset, five non-reset solver solutions to populate deposited density above the saved Iso 0.5, Dendro Update rising edge, Smooth Volume, and Volume to Mesh. Other definitions were load/reopen validated without solving to avoid activating their saved timers/triggers and large simulations.",
+        "runtimeValidationScope": "Targeted saved 15_3D graph: GPU reset, five non-reset solver solutions to populate deposited density above the saved Iso 0.5, Dendro Update enabled, one additional solver solution while Update remains true with output identity replacement, Smooth Volume, and Volume to Mesh. Other definitions were load/reopen validated without solving to avoid activating their saved timers/triggers and large simulations.",
         "targetedRuntimeChecks": runtime_checks,
         "loadedExternalGhas": [os.path.basename(path) for path in loaded_extras],
         "files": reports

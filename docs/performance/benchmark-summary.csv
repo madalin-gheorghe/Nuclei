@@ -1,8 +1,0 @@
-run_id,component,samples,particles,voxels,resolution,median_total_ms,average_total_ms,min_total_ms,max_total_ms,source,notes
-20260624-145351,solver_gpu,50,625000,6250000,2500x2500x1,31.934,34.642,26.079,122.326,NucleiTiming.csv,"2D GPU solver, 625k particles on 2500x2500x1 field."
-20260624-162403,solver_gpu,21,1000000,1000000,100x100x100,23.894,24.300,22.688,29.914,NucleiTiming.csv,"Clean 3D GPU solver stress run, 1M particles on 100x100x100 field."
-20260624-164721,solver_gpu,28,300000,1000000,100x100x100,9.148,9.251,9.018,10.567,NucleiTiming.csv,"Stable 3D GPU solver run, 300k particles on 100x100x100 field."
-20260624-164623,solver_gpu,36,1000000,1000000,100x100x100,22.958,30.767,21.905,290.303,NucleiTiming.csv,"3D GPU solver run, 1M particles on 100x100x100 field; max includes a spike."
-20260624-165518,solver_gpu,84,300000,42875000,350x350x350,10.957,15.474,8.880,149.810,NucleiTiming.csv,"Stable large voxel-field GPU solver run, 300k particles on 350x350x350 field."
-20260624-165518,preview_particle,79,300000,42875000,350x350x350,0.019,0.021,0.012,0.127,NucleiTiming.csv,"GPU-resident particle preview component overhead from the same run."
-20260624-165518,preview_gpu_field,29,300000,42875000,350x350x350,0.054,6.901,0.032,198.646,NucleiTiming.csv,"GPU field preview component overhead from the same run; max includes first draw spike."

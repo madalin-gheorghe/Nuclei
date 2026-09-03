@@ -52,8 +52,14 @@ paused solver does not connect stale particle positions.
 The final V3 parity pass adds matching connected steering, non-wrapped boundary
 and blocked-parent behavior, species-aware density processing, ant home and launch
 state, V3-compatible ageing and dynamic-population ordering, nonblocking population
-readback, and a dedicated ant movement dispatch. Dendro output is published on an
-Update rising edge and caches the last successful volume between updates.
+readback, and a dedicated ant movement dispatch. While Update is true, Dendro
+output rebuilds whenever new solver data arrives; the last successful volume stays
+cached while Update is false.
+
+Particle creation now uses a deterministic pseudo-random permutation without
+replacement, and both solvers enforce one live particle per voxel. Preview state
+is isolated to the active Grasshopper document. V4 voxel-value operations also
+invalidate stale cached inputs and preserve separate Slime Food and Ant Food data.
 
 V4 source types now use the `Nuclei4` namespace while preserving the existing
 `Nuclei4.gha` assembly name and all Grasshopper component identities.
@@ -93,19 +99,16 @@ The repository-level `global.json` pins the verification toolchain to .NET SDK
 
 ## Performance Evidence
 
-The detailed optimization history is recorded in
-[Performance History](docs/performance/performance-history.md). The concise
-[Solver Frame Comparison](docs/performance/solver-frame-comparison.md) compares
-representative CPU and GPU median milliseconds per frame and speedup ratios.
+The single canonical [Performance Summary](docs/performance/README.md) contains
+the CPU optimization history, matched CPU/GPU tests, GPU breakthrough stages,
+methods, and caveats.
 
-Raw Visual Studio profiler captures remain outside Git because the diagnostic set
-is several gigabytes. Small CSV summaries and representative timings are retained
-in the repository.
-
-The V4 architecture split was also benchmarked against its immutable pre-split
-build on the same machine and sustained synchronized GPU workload (262,144
-particles and 262,144 voxels). The median-of-medians changed from 3.530 ms to
-3.562 ms per step (+0.91%), well inside the 5% preservation gate.
+On the recorded Ryzen 5 7535HS / Radeon 660M system, the matched workloads
+measured 6.204x GPU speedup for standard 2D, 5.245x for high 2D, and 3.212x for
+high 3D. Later controlled high-3D GPU work reduced tiled-diffusion time by 40.78%
+and a separate test showed a 4.72% round-balanced gain from persistent counts.
+Raw profiler captures and repeat logs remain local rather than adding large or redundant
+artifacts to the repository.
 
 ## Milestones
 

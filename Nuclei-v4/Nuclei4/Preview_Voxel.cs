@@ -63,6 +63,7 @@ namespace Nuclei4
         /// <param name="DA">The DA object is used to retrieve from inputs and store in outputs.</param>
         protected override void SolveInstance(IGH_DataAccess DA)
         {
+            VoxelFoodValueList.EnsureSeparateFoodChoices(this, 1);
             if (Params.Input[0].SourceCount != 0)
             {
                 VoxelField inputField;

@@ -41,6 +41,7 @@ namespace Nuclei4
 
         protected override void SolveInstance(IGH_DataAccess DA)
         {
+            VoxelFoodValueList.EnsureSeparateFoodChoices(this, 1);
             EnsureValueList();
 
             int valueIndex = 0;
@@ -57,7 +58,7 @@ namespace Nuclei4
             DA.GetData("Blend Iterations", ref blendIterations);
             DA.GetData("Wrap Blend", ref wrapBoundaries);
 
-            if (valueIndex < 0 || valueIndex > 6)
+            if ((valueIndex < 0 || valueIndex > 6) && valueIndex != VoxelPreviewField.AntFood)
             {
                 DA.SetData(0, inputField);
                 return;

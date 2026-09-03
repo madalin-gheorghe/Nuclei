@@ -11,12 +11,26 @@ internal static class Program
 {
     const string ExpectedComponentGuidHash = "BA5DD56D2DB434E2FEEC0AD489F1DF481FAFC4FA2E3843C3C21E49DED4DCB126";
     const string ExpectedPublicApiHash = "24B466B99A06FFEB9F24730E411EA53549639C70C8C4BEDAA17100905F8DE037";
-    const string ExpectedComponentSchemaHash = "2C82F4DDC84E50A154F6F48DAB9C1E1C82E3A4700F99146FC2DFF128E8518DDB";
-    const string ExpectedMainResourceNameHash = "5A304C5A9EE3117A8D33B999B27677FC0B5B98CA527657FC0A02E44DBE8993A7";
+    const string ExpectedComponentSchemaHash = "5D674B2C4231A47404527DA721A6E7B8C14BF256F5FA199E846ACF38CDF09841";
+    const string ExpectedMainResourceNameHash = "3DD5871F8952055EC8C9E3AFB170EBA23CAA67B37561D371756DB29B74875506";
     const string ExpectedLegacyShaderHash = "BBD3F0049D5A902B774EE45A7B5BACB52C6D20E2C2605C7115144DAB5AE5C88A";
-    const string ExpectedShaderHash = "C005808A049C53BB021251D0D1C0FD16538FA945153E121AE6D7FECF4740BF83";
-    const string ExpectedGpuShaderHash = "76A587C8C31492F0E597DD47A6A0B55A537F6368F7E460B17D1AFF0D1A7CBA9F";
+    const string ExpectedShaderHash = "DC10E229A6D90B2667B3674B93B9343D224099F7C172DE7FF4C46D6787C87E03";
+    const string ExpectedGpuShaderHash = "A8E7FC0EA823EB56789E8BA5CA70B015B5B3854E14D76F7849ABDE1D23CCED8B";
     const string ExpectedDisplayShaderHash = "7962C5E6C8BCAE08EEB74E649239601E884515546EA8E8C926A809224896C695";
+    const string ExpectedSlimeIntroV3Hash = "42D0DD4C43F0D392221BD3878583FB5B4973BAFC9F20808E6D990F76D9C529DC";
+    const string ExpectedSlimeIntroV4Hash = "63403F8BD5FC63C35F2EFFC2633A58C0B879C4488B3E8E72B08510BB3D140DA9";
+    const string ExpectedSlimeIntroHighV3Hash = "B1B24E7516ABB28F48EF208A86E69326594FFA605E68CD42B1B443CCB326D67A";
+    const string ExpectedSlimeIntroHighV4Hash = "319C20F012A03037A73F08BC97408BA104A3F693F9B3B5E5655CB7280B339E22";
+    const string ExpectedSlime3DHighV3Hash = "C0D1FF57AA25784C4F89A63F87035861D0E94D225353769FAAEFE0363AE7676D";
+    const string ExpectedSlime3DHighV4Hash = "856145F2FAE31389D8F028B26F3580328F4932327D00FD37929D15F45453F65C";
+    const int SlimeIntroResolutionX = 500;
+    const int SlimeIntroResolutionY = 500;
+    const int SlimeIntroResolutionZ = 1;
+    const int SlimeIntroRequestedParticles = 25_000;
+    // The no-replacement generator selects 25,000 distinct cells. Fixed-boundary
+    // clamping maps its low-edge cells inward; 13 of those mapped cells collide
+    // with another selected voxel, leaving 24,987 exclusive reset owners.
+    const int SlimeIntroExpectedActiveParticles = 24_987;
 
     static readonly string[] SupportAssemblyNames =
     {
@@ -35,17 +49,59 @@ internal static class Program
     static bool RandomHeadings;
 
     /// <summary>
-    /// Starting position for particle i. Both solvers must be seeded from this, or the
-    /// comparison measures the layout rather than the solvers: the shared snapshot
-    /// builder packs particles into a fixed 17-wide block, which on a larger grid is
-    /// far denser than the V3 side and produces a completely different neighbourhood.
+    /// Starting position for particle i. The affine permutation is one-to-one over
+    /// the retained interior, so occupancy filtering cannot silently collapse a
+    /// parity workload that requested more particles than a correlated modulo cycle.
+    /// Both solvers must be seeded from this exact layout.
     /// </summary>
     static void PositionFor(int i, int grid, out double x, out double y, out double z)
     {
-        int span = Math.Max(4, grid - 5);
-        x = 2.25 + ((i * 7) % span);
-        y = 2.25 + ((i * 5) % span);
-        z = 2.25 + ((i * 3) % span);
+        int start = grid > 5 ? 2 : 0;
+        int span = Math.Max(1, grid - 5);
+        int capacity = checked(span * span * span);
+        int ordinal = PermutedOrdinal(i, capacity, 0x4A7C15D1u);
+        int xIndex = ordinal / (span * span);
+        int remainder = ordinal - xIndex * span * span;
+        int yIndex = remainder / span;
+        int zIndex = remainder - yIndex * span;
+        x = start + xIndex + 0.25;
+        y = start + yIndex + 0.25;
+        z = start + zIndex + 0.25;
+    }
+
+    static int PermutedOrdinal(int index, int capacity, uint salt)
+    {
+        if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
+        if (index < 0 || index >= capacity)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(index),
+                "A one-particle-per-voxel workload requested " + (index + 1)
+                + " particles but its placement capacity is " + capacity + ".");
+        }
+        if (capacity == 1) return 0;
+
+        int multiplier = (int)(BenchmarkHash(salt) % (uint)(capacity - 1)) + 1;
+        while (GreatestCommonDivisor(multiplier, capacity) != 1)
+        {
+            multiplier++;
+            if (multiplier >= capacity) multiplier = 1;
+        }
+        int offset = (int)(BenchmarkHash(salt ^ 0x9E3779B9u) % (uint)capacity);
+        return (int)(((long)index * multiplier + offset) % capacity);
+    }
+
+    static int GreatestCommonDivisor(int first, int second)
+    {
+        first = Math.Abs(first);
+        second = Math.Abs(second);
+        while (second != 0)
+        {
+            int remainder = first % second;
+            first = second;
+            second = remainder;
+        }
+        return first;
     }
     static int TraceEvery = 20;
 
@@ -136,6 +192,39 @@ internal static class Program
                 throw new InvalidOperationException("Rhino.Inside was requested but no installed Rhino runtime could be started.");
             }
             LoadNuclei(args);
+            if (Array.IndexOf(args, "--preservation-contracts") >= 0)
+            {
+                TestPreservationContracts();
+                return 0;
+            }
+            if (Array.IndexOf(args, "--voxel-value-fields") >= 0)
+            {
+                TestScalarMapsAndBlockedThreshold();
+                TestVoxelValueCacheInvalidation();
+                TestBooleanFieldMerges();
+                Console.WriteLine("Voxel value field, cache, and merge contracts passed.");
+                return 0;
+            }
+            if (Array.IndexOf(args, "--particle-seeding-order") >= 0)
+            {
+                TestParticleSeedingOrder(args);
+                return 0;
+            }
+            if (Array.IndexOf(args, "--exclusive-occupancy-gpu-core") >= 0)
+            {
+                TestUniqueProbePlacement();
+                TestGpuSparseResetSlots(RequiredImplementationType("Nuclei4.GpuFullSlimeSolverEngine"));
+                TestGpuExclusiveMovementAndDeposit();
+                TestGpuExclusiveWrapTransitionCollision();
+                TestGpuNoRecursiveSameDispatchBirths();
+                Console.WriteLine("Headless GPU exclusive-occupancy contracts passed.");
+                return 0;
+            }
+            if (Array.IndexOf(args, "--exclusive-occupancy") >= 0)
+            {
+                TestExclusiveOccupancyContracts(args);
+                return 0;
+            }
             if (Array.IndexOf(args, "--population-ordering") >= 0)
             {
                 TestGpuPopulationPassOrdering();
@@ -178,7 +267,12 @@ internal static class Program
             }
             if (Array.IndexOf(args, "--dendro-cache") >= 0)
             {
-                TestDendroUpdatePulseAndCache();
+                TestDendroContinuousUpdateAndCache();
+                return 0;
+            }
+            if (Array.IndexOf(args, "--dendro-update-v3") >= 0)
+            {
+                TestV3DendroContinuousUpdate(args);
                 return 0;
             }
             if (Array.IndexOf(args, "--voxel-preview-sync") >= 0)
@@ -196,9 +290,24 @@ internal static class Program
                 TestVolumeMeshSmoothingDispatchCoverage();
                 return 0;
             }
+            if (Array.IndexOf(args, "--tiled-diffusion-parity") >= 0)
+            {
+                TestGpuTiledDiffusionParity();
+                return 0;
+            }
+            if (Array.IndexOf(args, "--sparse-pass-parity") >= 0)
+            {
+                TestGpuSparsePassParity();
+                return 0;
+            }
             if (Array.IndexOf(args, "--gpu-signature") >= 0)
             {
                 WriteGpuSimulationSignature();
+                return 0;
+            }
+            if (Array.IndexOf(args, "--benchmark-slime-intro") >= 0)
+            {
+                RunSlimeIntroBenchmark(args);
                 return 0;
             }
             if (Array.IndexOf(args, "--benchmark") >= 0)
@@ -230,13 +339,14 @@ internal static class Program
             TestLargeEmptyField();
             TestAdaptiveSelections();
             TestScalarMapsAndBlockedThreshold();
+            TestVoxelValueCacheInvalidation();
             TestVectorPacking();
             TestBooleanFieldMerges();
             TestGpuSnapshotPacking();
             TestAntResetAndNestParity();
             TestRetainedSpeciesAndGroupMetadataParity();
             TestConnectedSteeringPacking();
-            TestDendroUpdatePulseAndCache();
+            TestDendroContinuousUpdateAndCache();
             TestSlimeSettingsLegacyArchiveMigration();
             TestSolverBoundaryParity();
             TestGpuOutputSinkRoundTrip();
@@ -314,10 +424,10 @@ internal static class Program
         Equal(ExpectedComponentSchemaHash, HashRecords(schemaRecords), "Grasshopper schema hash");
 
         List<ResourceRow> mainRows = ResourceRows(NucleiAssembly);
-        Equal(28, mainRows.Count, "compatibility assembly resource count");
+        Equal(33, mainRows.Count, "compatibility assembly resource count");
         Equal(ExpectedMainResourceNameHash, HashRecords(mainRows.Select(row => row.Name)), "compatibility resource-name hash");
         List<ResourceRow> mainShaders = mainRows.Where(row => row.Name.EndsWith(".cso", StringComparison.Ordinal)).ToList();
-        Equal(27, mainShaders.Count, "compatibility shader count");
+        Equal(32, mainShaders.Count, "compatibility shader count");
         Equal(expectedShaderHash, HashRecords(mainShaders.Select(row => row.Canonical)), "compatibility shader hash");
 
         Dictionary<string, HashSet<string>> shaderCopies = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
@@ -334,7 +444,7 @@ internal static class Program
             }
         }
 
-        Equal(27, shaderCopies.Count, "deployed unique shader count");
+        Equal(32, shaderCopies.Count, "deployed unique shader count");
         foreach (KeyValuePair<string, HashSet<string>> pair in shaderCopies)
         {
             Equal(1, pair.Value.Count, "identical deployed copies of " + pair.Key);
@@ -346,12 +456,12 @@ internal static class Program
 
         if (NucleiAssemblies.Count > 1)
         {
-            VerifySupportShaderContract("Nuclei4.Gpu.D3D11", 22, ExpectedGpuShaderHash);
+            VerifySupportShaderContract("Nuclei4.Gpu.D3D11", 27, ExpectedGpuShaderHash);
             VerifySupportShaderContract("Nuclei4.Display.D3D11", 5, ExpectedDisplayShaderHash);
         }
 
         Console.WriteLine(
-            "Compatibility contracts passed: 51 public types, 741 API records, 38 components, 214 schema records, 27 shaders ("
+            "Compatibility contracts passed: 51 public types, 741 API records, 38 components, 214 schema records, 32 shaders ("
             + (NucleiAssemblies.Count > 1 ? "split deployment" : "legacy deployment") + ").");
     }
 
@@ -643,6 +753,108 @@ internal static class Program
         {
             True((bool)Invoke(walkable, "IsWalkableFlatIndex", i), "walkable threshold at " + i);
         }
+
+        (int Index, string MapName, string Label)[] authoredFields =
+        {
+            (0, "MinimumDensity", "minimum density"),
+            (1, "MaximumDensity", "maximum density"),
+            (2, "Speed", "speed"),
+            (3, "SensorDistance", "sensor distance"),
+            (4, "SensorAngle", "sensor angle"),
+            (5, "RotationAngle", "rotation angle"),
+            (6, "Food", "slime food"),
+            (13, "AntFood", "ant food")
+        };
+
+        foreach ((int fieldIndex, string mapName, string label) in authoredFields)
+        {
+            List<double> values = new List<double>(count);
+            for (int i = 0; i < count; i++)
+            {
+                values.Add(fieldIndex <= 1
+                    ? (i + 1.0) / (count + 1.0)
+                    : fieldIndex + 0.25 + i / 1000.0);
+            }
+
+            object withValues = Invoke(data, "WithScalarValues", fieldIndex, values);
+            for (int i = 0; i < count; i++)
+            {
+                Near(values[i], (double)Invoke(withValues, "GetScalarValue", fieldIndex, i), 1e-5,
+                    label + " map value " + i);
+            }
+
+            double uniformValue = fieldIndex <= 1 ? 0.625 : fieldIndex + 0.625;
+            object withUniformValues = Invoke(data, "WithScalarValues", fieldIndex, new List<double> { uniformValue });
+            object uniformMap = Field<object>(withUniformValues, mapName);
+            Null(Field<object>(uniformMap, "Values"), label + " uniform scalar should remain implicit");
+            Near(uniformValue, Field<double>(uniformMap, "DefaultValue"), 1e-6, label + " uniform scalar default");
+        }
+
+        object clampedMinimumLow = Invoke(data, "WithScalarValues", 0, new List<double> { -2.0 });
+        object clampedMinimumInterior = Invoke(data, "WithScalarValues", 0, new List<double> { 0.4 });
+        object clampedMinimumHigh = Invoke(data, "WithScalarValues", 0, new List<double> { 2.0 });
+        Near(0, (double)Invoke(clampedMinimumLow, "GetScalarValue", 0, 0), 1e-9, "minimum density lower clamp");
+        Near(0.4, (double)Invoke(clampedMinimumInterior, "GetScalarValue", 0, 0), 1e-6, "minimum density interior value");
+        Near(1, (double)Invoke(clampedMinimumHigh, "GetScalarValue", 0, 0), 1e-9, "minimum density upper clamp");
+
+        object unsetMinimum = Invoke(data, "WithScalarValues", 0, new List<double> { -1.0 });
+        Near(-1, (double)Invoke(unsetMinimum, "GetScalarValue", 0, 0), 1e-9, "minimum density unset sentinel");
+    }
+
+    static void TestVoxelValueCacheInvalidation()
+    {
+        Type componentType = RequiredCompatibilityType("Nuclei4.Voxel_Values");
+        object component = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(componentType);
+        object inputData = CreateFullDomain(4, 2, 1);
+        int count = Field<int>(inputData, "Count");
+        int[] fieldIndices = { 0, 1, 2, 3, 4, 5, 6, 13 };
+
+        Null(
+            componentType.GetField("cachedInputValueTree", BindingFlags.Instance | BindingFlags.NonPublic),
+            "Define Voxel Values must not cache mutable Grasshopper tree identity");
+
+        foreach (int fieldIndex in fieldIndices)
+        {
+            SetField(component, "valueIndex", fieldIndex);
+            List<double> firstValues = new List<double>(count);
+            List<double> changedValues = new List<double>(count);
+            for (int i = 0; i < count; i++)
+            {
+                if (fieldIndex <= 1)
+                {
+                    firstValues.Add((i + 1.0) / (count + 2.0));
+                    changedValues.Add((count - i) / (count + 2.0));
+                }
+                else
+                {
+                    firstValues.Add(fieldIndex + 0.1 + i / 100.0);
+                    changedValues.Add(fieldIndex + 0.6 + i / 100.0);
+                }
+            }
+
+            long firstHash = (long)InvokeStatic(componentType, "hashValues", firstValues);
+            long changedHash = (long)InvokeStatic(componentType, "hashValues", changedValues);
+            False(firstHash == changedHash, "changed " + fieldIndex + " values produced the same cache hash");
+
+            object firstData = Invoke(inputData, "WithScalarValues", fieldIndex, firstValues);
+            object firstField = CreateField(firstData);
+            Invoke(component, "cacheOutput", inputData, firstHash, firstData, firstField);
+            True((bool)Invoke(component, "tryReuseCachedOutput", inputData, firstHash),
+                "unchanged " + fieldIndex + " values did not reuse cached output");
+            False((bool)Invoke(component, "tryReuseCachedOutput", inputData, changedHash),
+                "changed " + fieldIndex + " values reused stale cached output");
+
+            object changedData = Invoke(inputData, "WithScalarValues", fieldIndex, changedValues);
+            object changedField = CreateField(changedData);
+            Invoke(component, "cacheOutput", inputData, changedHash, changedData, changedField);
+            True((bool)Invoke(component, "tryReuseCachedOutput", inputData, changedHash),
+                "updated " + fieldIndex + " values did not become reusable");
+        }
+
+        object equivalentButDistinctInput = CreateFullDomain(4, 2, 1);
+        False(
+            (bool)Invoke(component, "tryReuseCachedOutput", equivalentButDistinctInput, Field<long>(component, "cachedValueHash")),
+            "distinct voxel data identity reused a cached field");
     }
 
     static void TestGpuSnapshotPacking()
@@ -1067,15 +1279,23 @@ internal static class Program
         False((bool)arguments[4], "ant classified as slime population");
     }
 
-    static void TestDendroUpdatePulseAndCache()
+    static void TestDendroContinuousUpdateAndCache()
     {
         Type componentType = RequiredCompatibilityType("Nuclei4.GpuVolumeToMesh");
         object component = Activator.CreateInstance(componentType)!;
-        False((bool)Invoke(component, "ConsumeUpdatePulse", false), "Dendro false update pulse");
-        True((bool)Invoke(component, "ConsumeUpdatePulse", true), "Dendro rising update pulse");
-        False((bool)Invoke(component, "ConsumeUpdatePulse", true), "Dendro held update rebuilt output");
-        False((bool)Invoke(component, "ConsumeUpdatePulse", false), "Dendro falling update pulse");
-        True((bool)Invoke(component, "ConsumeUpdatePulse", true), "Dendro second rising update pulse");
+        False((bool)Invoke(component, "ShouldRebuild", false), "Dendro disabled update rebuilt output");
+        True((bool)Invoke(component, "ShouldRebuild", true), "Dendro enabled update did not rebuild output");
+        True((bool)Invoke(component, "ShouldRebuild", true), "Dendro held update did not rebuild output");
+        False((bool)Invoke(component, "ShouldRebuild", false), "Dendro disabled update rebuilt output after being enabled");
+        True((bool)Invoke(component, "ShouldRebuild", true), "Dendro re-enabled update did not rebuild output");
+        True(componentType.GetField("previousUpdate", BindingFlags.Instance | BindingFlags.NonPublic) == null,
+            "Dendro retained rising-edge update state");
+        True(componentType.GetField("publishScheduled", BindingFlags.Instance | BindingFlags.NonPublic) == null,
+            "Dendro retained self-scheduled publication state");
+        True(componentType.GetField("publishCachedOutputOnly", BindingFlags.Instance | BindingFlags.NonPublic) == null,
+            "Dendro retained a publish-only follow-up pass");
+        True(componentType.GetMethod("ScheduleCachedOutputPublication", BindingFlags.Instance | BindingFlags.NonPublic) == null,
+            "Dendro retained self-scheduled publication");
 
         ProbeDisposable first = new ProbeDisposable();
         ProbeDisposable replacement = new ProbeDisposable();
@@ -1087,7 +1307,6 @@ internal static class Program
         Invoke(component, "ReplaceCachedOutput", replacement);
         True(first.Disposed, "Dendro cache replacement did not dispose the superseded output");
         False(replacement.Disposed, "Dendro replacement output was disposed before publication");
-        False(Field<bool>(component, "publishScheduled"), "detached Dendro component scheduled a publication solve");
 
         ProbeDendroVolume.LastCreated = null;
         Invoke(
@@ -1140,7 +1359,24 @@ internal static class Program
         True(ReferenceEquals(retainedCache, Field<object>(component, "cachedOutput")),
             "incompatible Dendro wrapper replaced the last valid cache");
 
-        Console.WriteLine("Dendro pulse, replacement, disposal, and failed-publication cache semantics passed.");
+        Console.WriteLine("Dendro continuous-update, replacement, disposal, and failed-publication cache semantics passed.");
+    }
+
+    static void TestV3DendroContinuousUpdate(string[] args)
+    {
+        Type componentType = LoadV3ProbeAssembly(args).GetType("Nuclei3.NucleiToDendro", true)!;
+        object component = Activator.CreateInstance(componentType)!;
+        False((bool)Invoke(component, "ShouldConvert", false), "V3 Dendro disabled Convert rebuilt output");
+        True((bool)Invoke(component, "ShouldConvert", true), "V3 Dendro enabled Convert did not rebuild output");
+        True((bool)Invoke(component, "ShouldConvert", true), "V3 Dendro held Convert did not rebuild output");
+        False((bool)Invoke(component, "ShouldConvert", false), "V3 Dendro disabled Convert rebuilt output after being enabled");
+        True(componentType.GetField("previousConvert", BindingFlags.Instance | BindingFlags.NonPublic) == null,
+            "V3 Dendro retained rising-edge Convert state");
+        True(componentType.GetField("publishScheduled", BindingFlags.Instance | BindingFlags.NonPublic) == null,
+            "V3 Dendro retained self-scheduled publication state");
+        True(componentType.GetMethod("ScheduleCachedVolumePublication", BindingFlags.Instance | BindingFlags.NonPublic) == null,
+            "V3 Dendro retained self-scheduled publication");
+        Console.WriteLine("V3 Dendro continuous-update semantics passed.");
     }
 
     static void TestSlimeSettingsLegacyArchiveMigration()
@@ -1926,6 +2162,47 @@ internal static class Program
         object uniformMergedSpeed = Field<object>(uniformUnion, "Speed");
         Null(Field<object>(uniformMergedSpeed, "Values"), "uniform boolean merge should remain implicit");
         Near(3, Field<double>(uniformMergedSpeed, "DefaultValue"), 1e-6, "uniform boolean merge value");
+
+        (int Index, string Label)[] authoredFields =
+        {
+            (0, "minimum density"),
+            (1, "maximum density"),
+            (2, "speed"),
+            (3, "sensor distance"),
+            (4, "sensor angle"),
+            (5, "rotation angle"),
+            (6, "slime food"),
+            (13, "ant food")
+        };
+        (string Mode, double Weight)[] mergeModes =
+        {
+            ("Minimum", 0),
+            ("Average", 0.5),
+            ("Maximum", 1)
+        };
+
+        foreach ((int fieldIndex, string label) in authoredFields)
+        {
+            double low = fieldIndex <= 1 ? 0.2 : fieldIndex + 1.0;
+            double high = fieldIndex <= 1 ? 0.8 : fieldIndex + 3.0;
+            object lowData = Invoke(CreateFullDomain(4, 1, 1), "WithScalarValues", fieldIndex, new List<double> { low });
+            object highData = Invoke(CreateFullDomain(4, 1, 1), "WithScalarValues", fieldIndex, new List<double> { high });
+            IList fieldInputs = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(GridType))!;
+            fieldInputs.Add(lowData);
+            fieldInputs.Add(highData);
+
+            foreach ((string modeName, double weight) in mergeModes)
+            {
+                object mode = Enum.Parse(modeType, modeName);
+                object merged = InvokeStatic(combinerType, "Union", fieldInputs, mode);
+                double expected = low + (high - low) * weight;
+                for (int flatIndex = 0; flatIndex < 4; flatIndex++)
+                {
+                    Near(expected, (double)Invoke(merged, "GetScalarValue", fieldIndex, flatIndex), 1e-6,
+                        modeName + " merged " + label + " value " + flatIndex);
+                }
+            }
+        }
     }
 
     static void TestGpuEngineInitialization()
@@ -2412,6 +2689,509 @@ internal static class Program
         }
 
         Console.WriteLine("GPU_SIGNATURE_HASH " + HashRecords(checkpointRecords));
+    }
+
+    static void TestGpuTiledDiffusionParity()
+    {
+        const int resolutionX = 23;
+        const int resolutionY = 19;
+        const int resolutionZ = 17;
+        const int iterations = 8;
+        int voxelCount = resolutionX * resolutionY * resolutionZ;
+        float[] initialDensity = new float[voxelCount];
+        for (int i = 0; i < initialDensity.Length; i++)
+        {
+            initialDensity[i] = (float)(0.04 + ((i * 37 + i / 11) % 211) / 500.0);
+        }
+
+        Type settingsType = RequiredImplementationType("Nuclei4.SolverGpuSettings");
+        Type dimensionType = RequiredImplementationType("Nuclei4.SolverGpuDimensionMode");
+        Type engineType = RequiredImplementationType("Nuclei4.GpuFullSlimeSolverEngine");
+        object dimensionMode = InvokeStatic(
+            dimensionType,
+            "FromResolution",
+            resolutionX,
+            resolutionY,
+            resolutionZ);
+
+        foreach (bool wrap in new[] { false, true })
+        {
+            object data = WithInitialDensity(
+                CreateFullDomain(resolutionX, resolutionY, resolutionZ),
+                initialDensity);
+            RunGpuTiledDiffusionParityCase(
+                settingsType,
+                engineType,
+                dimensionMode,
+                data,
+                wrap,
+                5,
+                iterations,
+                "full-domain");
+        }
+
+        foreach (bool wrap in new[] { false, true })
+        {
+            object data = WithInitialDensity(
+                CreateFullDomain(resolutionX, resolutionY, resolutionZ),
+                initialDensity);
+            RunGpuTiledDiffusionParityCase(
+                settingsType,
+                engineType,
+                dimensionMode,
+                data,
+                wrap,
+                16,
+                2,
+                "maximum-halo");
+        }
+
+        int FlatIndex(int x, int y, int z) => (x * resolutionY + y) * resolutionZ + z;
+        int[] inactiveIndices =
+        {
+            FlatIndex(3, 5, 7),
+            FlatIndex(10, 15, 4),
+            FlatIndex(15, 8, 8),
+            FlatIndex(16, 8, 8),
+            FlatIndex(21, 12, 15)
+        };
+        List<double> maximumDensity = Enumerable.Repeat(-1.0, voxelCount).ToList();
+        maximumDensity[FlatIndex(7, 6, 5)] = 0.19;
+        maximumDensity[FlatIndex(17, 11, 9)] = 0.31;
+        List<double> minimumDensity = Enumerable.Repeat(-1.0, voxelCount).ToList();
+        minimumDensity[FlatIndex(6, 13, 11)] = 0.12;
+        minimumDensity[FlatIndex(18, 4, 13)] = 0.24;
+
+        foreach (bool wrap in new[] { false, true })
+        {
+            object data = CreateSparseGpuData(
+                resolutionX,
+                resolutionY,
+                resolutionZ,
+                inactiveIndices);
+            data = Invoke(data, "WithScalarValues", 0, minimumDensity);
+            data = Invoke(data, "WithScalarValues", 1, maximumDensity);
+            data = WithInitialDensity(data, initialDensity);
+            RunGpuTiledDiffusionParityCase(
+                settingsType,
+                engineType,
+                dimensionMode,
+                data,
+                wrap,
+                5,
+                iterations,
+                "sparse-limited");
+        }
+
+        foreach (int fallbackRange in new[] { 1, 17 })
+        {
+            object data = WithInitialDensity(
+                CreateFullDomain(resolutionX, resolutionY, resolutionZ),
+                initialDensity);
+            RunGpuTiledDiffusionParityCase(
+                settingsType,
+                engineType,
+                dimensionMode,
+                data,
+                true,
+                fallbackRange,
+                2,
+                "direct-fallback");
+        }
+
+        Console.WriteLine(
+            "Tiled diffusion and final-pass decay fusion are bit-identical to direct diffusion with separate decay for range 5, the range-16 maximum halo, and range-1/range-17 direct fallbacks, including sparse active flags and density limits.");
+    }
+
+    static void RunGpuTiledDiffusionParityCase(
+        Type settingsType,
+        Type engineType,
+        object dimensionMode,
+        object data,
+        bool wrap,
+        int diffuseRange,
+        int iterations,
+        string caseLabel)
+    {
+        object snapshot = CaptureGpuSignatureSnapshot(CreateField(data), 0, wrap);
+        object settings = Activator.CreateInstance(settingsType)!;
+        SetField(settings, "Diffuse", 0.17);
+        SetField(settings, "DiffuseRange", diffuseRange);
+        SetField(settings, "Decay", 0.013);
+        SetField(settings, "DiffusionGradual", 1.0);
+        SetField(settings, "WrapBoundaries", wrap);
+        SetField(settings, "DynamicPopulation", false);
+
+        object reference = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
+        object directFused = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
+        object tiledSeparate = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
+        object optimized = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
+        SetField(reference, "forceDirectDiffusionForValidation", true);
+        SetField(reference, "disableScalarDecayFusionForValidation", true);
+        SetField(directFused, "forceDirectDiffusionForValidation", true);
+        SetField(tiledSeparate, "disableScalarDecayFusionForValidation", true);
+
+        try
+        {
+            for (int iteration = 1; iteration <= iterations; iteration++)
+            {
+                InvokeGpuStep(reference, snapshot, settings, dimensionMode, iteration);
+                InvokeGpuStep(directFused, snapshot, settings, dimensionMode, iteration);
+                InvokeGpuStep(tiledSeparate, snapshot, settings, dimensionMode, iteration);
+                InvokeGpuStep(optimized, snapshot, settings, dimensionMode, iteration);
+
+                Invoke(reference, "ReadBackDensity");
+                Invoke(directFused, "ReadBackDensity");
+                Invoke(tiledSeparate, "ReadBackDensity");
+                Invoke(optimized, "ReadBackDensity");
+                float[] expected = Field<float[]>(reference, "densityReadback");
+                string label = "range-" + diffuseRange + " " + caseLabel + " " + (wrap ? "wrapped" : "fixed")
+                    + " diffusion iteration " + iteration;
+                EqualFloatBits(expected, Field<float[]>(directFused, "densityReadback"), label + " direct/fused");
+                EqualFloatBits(expected, Field<float[]>(tiledSeparate, "densityReadback"), label + " tiled/separate");
+                EqualFloatBits(expected, Field<float[]>(optimized, "densityReadback"), label + " tiled/fused");
+            }
+        }
+        finally
+        {
+            ((IDisposable)optimized).Dispose();
+            ((IDisposable)tiledSeparate).Dispose();
+            ((IDisposable)directFused).Dispose();
+            ((IDisposable)reference).Dispose();
+        }
+    }
+
+    static void TestGpuSparsePassParity()
+    {
+        const int grid = 17;
+        const int staticParticleCount = 7;
+        Type settingsType = RequiredImplementationType("Nuclei4.SolverGpuSettings");
+        Type engineType = RequiredImplementationType("Nuclei4.GpuFullSlimeSolverEngine");
+        object dimensionMode = InvokeStatic(
+            RequiredImplementationType("Nuclei4.SolverGpuDimensionMode"),
+            "FromResolution",
+            grid,
+            grid,
+            grid);
+
+        // The primary case is a true 3D slime field. It starts fixed, then changes
+        // the live solver to wrapped boundaries so the persistent owner map is also
+        // checked across the boundary-transition pass.
+        object staticSnapshot = CaptureSparsePassParitySnapshot(
+            grid,
+            staticParticleCount,
+            false,
+            false);
+        object staticSettings = CreateSparsePassParitySettings(settingsType, false, false, staticParticleCount);
+        RunGpuSparsePassParityCase(
+            engineType,
+            dimensionMode,
+            staticSnapshot,
+            staticSettings,
+            false,
+            8,
+            5,
+            "3D slime static fixed-to-wrap");
+
+        // Ant deposits use two different fixed-point channels and two pheromone
+        // destinations. Keep this case ant-only so a missing channel binding cannot
+        // be hidden by slime-density parity.
+        object antSnapshot = CaptureSparsePassParitySnapshot(grid, 4, true, true);
+        object antSettings = CreateSparsePassParitySettings(settingsType, true, false, 4);
+        RunGpuSparsePassParityCase(
+            engineType,
+            dimensionMode,
+            antSnapshot,
+            antSettings,
+            true,
+            6,
+            -1,
+            "3D ant static wrapped");
+
+        // Dynamic mode still refreshes aggregate/free/group state. A full-capacity,
+        // no-birth/no-death fixture makes the free-slot stack deterministic while
+        // directly comparing the aggregate-only clear against the legacy voxel scan.
+        const int dynamicParticleCount = 5;
+        object dynamicSnapshot = CaptureSparsePassParitySnapshot(
+            grid,
+            dynamicParticleCount,
+            false,
+            true);
+        object dynamicSettings = CreateSparsePassParitySettings(
+            settingsType,
+            true,
+            true,
+            dynamicParticleCount);
+        RunGpuSparsePassParityCase(
+            engineType,
+            dimensionMode,
+            dynamicSnapshot,
+            dynamicSettings,
+            false,
+            6,
+            -1,
+            "3D slime dynamic aggregate recount");
+
+        Console.WriteLine(
+            "Production coalesced deposit resolution with persistent particle counts, and the experimental particle-driven resolver, are bit-identical to the full-recount reference at every step for 3D slime fixed/wrapped, ant-only, and deterministic dynamic-population fixtures.");
+    }
+
+    static object CaptureSparsePassParitySnapshot(
+        int grid,
+        int particleCount,
+        bool antParticles,
+        bool wrapBoundaries)
+    {
+        object inputField = CreateField(CreateFullDomain(grid, grid, grid));
+        bool previousAntParticles = BenchmarkAntParticles;
+        BenchmarkAntParticles = antParticles;
+        try
+        {
+            return CaptureGpuSignatureSnapshot(inputField, particleCount, wrapBoundaries);
+        }
+        finally
+        {
+            BenchmarkAntParticles = previousAntParticles;
+        }
+    }
+
+    static object CreateSparsePassParitySettings(
+        Type settingsType,
+        bool wrapBoundaries,
+        bool dynamicPopulation,
+        int particleCount)
+    {
+        object settings = CreateParityGpuSettings(settingsType);
+        SetField(settings, "WrapBoundaries", wrapBoundaries);
+        SetField(settings, "Diffuse", 0.0);
+        SetField(settings, "Decay", 0.0);
+        SetField(settings, "AntFoodDiffuse", 0.0);
+        SetField(settings, "AntBaseDiffuse", 0.0);
+        SetField(settings, "AntFoodDecay", 0.0);
+        SetField(settings, "AntBaseDecay", 0.0);
+        SetField(settings, "DynamicPopulation", dynamicPopulation);
+        SetField(settings, "Death", false);
+        SetField(settings, "Division", false);
+        if (dynamicPopulation)
+        {
+            SetField(settings, "MinimumPopulation", particleCount);
+            SetField(settings, "MaximumPopulation", particleCount);
+            SetField(settings, "RandomDeathProbability", 0.0);
+            SetField(settings, "RandomDivisionProbability", 0.0);
+            SetField(settings, "RandomPopulationFrequency", 1);
+        }
+        return settings;
+    }
+
+    static void RunGpuSparsePassParityCase(
+        Type engineType,
+        object dimensionMode,
+        object snapshot,
+        object settings,
+        bool antParticles,
+        int iterations,
+        int wrapToggleIteration,
+        string caseLabel)
+    {
+        object reference = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
+        object production = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
+        object particleExperimental = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
+        SetField(reference, "forceFullParticleCountRebuildForValidation", true);
+        SetField(particleExperimental, "forceParticleDrivenDepositForValidation", true);
+
+        try
+        {
+            for (int iteration = 1; iteration <= iterations; iteration++)
+            {
+                if (iteration == wrapToggleIteration)
+                {
+                    SetField(settings, "WrapBoundaries", true);
+                }
+
+                InvokeGpuStep(reference, snapshot, settings, dimensionMode, iteration);
+                InvokeGpuStep(production, snapshot, settings, dimensionMode, iteration);
+                InvokeGpuStep(particleExperimental, snapshot, settings, dimensionMode, iteration);
+                AssertGpuSparsePassParityCheckpoint(
+                    reference,
+                    production,
+                    antParticles,
+                    caseLabel + " production iteration " + iteration);
+                AssertGpuSparsePassParityCheckpoint(
+                    reference,
+                    particleExperimental,
+                    antParticles,
+                    caseLabel + " particle-experimental iteration " + iteration);
+            }
+        }
+        finally
+        {
+            ((IDisposable)particleExperimental).Dispose();
+            ((IDisposable)production).Dispose();
+            ((IDisposable)reference).Dispose();
+        }
+    }
+
+    static void AssertGpuSparsePassParityCheckpoint(
+        object reference,
+        object optimized,
+        bool antParticles,
+        string label)
+    {
+        // Each readback is both a correctness checkpoint and an explicit GPU fence.
+        Invoke(reference, "ReadBackDensity");
+        Invoke(optimized, "ReadBackDensity");
+        Invoke(reference, "ReadBackParticles");
+        Invoke(optimized, "ReadBackParticles");
+        if (antParticles)
+        {
+            Invoke(reference, "ReadBackAntFields");
+            Invoke(optimized, "ReadBackAntFields");
+        }
+
+        EqualOptionalFloatBits(reference, optimized, "densityReadback", label + " density");
+        EqualOptionalFloatBits(reference, optimized, "particlePositionReadback", label + " particle positions");
+        EqualOptionalFloatBits(reference, optimized, "particleDirectionReadback", label + " particle directions");
+        EqualOptionalFloatBits(reference, optimized, "particleYAxisReadback", label + " particle Y axes");
+        EqualOptionalFloatBits(reference, optimized, "particleHomeReadback", label + " particle homes");
+        EqualOptionalFloatBits(reference, optimized, "particleHomeAxesReadback", label + " particle home axes");
+        EqualOptionalIntArrays(reference, optimized, "particleAuxReadback", label + " particle auxiliary state");
+        EqualOptionalFloatBits(reference, optimized, "antFoodReadback", label + " ant food pheromone");
+        EqualOptionalFloatBits(reference, optimized, "antBaseReadback", label + " ant base pheromone");
+        EqualOptionalIntArrays(reference, optimized, "antFoodRemainingReadback", label + " ant remaining food");
+        Equal(
+            Field<int>(reference, "particleCount"),
+            Field<int>(optimized, "particleCount"),
+            label + " active population telemetry");
+
+        int[] referenceCounts = (int[])Invoke(reference, "ReadBackValidationParticleCounts");
+        int[] optimizedCounts = (int[])Invoke(optimized, "ReadBackValidationParticleCounts");
+        int[] referenceOwners = (int[])Invoke(reference, "ReadBackValidationParticleOwners");
+        int[] optimizedOwners = (int[])Invoke(optimized, "ReadBackValidationParticleOwners");
+        int[] referenceDeposits = (int[])Invoke(reference, "ReadBackValidationDeposits");
+        int[] optimizedDeposits = (int[])Invoke(optimized, "ReadBackValidationDeposits");
+        EqualIntArrays(referenceCounts, optimizedCounts, label + " particle-count buffer");
+        EqualIntArrays(referenceOwners, optimizedOwners, label + " particle-owner buffer");
+        EqualIntArrays(referenceDeposits, optimizedDeposits, label + " fixed-point deposit buffer");
+
+        AssertGpuPersistentOccupancyInvariant(
+            optimized,
+            optimizedCounts,
+            optimizedOwners,
+            label + " optimized occupancy");
+        AssertGpuResolvedDepositChannels(
+            optimized,
+            optimizedDeposits,
+            label + " optimized deposits");
+    }
+
+    static void EqualOptionalFloatBits(
+        object expectedTarget,
+        object actualTarget,
+        string fieldName,
+        string label)
+    {
+        float[] expected = Field<float[]>(expectedTarget, fieldName);
+        float[] actual = Field<float[]>(actualTarget, fieldName);
+        if (expected == null || actual == null)
+        {
+            True(expected == null && actual == null, label + " null-state mismatch");
+            return;
+        }
+        EqualFloatBits(expected, actual, label);
+    }
+
+    static void EqualOptionalIntArrays(
+        object expectedTarget,
+        object actualTarget,
+        string fieldName,
+        string label)
+    {
+        int[] expected = Field<int[]>(expectedTarget, fieldName);
+        int[] actual = Field<int[]>(actualTarget, fieldName);
+        if (expected == null || actual == null)
+        {
+            True(expected == null && actual == null, label + " null-state mismatch");
+            return;
+        }
+        EqualIntArrays(expected, actual, label);
+    }
+
+    static void AssertGpuPersistentOccupancyInvariant(
+        object engine,
+        int[] counts,
+        int[] owners,
+        string label)
+    {
+        int voxelCount = Field<int>(engine, "voxelCount");
+        int particleCapacity = Field<int>(engine, "particleCapacity");
+        int groupCount = Field<int>(engine, "groupCount");
+        Equal(voxelCount, owners.Length, label + " owner length");
+        Equal(voxelCount + 4 + groupCount, counts.Length, label + " count length");
+
+        float[] positions = Field<float[]>(engine, "particlePositionReadback");
+        float[] directions = Field<float[]>(engine, "particleDirectionReadback");
+        bool[] live = new bool[particleCapacity];
+        int liveCount = 0;
+        for (int slot = 0; slot < particleCapacity; slot++)
+        {
+            live[slot] = positions[slot * 4 + 3] >= -0.5f;
+            if (live[slot]) liveCount++;
+        }
+
+        int occupiedCount = 0;
+        for (int voxel = 0; voxel < voxelCount; voxel++)
+        {
+            int count = counts[voxel];
+            int owner = owners[voxel];
+            True(count == 0 || count == 1, label + " non-binary count at voxel " + voxel);
+            if (owner < 0)
+            {
+                Equal(0, count, label + " empty owner retained occupancy at voxel " + voxel);
+                continue;
+            }
+
+            True(owner < particleCapacity, label + " owner outside capacity at voxel " + voxel);
+            True(live[owner], label + " dead slot owns voxel " + voxel);
+            Equal(1, count, label + " live owner lacks occupancy at voxel " + voxel);
+            Equal(
+                voxel,
+                (int)Math.Round(directions[owner * 4 + 3], MidpointRounding.ToEven),
+                label + " stored parent/owner mismatch for slot " + owner);
+            occupiedCount++;
+        }
+
+        Equal(liveCount, occupiedCount, label + " occupied/live count");
+        Equal(liveCount, counts[voxelCount], label + " active aggregate");
+        Equal(particleCapacity - liveCount, counts[voxelCount + 1], label + " free aggregate");
+        Equal(liveCount, Field<int>(engine, "particleCount"), label + " telemetry/live count");
+
+        int groupedCount = 0;
+        for (int group = 0; group < groupCount; group++)
+        {
+            int value = counts[voxelCount + 4 + group];
+            True(value >= 0 && value <= liveCount, label + " group aggregate range at " + group);
+            groupedCount += value;
+        }
+        Equal(liveCount, groupedCount, label + " group aggregate total");
+    }
+
+    static void AssertGpuResolvedDepositChannels(object engine, int[] deposits, string label)
+    {
+        int voxelCount = Field<int>(engine, "voxelCount");
+        foreach (string offsetField in new[]
+        {
+            "slimeDepositOffset",
+            "antFoodDepositOffset",
+            "antBaseDepositOffset"
+        })
+        {
+            int offset = Field<int>(engine, offsetField);
+            if (offset < 0) continue;
+            for (int voxel = 0; voxel < voxelCount; voxel++)
+            {
+                Equal(0, deposits[offset + voxel], label + " pending " + offsetField + " at voxel " + voxel);
+            }
+        }
     }
 
     static void TestAntMoveShaderSpecialization()
@@ -3317,6 +4097,1122 @@ internal static class Program
         return trace.ToArray();
     }
 
+    static void RunSlimeIntroBenchmark(string[] args)
+    {
+        int steps = SlimeIntroBenchmarkInteger(args, "--steps", 60, 1);
+        int repeats = SlimeIntroBenchmarkInteger(args, "--repeats", 5, 1);
+        // Tiered JIT/PGO changes the V3 hot loop for roughly its first 100 steps.
+        // Keep the default safely beyond that transition; callers can override it.
+        int warmup = SlimeIntroBenchmarkInteger(args, "--warmup", 180, 0);
+        string backend = SlimeIntroBenchmarkOption(args, "--backend") ?? "both";
+        backend = backend.ToLowerInvariant();
+        if (backend != "cpu" && backend != "gpu" && backend != "both")
+        {
+            throw new ArgumentException("--backend must be cpu, gpu, or both.");
+        }
+
+        string repositoryRoot = FindRepositoryRoot(Directory.GetCurrentDirectory())
+            ?? FindRepositoryRoot(AppContext.BaseDirectory);
+        if (repositoryRoot == null)
+        {
+            throw new DirectoryNotFoundException("Could not locate the Nuclei repository root.");
+        }
+
+        SlimeIntroBenchmarkProfile profile = SlimeIntroBenchmarkProfile.Create(
+            SlimeIntroBenchmarkOption(args, "--profile") ?? "standard",
+            repositoryRoot);
+        string expectedActiveOverride = SlimeIntroBenchmarkOption(args, "--expected-active-particles");
+        if (expectedActiveOverride != null)
+        {
+            if (!int.TryParse(
+                    expectedActiveOverride,
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out int expectedActiveParticles)
+                || expectedActiveParticles < 0)
+            {
+                throw new ArgumentException("--expected-active-particles requires an integer >= 0.");
+            }
+            profile.ExpectedActiveParticles = expectedActiveParticles;
+        }
+        if (profile.VoxelCount >= 16_000_000 && backend == "both")
+        {
+            throw new ArgumentException(
+                "Large profiles require separate --backend cpu and --backend gpu processes "
+                + "so retained V3 globals cannot contaminate GPU memory or thermal state.");
+        }
+        int diffuseRange = SlimeIntroBenchmarkInteger(
+            args,
+            "--diffuse-range",
+            profile.V4SavedDiffuseRange,
+            1);
+        bool gpuParticlePreview = Array.IndexOf(args, "--gpu-particle-preview") >= 0;
+        bool experimentalParticleDeposit = SlimeIntroBenchmarkFlag(args, "--experimental-particle-deposit");
+        bool legacyCountRebuild = SlimeIntroBenchmarkFlag(args, "--legacy-count-rebuild");
+        bool gpuPassTimestamps = SlimeIntroBenchmarkFlag(args, "--gpu-pass-timestamps");
+        string gpuVariant = SlimeIntroGpuVariant(experimentalParticleDeposit, legacyCountRebuild);
+
+        string v3DefinitionPath = SlimeIntroBenchmarkOption(args, "--v3-definition");
+        if (v3DefinitionPath == null)
+        {
+            v3DefinitionPath = profile.V3DefinitionPath;
+        }
+        else
+        {
+            v3DefinitionPath = Path.GetFullPath(v3DefinitionPath);
+        }
+        string v4DefinitionPath = SlimeIntroBenchmarkOption(args, "--slime-definition");
+        if (v4DefinitionPath == null)
+        {
+            v4DefinitionPath = profile.V4DefinitionPath;
+        }
+        else
+        {
+            v4DefinitionPath = Path.GetFullPath(v4DefinitionPath);
+        }
+
+        VerifySlimeIntroDefinition(
+            v3DefinitionPath,
+            profile.ExpectedV3DefinitionHash,
+            "v3_cpu_reference");
+        VerifySlimeIntroDefinition(
+            v4DefinitionPath,
+            profile.ExpectedV4DefinitionHash,
+            "v4_workload_source");
+        WriteSlimeIntroV4BinaryHashes();
+
+        string normalization = profile.V3SavedDiffuseRange == profile.V4SavedDiffuseRange
+            ? "saved-settings-matched"
+            : diffuseRange == profile.V4SavedDiffuseRange
+                ? "matched-to-v4"
+                : diffuseRange == profile.V3SavedDiffuseRange
+                    ? "matched-to-v3"
+                    : "explicit-matched-override";
+        Console.WriteLine(
+            "SLIME_INTRO_BENCHMARK profile=" + profile.Name
+            + " resolution=" + profile.ResolutionX + "x" + profile.ResolutionY + "x" + profile.ResolutionZ
+            + " voxels=" + profile.VoxelCount
+            + " requestedParticles=" + profile.RequestedParticles
+            + " speed=1.3 sensorDistance=6 sensorAngle=45 rotationAngle=45 deposit=1"
+            + " exploration=0 diffuse=" + profile.Diffuse.ToString("0.##", CultureInfo.InvariantCulture)
+            + " diffuseRange=" + diffuseRange
+            + " savedV3DiffuseRange=" + profile.V3SavedDiffuseRange
+            + " savedV4DiffuseRange=" + profile.V4SavedDiffuseRange
+            + " settingsNormalization=" + normalization
+            + " decay=" + profile.Decay.ToString("0.##", CultureInfo.InvariantCulture)
+            + " gradual=" + profile.Gradual.ToString("0.##", CultureInfo.InvariantCulture)
+            + " wrap=" + profile.Wrap.ToString().ToLowerInvariant()
+            + " trailEnabled=" + profile.TrailEnabled.ToString().ToLowerInvariant()
+            + " trailSize=" + profile.TrailSize + " trailFrequency=" + profile.TrailFrequency
+            + " scope=solver-core previewState=" + (gpuParticlePreview ? "shared-particle" : "false")
+            + " gpuVariant=" + gpuVariant
+            + " gpuPassTimestamps=" + gpuPassTimestamps.ToString().ToLowerInvariant()
+            + " gpuFence=" + profile.GpuFence
+            + " v3DefinitionSource="
+            + Uri.EscapeDataString(v3DefinitionPath.Replace('\\', '/'))
+            + " v3DefinitionSha256=" + profile.ExpectedV3DefinitionHash
+            + " workloadSource="
+            + Uri.EscapeDataString(v4DefinitionPath.Replace('\\', '/'))
+            + " workloadSha256=" + profile.ExpectedV4DefinitionHash
+            + " steps=" + steps + " repeats=" + repeats + " warmup=" + warmup
+            + " backend=" + backend);
+
+        SlimeIntroBenchmarkResult cpu = null;
+        SlimeIntroBenchmarkResult gpu = null;
+        if (backend == "cpu" || backend == "both")
+        {
+            cpu = BenchmarkSlimeIntroCpu(args, profile, diffuseRange, steps, repeats, warmup);
+            WriteSlimeIntroBenchmarkResult(cpu, profile, diffuseRange, steps, repeats, warmup);
+        }
+        if (backend == "gpu" || backend == "both")
+        {
+            if (cpu != null)
+            {
+                // The high profile allocates several large managed arrays. Ensure
+                // they are reclaimed before D3D11 allocates its corresponding buffers.
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+            }
+            gpu = BenchmarkSlimeIntroGpu(
+                profile,
+                diffuseRange,
+                steps,
+                repeats,
+                warmup,
+                gpuParticlePreview,
+                experimentalParticleDeposit,
+                legacyCountRebuild,
+                gpuPassTimestamps,
+                gpuVariant);
+            WriteSlimeIntroBenchmarkResult(gpu, profile, diffuseRange, steps, repeats, warmup);
+        }
+
+        if (cpu != null && gpu != null)
+        {
+            Equal(cpu.ActiveParticles, gpu.ActiveParticles, "CPU/GPU retained particle count");
+            double cpuMedian = Median(cpu.Samples);
+            double gpuMedian = Median(gpu.Samples);
+            double speedup = gpuMedian > 0 ? cpuMedian / gpuMedian : 0;
+            double improvement = cpuMedian > 0 ? (cpuMedian - gpuMedian) / cpuMedian * 100.0 : 0;
+            Console.WriteLine(
+                "SLIME_INTRO_BENCHMARK_COMPARISON profile=" + profile.Name
+                + " comparisonKind=matched-solver-workload diffuseRange=" + diffuseRange
+                + " gpuVariant=" + gpuVariant
+                + " sampleBasis=repeat-batch-wall cpuMedianMsPerStep="
+                + cpuMedian.ToString("F6", CultureInfo.InvariantCulture)
+                + " gpuMedianMsPerStep=" + gpuMedian.ToString("F6", CultureInfo.InvariantCulture)
+                + " speedup=" + speedup.ToString("F3", CultureInfo.InvariantCulture)
+                + " improvementPercent=" + improvement.ToString("F2", CultureInfo.InvariantCulture)
+                + " activeParticles=" + cpu.ActiveParticles);
+        }
+    }
+
+    static SlimeIntroBenchmarkResult BenchmarkSlimeIntroCpu(
+        string[] args,
+        SlimeIntroBenchmarkProfile profile,
+        int diffuseRange,
+        int steps,
+        int repeats,
+        int warmup)
+    {
+        if (!TryStartRhinoInside())
+        {
+            EnsureRhinoNativeLibrary();
+        }
+
+        string v3Path = OptionValue(args, "--v3");
+        if (v3Path == null)
+        {
+            string repositoryRoot = FindRepositoryRoot(Directory.GetCurrentDirectory())
+                ?? FindRepositoryRoot(AppContext.BaseDirectory);
+            v3Path = Path.Combine(
+                repositoryRoot!, "Nuclei-v3", "Nuclei3", "bin", "Release", "net7.0-windows", "Nuclei3.gha");
+        }
+        if (!File.Exists(v3Path))
+        {
+            throw new FileNotFoundException(
+                "The V3 CPU solver is not built. Build Release or pass --v3 <path-to-Nuclei3.gha>.", v3Path);
+        }
+        WriteSlimeIntroBinaryHash("v3_cpu", v3Path);
+
+        Assembly v3 = LoadAssemblyOnce(v3Path);
+        Type voxelType = v3.GetType("Nuclei3.Voxel", true)!;
+        Type voxelDataType = v3.GetType("Nuclei3.VoxelGridData", true)!;
+        Type voxelRegistryType = v3.GetType("Nuclei3.VoxelGridRegistry", true)!;
+        Type solverType = v3.GetType("Nuclei3.Solver", true)!;
+        Type groupType = v3.GetType("Nuclei3.ParticleGroup", true)!;
+        Type particleListType = v3.GetType("Nuclei3.ParticleList", true)!;
+        Type generatorType = v3.GetType("Nuclei3.ParticleGenerator", true)!;
+
+        object voxelData = InvokeStatic(
+            voxelDataType,
+            "CreateFullDomain",
+            profile.ResolutionX,
+            profile.ResolutionY,
+            profile.ResolutionZ,
+            1.0);
+        Array inputVoxels = Array.CreateInstance(
+            voxelType, profile.ResolutionX, profile.ResolutionY, profile.ResolutionZ);
+        InvokeStatic(voxelRegistryType, "Set", inputVoxels, voxelData);
+
+        object inputGroup = Activator.CreateInstance(groupType)!;
+        ConfigureSlimeIntroGroup(inputGroup);
+        object generatedParticles = InvokeStatic(
+            generatorType,
+            "CreateScatteredParticles",
+            profile.RequestedParticles,
+            inputGroup,
+            voxelData);
+        SetField(inputGroup, "particles", generatedParticles);
+
+        object solver = Activator.CreateInstance(solverType)!;
+        List<string> settings = SlimeIntroSettings(profile, diffuseRange);
+        SetField(solver, "iteration", 0);
+        SetField(solver, "antParticles", false);
+        SetField(solver, "slimeParticles", true);
+        SetField(solver, "random", new Random(89));
+        Invoke(solver, "precomputeAngles");
+        Invoke(solver, "createWanderVectors");
+        SetField(solver, "settings", settings);
+        Invoke(solver, "readSolverSettings");
+        SetField(solver, "inputVoxels", inputVoxels);
+        Invoke(solver, "inheritVoxels");
+
+        IList groups = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(groupType))!;
+        groups.Add(inputGroup);
+        SetField(solver, "inputParticleGroups", groups);
+        SetField(solver, "particles", Activator.CreateInstance(particleListType)!);
+        Invoke(solver, "inheritParticleGroups");
+        Invoke(solver, "particleCheckParentVoxel");
+
+        int activeParticles = ((IList)Field<object>(solver, "particles")).Count;
+        if (profile.ExpectedActiveParticles.HasValue)
+        {
+            Equal(
+                profile.ExpectedActiveParticles.Value,
+                activeParticles,
+                "V3 Slime Intro reset particle count");
+        }
+        Console.WriteLine(
+            "SLIME_INTRO_PARTICLES profile=" + profile.Name
+            + " backend=cpu requested=" + profile.RequestedParticles
+            + " active=" + activeParticles);
+
+        MethodInfo readSettings = RequiredInstanceMethod(solverType, "readSolverSettings", 0);
+        MethodInfo refreshBoundaries = RequiredInstanceMethod(solverType, "refreshVoxelBoundaryDensityLimitsIfNeeded", 0);
+        MethodInfo updateGroups = RequiredInstanceMethod(solverType, "updateParticleGroups", 0);
+        MethodInfo sense = RequiredInstanceMethod(solverType, "particleSenseValuesAndVectors", 2);
+        MethodInfo move = RequiredInstanceMethod(solverType, "particleMoveAndDeposit", 2);
+        MethodInfo recordTrail = RequiredInstanceMethod(solverType, "particleRecordTrail", 0);
+        MethodInfo projectFood = RequiredInstanceMethod(solverType, "projectFoodSources", 0);
+        MethodInfo diffuse = RequiredInstanceMethod(solverType, "diffuseVoxels", 0);
+        MethodInfo checkParent = RequiredInstanceMethod(solverType, "particleCheckParentVoxel", 0);
+        MethodInfo syncDensity = RequiredInstanceMethod(solverType, "syncScalarDensityToVoxelsIfNeeded", 0);
+        int iteration = 0;
+
+        void HotStep()
+        {
+            SetField(solver, "settings", settings);
+            readSettings.Invoke(solver, null);
+            refreshBoundaries.Invoke(solver, null);
+            updateGroups.Invoke(solver, null);
+            if (iteration > 1)
+            {
+                sense.Invoke(solver, new object[] { 0L, 0L });
+                move.Invoke(solver, new object[] { 0L, 0L });
+            }
+            recordTrail.Invoke(solver, null);
+            projectFood.Invoke(solver, null);
+            diffuse.Invoke(solver, null);
+            checkParent.Invoke(solver, null);
+            syncDensity.Invoke(solver, null);
+            iteration++;
+            SetField(solver, "iteration", iteration);
+        }
+
+        for (int i = 0; i < warmup; i++) HotStep();
+
+        List<double> perStepSamples = new List<double>(checked(steps * repeats));
+        List<double> batchWallSamples = new List<double>(repeats);
+        for (int repeat = 1; repeat <= repeats; repeat++)
+        {
+            List<double> repeatSamples = new List<double>(steps);
+            Stopwatch wall = Stopwatch.StartNew();
+            for (int step = 0; step < steps; step++)
+            {
+                long started = Stopwatch.GetTimestamp();
+                HotStep();
+                double elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                repeatSamples.Add(elapsed);
+                perStepSamples.Add(elapsed);
+            }
+            wall.Stop();
+            double wallPerStep = wall.Elapsed.TotalMilliseconds / steps;
+            batchWallSamples.Add(wallPerStep);
+            WriteSlimeIntroRepeat(
+                profile.Name, diffuseRange, "cpu", repeat, repeats, repeatSamples, wallPerStep);
+        }
+
+        return new SlimeIntroBenchmarkResult(
+            "cpu", activeParticles, batchWallSamples, perStepSamples, "managed-v3-hot-solver");
+    }
+
+    static SlimeIntroBenchmarkResult BenchmarkSlimeIntroGpu(
+        SlimeIntroBenchmarkProfile profile,
+        int diffuseRange,
+        int steps,
+        int repeats,
+        int warmup,
+        bool gpuParticlePreview,
+        bool experimentalParticleDeposit,
+        bool legacyCountRebuild,
+        bool gpuPassTimestamps,
+        string gpuVariant)
+    {
+        // ParticleGenerator uses RhinoCommon's native vector normalization even
+        // though the timed D3D11 solver itself has no Rhino runtime dependency.
+        if (!TryStartRhinoInside())
+        {
+            EnsureRhinoNativeLibrary();
+        }
+        object voxelData = CreateFullDomain(
+            profile.ResolutionX, profile.ResolutionY, profile.ResolutionZ);
+        object inputField = CreateField(voxelData);
+        Type groupType = RequiredCompatibilityType("Nuclei4.ParticleGroup");
+        Type generatorType = RequiredCompatibilityType("Nuclei4.ParticleGenerator");
+        object inputGroup = Activator.CreateInstance(groupType)!;
+        ConfigureSlimeIntroGroup(inputGroup);
+        object generatedParticles = InvokeStatic(
+            generatorType,
+            "CreateScatteredParticles",
+            profile.RequestedParticles,
+            inputGroup,
+            voxelData);
+        SetField(inputGroup, "particles", generatedParticles);
+
+        IList groups = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(groupType))!;
+        groups.Add(inputGroup);
+        object snapshot = Activator.CreateInstance(SnapshotType, nonPublic: true)!;
+        Invoke(snapshot, "DetectPopulationKinds", groups);
+        Invoke(snapshot, "CaptureCompactVoxels", inputField, false, false);
+        Invoke(snapshot, "CaptureParticles", groups);
+        // Capture performs deterministic first-wins reset compaction. The engine
+        // repeats ownership validation defensively for handcrafted/raw snapshots,
+        // so validate the benchmark's final retained count after engine reset.
+        int capturedParticles = Field<int>(snapshot, "ParticleCount");
+
+        Type settingsType = RequiredImplementationType("Nuclei4.SolverGpuSettings");
+        object settings = Activator.CreateInstance(settingsType)!;
+        SetField(settings, "Diffuse", profile.Diffuse);
+        SetField(settings, "DiffuseRange", diffuseRange);
+        SetField(settings, "Decay", profile.Decay);
+        SetField(settings, "DiffusionGradual", profile.Gradual);
+        SetField(settings, "WrapBoundaries", profile.Wrap);
+        SetField(settings, "DynamicPopulation", false);
+        SetField(settings, "Division", false);
+        SetField(settings, "Death", false);
+        SetField(settings, "TrailSize", profile.TrailSize);
+        SetField(settings, "TrailFreq", profile.TrailFrequency);
+
+        object dimensionMode = InvokeStatic(
+            RequiredImplementationType("Nuclei4.SolverGpuDimensionMode"),
+            "FromResolution",
+            profile.ResolutionX,
+            profile.ResolutionY,
+            profile.ResolutionZ);
+        Type engineType = RequiredImplementationType("Nuclei4.GpuFullSlimeSolverEngine");
+        object engine = CreateGpuEngine(
+            engineType,
+            snapshot,
+            settings,
+            false,
+            gpuParticlePreview,
+            profile.TrailEnabled,
+            profile.TrailSize,
+            1);
+        try
+        {
+            if (experimentalParticleDeposit)
+            {
+                SetField(engine, "forceParticleDrivenDepositForValidation", true);
+            }
+            if (legacyCountRebuild)
+            {
+                SetField(engine, "forceFullParticleCountRebuildForValidation", true);
+            }
+            Console.WriteLine(
+                "SLIME_INTRO_GPU_VARIANT variant=" + gpuVariant
+                + " experimentalParticleDeposit=" + experimentalParticleDeposit.ToString().ToLowerInvariant()
+                + " legacyCountRebuild=" + legacyCountRebuild.ToString().ToLowerInvariant()
+                + " passTimestamps=" + gpuPassTimestamps.ToString().ToLowerInvariant());
+
+            int activeParticles = Convert.ToInt32(
+                Invoke(engine, "SynchronizeActiveParticleCount"),
+                CultureInfo.InvariantCulture);
+            if (profile.ExpectedActiveParticles.HasValue)
+            {
+                Equal(
+                    profile.ExpectedActiveParticles.Value,
+                    activeParticles,
+                    "V4 Slime Intro post-reset particle count");
+            }
+            Console.WriteLine(
+                "SLIME_INTRO_PARTICLES profile=" + profile.Name
+                + " backend=gpu requested=" + profile.RequestedParticles
+                + " captured=" + capturedParticles
+                + " active=" + activeParticles);
+
+            object capabilities = PropertyValue(engine, "Capabilities");
+            bool softwareFallback = Convert.ToBoolean(Field<object>(capabilities, "SoftwareFallback"));
+            string device = softwareFallback ? "d3d11-warp" : "d3d11-hardware";
+            if (softwareFallback)
+            {
+                throw new InvalidOperationException(
+                    "The D3D11 engine initialized WARP software fallback; refusing to label software timings as GPU results.");
+            }
+            Console.WriteLine("SLIME_INTRO_GPU_DEVICE backend=d3d11 hardware=true");
+
+            MethodInfo step = RequiredNoReadbackStepMethod(engine.GetType());
+            MethodInfo beginGpuTimestamp = RequiredInstanceMethod(
+                engine.GetType(), "BeginGpuTimestampBatch", 0);
+            MethodInfo beginGpuPassTimestamp = gpuPassTimestamps
+                ? RequiredInstanceMethod(engine.GetType(), "BeginGpuPassTimestampBatch", 1)
+                : null;
+            MethodInfo endGpuTimestamp = RequiredInstanceMethod(
+                engine.GetType(), "EndGpuTimestampBatch", 0);
+            MethodInfo resolveGpuTimestamp = gpuPassTimestamps
+                ? null
+                : RequiredInstanceMethod(engine.GetType(), "ResolveGpuTimestampBatchMilliseconds", 0);
+            MethodInfo resolveGpuPassTimestamp = gpuPassTimestamps
+                ? RequiredInstanceMethod(engine.GetType(), "ResolveGpuPassTimestampBatch", 0)
+                : null;
+            bool sixArguments = step.GetParameters().Length == 6;
+            int iteration = 0;
+            for (int i = 0; i < warmup; i++)
+            {
+                step.Invoke(engine, BenchmarkStepArguments(sixArguments, snapshot, settings, dimensionMode, iteration));
+                iteration++;
+            }
+            // Drain warm-up work before any measured batch begins.
+            SynchronizeSlimeIntroGpu(engine, profile, activeParticles);
+
+            List<double> batchWallSamples = new List<double>(repeats);
+            List<double> gpuTimestampSamples = new List<double>(repeats);
+            List<double> cpuSubmitSamples = new List<double>(repeats);
+            List<SlimeIntroGpuPassSample> gpuPassSamples = gpuPassTimestamps
+                ? new List<SlimeIntroGpuPassSample>(checked(steps * repeats * 12))
+                : null;
+            for (int repeat = 1; repeat <= repeats; repeat++)
+            {
+                Stopwatch wall = Stopwatch.StartNew();
+                if (gpuPassTimestamps)
+                {
+                    beginGpuPassTimestamp.Invoke(engine, new object[] { steps });
+                }
+                else
+                {
+                    beginGpuTimestamp.Invoke(engine, null);
+                }
+                Stopwatch submit = Stopwatch.StartNew();
+                for (int i = 0; i < steps; i++)
+                {
+                    step.Invoke(engine, BenchmarkStepArguments(sixArguments, snapshot, settings, dimensionMode, iteration));
+                    iteration++;
+                }
+                submit.Stop();
+                endGpuTimestamp.Invoke(engine, null);
+                // A blocking readback is the batch fence: elapsed wall time includes
+                // actual GPU execution rather than command-submission latency alone.
+                SynchronizeSlimeIntroGpu(engine, profile, activeParticles);
+                double gpuBatchMilliseconds;
+                List<SlimeIntroGpuPassSample> repeatPassSamples = null;
+                if (gpuPassTimestamps)
+                {
+                    object passResult = resolveGpuPassTimestamp.Invoke(engine, null);
+                    gpuBatchMilliseconds = Convert.ToDouble(
+                        Field<object>(passResult, "TotalMilliseconds"),
+                        CultureInfo.InvariantCulture);
+                    repeatPassSamples = ReadSlimeIntroGpuPassSamples(passResult, repeat, steps);
+                    gpuPassSamples.AddRange(repeatPassSamples);
+                }
+                else
+                {
+                    gpuBatchMilliseconds = Convert.ToDouble(
+                        resolveGpuTimestamp.Invoke(engine, null), CultureInfo.InvariantCulture);
+                }
+                wall.Stop();
+                double wallPerStep = wall.Elapsed.TotalMilliseconds / steps;
+                double gpuPerStep = gpuBatchMilliseconds / steps;
+                double submitPerStep = submit.Elapsed.TotalMilliseconds / steps;
+                batchWallSamples.Add(wallPerStep);
+                gpuTimestampSamples.Add(gpuPerStep);
+                cpuSubmitSamples.Add(submitPerStep);
+                WriteSlimeIntroRepeat(
+                    profile.Name,
+                    diffuseRange,
+                    "gpu",
+                    repeat,
+                    repeats,
+                    new List<double> { wallPerStep },
+                    wallPerStep);
+                Console.WriteLine(
+                    "SLIME_INTRO_GPU_TIMESTAMP_REPEAT profile=" + profile.Name
+                    + " diffuseRange=" + diffuseRange
+                    + " previewState=" + (gpuParticlePreview ? "shared-particle" : "false")
+                    + " variant=" + gpuVariant
+                    + " repeat=" + repeat + "/" + repeats
+                    + " gpuTimestampMsPerStep=" + gpuPerStep.ToString("F6", CultureInfo.InvariantCulture)
+                    + " synchronizedWallMsPerStep=" + wallPerStep.ToString("F6", CultureInfo.InvariantCulture)
+                    + " cpuSubmitMsPerStep=" + submitPerStep.ToString("F6", CultureInfo.InvariantCulture));
+                if (repeatPassSamples != null)
+                {
+                    WriteSlimeIntroGpuPassRepeat(
+                        profile.Name,
+                        diffuseRange,
+                        gpuParticlePreview,
+                        gpuVariant,
+                        repeat,
+                        repeats,
+                        repeatPassSamples);
+                }
+            }
+
+            return new SlimeIntroBenchmarkResult(
+                "gpu",
+                activeParticles,
+                batchWallSamples,
+                null,
+                device,
+                gpuTimestampSamples,
+                cpuSubmitSamples,
+                gpuParticlePreview ? "shared-particle" : "false",
+                gpuVariant,
+                gpuPassSamples);
+        }
+        finally
+        {
+            ((IDisposable)engine).Dispose();
+        }
+    }
+
+    static void ConfigureSlimeIntroGroup(object group)
+    {
+        SetField(group, "speed", 1.3);
+        SetField(group, "sensorDistance", 6.0);
+        SetField(group, "sensorAngle", 45);
+        SetField(group, "rotationAngle", 45);
+        SetField(group, "depositValue", 1.0);
+        SetField(group, "wanderFrequency", 0.0);
+        SetField(group, "baseWanderFrequency", 0.0);
+        SetField(group, "color", System.Drawing.Color.White);
+        SetField(group, "ant", false);
+        SetField(group, "connectedSteering", false);
+    }
+
+    static List<string> SlimeIntroSettings(
+        SlimeIntroBenchmarkProfile profile,
+        int diffuseRange)
+    {
+        List<string> settings = new List<string>
+        {
+            string.Format(
+                CultureInfo.InvariantCulture,
+                "VoxelSettingsSlime {0} {1} {2} {3}",
+                profile.Diffuse,
+                diffuseRange,
+                profile.Decay,
+                profile.Gradual),
+            "WrapSettings " + profile.Wrap
+        };
+        if (profile.TrailEnabled)
+        {
+            settings.Add(
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "TrailSettings {0} {1}",
+                    profile.TrailSize,
+                    profile.TrailFrequency));
+        }
+        return settings;
+    }
+
+    static void SynchronizeSlimeIntroGpu(
+        object engine,
+        SlimeIntroBenchmarkProfile profile,
+        int expectedActiveParticles)
+    {
+        if (profile.GpuFence == "population-state")
+        {
+            int synchronizedActiveParticles = Convert.ToInt32(
+                Invoke(engine, "SynchronizeActiveParticleCount"),
+                CultureInfo.InvariantCulture);
+            Equal(
+                expectedActiveParticles,
+                synchronizedActiveParticles,
+                "GPU synchronized particle count");
+            return;
+        }
+
+        Invoke(engine, "ReadBackDensity");
+    }
+
+    static void VerifySlimeIntroDefinition(string path, string expectedHash, string definition)
+    {
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException("Slime Intro definition was not found.", path);
+        }
+        using FileStream stream = File.OpenRead(path);
+        string actualHash = Convert.ToHexString(SHA256.HashData(stream));
+        if (!string.Equals(expectedHash, actualHash, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Slime Intro " + definition + " definition SHA256 mismatch: expected "
+                + expectedHash + ", got " + actualHash + ".");
+        }
+        Console.WriteLine(
+            "SLIME_INTRO_DEFINITION definition=" + definition
+            + " sha256=" + actualHash + " verified=true");
+    }
+
+    static void WriteSlimeIntroV4BinaryHashes()
+    {
+        HashSet<string> written = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Assembly assembly in NucleiAssemblies)
+        {
+            string path = assembly.Location;
+            if (string.IsNullOrWhiteSpace(path)
+                || !File.Exists(path)
+                || !Path.GetFileName(path).StartsWith("Nuclei4", StringComparison.OrdinalIgnoreCase)
+                || !written.Add(Path.GetFullPath(path)))
+            {
+                continue;
+            }
+            WriteSlimeIntroBinaryHash("v4", path);
+        }
+    }
+
+    static void WriteSlimeIntroBinaryHash(string role, string path)
+    {
+        using FileStream stream = File.OpenRead(path);
+        string hash = Convert.ToHexString(SHA256.HashData(stream));
+        Console.WriteLine(
+            "SLIME_INTRO_BINARY role=" + role
+            + " name=" + Uri.EscapeDataString(Path.GetFileName(path))
+            + " sha256=" + hash);
+    }
+
+    static MethodInfo RequiredInstanceMethod(Type type, string name, int parameterCount)
+    {
+        return type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .Single(item => item.Name == name && item.GetParameters().Length == parameterCount);
+    }
+
+    static int SlimeIntroBenchmarkInteger(string[] args, string option, int fallback, int minimum)
+    {
+        int index = Array.FindIndex(args, item => string.Equals(item, option, StringComparison.OrdinalIgnoreCase));
+        if (index < 0) return fallback;
+        if (index + 1 >= args.Length
+            || !int.TryParse(args[index + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int value)
+            || value < minimum)
+        {
+            throw new ArgumentException(option + " requires an integer >= " + minimum + ".");
+        }
+        return value;
+    }
+
+    static string SlimeIntroBenchmarkOption(string[] args, string option)
+    {
+        int index = Array.FindIndex(args, item => string.Equals(item, option, StringComparison.OrdinalIgnoreCase));
+        if (index < 0) return null;
+        if (index + 1 >= args.Length || args[index + 1].StartsWith("--", StringComparison.Ordinal))
+        {
+            throw new ArgumentException(option + " requires a value.");
+        }
+        return args[index + 1];
+    }
+
+    static bool SlimeIntroBenchmarkFlag(string[] args, string option)
+    {
+        return Array.Exists(
+            args,
+            item => string.Equals(item, option, StringComparison.OrdinalIgnoreCase));
+    }
+
+    static string SlimeIntroGpuVariant(bool experimentalParticleDeposit, bool legacyCountRebuild)
+    {
+        if (experimentalParticleDeposit && legacyCountRebuild)
+        {
+            return "particle-deposit-experimental+legacy-count-rebuild";
+        }
+        if (experimentalParticleDeposit) return "particle-deposit-experimental+persistent-counts";
+        if (legacyCountRebuild) return "coalesced-voxel+legacy-count-rebuild";
+        return "coalesced-voxel+persistent-counts";
+    }
+
+    static List<SlimeIntroGpuPassSample> ReadSlimeIntroGpuPassSamples(
+        object passResult,
+        int repeat,
+        int expectedSteps)
+    {
+        object rawSamples = Field<object>(passResult, "Samples");
+        if (rawSamples is not IEnumerable samples)
+        {
+            throw new InvalidOperationException(
+                "GPU pass timestamp result Samples field is not enumerable.");
+        }
+
+        List<SlimeIntroGpuPassSample> result = new List<SlimeIntroGpuPassSample>();
+        foreach (object sample in samples)
+        {
+            string passName = Field<string>(sample, "PassName");
+            int stepOrdinal = Convert.ToInt32(
+                Field<object>(sample, "StepOrdinal"), CultureInfo.InvariantCulture);
+            int occurrence = Convert.ToInt32(
+                Field<object>(sample, "Occurrence"), CultureInfo.InvariantCulture);
+            double milliseconds = Convert.ToDouble(
+                Field<object>(sample, "Milliseconds"), CultureInfo.InvariantCulture);
+            if (string.IsNullOrWhiteSpace(passName)
+                || stepOrdinal < 0
+                || occurrence < 0
+                || !double.IsFinite(milliseconds)
+                || milliseconds < 0)
+            {
+                throw new InvalidOperationException(
+                    "GPU pass timestamp result contained an invalid sample.");
+            }
+            result.Add(new SlimeIntroGpuPassSample(
+                repeat, passName, stepOrdinal, occurrence, milliseconds));
+        }
+
+        if (expectedSteps > 0 && result.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "GPU pass timestamp result did not contain any pass samples.");
+        }
+        return result;
+    }
+
+    static void WriteSlimeIntroGpuPassRepeat(
+        string profile,
+        int diffuseRange,
+        bool gpuParticlePreview,
+        string gpuVariant,
+        int repeat,
+        int repeats,
+        List<SlimeIntroGpuPassSample> samples)
+    {
+        var groups = samples
+            .GroupBy(sample => new { sample.PassName, sample.Occurrence })
+            .OrderBy(group => group.Key.PassName, StringComparer.Ordinal)
+            .ThenBy(group => group.Key.Occurrence)
+            .ToList();
+        string passMedians = string.Join(
+            ",",
+            groups.Select(group =>
+            {
+                List<double> values = group.Select(sample => sample.Milliseconds).ToList();
+                return Uri.EscapeDataString(group.Key.PassName)
+                    + "#" + group.Key.Occurrence
+                    + ":" + Median(values).ToString("F6", CultureInfo.InvariantCulture);
+            }));
+        Console.WriteLine(
+            "SLIME_INTRO_GPU_PASS_TIMESTAMP_REPEAT profile=" + profile
+            + " diffuseRange=" + diffuseRange
+            + " previewState=" + (gpuParticlePreview ? "shared-particle" : "false")
+            + " variant=" + gpuVariant
+            + " repeat=" + repeat + "/" + repeats
+            + " passGroups=" + groups.Count
+            + " samples=" + samples.Count
+            + " passMedianMilliseconds=" + passMedians);
+    }
+
+    static double Percentile95(List<double> values)
+    {
+        if (values == null || values.Count == 0) return 0;
+        List<double> sorted = new List<double>(values);
+        sorted.Sort();
+        int index = Math.Max(0, (int)Math.Ceiling(sorted.Count * 0.95) - 1);
+        return sorted[index];
+    }
+
+    static double SampleSpreadPercent(List<double> values)
+    {
+        if (values == null || values.Count < 2) return 0;
+        double minimum = values.Min();
+        double maximum = values.Max();
+        return minimum > 0 ? (maximum - minimum) / minimum * 100.0 : 0;
+    }
+
+    static void WriteSlimeIntroRepeat(
+        string profile,
+        int diffuseRange,
+        string backend,
+        int repeat,
+        int repeats,
+        List<double> samples,
+        double wallMsPerStep)
+    {
+        Console.WriteLine(
+            "SLIME_INTRO_BENCHMARK_REPEAT profile=" + profile
+            + " diffuseRange=" + diffuseRange
+            + " backend=" + backend
+            + " repeat=" + repeat + "/" + repeats
+            + " medianMsPerStep=" + Median(samples).ToString("F6", CultureInfo.InvariantCulture)
+            + " p95MsPerStep=" + Percentile95(samples).ToString("F6", CultureInfo.InvariantCulture)
+            + " spreadPercent=" + SampleSpreadPercent(samples).ToString("F2", CultureInfo.InvariantCulture)
+            + " wallMsPerStep=" + wallMsPerStep.ToString("F6", CultureInfo.InvariantCulture));
+    }
+
+    static void WriteSlimeIntroBenchmarkResult(
+        SlimeIntroBenchmarkResult result,
+        SlimeIntroBenchmarkProfile profile,
+        int diffuseRange,
+        int steps,
+        int repeats,
+        int warmup)
+    {
+        double median = Median(result.Samples);
+        double p95 = Percentile95(result.Samples);
+        double stepsPerSecond = median > 0 ? 1000.0 / median : 0;
+        Console.WriteLine(
+            "SLIME_INTRO_BENCHMARK_RESULT backend=" + result.Backend
+            + " profile=" + profile.Name
+            + " diffuseRange=" + diffuseRange
+            + " variant=" + (result.Variant ?? "cpu-reference")
+            + " sampleBasis=repeat-batch-wall"
+            + " medianMsPerStep=" + median.ToString("F6", CultureInfo.InvariantCulture)
+            + " p95MsPerStep=" + p95.ToString("F6", CultureInfo.InvariantCulture)
+            + " spreadPercent=" + SampleSpreadPercent(result.Samples).ToString("F2", CultureInfo.InvariantCulture)
+            + " stepsPerSecond=" + stepsPerSecond.ToString("F3", CultureInfo.InvariantCulture)
+            + " samples=" + result.Samples.Count
+            + " steps=" + steps + " repeats=" + repeats + " warmup=" + warmup
+            + " requestedParticles=" + profile.RequestedParticles
+            + " activeParticles=" + result.ActiveParticles
+            + " device=" + result.Device);
+        if (result.PerStepSamples != null)
+        {
+            Console.WriteLine(
+                "SLIME_INTRO_BENCHMARK_CPU_STEP_RESULT sampleBasis=per-step"
+                + " profile=" + profile.Name
+                + " diffuseRange=" + diffuseRange
+                + " medianMsPerStep=" + Median(result.PerStepSamples).ToString("F6", CultureInfo.InvariantCulture)
+                + " p95MsPerStep=" + Percentile95(result.PerStepSamples).ToString("F6", CultureInfo.InvariantCulture)
+                + " spreadPercent=" + SampleSpreadPercent(result.PerStepSamples).ToString("F2", CultureInfo.InvariantCulture)
+                    + " samples=" + result.PerStepSamples.Count);
+        }
+        if (result.GpuTimestampSamples != null)
+        {
+            double gpuMedian = Median(result.GpuTimestampSamples);
+            double submitMedian = Median(result.CpuSubmitSamples);
+            Console.WriteLine(
+                "SLIME_INTRO_BENCHMARK_GPU_TIMESTAMP_RESULT sampleBasis=d3d11-hardware-timestamp"
+                + " profile=" + profile.Name
+                + " diffuseRange=" + diffuseRange
+                + " previewState=" + result.PreviewState
+                + " variant=" + result.Variant
+                + " medianGpuMsPerStep=" + gpuMedian.ToString("F6", CultureInfo.InvariantCulture)
+                + " p95GpuMsPerStep=" + Percentile95(result.GpuTimestampSamples).ToString("F6", CultureInfo.InvariantCulture)
+                + " medianCpuSubmitMsPerStep=" + submitMedian.ToString("F6", CultureInfo.InvariantCulture)
+                + " medianSynchronizedWallMsPerStep=" + median.ToString("F6", CultureInfo.InvariantCulture)
+                + " samples=" + result.GpuTimestampSamples.Count);
+        }
+        if (result.GpuPassSamples != null)
+        {
+            foreach (var group in result.GpuPassSamples
+                .GroupBy(sample => new { sample.PassName, sample.Occurrence })
+                .OrderBy(group => group.Key.PassName, StringComparer.Ordinal)
+                .ThenBy(group => group.Key.Occurrence))
+            {
+                List<double> values = group.Select(sample => sample.Milliseconds).ToList();
+                Console.WriteLine(
+                    "SLIME_INTRO_BENCHMARK_GPU_PASS_RESULT sampleBasis=d3d11-hardware-pass-timestamp"
+                    + " profile=" + profile.Name
+                    + " diffuseRange=" + diffuseRange
+                    + " previewState=" + result.PreviewState
+                    + " variant=" + result.Variant
+                    + " passName=" + Uri.EscapeDataString(group.Key.PassName)
+                    + " occurrence=" + group.Key.Occurrence
+                    + " medianMilliseconds=" + Median(values).ToString("F6", CultureInfo.InvariantCulture)
+                    + " p95Milliseconds=" + Percentile95(values).ToString("F6", CultureInfo.InvariantCulture)
+                    + " meanMilliseconds=" + values.Average().ToString("F6", CultureInfo.InvariantCulture)
+                    + " samples=" + values.Count
+                    + " repeats=" + group.Select(sample => sample.Repeat).Distinct().Count());
+            }
+        }
+    }
+
+    sealed class SlimeIntroBenchmarkResult
+    {
+        public SlimeIntroBenchmarkResult(
+            string backend,
+            int activeParticles,
+            List<double> samples,
+            List<double> perStepSamples,
+            string device,
+            List<double> gpuTimestampSamples = null,
+            List<double> cpuSubmitSamples = null,
+            string previewState = null,
+            string variant = null,
+            List<SlimeIntroGpuPassSample> gpuPassSamples = null)
+        {
+            Backend = backend;
+            ActiveParticles = activeParticles;
+            Samples = samples;
+            PerStepSamples = perStepSamples;
+            Device = device;
+            GpuTimestampSamples = gpuTimestampSamples;
+            CpuSubmitSamples = cpuSubmitSamples;
+            PreviewState = previewState;
+            Variant = variant;
+            GpuPassSamples = gpuPassSamples;
+        }
+
+        public string Backend { get; }
+        public int ActiveParticles { get; }
+        public List<double> Samples { get; }
+        public List<double> PerStepSamples { get; }
+        public string Device { get; }
+        public List<double> GpuTimestampSamples { get; }
+        public List<double> CpuSubmitSamples { get; }
+        public string PreviewState { get; }
+        public string Variant { get; }
+        public List<SlimeIntroGpuPassSample> GpuPassSamples { get; }
+    }
+
+    sealed class SlimeIntroGpuPassSample
+    {
+        public SlimeIntroGpuPassSample(
+            int repeat,
+            string passName,
+            int stepOrdinal,
+            int occurrence,
+            double milliseconds)
+        {
+            Repeat = repeat;
+            PassName = passName;
+            StepOrdinal = stepOrdinal;
+            Occurrence = occurrence;
+            Milliseconds = milliseconds;
+        }
+
+        public int Repeat { get; }
+        public string PassName { get; }
+        public int StepOrdinal { get; }
+        public int Occurrence { get; }
+        public double Milliseconds { get; }
+    }
+
+    sealed class SlimeIntroBenchmarkProfile
+    {
+        SlimeIntroBenchmarkProfile(
+            string name,
+            string v3DefinitionPath,
+            string v4DefinitionPath,
+            string expectedV3DefinitionHash,
+            string expectedV4DefinitionHash,
+            int resolutionX,
+            int resolutionY,
+            int resolutionZ,
+            int requestedParticles,
+            int? expectedActiveParticles,
+            double diffuse,
+            int v3SavedDiffuseRange,
+            int v4SavedDiffuseRange,
+            double decay,
+            double gradual,
+            bool wrap,
+            bool trailEnabled,
+            int trailSize,
+            int trailFrequency,
+            string gpuFence)
+        {
+            Name = name;
+            V3DefinitionPath = v3DefinitionPath;
+            V4DefinitionPath = v4DefinitionPath;
+            ExpectedV3DefinitionHash = expectedV3DefinitionHash;
+            ExpectedV4DefinitionHash = expectedV4DefinitionHash;
+            ResolutionX = resolutionX;
+            ResolutionY = resolutionY;
+            ResolutionZ = resolutionZ;
+            RequestedParticles = requestedParticles;
+            ExpectedActiveParticles = expectedActiveParticles;
+            Diffuse = diffuse;
+            V3SavedDiffuseRange = v3SavedDiffuseRange;
+            V4SavedDiffuseRange = v4SavedDiffuseRange;
+            Decay = decay;
+            Gradual = gradual;
+            Wrap = wrap;
+            TrailEnabled = trailEnabled;
+            TrailSize = trailSize;
+            TrailFrequency = trailFrequency;
+            GpuFence = gpuFence;
+        }
+
+        public static SlimeIntroBenchmarkProfile Create(string name, string repositoryRoot)
+        {
+            if (string.Equals(name, "standard", StringComparison.OrdinalIgnoreCase))
+            {
+                return new SlimeIntroBenchmarkProfile(
+                    "standard",
+                    Path.Combine(repositoryRoot, "Nuclei Definitions", "v3", "01_Slime Intro_v3.gh"),
+                    Path.Combine(repositoryRoot, "Nuclei Definitions", "v4", "01__Slime Intro_v4.gh"),
+                    ExpectedSlimeIntroV3Hash,
+                    ExpectedSlimeIntroV4Hash,
+                    SlimeIntroResolutionX,
+                    SlimeIntroResolutionY,
+                    SlimeIntroResolutionZ,
+                    SlimeIntroRequestedParticles,
+                    SlimeIntroExpectedActiveParticles,
+                    0.10,
+                    1,
+                    1,
+                    0.03,
+                    1.0,
+                    false,
+                    true,
+                    20,
+                    1,
+                    "density-readback");
+            }
+
+            if (string.Equals(name, "high", StringComparison.OrdinalIgnoreCase))
+            {
+                return new SlimeIntroBenchmarkProfile(
+                    "high",
+                    Path.Combine(repositoryRoot, "Nuclei Definitions", "01_Slime Intro_v3_high.gh"),
+                    Path.Combine(repositoryRoot, "Nuclei Definitions", "01_Slime Intro_v4_high.gh"),
+                    ExpectedSlimeIntroHighV3Hash,
+                    ExpectedSlimeIntroHighV4Hash,
+                    4000,
+                    4000,
+                    1,
+                    1_000_000,
+                    999_877,
+                    0.15,
+                    5,
+                    5,
+                    0.03,
+                    1.0,
+                    false,
+                    false,
+                    0,
+                    1,
+                    "population-state");
+            }
+
+            if (string.Equals(name, "high3d", StringComparison.OrdinalIgnoreCase))
+            {
+                return new SlimeIntroBenchmarkProfile(
+                    "high3d",
+                    Path.Combine(repositoryRoot, "Nuclei Definitions", "01_Slime 3D_v3_high.gh"),
+                    Path.Combine(repositoryRoot, "Nuclei Definitions", "01_Slime 3D_v4_high.gh"),
+                    ExpectedSlime3DHighV3Hash,
+                    ExpectedSlime3DHighV4Hash,
+                    300,
+                    300,
+                    300,
+                    1_000_000,
+                    1_000_000,
+                    0.15,
+                    5,
+                    5,
+                    0.03,
+                    1.0,
+                    false,
+                    false,
+                    0,
+                    1,
+                    "population-state");
+            }
+
+            throw new ArgumentException("--profile must be standard, high, or high3d.");
+        }
+
+        public string Name { get; }
+        public string V3DefinitionPath { get; }
+        public string V4DefinitionPath { get; }
+        public string ExpectedV3DefinitionHash { get; }
+        public string ExpectedV4DefinitionHash { get; }
+        public int ResolutionX { get; }
+        public int ResolutionY { get; }
+        public int ResolutionZ { get; }
+        public long VoxelCount => checked((long)ResolutionX * ResolutionY * ResolutionZ);
+        public int RequestedParticles { get; }
+        public int? ExpectedActiveParticles { get; set; }
+        public double Diffuse { get; }
+        public int V3SavedDiffuseRange { get; }
+        public int V4SavedDiffuseRange { get; }
+        public double Decay { get; }
+        public double Gradual { get; }
+        public bool Wrap { get; }
+        public bool TrailEnabled { get; }
+        public int TrailSize { get; }
+        public int TrailFrequency { get; }
+        public string GpuFence { get; }
+    }
+
     static void RunGpuBenchmark(string[] args)
     {
         int grid = BenchmarkInt(args, "--grid", 64);
@@ -3400,7 +5296,7 @@ internal static class Program
         List<double> diffusionStage = new List<double>();
         int passes = 0;
 
-        // One engine for the whole run. Creating an engine loads 27 precompiled shaders,
+        // One engine for the whole run. Creating an engine loads 29 precompiled shaders,
         // which costs far more than a step and swamped per-repeat measurements.
         // The real sink needs Rhino natives (ParticleList allocates PointClouds),
         // so it is opt-in and only usable where those can load.
@@ -3639,12 +5535,34 @@ internal static class Program
         SetField(group, "ant", BenchmarkAntParticles);
         SetField(group, "connectedSteering", ConnectedSteeringParity && !BenchmarkAntParticles);
 
+        int resolutionX = Convert.ToInt32(PropertyValue(inputField, "ResX"));
+        int resolutionY = Convert.ToInt32(PropertyValue(inputField, "ResY"));
+        int resolutionZ = Convert.ToInt32(PropertyValue(inputField, "ResZ"));
+        ResolveUniquePlacementRegion(
+            resolutionX,
+            resolutionY,
+            resolutionZ,
+            particleCount,
+            wrapBoundaries,
+            out int startX,
+            out int startY,
+            out int startZ,
+            out int spanX,
+            out int spanY,
+            out int spanZ);
+        int placementCapacity = checked(spanX * spanY * spanZ);
+
         IList particles = (IList)Field<object>(group, "particles");
         for (int i = 0; i < particleCount; i++)
         {
-            double x = 2.25 + ((i * 7) % 17);
-            double y = 2.25 + ((i * 5) % 13);
-            double z = 2.25 + ((i * 3) % 8);
+            int ordinal = PermutedOrdinal(i, placementCapacity, 0xB5297A4Du);
+            int xIndex = ordinal / (spanY * spanZ);
+            int remainder = ordinal - xIndex * spanY * spanZ;
+            int yIndex = remainder / spanZ;
+            int zIndex = remainder - yIndex * spanZ;
+            double x = startX + xIndex + (resolutionX == 1 ? 0.5 : 0.25);
+            double y = startY + yIndex + (resolutionY == 1 ? 0.5 : 0.25);
+            double z = startZ + zIndex + (resolutionZ == 1 ? 0.5 : 0.25);
             object plane = CreateRawPlane(x, y, z);
             object particle = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(particleType);
             SetField(particle, "pPlane", plane);
@@ -3664,8 +5582,8 @@ internal static class Program
         Invoke(snapshot, "CaptureCompactVoxels", inputField, false, wrapBoundaries);
         Invoke(snapshot, "CaptureParticleGroups", groups);
 
-        int resolutionY = Field<int>(snapshot, "ResY");
-        int resolutionZ = Field<int>(snapshot, "ResZ");
+        resolutionY = Field<int>(snapshot, "ResY");
+        resolutionZ = Field<int>(snapshot, "ResZ");
         float[] positions = new float[particleCount * 3];
         float[] directions = new float[particleCount * 3];
         float[] yAxes = new float[particleCount * 3];
@@ -3711,6 +5629,50 @@ internal static class Program
         SetField(snapshot, "ParticleGroupIndices", groupIndices);
         SetField(snapshot, "ParticleParentIndices", parentIndices);
         return snapshot;
+    }
+
+    static void ResolveUniquePlacementRegion(
+        int resolutionX,
+        int resolutionY,
+        int resolutionZ,
+        int particleCount,
+        bool wrapBoundaries,
+        out int startX,
+        out int startY,
+        out int startZ,
+        out int spanX,
+        out int spanY,
+        out int spanZ)
+    {
+        startX = resolutionX > 5 ? 2 : 0;
+        startY = resolutionY > 5 ? 2 : 0;
+        startZ = resolutionZ > 5 ? 2 : 0;
+        spanX = resolutionX > 5 ? resolutionX - 5 : Math.Max(1, resolutionX);
+        spanY = resolutionY > 5 ? resolutionY - 5 : Math.Max(1, resolutionY);
+        spanZ = resolutionZ > 5 ? resolutionZ - 5 : Math.Max(1, resolutionZ);
+
+        long interiorCapacity = (long)spanX * spanY * spanZ;
+        if (particleCount <= interiorCapacity) return;
+        if (!wrapBoundaries)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(particleCount),
+                "The non-wrapped unique interior can retain " + interiorCapacity
+                + " particles, but the workload requested " + particleCount + ".");
+        }
+
+        startX = startY = startZ = 0;
+        spanX = Math.Max(1, resolutionX);
+        spanY = Math.Max(1, resolutionY);
+        spanZ = Math.Max(1, resolutionZ);
+        long fullCapacity = (long)spanX * spanY * spanZ;
+        if (particleCount > fullCapacity)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(particleCount),
+                "The wrapped field can retain " + fullCapacity
+                + " particles, but the workload requested " + particleCount + ".");
+        }
     }
 
     static string GpuDensitySignatureRecord(int iteration, float[] density)
@@ -4642,23 +6604,10 @@ internal static class Program
             ((IDisposable)engine).Dispose();
         }
 
+        // Keep this fixture exclusive as well. The shared snapshot helper now
+        // enumerates distinct voxels, while the grid-wide range still makes every
+        // other particle a neighbour for the publication/order assertions below.
         object storedSnapshot = CaptureGpuSignatureSnapshot(inputField, initialPopulation, true);
-        float[] storedPositions = Field<float[]>(storedSnapshot, "ParticlePositionsXyz");
-        float[] storedHomes = Field<float[]>(storedSnapshot, "ParticleHomesXyz");
-        int[] storedParents = Field<int[]>(storedSnapshot, "ParticleParentIndices");
-        int storedCoordinate = grid / 2;
-        int storedParentIndex = storedCoordinate * grid * grid + storedCoordinate * grid + storedCoordinate;
-        for (int i = 0; i < initialPopulation; i++)
-        {
-            int offset = i * 3;
-            storedPositions[offset] = storedCoordinate + 0.25f;
-            storedPositions[offset + 1] = storedCoordinate + 0.25f;
-            storedPositions[offset + 2] = storedCoordinate + 0.25f;
-            storedHomes[offset] = storedPositions[offset];
-            storedHomes[offset + 1] = storedPositions[offset + 1];
-            storedHomes[offset + 2] = storedPositions[offset + 2];
-            storedParents[i] = storedParentIndex;
-        }
 
         float[] storedGroupData0 = Field<float[]>(storedSnapshot, "GroupData0");
         storedGroupData0[0] = 0;
@@ -4772,12 +6721,12 @@ internal static class Program
 
             True(normalBirths > 0, "mixed normal death/division produced no newborns");
             Equal(initialPopulation / 2 + normalBirths, mixedPopulation, "mixed normal death/division active population");
-            int ghostInclusiveNeighbours = initialPopulation + normalBirths - 1;
+            int liveNeighbours = mixedPopulation - 1;
             for (int slot = 0; slot < storedCapacity; slot++)
             {
                 if (mixedPositions[slot * 4 + 3] < -0.5f) continue;
-                Equal(ghostInclusiveNeighbours, mixedAuxiliary[storedCapacity + slot], "post-division ghost-inclusive death count");
-                Equal(ghostInclusiveNeighbours, mixedAuxiliary[storedCapacity * 2 + slot], "post-division ghost-inclusive division count");
+                Equal(liveNeighbours, mixedAuxiliary[storedCapacity + slot], "post-division live-only death count");
+                Equal(liveNeighbours, mixedAuxiliary[storedCapacity * 2 + slot], "post-division live-only division count");
             }
 
             SetField(storedSettings, "Death", false);
@@ -4832,6 +6781,918 @@ internal static class Program
         }
 
         True(movedFromCenter, "scattered particle seeds produced identical positions");
+    }
+
+    static void TestParticleSeedingOrder(string[] args)
+    {
+        Type v4Generator = RequiredCompatibilityType("Nuclei4.ParticleGenerator");
+        Type v3Generator = LoadV3ProbeAssembly(args).GetType("Nuclei3.ParticleGenerator", true)!;
+        int[] v4Ordinals = ParticleOrdinalSequence(v4Generator, "V4 particle generator");
+        int[] v3Ordinals = ParticleOrdinalSequence(v3Generator, "V3 particle generator");
+        True(v4Ordinals.SequenceEqual(v3Ordinals), "V3/V4 particle seeding order diverged");
+        Console.WriteLine("V3/V4 particle seeding uses a unique pseudo-random voxel permutation.");
+    }
+
+    static int[] ParticleOrdinalSequence(Type generatorType, string label)
+    {
+        const int voxelCount = 4093;
+        const int particleCount = 1024;
+        uint sequenceSeed = BenchmarkHash((uint)particleCount ^ (uint)voxelCount ^ 0x4A7C15D1u);
+        int[] ordinals = new int[particleCount];
+        HashSet<int> uniqueOrdinals = new HashSet<int>();
+        HashSet<int> modularSteps = new HashSet<int>();
+
+        for (int i = 0; i < particleCount; i++)
+        {
+            int ordinal = Convert.ToInt32(
+                InvokeStatic(generatorType, "PermuteOrdinal", i, voxelCount, sequenceSeed),
+                CultureInfo.InvariantCulture);
+            True(ordinal >= 0 && ordinal < voxelCount, label + " returned an out-of-range voxel ordinal");
+            True(uniqueOrdinals.Add(ordinal), label + " repeated voxel ordinal " + ordinal);
+            if (i > 0)
+            {
+                modularSteps.Add((ordinal - ordinals[i - 1] + voxelCount) % voxelCount);
+            }
+            ordinals[i] = ordinal;
+        }
+
+        True(
+            modularSteps.Count >= 128,
+            label + " followed a regular traversal; distinct modular steps "
+                + modularSteps.Count + ", expected at least 128");
+        return ordinals;
+    }
+
+    static void TestExclusiveOccupancyContracts(string[] args)
+    {
+        TestUniqueProbePlacement();
+        TestV4ExclusiveResetAndGenerator();
+        TestV3ExclusiveResetAndGenerator(args);
+        TestGpuExclusiveMovementAndDeposit();
+        TestGpuExclusiveWrapTransitionCollision();
+        TestGpuNoRecursiveSameDispatchBirths();
+        Console.WriteLine("Exclusive one-particle-per-voxel contracts passed for V3 CPU and V4 GPU.");
+    }
+
+    static void TestUniqueProbePlacement()
+    {
+        const int grid = 24;
+        const int particleCount = 2000;
+        HashSet<int> occupied = new HashSet<int>();
+        for (int i = 0; i < particleCount; i++)
+        {
+            PositionFor(i, grid, out double x, out double y, out double z);
+            int flatIndex = (int)Math.Floor(x) * grid * grid
+                + (int)Math.Floor(y) * grid
+                + (int)Math.Floor(z);
+            True(occupied.Add(flatIndex), "parity placement duplicated voxel " + flatIndex);
+        }
+        Equal(particleCount, occupied.Count, "unique parity placement count");
+    }
+
+    static void TestV4ExclusiveResetAndGenerator()
+    {
+        const int grid = 6;
+        object data = CreateFullDomain(grid, grid, 1);
+        Type groupType = RequiredCompatibilityType("Nuclei4.ParticleGroup");
+        Type particleType = RequiredCompatibilityType("Nuclei4.Particle");
+        Type generatorType = RequiredCompatibilityType("Nuclei4.ParticleGenerator");
+
+        object generatedGroup = Activator.CreateInstance(groupType)!;
+        IList generated = (IList)InvokeStatic(generatorType, "CreateScatteredParticles", 100, generatedGroup, data);
+        Equal(grid * grid, generated.Count, "V4 scattered generator voxel-capacity clamp");
+        AssertUniqueParticleVoxels(generated, grid, grid, 1, "V4 scattered generator");
+        AssertVariedParticleTraversal(generated, grid, grid, 1, "V4 scattered generator");
+
+        object firstGroup = Activator.CreateInstance(groupType)!;
+        object secondGroup = Activator.CreateInstance(groupType)!;
+        IList firstParticles = (IList)Field<object>(firstGroup, "particles");
+        IList secondParticles = (IList)Field<object>(secondGroup, "particles");
+        firstParticles.Add(CreateProbeParticle(particleType, firstGroup, 2.25, 2.25, 0.5));
+        secondParticles.Add(CreateProbeParticle(particleType, secondGroup, 2.75, 2.75, 0.5));
+        secondParticles.Add(CreateProbeParticle(particleType, secondGroup, 3.25, 2.25, 0.5));
+
+        IList groups = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(groupType))!;
+        groups.Add(firstGroup);
+        groups.Add(secondGroup);
+        object snapshot = Activator.CreateInstance(SnapshotType, nonPublic: true)!;
+        Invoke(snapshot, "DetectPopulationKinds", groups);
+        Invoke(snapshot, "CaptureCompactVoxels", CreateField(data), false, true);
+        Invoke(snapshot, "CaptureParticles", groups);
+
+        Equal(2, Field<int>(snapshot, "ParticleCount"), "V4 duplicate reset snapshot count");
+        IList capturedParticles = (IList)Field<object>(snapshot, "Particles");
+        AssertUniqueParticleParents(capturedParticles, "V4 duplicate reset snapshot");
+        IList capturedGroups = (IList)Field<object>(snapshot, "ParticleGroups");
+        Equal(1, ((IList)Field<object>(capturedGroups[0]!, "particles")).Count,
+            "V4 duplicate reset first-group winner");
+        Equal(1, ((IList)Field<object>(capturedGroups[1]!, "particles")).Count,
+            "V4 duplicate reset later unique survivor");
+        object settings = CreateParityGpuSettings(RequiredImplementationType("Nuclei4.SolverGpuSettings"));
+        Type engineType = RequiredImplementationType("Nuclei4.GpuFullSlimeSolverEngine");
+        object engine = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
+        try
+        {
+            Invoke(engine, "ReadBackParticles");
+            List<int> liveSlots = AssertGpuOccupancyInvariant(engine, 2, "V4 duplicate reset");
+            True(liveSlots.SequenceEqual(new[] { 0, 1 }),
+                "V4 duplicate reset snapshot was not compact");
+            float[] positions = Field<float[]>(engine, "particlePositionReadback");
+            Equal(0, (int)Math.Round(positions[3], MidpointRounding.ToEven),
+                "V4 duplicate reset did not retain the first-group winner");
+            Equal(1, (int)Math.Round(positions[1 * 4 + 3], MidpointRounding.ToEven),
+                "V4 duplicate reset changed the later unique survivor's group");
+        }
+        finally
+        {
+            ((IDisposable)engine).Dispose();
+        }
+
+        TestGpuSparseResetSlots(engineType);
+    }
+
+    static void TestGpuSparseResetSlots(Type engineType)
+    {
+        const int grid = 6;
+        object snapshot = CreateGpuOccupancySnapshot(
+            grid,
+            new[] { 2.25f, 2.25f, 0.5f, 2.75f, 2.75f, 0.5f, 3.25f, 2.25f, 0.5f },
+            new[] { 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f },
+            new[] { 0, 1, 1 },
+            new[] { 0.0f, 1.0f },
+            new[] { 0.0f, 0.0f });
+        object settings = CreateParityGpuSettings(RequiredImplementationType("Nuclei4.SolverGpuSettings"));
+        object dimensionMode = InvokeStatic(
+            RequiredImplementationType("Nuclei4.SolverGpuDimensionMode"),
+            "FromResolution",
+            grid,
+            grid,
+            1);
+        object engine = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
+        try
+        {
+            Invoke(engine, "ReadBackParticles");
+            List<int> liveSlots = AssertGpuOccupancyInvariant(engine, 2, "V4 sparse reset");
+            True(liveSlots.SequenceEqual(new[] { 0, 2 }),
+                "V4 sparse reset did not retain the later unique survivor");
+
+            InvokeGpuStep(engine, snapshot, settings, dimensionMode, 2);
+            Invoke(engine, "ReadBackParticles");
+            liveSlots = AssertGpuOccupancyInvariant(engine, 2, "V4 sparse reset movement");
+            True(liveSlots.Contains(2), "V4 later sparse survivor was skipped by movement");
+            float[] positions = Field<float[]>(engine, "particlePositionReadback");
+            True(positions[2 * 4] > 3.5f, "V4 later sparse survivor did not move");
+        }
+        finally
+        {
+            ((IDisposable)engine).Dispose();
+        }
+    }
+
+    static void TestV3ExclusiveResetAndGenerator(string[] args)
+    {
+        if (!TryStartRhinoInside()) EnsureRhinoNativeLibrary();
+        Assembly v3 = LoadV3ProbeAssembly(args);
+        const int grid = 6;
+        Type voxelType = v3.GetType("Nuclei3.Voxel", true)!;
+        Type voxelDataType = v3.GetType("Nuclei3.VoxelGridData", true)!;
+        Type solverType = v3.GetType("Nuclei3.Solver", true)!;
+        Type groupType = v3.GetType("Nuclei3.ParticleGroup", true)!;
+        Type particleType = v3.GetType("Nuclei3.Particle", true)!;
+        Type particleListType = v3.GetType("Nuclei3.ParticleList", true)!;
+        Type generatorType = v3.GetType("Nuclei3.ParticleGenerator", true)!;
+
+        object data = InvokeStatic(voxelDataType, "CreateFullDomain", grid, grid, 1, 1.0);
+        object generatedGroup = Activator.CreateInstance(groupType)!;
+        IList generated = (IList)InvokeStatic(generatorType, "CreateScatteredParticles", 100, generatedGroup, data);
+        Equal(grid * grid, generated.Count, "V3 scattered generator voxel-capacity clamp");
+        AssertUniqueParticleVoxels(generated, grid, grid, 1, "V3 scattered generator");
+        AssertVariedParticleTraversal(generated, grid, grid, 1, "V3 scattered generator");
+
+        Array voxels = Array.CreateInstance(voxelType, grid, grid, 1);
+        for (int x = 0; x < grid; x++)
+        {
+            for (int y = 0; y < grid; y++)
+            {
+                voxels.SetValue(Activator.CreateInstance(voxelType, 1.0, x, y, 0), x, y, 0);
+            }
+        }
+
+        object solver = Activator.CreateInstance(solverType)!;
+        SetField(solver, "wrapBoundaries", true);
+        SetField(solver, "inputVoxels", voxels);
+        Invoke(solver, "inheritVoxels");
+
+        object firstGroup = Activator.CreateInstance(groupType)!;
+        object secondGroup = Activator.CreateInstance(groupType)!;
+        IList firstParticles = (IList)Field<object>(firstGroup, "particles");
+        IList secondParticles = (IList)Field<object>(secondGroup, "particles");
+        firstParticles.Add(CreateProbeParticle(particleType, firstGroup, 2.25, 2.25, 0.5));
+        firstParticles.Add(CreateProbeParticle(particleType, firstGroup, 3.25, 2.25, 0.5));
+        secondParticles.Add(CreateProbeParticle(particleType, secondGroup, 2.75, 2.75, 0.5));
+
+        IList inputGroups = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(groupType))!;
+        inputGroups.Add(firstGroup);
+        inputGroups.Add(secondGroup);
+        SetField(solver, "inputParticleGroups", inputGroups);
+        SetField(solver, "particles", Activator.CreateInstance(particleListType)!);
+        Invoke(solver, "inheritParticleGroups");
+        Invoke(solver, "particleCheckParentVoxel");
+
+        IList retained = (IList)Field<object>(solver, "particles");
+        Equal(2, retained.Count, "V3 duplicate reset retained count");
+        AssertUniqueParticleParents(retained, "V3 duplicate reset");
+        IList retainedGroups = (IList)Field<object>(solver, "particleGroups");
+        Equal(2, ((IList)Field<object>(retainedGroups[0]!, "particles")).Count,
+            "V3 duplicate reset first-group winners");
+        Equal(0, ((IList)Field<object>(retainedGroups[1]!, "particles")).Count,
+            "V3 duplicate reset later-group loser");
+        AssertV3VoxelCountInvariant(solver, retained.Count, "V3 duplicate reset");
+        TestV3ExclusiveMovementAndBirthClaims(v3);
+    }
+
+    static void TestV3ExclusiveMovementAndBirthClaims(Assembly v3)
+    {
+        const int grid = 7;
+        Type groupType = v3.GetType("Nuclei3.ParticleGroup", true)!;
+        Type particleType = v3.GetType("Nuclei3.Particle", true)!;
+        int leftParent = 2 * grid + 3;
+        int targetParent = 3 * grid + 3;
+        int rightParent = 4 * grid + 3;
+
+        object contentionGroup = CreateV3ProbeGroup(groupType, 1.0, 1.0);
+        IList contentionParticles = (IList)Field<object>(contentionGroup, "particles");
+        contentionParticles.Add(CreateProbeParticle(
+            particleType, contentionGroup, CreateRawPlane(2.5, 3.5, 0.5, 1, 0, 0, 0, 1, 0)));
+        contentionParticles.Add(CreateProbeParticle(
+            particleType, contentionGroup, CreateRawPlane(4.5, 3.5, 0.5, -1, 0, 0, 0, 1, 0)));
+        object contentionSolver = CreateV3ProbeSolver(v3, grid, contentionGroup);
+        Invoke(contentionSolver, "particleMoveAndDeposit", 0L, 0L);
+        Invoke(contentionSolver, "particleCheckParentVoxel");
+        IList moved = (IList)Field<object>(contentionSolver, "particles");
+        Equal(2, moved.Count, "V3 movement contention population");
+        AssertUniqueParticleParents(moved, "V3 movement contention");
+        AssertV3VoxelCountInvariant(contentionSolver, 2, "V3 movement contention");
+
+        int targetWinners = 0;
+        object blockedParticle = null;
+        for (int i = 0; i < moved.Count; i++)
+        {
+            int parent = Field<int>(Field<object>(moved[i]!, "parentVoxel"), "flatIndex");
+            if (parent == targetParent) targetWinners++;
+            else if (parent == leftParent || parent == rightParent) blockedParticle = moved[i];
+        }
+        Equal(1, targetWinners, "V3 contention target winner count");
+        True(blockedParticle != null, "V3 contention did not leave one rejected particle at its source");
+        object blockedVoxel = Field<object>(blockedParticle, "parentVoxel");
+        int blockedParent = Field<int>(blockedVoxel, "flatIndex");
+        object blockedPlane = Field<object>(blockedParticle, "pPlane");
+        object blockedOrigin = PropertyValue(blockedPlane, "Origin");
+        Near(blockedParent == leftParent ? 2.5 : 4.5, PointCoordinate(blockedOrigin, 0), 1e-6,
+            "V3 rejected move changed source X");
+        Near(3.5, PointCoordinate(blockedOrigin, 1), 1e-6, "V3 rejected move changed source Y");
+        object blockedDirection = PropertyValue(blockedPlane, "XAxis");
+        double originalX = blockedParent == leftParent ? 1.0 : -1.0;
+        True(Math.Abs(PointCoordinate(blockedDirection, 0) - originalX) > 1e-4
+                || Math.Abs(PointCoordinate(blockedDirection, 1)) > 1e-4,
+            "V3 rejected move did not randomize orientation");
+        double[] contentionDensity = Field<double[]>(contentionSolver, "scalarVoxelDensity");
+        True(contentionDensity[targetParent] > 0, "V3 accepted move did not deposit at the claimed target");
+        Near(contentionDensity[targetParent], contentionDensity.Sum(), 1e-9,
+            "V3 rejected contender deposited outside the claimed target");
+
+        object challengerGroup = CreateV3ProbeGroup(groupType, 1.0, 1.0);
+        object occupantGroup = CreateV3ProbeGroup(groupType, 0.0, 0.0);
+        ((IList)Field<object>(challengerGroup, "particles")).Add(CreateProbeParticle(
+            particleType, challengerGroup, CreateRawPlane(2.5, 3.5, 0.5, 1, 0, 0, 0, 1, 0)));
+        ((IList)Field<object>(occupantGroup, "particles")).Add(CreateProbeParticle(
+            particleType, occupantGroup, CreateRawPlane(3.5, 3.5, 0.5, 1, 0, 0, 0, 1, 0)));
+        object blockedSolver = CreateV3ProbeSolver(v3, grid, challengerGroup, occupantGroup);
+        Invoke(blockedSolver, "particleMoveAndDeposit", 0L, 0L);
+        Invoke(blockedSolver, "particleCheckParentVoxel");
+        IList blockedParticles = (IList)Field<object>(blockedSolver, "particles");
+        Equal(2, blockedParticles.Count, "V3 preoccupied-target population");
+        AssertUniqueParticleParents(blockedParticles, "V3 preoccupied target");
+        object challenger = blockedParticles.Cast<object>().Single(
+            particle => ReferenceEquals(Field<object>(particle, "parentParticleGroup"),
+                ((IList)Field<object>(blockedSolver, "particleGroups"))[0]));
+        Equal(leftParent, Field<int>(Field<object>(challenger, "parentVoxel"), "flatIndex"),
+            "V3 blocked particle changed parent");
+        object challengerPlane = Field<object>(challenger, "pPlane");
+        AssertPoint(PropertyValue(challengerPlane, "Origin"), 2.5, 3.5, 0.5, "V3 blocked particle origin");
+        object challengerDirection = PropertyValue(challengerPlane, "XAxis");
+        True(Math.Abs(PointCoordinate(challengerDirection, 0) - 1.0) > 1e-4
+                || Math.Abs(PointCoordinate(challengerDirection, 1)) > 1e-4,
+            "V3 blocked particle did not randomize orientation");
+        Near(0, Field<double[]>(blockedSolver, "scalarVoxelDensity").Sum(), 1e-9,
+            "V3 blocked particle deposited chemoattractant");
+        AssertV3VoxelCountInvariant(blockedSolver, 2, "V3 preoccupied target");
+
+        TestV3ExclusiveBirthClaims(v3);
+    }
+
+    static void TestV3ExclusiveBirthClaims(Assembly v3)
+    {
+        const int grid = 3;
+        Type groupType = v3.GetType("Nuclei3.ParticleGroup", true)!;
+        Type particleType = v3.GetType("Nuclei3.Particle", true)!;
+        object group = CreateV3ProbeGroup(groupType, 0.0, 0.0);
+        IList particles = (IList)Field<object>(group, "particles");
+        for (int x = 0; x < grid; x++)
+        {
+            for (int y = 0; y < grid; y++)
+            {
+                if (x == 1 && y == 1) continue;
+                particles.Add(CreateProbeParticle(particleType, group, x + 0.5, y + 0.5, 0.5));
+            }
+        }
+
+        object solver = CreateV3ProbeSolver(v3, grid, group);
+        SetField(solver, "randomDivisionProbability", 1.0);
+        SetField(solver, "randomPopulationFrequency", 1);
+        SetField(solver, "maxPopulation", 9);
+        Invoke(solver, "applyRandomParticleDivision");
+        IList live = (IList)Field<object>(solver, "particles");
+        Equal(9, live.Count, "V3 birth contention population");
+        AssertUniqueParticleParents(live, "V3 birth contention");
+        AssertV3VoxelCountInvariant(solver, 9, "V3 birth contention");
+        True(live.Cast<object>().Any(
+                particle => Field<int>(Field<object>(particle, "parentVoxel"), "flatIndex") == grid + 1),
+            "V3 birth contention did not claim the only empty voxel");
+
+        SetField(solver, "maxPopulation", 10);
+        Invoke(solver, "applyRandomParticleDivision");
+        live = (IList)Field<object>(solver, "particles");
+        Equal(9, live.Count, "V3 full-field birth rejection population");
+        AssertUniqueParticleParents(live, "V3 full-field birth rejection");
+        AssertV3VoxelCountInvariant(solver, 9, "V3 full-field birth rejection");
+    }
+
+    static object CreateV3ProbeGroup(Type groupType, double speed, double deposit)
+    {
+        object group = Activator.CreateInstance(groupType)!;
+        SetField(group, "speed", speed);
+        SetField(group, "sensorDistance", 0.0);
+        SetField(group, "sensorAngle", 0);
+        SetField(group, "rotationAngle", 0);
+        SetField(group, "depositValue", deposit);
+        SetField(group, "wanderFrequency", 0.0);
+        SetField(group, "baseWanderFrequency", 0.0);
+        SetField(group, "ant", false);
+        return group;
+    }
+
+    static object CreateV3ProbeSolver(Assembly v3, int grid, params object[] groups)
+    {
+        Type voxelType = v3.GetType("Nuclei3.Voxel", true)!;
+        Type solverType = v3.GetType("Nuclei3.Solver", true)!;
+        Type groupType = v3.GetType("Nuclei3.ParticleGroup", true)!;
+        Type particleListType = v3.GetType("Nuclei3.ParticleList", true)!;
+        Array voxels = Array.CreateInstance(voxelType, grid, grid, 1);
+        for (int x = 0; x < grid; x++)
+        {
+            for (int y = 0; y < grid; y++)
+            {
+                voxels.SetValue(Activator.CreateInstance(voxelType, 1.0, x, y, 0), x, y, 0);
+            }
+        }
+
+        object solver = Activator.CreateInstance(solverType)!;
+        SetField(solver, "iteration", 2);
+        SetField(solver, "wrapBoundaries", true);
+        SetField(solver, "antParticles", false);
+        SetField(solver, "slimeParticles", true);
+        SetField(solver, "random", new Random(89));
+        SetField(solver, "inputVoxels", voxels);
+        Invoke(solver, "inheritVoxels");
+
+        IList inputGroups = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(groupType))!;
+        foreach (object group in groups) inputGroups.Add(group);
+        SetField(solver, "inputParticleGroups", inputGroups);
+        SetField(solver, "particles", Activator.CreateInstance(particleListType)!);
+        Invoke(solver, "inheritParticleGroups");
+        Invoke(solver, "particleCheckParentVoxel");
+        return solver;
+    }
+
+    static Assembly LoadV3ProbeAssembly(string[] args)
+    {
+        string path = OptionValue(args, "--v3");
+        if (path == null)
+        {
+            string root = FindRepositoryRoot(Directory.GetCurrentDirectory())
+                ?? FindRepositoryRoot(AppContext.BaseDirectory)
+                ?? throw new DirectoryNotFoundException("Could not locate the Nuclei repository root.");
+            path = Path.Combine(root, "Nuclei-v3", "Nuclei3", "bin", "Release", "net7.0-windows", "Nuclei3.gha");
+        }
+        if (!File.Exists(path)) throw new FileNotFoundException("Build V3 Release or pass --v3 <path>.", path);
+        return LoadAssemblyOnce(path);
+    }
+
+    static object CreateProbeParticle(Type particleType, object group, double x, double y, double z)
+    {
+        return CreateProbeParticle(particleType, group, CreateRawPlane(x, y, z));
+    }
+
+    static object CreateProbeParticle(Type particleType, object group, object plane)
+    {
+        object particle = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(particleType);
+        SetField(particle, "pPlane", plane);
+        SetField(particle, "home", plane);
+        SetField(particle, "parentParticleGroup", group);
+        FieldInfo trails = particleType.GetField("trails", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (trails != null) trails.SetValue(particle, Activator.CreateInstance(trails.FieldType));
+        return particle;
+    }
+
+    static void AssertUniqueParticleVoxels(IList particles, int resX, int resY, int resZ, string label)
+    {
+        HashSet<int> parents = new HashSet<int>();
+        for (int i = 0; i < particles.Count; i++)
+        {
+            object plane = Field<object>(particles[i]!, "pPlane");
+            object origin = PropertyValue(plane, "Origin");
+            int x = resX == 1 ? 0 : (int)Math.Floor(PointCoordinate(origin, 0));
+            int y = resY == 1 ? 0 : (int)Math.Floor(PointCoordinate(origin, 1));
+            int z = resZ == 1 ? 0 : (int)Math.Floor(PointCoordinate(origin, 2));
+            True(x >= 0 && x < resX && y >= 0 && y < resY && z >= 0 && z < resZ,
+                label + " particle outside field");
+            int parent = x * resY * resZ + y * resZ + z;
+            True(parents.Add(parent), label + " duplicate parent " + parent);
+        }
+    }
+
+    static void AssertVariedParticleTraversal(IList particles, int resX, int resY, int resZ, string label)
+    {
+        int voxelCount = checked(resX * resY * resZ);
+        HashSet<int> modularSteps = new HashSet<int>();
+        int previous = -1;
+        for (int i = 0; i < particles.Count; i++)
+        {
+            object plane = Field<object>(particles[i]!, "pPlane");
+            object origin = PropertyValue(plane, "Origin");
+            int x = resX == 1 ? 0 : (int)Math.Floor(PointCoordinate(origin, 0));
+            int y = resY == 1 ? 0 : (int)Math.Floor(PointCoordinate(origin, 1));
+            int z = resZ == 1 ? 0 : (int)Math.Floor(PointCoordinate(origin, 2));
+            int parent = x * resY * resZ + y * resZ + z;
+            if (previous >= 0)
+            {
+                modularSteps.Add((parent - previous + voxelCount) % voxelCount);
+            }
+            previous = parent;
+        }
+
+        int minimumDistinctSteps = Math.Min(8, particles.Count - 1);
+        True(
+            modularSteps.Count >= minimumDistinctSteps,
+            label + " followed a regular constant-stride traversal; distinct modular steps "
+                + modularSteps.Count + ", expected at least " + minimumDistinctSteps);
+    }
+
+    static void AssertUniqueParticleParents(IList particles, string label)
+    {
+        HashSet<int> parents = new HashSet<int>();
+        for (int i = 0; i < particles.Count; i++)
+        {
+            object voxel = Field<object>(particles[i]!, "parentVoxel");
+            True(voxel != null, label + " null parent at particle " + i);
+            int flatIndex = Field<int>(voxel, "flatIndex");
+            True(parents.Add(flatIndex), label + " duplicate parent " + flatIndex);
+        }
+    }
+
+    static void AssertV3VoxelCountInvariant(object solver, int expectedParticles, string label)
+    {
+        Array voxels = Field<Array>(solver, "voxelFlat");
+        int occupied = 0;
+        for (int i = 0; i < voxels.Length; i++)
+        {
+            object voxel = voxels.GetValue(i);
+            if (voxel == null) continue;
+            int count = Field<int>(voxel, "particleCount");
+            True(count == 0 || count == 1, label + " voxel count exceeded one at " + i);
+            occupied += count;
+        }
+        Equal(expectedParticles, occupied, label + " occupied voxel count");
+    }
+
+    static void TestGpuExclusiveMovementAndDeposit()
+    {
+        const int grid = 7;
+        int leftParent = 2 * grid + 3;
+        int targetParent = 3 * grid + 3;
+        int rightParent = 4 * grid + 3;
+        object settings = CreateParityGpuSettings(RequiredImplementationType("Nuclei4.SolverGpuSettings"));
+        object dimensionMode = InvokeStatic(
+            RequiredImplementationType("Nuclei4.SolverGpuDimensionMode"),
+            "FromResolution",
+            grid,
+            grid,
+            1);
+        Type engineType = RequiredImplementationType("Nuclei4.GpuFullSlimeSolverEngine");
+
+        object contentionSnapshot = CreateGpuOccupancySnapshot(
+            grid,
+            new[] { 2.5f, 3.5f, 0.5f, 4.5f, 3.5f, 0.5f },
+            new[] { 1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f },
+            new[] { 0, 0 },
+            new[] { 1.0f },
+            new[] { 1.0f });
+        object contentionEngine = CreateGpuEngine(engineType, contentionSnapshot, settings, false, false, false, 0, 1);
+        try
+        {
+            InvokeGpuStep(contentionEngine, contentionSnapshot, settings, dimensionMode, 2);
+            Invoke(contentionEngine, "ReadBackParticles");
+            List<int> liveSlots = AssertGpuOccupancyInvariant(contentionEngine, 2, "GPU movement contention");
+            float[] positions = Field<float[]>(contentionEngine, "particlePositionReadback");
+            float[] directions = Field<float[]>(contentionEngine, "particleDirectionReadback");
+            int targetWinners = 0;
+            int blockedSlot = -1;
+            foreach (int slot in liveSlots)
+            {
+                int parent = (int)Math.Round(directions[slot * 4 + 3], MidpointRounding.ToEven);
+                if (parent == targetParent) targetWinners++;
+                else if (parent == leftParent || parent == rightParent) blockedSlot = slot;
+            }
+            Equal(1, targetWinners, "GPU contention target winner count");
+            True(blockedSlot >= 0, "GPU contention did not leave one rejected particle at its source");
+            int blockedParent = (int)Math.Round(directions[blockedSlot * 4 + 3], MidpointRounding.ToEven);
+            double blockedX = blockedParent == leftParent ? 2.5 : 4.5;
+            Near(blockedX, positions[blockedSlot * 4], 1e-5, "GPU rejected move changed source X");
+            Near(3.5, positions[blockedSlot * 4 + 1], 1e-5, "GPU rejected move changed source Y");
+            double originalX = blockedParent == leftParent ? 1.0 : -1.0;
+            True(Math.Abs(directions[blockedSlot * 4] - originalX) > 1e-4
+                    || Math.Abs(directions[blockedSlot * 4 + 1]) > 1e-4,
+                "GPU rejected move did not randomize orientation");
+
+            Invoke(contentionEngine, "ReadBackDensity");
+            float[] density = Field<float[]>(contentionEngine, "densityReadback");
+            True(density[targetParent] > 0, "GPU accepted move did not deposit at the claimed target");
+            Near(density[targetParent], density.Sum(value => (double)value), 1e-6,
+                "GPU rejected contender deposited outside the claimed target");
+        }
+        finally
+        {
+            ((IDisposable)contentionEngine).Dispose();
+        }
+
+        object blockedSnapshot = CreateGpuOccupancySnapshot(
+            grid,
+            new[] { 2.5f, 3.5f, 0.5f, 3.5f, 3.5f, 0.5f },
+            new[] { 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f },
+            new[] { 0, 1 },
+            new[] { 1.0f, 0.0f },
+            new[] { 1.0f, 0.0f });
+        object blockedEngine = CreateGpuEngine(engineType, blockedSnapshot, settings, false, false, false, 0, 1);
+        try
+        {
+            InvokeGpuStep(blockedEngine, blockedSnapshot, settings, dimensionMode, 2);
+            Invoke(blockedEngine, "ReadBackParticles");
+            AssertGpuOccupancyInvariant(blockedEngine, 2, "GPU preoccupied target");
+            float[] positions = Field<float[]>(blockedEngine, "particlePositionReadback");
+            float[] directions = Field<float[]>(blockedEngine, "particleDirectionReadback");
+            Equal(leftParent, (int)Math.Round(directions[3], MidpointRounding.ToEven),
+                "GPU blocked particle changed parent");
+            Near(2.5, positions[0], 1e-5, "GPU blocked particle changed X");
+            Near(3.5, positions[1], 1e-5, "GPU blocked particle changed Y");
+            True(Math.Abs(directions[0] - 1.0f) > 1e-4 || Math.Abs(directions[1]) > 1e-4,
+                "GPU blocked particle did not randomize orientation");
+            Invoke(blockedEngine, "ReadBackDensity");
+            Near(0, Field<float[]>(blockedEngine, "densityReadback").Sum(value => (double)value), 1e-6,
+                "GPU blocked particle deposited chemoattractant");
+        }
+        finally
+        {
+            ((IDisposable)blockedEngine).Dispose();
+        }
+
+        TestGpuExclusiveBirthClaims(engineType);
+    }
+
+    static void TestGpuExclusiveWrapTransitionCollision()
+    {
+        const int grid = 5;
+        int outerParent = 2;
+        int inwardParent = grid + 2;
+        Type settingsType = RequiredImplementationType("Nuclei4.SolverGpuSettings");
+        object settings = CreateParityGpuSettings(settingsType);
+        object dimensionMode = InvokeStatic(
+            RequiredImplementationType("Nuclei4.SolverGpuDimensionMode"),
+            "FromResolution",
+            grid,
+            grid,
+            1);
+        Type engineType = RequiredImplementationType("Nuclei4.GpuFullSlimeSolverEngine");
+
+        // With wrapping enabled, these particles own distinct outer and inner
+        // voxels. Switching live to fixed boundaries clamps the outer particle
+        // toward the already-owned inner voxel. Iteration one isolates the
+        // boundary-transition dispatch because normal movement starts at two.
+        object snapshot = CreateGpuOccupancySnapshot(
+            grid,
+            new[] { 0.1f, 2.5f, 0.5f, 1.5f, 2.5f, 0.5f },
+            new[] { 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f },
+            new[] { 0, 0 },
+            new[] { 0.0f },
+            new[] { 0.0f });
+        object engine = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
+        try
+        {
+            SetField(settings, "WrapBoundaries", false);
+            InvokeGpuStep(engine, snapshot, settings, dimensionMode, 1);
+            Invoke(engine, "ReadBackParticles");
+
+            List<int> liveSlots = AssertGpuOccupancyInvariant(engine, 2, "GPU wrap-transition collision");
+            True(liveSlots.SequenceEqual(new[] { 0, 1 }),
+                "GPU wrap-transition collision changed the live slots");
+            float[] positions = Field<float[]>(engine, "particlePositionReadback");
+            float[] directions = Field<float[]>(engine, "particleDirectionReadback");
+            Equal(outerParent, (int)Math.Round(directions[3], MidpointRounding.ToEven),
+                "GPU wrap-transition loser changed parent");
+            Equal(inwardParent, (int)Math.Round(directions[7], MidpointRounding.ToEven),
+                "GPU wrap-transition incumbent changed parent");
+            Near(0.1, positions[0], 1e-5, "GPU wrap-transition loser changed X");
+            Near(2.5, positions[1], 1e-5, "GPU wrap-transition loser changed Y");
+            Near(1.5, positions[4], 1e-5, "GPU wrap-transition incumbent changed X");
+            Near(2.5, positions[5], 1e-5, "GPU wrap-transition incumbent changed Y");
+            True(Math.Abs(directions[0] - 1.0f) > 1e-4 || Math.Abs(directions[1]) > 1e-4,
+                "GPU wrap-transition loser did not randomize orientation");
+        }
+        finally
+        {
+            ((IDisposable)engine).Dispose();
+        }
+    }
+
+    static void TestGpuNoRecursiveSameDispatchBirths()
+    {
+        const int grid = 5;
+        const int maximumPopulation = 8;
+        // For slots 0..7, the current normal-division selection hash is even at
+        // iteration 257. Any partially published newborn that executes later in
+        // this dispatch therefore has the strongest opportunity to recurse.
+        const int divisionIteration = 257;
+        Type settingsType = RequiredImplementationType("Nuclei4.SolverGpuSettings");
+        object settings = CreateParityGpuSettings(settingsType);
+        SetField(settings, "DynamicPopulation", true);
+        SetField(settings, "MinimumPopulation", 0);
+        SetField(settings, "MaximumPopulation", maximumPopulation);
+        SetField(settings, "Death", false);
+        SetField(settings, "Division", true);
+        SetField(settings, "DivisionMinimumAge", 0);
+        SetField(settings, "DivisionRange", 0);
+        SetField(settings, "DivisionMinimumNeighbours", 0);
+        SetField(settings, "DivisionMaximumNeighbours", 0);
+        SetField(settings, "DivisionFrequency", 1);
+        SetField(settings, "RandomPopulationFrequency", 1);
+        SetField(settings, "RandomDivisionProbability", 0.0);
+        SetField(settings, "RandomDeathProbability", 0.0);
+
+        object snapshot = CreateGpuOccupancySnapshot(
+            grid,
+            new[] { 2.5f, 2.5f, 0.5f },
+            new[] { 1.0f, 0.0f, 0.0f },
+            new[] { 0 },
+            new[] { 0.0f },
+            new[] { 0.0f });
+        object dimensionMode = InvokeStatic(
+            RequiredImplementationType("Nuclei4.SolverGpuDimensionMode"),
+            "FromResolution",
+            grid,
+            grid,
+            1);
+        Type engineType = RequiredImplementationType("Nuclei4.GpuFullSlimeSolverEngine");
+        object engine = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
+        try
+        {
+            Invoke(engine, "ReadBackParticles");
+            Equal(maximumPopulation, Field<int>(engine, "particleCapacity"),
+                "GPU recursive-birth fixture capacity");
+            float[] initialPositions = Field<float[]>(engine, "particlePositionReadback");
+            float[] initialYAxes = Field<float[]>(engine, "particleYAxisReadback");
+            for (int slot = 1; slot < maximumPopulation; slot++)
+            {
+                True(initialPositions[slot * 4 + 3] < -0.5f,
+                    "GPU unused birth slot was initially live at " + slot);
+                True(initialYAxes[slot * 4 + 3] < -0.5f,
+                    "GPU unused birth slot lacked its dead marker at " + slot);
+            }
+
+            InvokeGpuStep(engine, snapshot, settings, dimensionMode, divisionIteration);
+            Invoke(engine, "ReadBackParticles");
+            List<int> liveSlots = AssertGpuOccupancyInvariant(engine, 2, "GPU non-recursive normal birth");
+            float[] yAxes = Field<float[]>(engine, "particleYAxisReadback");
+            int normalChildren = liveSlots.Count(slot => yAxes[slot * 4 + 3] < -1.5f);
+            Equal(1, normalChildren, "GPU same-dispatch normal child count");
+        }
+        finally
+        {
+            ((IDisposable)engine).Dispose();
+        }
+    }
+
+    static void TestGpuExclusiveBirthClaims(Type engineType)
+    {
+        const int grid = 3;
+        List<float> positions = new List<float>();
+        List<float> directions = new List<float>();
+        for (int x = 0; x < grid; x++)
+        {
+            for (int y = 0; y < grid; y++)
+            {
+                if (x == 1 && y == 1) continue;
+                positions.Add(x + 0.5f);
+                positions.Add(y + 0.5f);
+                positions.Add(0.5f);
+                directions.Add(1.0f);
+                directions.Add(0.0f);
+                directions.Add(0.0f);
+                if (x == 0 && y == 0)
+                {
+                    // The duplicate loses reset ownership in middle slot 1. A
+                    // later birth must recover that hole instead of treating all
+                    // live slots after particleCount as an implicit free tail.
+                    positions.Add(x + 0.75f);
+                    positions.Add(y + 0.75f);
+                    positions.Add(0.5f);
+                    directions.Add(1.0f);
+                    directions.Add(0.0f);
+                    directions.Add(0.0f);
+                }
+            }
+        }
+
+        object snapshot = CreateGpuOccupancySnapshot(
+            grid,
+            positions.ToArray(),
+            directions.ToArray(),
+            new int[9],
+            new[] { 0.0f },
+            new[] { 0.0f });
+        Type settingsType = RequiredImplementationType("Nuclei4.SolverGpuSettings");
+        object settings = CreateParityGpuSettings(settingsType);
+        SetField(settings, "DynamicPopulation", true);
+        SetField(settings, "MinimumPopulation", 0);
+        SetField(settings, "MaximumPopulation", 9);
+        SetField(settings, "Division", false);
+        SetField(settings, "RandomDivisionProbability", 1.0);
+        SetField(settings, "RandomPopulationFrequency", 1);
+        object dimensionMode = InvokeStatic(
+            RequiredImplementationType("Nuclei4.SolverGpuDimensionMode"),
+            "FromResolution",
+            grid,
+            grid,
+            1);
+        object engine = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
+        try
+        {
+            InvokeGpuStep(engine, snapshot, settings, dimensionMode, 2);
+            Invoke(engine, "ReadBackParticles");
+            List<int> liveSlots = AssertGpuOccupancyInvariant(engine, 9, "GPU birth contention");
+            float[] readbackDirections = Field<float[]>(engine, "particleDirectionReadback");
+            True(liveSlots.Contains(1), "GPU birth did not reuse the culled middle slot");
+            Equal(grid + 1, (int)Math.Round(readbackDirections[1 * 4 + 3], MidpointRounding.ToEven),
+                "GPU recovered middle slot did not claim the only empty voxel");
+            True(liveSlots.Any(slot =>
+                    (int)Math.Round(readbackDirections[slot * 4 + 3], MidpointRounding.ToEven) == grid + 1),
+                "GPU birth contention did not claim the only empty voxel");
+        }
+        finally
+        {
+            ((IDisposable)engine).Dispose();
+        }
+
+        positions.Clear();
+        directions.Clear();
+        for (int x = 0; x < grid; x++)
+        {
+            for (int y = 0; y < grid; y++)
+            {
+                positions.Add(x + 0.5f);
+                positions.Add(y + 0.5f);
+                positions.Add(0.5f);
+                directions.Add(1.0f);
+                directions.Add(0.0f);
+                directions.Add(0.0f);
+            }
+        }
+        object fullSnapshot = CreateGpuOccupancySnapshot(
+            grid,
+            positions.ToArray(),
+            directions.ToArray(),
+            new int[9],
+            new[] { 0.0f },
+            new[] { 0.0f });
+        object fullSettings = CreateParityGpuSettings(settingsType);
+        SetField(fullSettings, "DynamicPopulation", true);
+        SetField(fullSettings, "MinimumPopulation", 0);
+        SetField(fullSettings, "MaximumPopulation", 10);
+        SetField(fullSettings, "Division", false);
+        SetField(fullSettings, "RandomDivisionProbability", 1.0);
+        SetField(fullSettings, "RandomPopulationFrequency", 1);
+        object fullEngine = CreateGpuEngine(engineType, fullSnapshot, fullSettings, false, false, false, 0, 1);
+        try
+        {
+            InvokeGpuStep(fullEngine, fullSnapshot, fullSettings, dimensionMode, 2);
+            Invoke(fullEngine, "ReadBackParticles");
+            AssertGpuOccupancyInvariant(fullEngine, 9, "GPU full-field birth rejection");
+        }
+        finally
+        {
+            ((IDisposable)fullEngine).Dispose();
+        }
+    }
+
+    static object CreateGpuOccupancySnapshot(
+        int grid,
+        float[] positions,
+        float[] directions,
+        int[] groupIndices,
+        float[] groupSpeeds,
+        float[] groupDeposits)
+    {
+        int particleCount = groupIndices.Length;
+        Equal(particleCount * 3, positions.Length, "GPU occupancy snapshot position length");
+        Equal(particleCount * 3, directions.Length, "GPU occupancy snapshot direction length");
+        Equal(groupSpeeds.Length, groupDeposits.Length, "GPU occupancy snapshot group settings length");
+
+        object snapshot = CaptureVoxelSnapshot(CreateField(CreateFullDomain(grid, grid, 1)), true);
+        Type groupType = RequiredCompatibilityType("Nuclei4.ParticleGroup");
+        Array groups = Array.CreateInstance(groupType, groupSpeeds.Length);
+        float[] groupData0 = new float[groupSpeeds.Length * 4];
+        float[] groupData1 = new float[groupSpeeds.Length * 4];
+        for (int i = 0; i < groupSpeeds.Length; i++)
+        {
+            object group = Activator.CreateInstance(groupType)!;
+            SetField(group, "speed", (double)groupSpeeds[i]);
+            SetField(group, "depositValue", (double)groupDeposits[i]);
+            groups.SetValue(group, i);
+            groupData0[i * 4] = groupSpeeds[i];
+            groupData1[i * 4 + 2] = groupDeposits[i];
+        }
+
+        int[] parents = new int[particleCount];
+        float[] yAxes = new float[particleCount * 3];
+        for (int i = 0; i < particleCount; i++)
+        {
+            int offset = i * 3;
+            int x = (int)Math.Floor(positions[offset]);
+            int y = (int)Math.Floor(positions[offset + 1]);
+            parents[i] = x * grid + y;
+            yAxes[offset + 1] = 1.0f;
+        }
+
+        SetField(snapshot, "Particles", null);
+        SetField(snapshot, "ParticleGroups", groups);
+        SetField(snapshot, "ParticleCount", particleCount);
+        SetField(snapshot, "GroupCount", groups.Length);
+        SetField(snapshot, "HasSlimeParticles", true);
+        SetField(snapshot, "HasAntParticles", false);
+        SetField(snapshot, "ParticlePositionsXyz", positions);
+        SetField(snapshot, "ParticleDirectionsXyz", directions);
+        SetField(snapshot, "ParticleYAxesXyz", yAxes);
+        SetField(snapshot, "ParticleHomesXyz", (float[])positions.Clone());
+        SetField(snapshot, "ParticleAntStates", new uint[particleCount]);
+        SetOptionalField(snapshot, "ParticleAntLaunchBoundaryStates", new uint[particleCount]);
+        SetOptionalField(snapshot, "ParticleAges", new int[particleCount]);
+        SetField(snapshot, "ParticleGroupIndices", groupIndices);
+        SetField(snapshot, "ParticleParentIndices", parents);
+        SetField(snapshot, "GroupData0", groupData0);
+        SetField(snapshot, "GroupData1", groupData1);
+        SetField(snapshot, "GroupColorData", new float[groups.Length * 4]);
+        return snapshot;
+    }
+
+    static List<int> AssertGpuOccupancyInvariant(object engine, int expectedParticles, string label)
+    {
+        int capacity = Field<int>(engine, "particleCapacity");
+        int resX = Field<int>(engine, "resX");
+        int resY = Field<int>(engine, "resY");
+        int resZ = Field<int>(engine, "resZ");
+        float voxelSize = Field<float>(engine, "voxelSize");
+        int voxelCount = checked(resX * resY * resZ);
+        float[] positions = Field<float[]>(engine, "particlePositionReadback");
+        float[] directions = Field<float[]>(engine, "particleDirectionReadback");
+        HashSet<int> parents = new HashSet<int>();
+        List<int> liveSlots = new List<int>();
+        for (int slot = 0; slot < capacity; slot++)
+        {
+            if (positions[slot * 4 + 3] < -0.5f) continue;
+            int parent = (int)Math.Round(directions[slot * 4 + 3], MidpointRounding.ToEven);
+            True(parent >= 0 && parent < voxelCount, label + " live particle parent outside field");
+            int x = (int)Math.Floor(positions[slot * 4] / voxelSize);
+            int y = (int)Math.Floor(positions[slot * 4 + 1] / voxelSize);
+            int z = (int)Math.Floor(positions[slot * 4 + 2] / voxelSize);
+            True(x >= 0 && x < resX && y >= 0 && y < resY && z >= 0 && z < resZ,
+                label + " live particle position outside field at slot " + slot);
+            int positionParent = x * resY * resZ + y * resZ + z;
+            Equal(positionParent, parent, label + " live particle stored/position parent mismatch at slot " + slot);
+            True(parents.Add(parent), label + " duplicate parent " + parent);
+            liveSlots.Add(slot);
+        }
+        Equal(expectedParticles, liveSlots.Count, label + " alive slot count");
+        Equal(expectedParticles, Field<int>(engine, "particleCount"), label + " population telemetry");
+        return liveSlots;
     }
 
     static double ReadBackParticleX(object engine)

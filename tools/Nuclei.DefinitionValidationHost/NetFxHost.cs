@@ -626,9 +626,11 @@ namespace Nuclei.DefinitionValidationHost.NetFx
             if (!(bool)runtime["solved"] || (bool)runtime["savedDocumentModified"] || !(bool)runtime["noPathRuntimeErrors"])
                 throw new InvalidOperationException("Runtime success/disk/error flags are invalid.");
             if ((int)runtime["method"] != 0) throw new InvalidOperationException("Dendro method is not 0.");
+            if (!(bool)runtime["dendroOutputIdentityChangedWhileUpdateHeldTrue"])
+                throw new InvalidOperationException("Held-true Dendro Update did not replace its cached output identity.");
             if (!string.Equals((string)runtime["savedDocumentSha256Before"], (string)runtime["savedDocumentSha256After"], StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Saved definition hash changed.");
-            string[] wanted = { "gpu-reset", "solver-step-1", "solver-step-2", "solver-step-3", "solver-step-4", "solver-step-5", "dendro-update-rising-edge" };
+            string[] wanted = { "gpu-reset", "solver-step-1", "solver-step-2", "solver-step-3", "solver-step-4", "solver-step-5", "dendro-update-enabled", "dendro-update-held-true" };
             string[] actual = ((JArray)runtime["stages"]).Select(value => (string)value["stage"]).ToArray();
             if (!wanted.SequenceEqual(actual)) throw new InvalidOperationException("Runtime stage sequence is incomplete.");
             RequireTypes(runtime, "dendroOutputTypes", "DendroGH.VolumeGOO", "DendroGH.DendroVolume");

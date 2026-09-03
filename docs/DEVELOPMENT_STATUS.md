@@ -79,7 +79,7 @@ when the band is wide. See `GPU_BEHAVIOR_PARITY.md`.
 solver timing and `--parity` for running the V3 CPU solver and the V4 GPU solver side
 by side on identical settings strings. Both toolsets' particle preview caches are now
 allocated lazily so neither requires a Rhino host to construct.
-See `docs/performance/gpu-benchmark.md`.
+See the canonical [performance summary](performance/README.md).
 
 ## Validation
 

@@ -14,7 +14,6 @@ using Rhino.DocObjects;
 
 using System.Threading;
 using System.Threading.Tasks;
-using System.Collections.Concurrent;
 using System.Drawing;
 using System.Diagnostics;
 using System.Security.Cryptography.X509Certificates;
@@ -289,11 +288,13 @@ public class Solver : GH_Component
         double[] scalarVoxelDensity;
         double[] scalarVoxelScratch;
         double[] foodSourceValues;
+        int[] movementVoxelOwners;
         VoxelDensityStore scalarDensityStore;
         bool scalarVoxelDensityAuthoritative;
         bool scalarVoxelDensityDirtyForOutput;
         bool voxelHasPositiveFood;
         Voxel[] particleCountTouchedVoxels = Array.Empty<Voxel>();
+        Particle[] particleOccupancyRejections = Array.Empty<Particle>();
         int particleCountTouchedCount = 0;
         bool particleCountsRequireFullReset = true;
         bool denseVoxelGrid;
@@ -426,7 +427,6 @@ public class Solver : GH_Component
 
         //random
         System.Random random = new System.Random(89);
-        private static readonly ThreadLocal<System.Random> threadLocalRandom = new ThreadLocal<System.Random>(() => new System.Random(Guid.NewGuid().GetHashCode()));
         private static readonly ThreadLocal<double[]> threadLocalValues = new ThreadLocal<double[]>(() => new double[5]);
         private static readonly ThreadLocal<Voxel[]> threadLocalNeighbors = new ThreadLocal<Voxel[]>(() => new Voxel[27]);
 
@@ -709,6 +709,7 @@ public class Solver : GH_Component
             scalarVoxelDensity = new double[voxelCount];
             scalarVoxelScratch = new double[voxelCount];
             foodSourceValues = new double[voxelCount];
+            movementVoxelOwners = new int[voxelCount];
             scalarDensityStore = new VoxelDensityStore(scalarVoxelDensity);
             scalarVoxelDensityAuthoritative = true;
             scalarVoxelDensityDirtyForOutput = false;
@@ -4157,6 +4158,7 @@ public class Solver : GH_Component
         void inheritParticleGroups()
         {
             particleGroups = new List<ParticleGroup>();
+            bool[] occupiedInitialVoxels = new bool[voxelFlat.Length];
 
             for(int pg=0; pg<inputParticleGroups.Count; pg++) 
             {
@@ -4176,6 +4178,9 @@ public class Solver : GH_Component
                     int xID = (int)(initialP.pPlane.Origin.X / voxelSize);
                     int yID = (int)(initialP.pPlane.Origin.Y / voxelSize);
                     int zID = (int)(initialP.pPlane.Origin.Z / voxelSize);
+
+                    initialP.parentVoxel = null;
+                    initialP.die = true;
 
                     if (xID >= 0 && xID < resX && yID >= 0 && yID < resY && zID >= 0 && zID < resZ)
                     {
@@ -4201,8 +4206,6 @@ public class Solver : GH_Component
                             {
                                 if (!initialP.parentParticleGroup.ant)
                                 {
-                                    slimeParticles = true;
-
                                     //flatten vectors
                                     if (tridimensional == false)
                                     {
@@ -4257,10 +4260,14 @@ public class Solver : GH_Component
                                     //copy input particles
                                     Particle P = new Particle(initialP.pPlane);
                                     P.parentParticleGroup = PG;
-                                    P.parentVoxel = initialP.parentVoxel;
-                                    
-                                    PG.particles.Add(P);
-                                    particles.Add(P);
+                                    Voxel initialVoxel = getParentVoxel(P.pPlane.Origin);
+                                    if (tryReserveInitialVoxel(initialVoxel, occupiedInitialVoxels))
+                                    {
+                                        P.parentVoxel = initialVoxel;
+                                        slimeParticles = true;
+                                        PG.particles.Add(P);
+                                        particles.Add(P);
+                                    }
                                 }
                             }
                         }
@@ -4329,16 +4336,20 @@ public class Solver : GH_Component
                                     //copy input ant particles
                                     Particle P = new Particle(initialP.pPlane);
 
-                                    PG.ant = true;
                                     P.parentParticleGroup = PG;
-                                    P.parentVoxel = initialP.parentVoxel;
+                                    Voxel initialVoxel = getParentVoxel(P.pPlane.Origin);
+                                    if (tryReserveInitialVoxel(initialVoxel, occupiedInitialVoxels))
+                                    {
+                                        PG.ant = true;
+                                        P.parentVoxel = initialVoxel;
 
-                                    //ant particles
-                                    P.home = P.pPlane;
-                                    antParticles = true;
+                                        //ant particles
+                                        P.home = P.pPlane;
+                                        antParticles = true;
 
-                                    PG.particles.Add(P);
-                                    particles.Add(P);
+                                        PG.particles.Add(P);
+                                        particles.Add(P);
+                                    }
                                 }
                             }
                         }
@@ -4357,6 +4368,18 @@ public class Solver : GH_Component
             }
 
             Globals.particleGroups = new List<ParticleGroup>(particleGroups);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static bool tryReserveInitialVoxel(Voxel voxel, bool[] occupiedVoxels)
+        {
+            if (!VoxelOccupancy.IsWalkable(voxel)) return false;
+
+            int flatIndex = voxel.flatIndex;
+            if (flatIndex < 0 || flatIndex >= occupiedVoxels.Length || occupiedVoxels[flatIndex]) return false;
+
+            occupiedVoxels[flatIndex] = true;
+            return true;
         }
 
         void updateParticleGroups()
@@ -4395,6 +4418,8 @@ public class Solver : GH_Component
             resetParticleCountsForCurrentFrame();
             ensureParticleCountTouchedCapacity(particles.Count);
             int particleCount = particles.Count;
+            ensureParticleOccupancyRejectionCapacity(particleCount);
+            int occupancyRejectedCount = 0;
             ParticlePreviewCache previewCache = (particles as ParticleList)?.PreviewCache;
             if (previewCache != null && !shouldBuildParticlePreviewCache())
             {
@@ -4417,6 +4442,7 @@ public class Solver : GH_Component
                     Particle P = particles[i];
                     P.age++;
                     particleCountTouchedVoxels[i] = null;
+                    particleOccupancyRejections[i] = null;
 
                     Voxel parentVoxel = P.parentVoxel;
                     if (parentVoxel == null)
@@ -4427,39 +4453,48 @@ public class Solver : GH_Component
 
                     if (parentVoxel != null)
                     {
-                        P.parentVoxel = parentVoxel;
-                        particleCountTouchedVoxels[i] = parentVoxel;
-                        System.Threading.Interlocked.Increment(ref parentVoxel.particleCount);
-
-                        //ant particles
-                        if (P.parentParticleGroup.ant && iteration > 1)
+                        if (System.Threading.Interlocked.CompareExchange(ref parentVoxel.particleCount, 1, 0) == 0)
                         {
-                            //found food
-                            if (parentVoxel.antFood > 0 && P.foundFood == false)
-                            {
-                                P.foundFood = true;
-                                P.age = 0;
+                            P.parentVoxel = parentVoxel;
+                            particleCountTouchedVoxels[i] = parentVoxel;
 
-                                if (P.age == 0)
+                            //ant particles
+                            if (P.parentParticleGroup.ant && iteration > 1)
+                            {
+                                //found food
+                                if (parentVoxel.antFood > 0 && P.foundFood == false)
                                 {
-                                    parentVoxel.antFood -= 1;
-                                    P.age++;
+                                    P.foundFood = true;
+                                    P.age = 0;
+
+                                    if (P.age == 0)
+                                    {
+                                        parentVoxel.antFood -= 1;
+                                        P.age++;
+                                    }
+                                }
+
+                                //returned home
+                                if (P.pPlane.Origin.DistanceTo(P.home.Origin) < retrieveSpeed(P))
+                                {
+                                    P.foundFood = false;
+                                    P.age = 1;
+                                    P.antLaunchBoundaryHit = false;
                                 }
                             }
 
-                            //returned home
-                            if (P.pPlane.Origin.DistanceTo(P.home.Origin) < retrieveSpeed(P))
+                            if (VoxelOccupancy.IsBlockedMaxDensity(parentVoxel.maxDensity))
                             {
-                                P.foundFood = false;
-                                P.age = 1;
-                                P.antLaunchBoundaryHit = false;
+                                P.die = true;
+                                setWorkingDensity(parentVoxel, 0);
                             }
                         }
-
-                        if (VoxelOccupancy.IsBlockedMaxDensity(parentVoxel.maxDensity))
+                        else
                         {
+                            P.parentVoxel = null;
                             P.die = true;
-                            setWorkingDensity(parentVoxel, 0);
+                            particleOccupancyRejections[i] = P;
+                            System.Threading.Interlocked.Increment(ref occupancyRejectedCount);
                         }
                     }
                     else
@@ -4486,7 +4521,25 @@ public class Solver : GH_Component
 
             if (previewCache != null)
             {
-                previewCache.CompleteBuild();
+                if (occupancyRejectedCount == 0) previewCache.CompleteBuild();
+                else previewCache.Invalidate(particleCount - occupancyRejectedCount);
+            }
+
+            if (occupancyRejectedCount > 0)
+            {
+                HashSet<Particle> rejected = new HashSet<Particle>();
+                for (int i = 0; i < particleCount; i++)
+                {
+                    Particle particle = particleOccupancyRejections[i];
+                    particleOccupancyRejections[i] = null;
+                    if (particle != null) rejected.Add(particle);
+                }
+
+                particles.RemoveAll(particle => rejected.Contains(particle));
+                for (int i = 0; i < particleGroups.Count; i++)
+                {
+                    particleGroups[i].particles.RemoveAll(particle => rejected.Contains(particle));
+                }
             }
 
             particleCountTouchedCount = particleCount;
@@ -4572,21 +4625,71 @@ public class Solver : GH_Component
             }
         }
 
+        void ensureParticleOccupancyRejectionCapacity(int count)
+        {
+            if (particleOccupancyRejections.Length < count)
+            {
+                Array.Resize(ref particleOccupancyRejections, count);
+            }
+        }
+
         void applyParticleBoundaryStateAfterWrapChange()
         {
             if (particles == null) return;
 
+            pruneDuplicateParticleCellsKeepingFirst();
+            replacePrunedMovementVoxelMarkersWithOwnerTokens();
+            ensureParticleCountTouchedCapacity(particles.Count);
+            int[] voxelOwners = movementVoxelOwners;
+            uint boundarySeed = unchecked((uint)iteration * 747796405u ^ 0xD1B54A35u);
+
             Parallel.For(0, particles.Count, i =>
             {
                 Particle P = particles[i];
-                Point3d origin = P.pPlane.Origin;
-                Point3d boundaryOrigin = boundaries(P, origin);
+                Plane previousPlane = P.pPlane;
+                Voxel previousVoxel = P.parentVoxel;
+                Point3d boundaryOrigin = boundaries(P, previousPlane.Origin);
+                Voxel boundaryVoxel = getParentVoxel(boundaryOrigin.X, boundaryOrigin.Y, boundaryOrigin.Z);
 
-                P.pPlane.Origin = boundaryOrigin;
-                P.parentVoxel = getParentVoxel(boundaryOrigin.X, boundaryOrigin.Y, boundaryOrigin.Z);
+                if (!VoxelOccupancy.IsWalkable(boundaryVoxel))
+                {
+                    P.pPlane = previousPlane;
+                    P.parentVoxel = previousVoxel;
+                    particleCountTouchedVoxels[i] = previousVoxel;
+                    return;
+                }
+
+                if (previousVoxel == null)
+                {
+                    P.pPlane = previousPlane;
+                    particleCountTouchedVoxels[i] = null;
+                    return;
+                }
+
+                if (boundaryVoxel.flatIndex == previousVoxel.flatIndex)
+                {
+                    P.pPlane.Origin = boundaryOrigin;
+                    P.parentVoxel = boundaryVoxel;
+                    particleCountTouchedVoxels[i] = boundaryVoxel;
+                    return;
+                }
+
+                if (tryTransferVoxelOwnership(voxelOwners, previousVoxel, boundaryVoxel, i + 1))
+                {
+                    P.pPlane.Origin = boundaryOrigin;
+                    P.parentVoxel = boundaryVoxel;
+                    particleCountTouchedVoxels[i] = boundaryVoxel;
+                    return;
+                }
+
+                P.pPlane = previousPlane;
+                P.parentVoxel = previousVoxel;
+                particleCountTouchedVoxels[i] = previousVoxel;
+                randomizeOrientationAfterOccupiedMove(P, i, boundarySeed);
             }
             );
 
+            particleCountTouchedCount = particles.Count;
             particleCountsRequireFullReset = true;
         }
 
@@ -5349,6 +5452,7 @@ public class Solver : GH_Component
 
         void particleMoveAndDeposit(out long shuffleTicks, out long particlesTicks)
         {
+            pruneDuplicateParticleCellsKeepingFirst();
             bool shuffleMovementParticles = antParticles || dynPop;
             long stageStart = Stopwatch.GetTimestamp();
             if (shuffleMovementParticles)
@@ -5360,6 +5464,9 @@ public class Solver : GH_Component
             int currentIteration = iteration;
             uint movementIterationSeed = unchecked((uint)currentIteration * 747796405u);
             int wanderVectorCount = wanderVectors != null ? wanderVectors.Count : 0;
+            replacePrunedMovementVoxelMarkersWithOwnerTokens();
+            int[] voxelOwners = movementVoxelOwners;
+            ensureParticleCountTouchedCapacity(particles.Count);
 
             stageStart = Stopwatch.GetTimestamp();
             Parallel.For(0, particles.Count, i =>
@@ -5367,6 +5474,7 @@ public class Solver : GH_Component
                 Particle P = particles[i];
 
                 Voxel parentVoxel = P.parentVoxel;
+                particleCountTouchedVoxels[i] = parentVoxel;
                 if (parentVoxel != null)
                 {
                     ParticleGroup parentGroup = P.parentParticleGroup;
@@ -5507,7 +5615,8 @@ public class Solver : GH_Component
 
                         if (neighborCount > 0)
                         {
-                            int randomIndex = threadLocalRandom.Value.Next(neighborCount);
+                            uint recoveryKey = movementParticleKey(i, movementIterationSeed ^ 0x6C8E9CF5u);
+                            int randomIndex = (int)(recoveryKey % (uint)neighborCount);
                             nextVoxel = neighborArray[randomIndex];
                             nextLoc = nextVoxel.loc;
                             Vector3d recoveryDirection = nextLoc - P.pPlane.Origin;
@@ -5530,29 +5639,185 @@ public class Solver : GH_Component
 
                     if (nextVoxel != null)
                     {
-                        //assign new location
-                        P.pPlane.Origin = nextLoc;
-                        //P.pPlane.Origin = nextVoxel.loc;
-                        P.parentVoxel = nextVoxel;
+                        int sourceFlatIndex = parentVoxel.flatIndex;
+                        int targetFlatIndex = nextVoxel.flatIndex;
+                        int ownerToken = i + 1;
 
-                        //check if the next parent voxel is occupied by other particles
-                        if (nextVoxel.particleCount == 0)
+                        if (targetFlatIndex == sourceFlatIndex)
                         {
+                            // Moving inside the particle's own voxel does not
+                            // collide, but retains the old no-deposit behavior.
+                            P.pPlane.Origin = nextLoc;
+                            P.parentVoxel = nextVoxel;
+                            particleCountTouchedVoxels[i] = nextVoxel;
+                            P.highDeposit = false;
+                        }
+                        else if (tryTransferVoxelOwnership(voxelOwners, parentVoxel, nextVoxel, ownerToken))
+                        {
+                            P.pPlane.Origin = nextLoc;
+                            P.parentVoxel = nextVoxel;
+                            particleCountTouchedVoxels[i] = nextVoxel;
                             particleDeposit(P, parentGroup.depositValue);
                             P.highDeposit = true;
                         }
-
-
-                        if (nextVoxel.particleCount != 0)
+                        else
                         {
+                            // The source remains claimed until a target claim
+                            // succeeds, so a rejected particle can safely stay.
                             P.highDeposit = false;
+                            randomizeOrientationAfterOccupiedMove(P, i, movementIterationSeed);
                         }
                     }
                 }
             }
             );
 
+            particleCountTouchedCount = particles.Count;
             particlesTicks = Stopwatch.GetTimestamp() - stageStart;
+        }
+
+        void pruneDuplicateParticleCellsKeepingFirst()
+        {
+            ensureMovementVoxelOwnerCapacity();
+            Array.Clear(movementVoxelOwners, 0, movementVoxelOwners.Length);
+            if (particles == null || particles.Count == 0) return;
+
+            HashSet<Particle> duplicates = null;
+
+            for (int i = 0; i < particles.Count; i++)
+            {
+                Particle particle = particles[i];
+                Voxel voxel = particle.parentVoxel;
+                if (voxel == null) continue;
+
+                int flatIndex = voxel.flatIndex;
+                if (flatIndex < 0 || flatIndex >= movementVoxelOwners.Length) continue;
+
+                if (movementVoxelOwners[flatIndex] == 0)
+                {
+                    movementVoxelOwners[flatIndex] = 1;
+                }
+                else
+                {
+                    if (duplicates == null) duplicates = new HashSet<Particle>();
+                    duplicates.Add(particle);
+                }
+            }
+
+            if (duplicates == null) return;
+
+            foreach (Particle duplicate in duplicates)
+            {
+                if (duplicate.parentVoxel != null) duplicate.parentVoxel.particleCount = 1;
+            }
+
+            particles.RemoveAll(particle => duplicates.Contains(particle));
+            for (int i = 0; i < particleGroups.Count; i++)
+            {
+                particleGroups[i].particles.RemoveAll(particle => duplicates.Contains(particle));
+            }
+
+            (particles as ParticleList)?.PreviewCache?.Invalidate(particles.Count);
+        }
+
+        void replacePrunedMovementVoxelMarkersWithOwnerTokens()
+        {
+            ensureMovementVoxelOwnerCapacity();
+
+            // pruneDuplicateParticleCellsKeepingFirst has just cleared the map
+            // and left one marker per occupied voxel. Replacing those markers
+            // avoids a second O(voxelCount) clear every simulation step.
+            for (int i = 0; i < particles.Count; i++)
+            {
+                Voxel voxel = particles[i].parentVoxel;
+                if (voxel == null) continue;
+
+                int flatIndex = voxel.flatIndex;
+                if (flatIndex >= 0 && flatIndex < movementVoxelOwners.Length)
+                {
+                    movementVoxelOwners[flatIndex] = i + 1;
+                }
+            }
+        }
+
+        void ensureMovementVoxelOwnerCapacity()
+        {
+            int requiredLength = voxelFlat != null ? voxelFlat.Length : 0;
+            if (movementVoxelOwners == null || movementVoxelOwners.Length != requiredLength)
+            {
+                movementVoxelOwners = new int[requiredLength];
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static bool tryTransferVoxelOwnership(int[] voxelOwners, Voxel sourceVoxel, Voxel targetVoxel, int ownerToken)
+        {
+            int sourceFlatIndex = sourceVoxel != null ? sourceVoxel.flatIndex : -1;
+            int targetFlatIndex = targetVoxel != null ? targetVoxel.flatIndex : -1;
+            if (voxelOwners == null ||
+                sourceFlatIndex < 0 || sourceFlatIndex >= voxelOwners.Length ||
+                targetFlatIndex < 0 || targetFlatIndex >= voxelOwners.Length)
+            {
+                return false;
+            }
+
+            if (System.Threading.Interlocked.CompareExchange(ref voxelOwners[targetFlatIndex], ownerToken, 0) != 0)
+            {
+                return false;
+            }
+
+            // Publish the count transition while the source is still owned.
+            // A different particle cannot claim the source until its owner
+            // token is released after the count reaches 0.
+            System.Threading.Interlocked.Exchange(ref targetVoxel.particleCount, 1);
+            System.Threading.Interlocked.Exchange(ref sourceVoxel.particleCount, 0);
+
+            if (System.Threading.Interlocked.CompareExchange(ref voxelOwners[sourceFlatIndex], 0, ownerToken) == ownerToken)
+            {
+                return true;
+            }
+
+            // This is only a defensive rollback; a source remains owned until
+            // this particle releases it, so the exchange should always match.
+            System.Threading.Interlocked.Exchange(ref sourceVoxel.particleCount, 1);
+            System.Threading.Interlocked.Exchange(ref targetVoxel.particleCount, 0);
+            System.Threading.Interlocked.CompareExchange(ref voxelOwners[targetFlatIndex], 0, ownerToken);
+            return false;
+        }
+
+        void randomizeOrientationAfterOccupiedMove(Particle particle, int particleIndex, uint iterationSeed)
+        {
+            uint key0 = movementParticleKey(particleIndex, iterationSeed ^ 0xA511E9B3u);
+            uint key1 = movementParticleKey(particleIndex, iterationSeed ^ 0x63D83595u);
+            double angle = hashToUnit(key0) * Math.PI * 2.0;
+            Vector3d direction;
+
+            if (planarXY)
+            {
+                direction = new Vector3d(Math.Cos(angle), Math.Sin(angle), 0);
+            }
+            else if (planarXZ)
+            {
+                direction = new Vector3d(Math.Cos(angle), 0, Math.Sin(angle));
+            }
+            else if (planarYZ)
+            {
+                direction = new Vector3d(0, Math.Cos(angle), Math.Sin(angle));
+            }
+            else
+            {
+                double z = hashToUnit(key1) * 2.0 - 1.0;
+                double radius = Math.Sqrt(Math.Max(0, 1.0 - z * z));
+                direction = new Vector3d(Math.Cos(angle) * radius, Math.Sin(angle) * radius, z);
+            }
+
+            if (direction.Unitize()) alignParticleToUnitMoveVector(particle, direction);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static double hashToUnit(uint value)
+        {
+            return (value & 0x00FFFFFFu) / 16777216.0;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -6270,11 +6535,7 @@ public class Solver : GH_Component
 
             if (removed.Count == 0) return;
 
-            particles.RemoveAll(particle => removed.Contains(particle));
-            for (int i = 0; i < particleGroups.Count; i++)
-            {
-                particleGroups[i].particles.RemoveAll(particle => removed.Contains(particle));
-            }
+            removeParticlesAndReleaseVoxels(removed);
         }
 
         void applyRandomParticleDivision()
@@ -6290,17 +6551,19 @@ public class Solver : GH_Component
                 Particle parent = candidates[i];
                 if (parent.parentVoxel == null || random.NextDouble() >= randomDivisionProbability) continue;
 
-                Plane childPlane = new Plane(parent.pPlane.Origin, parent.pPlane.XAxis, parent.pPlane.YAxis);
+                Voxel childVoxel;
+                if (!tryClaimRandomEmptyNeighbour(parent.parentVoxel, out childVoxel)) continue;
+
+                Plane childPlane = new Plane(childVoxel.loc, parent.pPlane.XAxis, parent.pPlane.YAxis);
                 childPlane.Rotate(random.NextDouble() * Math.PI * 2, childPlane.ZAxis, childPlane.Origin);
 
                 Particle child = new Particle(childPlane);
                 child.parentParticleGroup = parent.parentParticleGroup;
-                child.parentVoxel = parent.parentVoxel;
+                child.parentVoxel = childVoxel;
                 child.home = parent.home;
                 child.foundFood = parent.foundFood;
                 child.age = parent.age;
                 child.antLaunchBoundaryHit = parent.antLaunchBoundaryHit;
-                child.parentVoxel.particleCount++;
 
                 children.Add(child);
                 parent.parentParticleGroup.particles.Add(child);
@@ -6309,7 +6572,116 @@ public class Solver : GH_Component
             if (children.Count > 0)
             {
                 particles.AddRange(children);
+                (particles as ParticleList)?.PreviewCache?.Invalidate(particles.Count);
             }
+        }
+
+        void removeParticlesAndReleaseVoxels(HashSet<Particle> removed)
+        {
+            if (removed == null || removed.Count == 0) return;
+
+            foreach (Particle particle in removed)
+            {
+                Voxel parentVoxel = particle.parentVoxel;
+                if (parentVoxel != null)
+                {
+                    System.Threading.Interlocked.Exchange(ref parentVoxel.particleCount, 0);
+                }
+            }
+
+            particles.RemoveAll(particle => removed.Contains(particle));
+            for (int i = 0; i < particleGroups.Count; i++)
+            {
+                particleGroups[i].particles.RemoveAll(particle => removed.Contains(particle));
+            }
+
+            (particles as ParticleList)?.PreviewCache?.Invalidate(particles.Count);
+        }
+
+        bool tryClaimRandomEmptyNeighbour(Voxel parentVoxel, out Voxel claimedVoxel)
+        {
+            claimedVoxel = null;
+            if (parentVoxel == null) return false;
+
+            Voxel[] candidates = threadLocalNeighbors.Value;
+            int candidateCount = 0;
+
+            for (int offsetX = -1; offsetX <= 1; offsetX++)
+            {
+                if (planarYZ && offsetX != 0) continue;
+
+                for (int offsetY = -1; offsetY <= 1; offsetY++)
+                {
+                    if (planarXZ && offsetY != 0) continue;
+
+                    for (int offsetZ = -1; offsetZ <= 1; offsetZ++)
+                    {
+                        if (planarXY && offsetZ != 0) continue;
+                        if (offsetX == 0 && offsetY == 0 && offsetZ == 0) continue;
+
+                        int idX = parentVoxel.idX + offsetX;
+                        int idY = parentVoxel.idY + offsetY;
+                        int idZ = parentVoxel.idZ + offsetZ;
+
+                        if (wrapBoundaries)
+                        {
+                            idX = wrapIndex(idX, resX);
+                            idY = wrapIndex(idY, resY);
+                            idZ = wrapIndex(idZ, resZ);
+                        }
+                        else if (idX < 0 || idX >= resX || idY < 0 || idY >= resY || idZ < 0 || idZ >= resZ)
+                        {
+                            continue;
+                        }
+
+                        Voxel candidate = voxels[idX, idY, idZ];
+                        if (!VoxelOccupancy.IsWalkable(candidate) ||
+                            (!wrapBoundaries && candidate.boundary) ||
+                            candidate.flatIndex == parentVoxel.flatIndex)
+                        {
+                            continue;
+                        }
+
+                        bool alreadyAdded = false;
+                        for (int i = 0; i < candidateCount; i++)
+                        {
+                            if (candidates[i].flatIndex == candidate.flatIndex)
+                            {
+                                alreadyAdded = true;
+                                break;
+                            }
+                        }
+
+                        if (!alreadyAdded && candidateCount < candidates.Length)
+                        {
+                            candidates[candidateCount++] = candidate;
+                        }
+                    }
+                }
+            }
+
+            if (candidateCount == 0) return false;
+
+            int startIndex = random.Next(candidateCount);
+            for (int offset = 0; offset < candidateCount; offset++)
+            {
+                Voxel candidate = candidates[(startIndex + offset) % candidateCount];
+                if (System.Threading.Interlocked.CompareExchange(ref candidate.particleCount, 1, 0) == 0)
+                {
+                    claimedVoxel = candidate;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static int wrapIndex(int value, int length)
+        {
+            if (length <= 1) return 0;
+            int wrapped = value % length;
+            return wrapped < 0 ? wrapped + length : wrapped;
         }
 
         //-------------------------------------------------------------------
@@ -6351,7 +6723,14 @@ public class Solver : GH_Component
                     }
                     );
 
-                    particles.RemoveAll(p => p.die == true);
+                    HashSet<Particle> removed = new HashSet<Particle>();
+                    for (int i = 0; i < particles.Count; i++)
+                    {
+                        Particle particle = particles[i];
+                        if (particle.die) removed.Add(particle);
+                    }
+
+                    removeParticlesAndReleaseVoxels(removed);
                 }
             }
         }
@@ -6647,8 +7026,9 @@ public class Solver : GH_Component
 
                     //add particles
                     List<Particle> newParticles = shuffledParticles;
+                    int parentCandidateCount = shuffledParticles.Count;
 
-                    for (int i = 0; i < shuffledParticles.Count; i += 2)
+                    for (int i = 0; i < parentCandidateCount; i += 2)
                     {
                         Particle P = shuffledParticles[i];
 
@@ -6656,7 +7036,10 @@ public class Solver : GH_Component
                         {
                             P.divide = false;
 
-                            Plane newPlane = new Plane(P.pPlane.Origin, P.pPlane.XAxis, P.pPlane.YAxis);
+                            Voxel childVoxel;
+                            if (!tryClaimRandomEmptyNeighbour(P.parentVoxel, out childVoxel)) continue;
+
+                            Plane newPlane = new Plane(childVoxel.loc, P.pPlane.XAxis, P.pPlane.YAxis);
 
                             Particle newP = new Particle(newPlane);
 
@@ -6674,22 +7057,16 @@ public class Solver : GH_Component
 
                             newP.parentParticleGroup = P.parentParticleGroup;
 
-                            //assign parent voxel
-                            newP.parentVoxel = particleCheckParentVoxel(P);
-                            if (newP.parentVoxel == null || VoxelOccupancy.IsBlockedMaxDensity(newP.parentVoxel.maxDensity)) newP.die = true;
+                            // The neighbour was atomically claimed before the
+                            // child was created, preventing birth contention.
+                            newP.parentVoxel = childVoxel;
 
-                            if (!newP.die)
-                            {
-                                //increase particle count to parent voxel
-                                newP.parentVoxel.particleCount++;
+                            //deposit chemoattractors
+                            //particleDeposit(newP, retrieveDepositValue(newP) * 2);
 
-                                //deposit chemoattractors
-                                //particleDeposit(newP, retrieveDepositValue(newP) * 2);
-
-                                //add new particle to lists
-                                newParticles.Add(newP);
-                                P.parentParticleGroup.particles.Add(newP);
-                            }
+                            //add new particle to lists
+                            newParticles.Add(newP);
+                            P.parentParticleGroup.particles.Add(newP);
                         }
                     }
 

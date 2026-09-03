@@ -242,6 +242,10 @@ internal static class PythonValidationStage
         {
             throw new InvalidOperationException("Targeted runtime Dendro method is not Continuous (0).");
         }
+        if (!RequiredBoolean(runtime, "dendroOutputIdentityChangedWhileUpdateHeldTrue"))
+        {
+            throw new InvalidOperationException("Held-true Dendro Update did not replace its cached output identity.");
+        }
 
         string[] expectedStages =
         {
@@ -251,7 +255,8 @@ internal static class PythonValidationStage
             "solver-step-3",
             "solver-step-4",
             "solver-step-5",
-            "dendro-update-rising-edge"
+            "dendro-update-enabled",
+            "dendro-update-held-true"
         };
         string[] actualStages = runtime.GetProperty("stages")
             .EnumerateArray()

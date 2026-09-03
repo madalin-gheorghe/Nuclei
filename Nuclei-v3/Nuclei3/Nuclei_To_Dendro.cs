@@ -13,9 +13,6 @@ namespace Nuclei3
     public sealed class NucleiToDendro : GH_Component
     {
         object cachedVolume;
-        bool previousConvert;
-        bool allowDownstreamExpiration;
-        bool publishScheduled;
 
         public NucleiToDendro()
           : base(
@@ -34,7 +31,7 @@ namespace Nuclei3
             pManager.AddNumberParameter("Iso Value", "iso", "Values at or above this level become part of the Dendro volume", GH_ParamAccess.item, 0.01);
             pManager.AddGenericParameter("Dendro Settings", "settings", "Optional Dendro Volume Settings", GH_ParamAccess.item);
             pManager[3].Optional = true;
-            pManager.AddBooleanParameter("Convert", "convert", "Pulse true to rebuild the cached Dendro volume", GH_ParamAccess.item, false);
+            pManager.AddBooleanParameter("Convert", "convert", "When true, rebuilds the cached Dendro volume whenever the component receives updated data", GH_ParamAccess.item, false);
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -57,10 +54,7 @@ namespace Nuclei3
             DA.GetData(3, ref settingsInput);
             DA.GetData(4, ref convert);
 
-            bool requested = convert && !previousConvert;
-            previousConvert = convert;
-
-            if (requested)
+            if (ShouldConvert(convert))
             {
                 object voxelInput = null;
                 DA.GetData(0, ref voxelInput);
@@ -79,21 +73,22 @@ namespace Nuclei3
             {
                 DA.SetData(0, cachedVolume);
             }
-            else
+            else if (!convert)
             {
-                Message = "Pulse Convert";
+                Message = "Convert Off";
             }
+        }
+
+        bool ShouldConvert(bool convert)
+        {
+            return convert;
         }
 
         protected override void ExpireDownStreamObjects()
         {
-            // Once a volume has been cached, live solver updates must not keep
-            // waking downstream Dendro components. A successful conversion
-            // explicitly publishes the replacement volume instead.
-            if (cachedVolume == null || allowDownstreamExpiration)
-            {
-                base.ExpireDownStreamObjects();
-            }
+            // Preserve the existing protected override while using Grasshopper's
+            // normal upstream-to-downstream expiration behavior.
+            base.ExpireDownStreamObjects();
         }
 
         void TryConvert(Voxel[,,] field, int valueIndex, double isoValue, object settingsInput)
@@ -154,7 +149,6 @@ namespace Nuclei3
 
             try
             {
-                bool replacingCachedVolume = cachedVolume != null;
                 object nextVolume = Activator.CreateInstance(volumeType, new object[] { points, radii, settings });
                 PropertyInfo validProperty = volumeType.GetProperty("IsValid", BindingFlags.Instance | BindingFlags.Public);
                 bool valid = validProperty != null && Convert.ToBoolean(validProperty.GetValue(nextVolume, null));
@@ -179,10 +173,6 @@ namespace Nuclei3
                 cachedVolume = volumeGoo;
                 Message = points.Count.ToString("N0") + " voxels";
                 ExpirePreview(true);
-                if (replacingCachedVolume)
-                {
-                    ScheduleCachedVolumePublication();
-                }
             }
             catch (TargetInvocationException ex)
             {
@@ -193,35 +183,6 @@ namespace Nuclei3
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Dendro conversion failed: " + ex.Message);
             }
-        }
-
-        void ScheduleCachedVolumePublication()
-        {
-            GH_Document document = OnPingDocument();
-            if (document == null || publishScheduled)
-            {
-                return;
-            }
-
-            publishScheduled = true;
-            document.ScheduleSolution(1, _ =>
-            {
-                publishScheduled = false;
-                if (OnPingDocument() == null)
-                {
-                    return;
-                }
-
-                allowDownstreamExpiration = true;
-                try
-                {
-                    ExpireSolution(false);
-                }
-                finally
-                {
-                    allowDownstreamExpiration = false;
-                }
-            });
         }
 
         static double SourceVoxelSize(Voxel[,,] field)

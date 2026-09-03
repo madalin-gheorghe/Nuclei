@@ -418,6 +418,7 @@ namespace Nuclei4
             List<int> capturedGroupIndices = new List<int>();
             List<int> capturedParentIndices = new List<int>();
             Dictionary<int, Voxel> capturedParentVoxels = new Dictionary<int, Voxel>();
+            HashSet<int> capturedParentIndicesSet = new HashSet<int>();
             bool capturedAntParticles = false;
             bool capturedSlimeParticles = false;
 
@@ -442,6 +443,14 @@ namespace Nuclei4
                         Plane preparedPlane;
                         int parentFlatIndex;
                         if (!TryPrepareResetParticle(particle, group, out preparedPlane, out parentFlatIndex))
+                        {
+                            continue;
+                        }
+
+                        // Match the GPU owner's lowest-slot winner before any reset
+                        // output is published. Input order is stable across groups and
+                        // particles, so the first particle for a voxel is retained.
+                        if (!capturedParentIndicesSet.Add(parentFlatIndex))
                         {
                             continue;
                         }
@@ -820,8 +829,8 @@ namespace Nuclei4
 
             // V3 decides inclusion from the original input position. Boundary
             // wrapping/reflection happens only after this parent is retained.
-            parentFlatIndex = FlatIndexFromPosition(particle.pPlane.Origin);
-            if (parentFlatIndex < 0)
+            int originalParentFlatIndex = FlatIndexFromPosition(particle.pPlane.Origin);
+            if (originalParentFlatIndex < 0)
             {
                 return false;
             }
@@ -830,7 +839,12 @@ namespace Nuclei4
                 ? particle.parentParticleGroup.rotationAngle
                 : group.rotationAngle;
             preparedPlane = PrepareResetPlane(particle.pPlane, group, resetRotationAngle);
-            return true;
+
+            // The prepared position is the position uploaded to the GPU, so resolve
+            // its effective parent after boundary handling. This keeps the CPU reset
+            // list, packed parent indices, and GPU occupancy claims coherent.
+            parentFlatIndex = FlatIndexFromPosition(preparedPlane.Origin);
+            return parentFlatIndex >= 0;
         }
 
         Plane PrepareResetPlane(Plane inputPlane, ParticleGroup group)

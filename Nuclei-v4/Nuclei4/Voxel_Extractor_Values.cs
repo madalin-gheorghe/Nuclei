@@ -55,6 +55,7 @@ namespace Nuclei4
         /// <param name="DA">The DA object is used to retrieve from inputs and store in outputs.</param>
         protected override void SolveInstance(IGH_DataAccess DA)
         {
+            VoxelFoodValueList.EnsureSeparateFoodChoices(this, 1);
             //add value list
             if (Params.Input[1].SourceCount == 0)
             {
@@ -104,7 +105,7 @@ namespace Nuclei4
 
             VoxelGridData voxelData = field.Data;
             ensureOutputCapacity(voxelData.ActiveCount);
-            if (valueIndex >= 0 && valueIndex <= 9)
+            if ((valueIndex >= 0 && valueIndex <= 9) || valueIndex == VoxelPreviewField.AntFood)
             {
                 for (int ordinal = 0; ordinal < voxelData.ActiveCount; ordinal++)
                 {

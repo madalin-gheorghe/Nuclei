@@ -12,10 +12,18 @@ namespace Nuclei4
         static readonly Dictionary<Guid, SolverGPU> solvers = new Dictionary<Guid, SolverGPU>();
         static readonly Dictionary<Guid, Preview_Voxel> voxelDensityPreviews = new Dictionary<Guid, Preview_Voxel>();
         static readonly NucleiGpuDisplayConduit conduit = new NucleiGpuDisplayConduit();
+        static Grasshopper.GUI.Canvas.GH_Canvas subscribedCanvas;
+
+        static NucleiGpuDisplayManager()
+        {
+            EnsureCanvasDocumentChangedSubscription();
+        }
 
         public static void RegisterSolver(SolverGPU solver)
         {
             if (solver == null) return;
+
+            EnsureCanvasDocumentChangedSubscription();
 
             lock (syncRoot)
             {
@@ -54,6 +62,8 @@ namespace Nuclei4
         {
             if (preview == null) return;
 
+            EnsureCanvasDocumentChangedSubscription();
+
             lock (syncRoot)
             {
                 voxelDensityPreviews[preview.InstanceGuid] = preview;
@@ -83,11 +93,133 @@ namespace Nuclei4
 
         internal static Preview_Voxel[] SnapshotVoxelDensityPreviews()
         {
+            EnsureCanvasDocumentChangedSubscription();
+
+            Preview_Voxel[] registeredPreviews;
             lock (syncRoot)
             {
-                Preview_Voxel[] snapshot = new Preview_Voxel[voxelDensityPreviews.Count];
-                voxelDensityPreviews.Values.CopyTo(snapshot, 0);
-                return snapshot;
+                registeredPreviews = new Preview_Voxel[voxelDensityPreviews.Count];
+                voxelDensityPreviews.Values.CopyTo(registeredPreviews, 0);
+            }
+
+            Grasshopper.Kernel.GH_Document activeDocument = ActiveCanvasDocument();
+            if (activeDocument == null || !activeDocument.Enabled)
+            {
+                return Array.Empty<Preview_Voxel>();
+            }
+
+            List<Preview_Voxel> activePreviews = new List<Preview_Voxel>(registeredPreviews.Length);
+            for (int i = 0; i < registeredPreviews.Length; i++)
+            {
+                Preview_Voxel preview = registeredPreviews[i];
+                if (IsPreviewInDocument(preview, activeDocument, true))
+                {
+                    activePreviews.Add(preview);
+                }
+            }
+
+            return activePreviews.ToArray();
+        }
+
+        static void EnsureCanvasDocumentChangedSubscription()
+        {
+            Grasshopper.GUI.Canvas.GH_Canvas canvas;
+            try
+            {
+                canvas = Grasshopper.Instances.ActiveCanvas;
+            }
+            catch
+            {
+                return;
+            }
+
+            if (canvas == null) return;
+
+            lock (syncRoot)
+            {
+                if (ReferenceEquals(subscribedCanvas, canvas)) return;
+
+                if (subscribedCanvas != null)
+                {
+                    subscribedCanvas.DocumentChanged -= CanvasDocumentChanged;
+                }
+
+                canvas.DocumentChanged += CanvasDocumentChanged;
+                subscribedCanvas = canvas;
+            }
+        }
+
+        static void CanvasDocumentChanged(
+            Grasshopper.GUI.Canvas.GH_Canvas sender,
+            Grasshopper.GUI.Canvas.GH_CanvasDocumentChangedEventArgs e)
+        {
+            Grasshopper.Kernel.GH_Document oldDocument = e == null ? null : e.OldDocument;
+            if (oldDocument != null)
+            {
+                Preview_Voxel[] registeredPreviews;
+                lock (syncRoot)
+                {
+                    registeredPreviews = new Preview_Voxel[voxelDensityPreviews.Count];
+                    voxelDensityPreviews.Values.CopyTo(registeredPreviews, 0);
+                }
+
+                for (int i = 0; i < registeredPreviews.Length; i++)
+                {
+                    Preview_Voxel preview = registeredPreviews[i];
+                    if (IsPreviewInDocument(preview, oldDocument, false))
+                    {
+                        GpuDensityFieldD3DRenderer.Unregister(preview.InstanceGuid);
+                    }
+                }
+            }
+
+            RequestRhinoViewportRedraw();
+        }
+
+        static Grasshopper.Kernel.GH_Document ActiveCanvasDocument()
+        {
+            try
+            {
+                Grasshopper.GUI.Canvas.GH_Canvas canvas = Grasshopper.Instances.ActiveCanvas;
+                return canvas == null ? null : canvas.Document;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        static bool IsPreviewInDocument(
+            Preview_Voxel preview,
+            Grasshopper.Kernel.GH_Document document,
+            bool requireEnabled)
+        {
+            if (preview == null || document == null) return false;
+
+            try
+            {
+                Grasshopper.Kernel.GH_Document previewDocument = preview.OnPingDocument();
+                return ReferenceEquals(previewDocument, document)
+                    && (!requireEnabled || previewDocument.Enabled);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        static void RequestRhinoViewportRedraw()
+        {
+            try
+            {
+                Rhino.RhinoDoc document = Rhino.RhinoDoc.ActiveDoc;
+                if (document != null)
+                {
+                    document.Views.Redraw();
+                }
+            }
+            catch
+            {
             }
         }
 

@@ -28,8 +28,9 @@ The run verifies:
 
 It also performs one controlled runtime check in `15_3D Intro_v3.gh`: the saved
 timer remains locked, the validator resets the GPU solver, executes five
-non-reset solver solutions to populate density above the saved Iso 0.5, pulses Dendro Update,
-and proves the output flows as native
+non-reset solver solutions to populate density above the saved Iso 0.5, enables Dendro Update,
+then executes another solver solution while Update remains true. It proves the cached output
+identity changes on that held-true solution and the output continues to flow as native
 `DendroGH.VolumeGOO` -> Smooth Volume -> Rhino Mesh without path errors. The
 toggles are restored in memory and the document is disposed without saving.
 

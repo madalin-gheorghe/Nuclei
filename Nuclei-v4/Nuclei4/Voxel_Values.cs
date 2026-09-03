@@ -73,6 +73,7 @@ namespace Nuclei4
         {
             valueOrderMode = VoxelValueOrderMode.Auto;
             Message = string.Empty;
+            VoxelFoodValueList.EnsureSeparateFoodChoices(this, 1);
 
             //add value list
             if (Params.Input[1].SourceCount == 0)
@@ -124,16 +125,10 @@ namespace Nuclei4
             DA.GetDataTree(2, out valueMultiplierTree);
 
             VoxelGridData inputData = inputVoxelField.Data;
-            if (tryReuseCachedOutput(inputData, valueMultiplierTree, 0, false))
-            {
-                DA.SetData(0, voxels);
-                return;
-            }
-
             valueMultipliers = buildValueList(inputData, valueMultiplierTree);
             validateValueCount(inputData, valueMultipliers);
             long valueHash = hashValues(valueMultipliers);
-            if (tryReuseCachedOutput(inputData, valueMultiplierTree, valueHash, true))
+            if (tryReuseCachedOutput(inputData, valueHash))
             {
                 DA.SetData(0, voxels);
                 return;
@@ -141,7 +136,7 @@ namespace Nuclei4
 
             VoxelGridData outputData = inputData.WithScalarValues(valueIndex, valueMultipliers);
             voxels = inputVoxelField.WithData(outputData);
-            cacheOutput(inputData, valueMultiplierTree, valueHash, outputData, voxels);
+            cacheOutput(inputData, valueHash, outputData, voxels);
 
             DA.SetData(0, voxels);
         }
@@ -158,7 +153,6 @@ namespace Nuclei4
         //outputs
         VoxelField voxels;
         VoxelGridData cachedInputData;
-        GH_Structure<GH_Number> cachedInputValueTree;
         int cachedValueIndex = int.MinValue;
         VoxelValueOrderMode cachedValueOrderMode = VoxelValueOrderMode.Auto;
         long cachedValueHash;
@@ -282,7 +276,7 @@ namespace Nuclei4
                 "Multiplier count (" + values.Count + ") does not match active voxels (" + voxelData.ActiveCount + ") or full voxel grid (" + voxelData.Count + "). Values were not remapped.");
         }
 
-        bool tryReuseCachedOutput(VoxelGridData inputData, GH_Structure<GH_Number> valueTree, long valueHash, bool hasValueHash)
+        bool tryReuseCachedOutput(VoxelGridData inputData, long valueHash)
         {
             if (cachedOutputVoxels == null || cachedOutputData == null)
             {
@@ -296,8 +290,11 @@ namespace Nuclei4
                 return false;
             }
 
-            bool sameValues = ReferenceEquals(cachedInputValueTree, valueTree)
-                || (hasValueHash && cachedValueHashValid && cachedValueHash == valueHash);
+            // Grasshopper may mutate values inside an existing GH_Structure.
+            // Object identity therefore does not prove that its contents are
+            // unchanged; only reuse output after comparing the value hash.
+            bool sameValues = cachedValueHashValid
+                && cachedValueHash == valueHash;
 
             if (!sameValues)
             {
@@ -308,10 +305,9 @@ namespace Nuclei4
             return true;
         }
 
-        void cacheOutput(VoxelGridData inputData, GH_Structure<GH_Number> valueTree, long valueHash, VoxelGridData outputData, VoxelField outputVoxels)
+        void cacheOutput(VoxelGridData inputData, long valueHash, VoxelGridData outputData, VoxelField outputVoxels)
         {
             cachedInputData = inputData;
-            cachedInputValueTree = valueTree;
             cachedValueIndex = valueIndex;
             cachedValueOrderMode = valueOrderMode;
             cachedValueHash = valueHash;

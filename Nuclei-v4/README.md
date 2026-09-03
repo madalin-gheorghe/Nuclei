@@ -8,6 +8,11 @@ The current checkpoint includes adaptive voxel-field storage for large grids,
 hard solver resets, live wrap updates, scattered particle initialization, ant and
 slime behavior, on-demand paused-state extraction, GPU volume-to-mesh conversion,
 and configurable scalar and mesh smoothing.
+With Update held true, the Dendro bridge rebuilds for every incoming solver
+update; when false, it retains the last successful output.
+The GPU particle field enforces one live particle per voxel through atomic owner
+claims. Occupied-target moves stay in place without depositing, then select a new
+heading; initialization and division also respect the same exclusive occupancy.
 
 ## Build
 

@@ -311,8 +311,8 @@ Use the same Rhino build, GPU, driver, document, visibility state, and settings.
 Discard warm-up/first-draw samples and compare at least three steady-state runs.
 No scenario may regress by more than 5% in median frame time; investigate any
 increase in p95 time, allocations, GPU-to-CPU copies, or resource creation per
-step. Reference medians are recorded in `docs/performance/benchmark-summary.csv`
-and `docs/performance/solver-frame-comparison.md`, including 34.070 ms for the
+step. Reference medians are recorded in the canonical
+[`docs/performance/README.md`](performance/README.md), including 34.070 ms for the
 comparable 900k-particle, 3000x3000x1 GPU workload and 10.957 ms for 300k
 particles on a 350x350x350 field.
 
@@ -499,3 +499,184 @@ used as preservation gates, are
 for net7 and
 `C995A80D32073AF56BB041EF1FC4F9EC197D3AEA2DEF1F7CDE43E67749E1A943`
 for net48.
+
+## 2026-09-01 tiled 3D diffusion and safe decay fusion
+
+**User-authorized:** the scalar 3D diffusion path now uses 16x16 compute tiles for
+ranges 2 through 16. Each group stages an axis-aligned tile and halo in shared
+memory, masks invalid neighbours while loading, and retains the raw center value
+for V3-compatible blocked-target `Keep` behavior. Planar fields, range 1, ranges
+above 16, invalid axes, and dispatch-limit overflows retain the direct kernel.
+
+Scalar decay is fused into the final logical diffusion axis. The former cbuffer
+padding slot carries the fusion flag, so `FullSolverParameters` remains exactly
+416 bytes and 104 fields. No-diffusion scalar updates retain the standalone decay
+pass, and both ant pheromone fields retain their original direct diffusion and
+decay passes.
+
+The deterministic GPU probe compares direct/separate, direct/fused,
+tiled/separate, and tiled/fused paths after every iteration. Results are
+bit-identical for fixed and wrapped boundaries, the range-16 maximum halo,
+range-1/range-17 direct fallbacks, full and sparse active domains, and authored
+minimum/maximum density limits.
+
+The final split-deployment preservation snapshot is:
+
+| Contract | Final value |
+| --- | --- |
+| Component/parameter GUIDs | 40; `BA5DD56D2DB434E2FEEC0AD489F1DF481FAFC4FA2E3843C3C21E49DED4DCB126` |
+| Exported types / GH components | 51 / 38 |
+| Public API | 741 records; `24B466B99A06FFEB9F24730E411EA53549639C70C8C4BEDAA17100905F8DE037` |
+| GH schema | 214 records; `2C82F4DDC84E50A154F6F48DAB9C1E1C82E3A4700F99146FC2DFF128E8518DDB` |
+| Full-solver / mesh ABI | 416 bytes / 104 fields; 48 bytes / 12 fields |
+| Main resources | 33; name hash `3DD5871F8952055EC8C9E3AFB170EBA23CAA67B37561D371756DB29B74875506`; content hash `4EDE695EF78891A66A452D328B76A883BAE7E659A68B513DEF7FBEF04589306E` |
+| Compute shaders | 32; `6EBAA739CFB2DD8F65C0E04C2BBAE9D0FE8543E5AA20EC5B749F81A26EECD68F` |
+| D3D11 GPU resources | 27; `160BC2CC7020E7A9B0E5EFA7FFA22F263A6FA6422681B6E423335C5DB848A111` |
+| D3D11 display resources | 5; unchanged `7962C5E6C8BCAE08EEB74E649239601E884515546EA8E8C926A809224896C695` |
+
+The three new compute resources are `DiffuseAxisXTiled.cso`,
+`DiffuseAxisYTiled.cso`, and `DiffuseAxisZTiled.cso`. The preservation script
+locks every CSO independently in both the GHA and support assemblies.
+
+On `01_Slime 3D_v4_high.gh` at 300x300x300, range 5, and 980,134 active
+particles, three counterbalanced fresh-process pairs produced 30 hardware GPU
+timestamp samples per build:
+
+| Scope | Baseline median / p95 | Optimized median / p95 | Change |
+| --- | ---: | ---: | ---: |
+| Solver core, no preview | 152.053 / 153.146 ms | 90.050 / 92.263 ms | -40.78%; 1.689x |
+| Solver plus shared-particle preview | 154.273 / 155.405 ms | 92.179 / 96.119 ms | -40.25%; 1.674x |
+
+The preview result includes GPU generation of the shared particle-preview buffer,
+but not Rhino viewport drawing. The no-preview paired speedups were 1.685x,
+1.692x, and 1.691x.
+
+Artifact SHA-256 values are `2719470AB4D505B6F28F6D2B65D5C490252A6A49071A49E9EDB53F20DDF50C0C`
+for the net7 GHA, `A3AC7DC1FB5A12F0233B08896AFB5BD6F24D8112001C338B1BD3D38BFC967FCC`
+for its D3D11 compute backend, `39FC9802EB166611D5A425E43FBE1CEC1ADC9FB32C04BF83531E291912AC17F3`
+for the net48 GHA, and `E32542C509F9DE65EDE7336AF98B281D3EDABCF237C2585D0C69294B61E3CDE5`
+for its D3D11 compute backend.
+
+## 2026-09-01 continuous Nuclei-to-Dendro updates
+
+**User-authorized:** Update is a level gate rather than a rising-edge pulse. While
+it remains true, the converter rebuilds for every incoming solver solution and
+lets Grasshopper propagate the replacement downstream in that same solution.
+When false, the last successful output remains cached. The former self-scheduled
+publication pass and pulse state are removed; the protected downstream-expiration
+override remains as a direct base call to preserve the public/protected API.
+
+The corrected Update tooltip is the only V4 catalogue change. The schema remains
+214 records and now has canonical SHA-256
+`5D674B2C4231A47404527DA721A6E7B8C14BF256F5FA199E846ACF38CDF09841`.
+The public API remains 741 records with SHA-256
+`24B466B99A06FFEB9F24730E411EA53549639C70C8C4BEDAA17100905F8DE037`.
+All component and parameter GUIDs, defaults, resource contracts, shader binaries,
+and GPU ABI records are unchanged. Artifact SHA-256 values are
+`4BCA0ECE3EC9FB78B197E9E13A312344B2E18BF5193E33A23D9384998BBB7440`
+for net7 and
+`F1B3071070B41542C232FFF6C4893690049861C55663552C31700EFDF2321141`
+for net48.
+
+## 2026-09-01 persistent particle counts and deposit-resolution evaluation
+
+**User-authorized:** the solver now retains binary voxel occupancy through the
+existing particle-owner claim/release operations instead of clearing all 27 million
+voxel counts and rebuilding them from particle slots on every static step. Static
+movement and boundary transitions therefore skip both full-count passes. Dynamic
+population still performs the capacity-wide recount needed to reconstruct
+deterministic free-slot order, but clears only the active/free/group aggregate
+counters. Constructor and reset retain a complete ownership/count initialization,
+and the exact legacy full rebuild remains available as an internal validation path.
+
+A particle-indexed `ApplyDeposits` alternative was implemented and verified
+bit-exact, then rejected as the production default based on hardware timestamps.
+For this 980,134-particle workload its scattered writes were slower than the
+contiguous 27-million-voxel scan. The particle path remains compiled behind the
+explicit experimental validation switch; production uses the coalesced voxel
+resolver.
+
+The strengthened sparse-pass probe compares the full-recount reference, final
+production path, and particle-deposit experimental path after every iteration. It
+passed bit-for-bit for 3D slime fixed-to-wrapped transitions, ant food/base fields,
+and deterministic dynamic population. The comparison includes density, every
+particle state buffer, ant fields, active/free/group telemetry, complete voxel
+count and owner buffers, all fixed-point deposit channels, and owner/occupancy and
+drained-deposit invariants. Existing exclusive-occupancy, population-ordering,
+density-species, sparse-binding, ant-state/reset, and tiled-diffusion gates also
+pass.
+
+Two counterbalanced same-binary factorial rounds on `01_Slime 3D_v4_high.gh`
+(300x300x300, range 5, 1,000,000 requested / 980,134 retained) used D3D11
+timestamp/disjoint queries, 120 warm-up steps, and 20 ten-step batch samples per
+variant:
+
+| Deposit resolver | Count handling | Median / p95 GPU ms | Decision |
+| --- | --- | ---: | --- |
+| Coalesced voxel | Full clear/recount | 90.009 / 91.300 | Reference |
+| Particle-scattered | Full clear/recount | 91.182 / 94.278 | Reject |
+| Coalesced voxel | Persistent counts | **84.484 / 89.156** | **Production** |
+| Particle-scattered | Persistent counts | 85.786 / 89.581 | Correct but slower |
+
+The round-balanced production improvement is 4.72% (`1.0495x`). With persistent
+counts held constant, particle deposits were 1.20% and 1.39% slower. Separate pass
+timestamps measured the removed full clear at 1.819 ms and recount at 3.763 ms;
+coalesced deposits measured 4.993 ms versus 6.217 ms for particle-scattered
+deposits. Pass-marker runs are separate from the official totals.
+
+Against the archived pre-change deployment, the final solver-core pooled median is
+83.632 ms versus 90.109 ms (-7.19%, descriptive across 20 samples/build). Shared
+particle preview was measured separately: its pass costs 0.845 ms median, while
+four reversed process pairs produced a 5.23% paired-median improvement but one
+frequency-drift outlier. The full raw record, including that outlier, is retained
+locally and is not tracked; viewport drawing, density preview, and meshing are
+not included.
+
+The final preservation snapshot is:
+
+| Contract | Final value |
+| --- | --- |
+| Component/parameter GUIDs | 40; `BA5DD56D2DB434E2FEEC0AD489F1DF481FAFC4FA2E3843C3C21E49DED4DCB126` |
+| Exported types / GH components | 51 / 38 |
+| Public API | 741 records; `24B466B99A06FFEB9F24730E411EA53549639C70C8C4BEDAA17100905F8DE037` |
+| GH schema | 214 records; `5D674B2C4231A47404527DA721A6E7B8C14BF256F5FA199E846ACF38CDF09841` |
+| Full-solver / mesh ABI | 416 bytes / 104 fields; 48 bytes / 12 fields |
+| Main resources | 33; name hash `3DD5871F8952055EC8C9E3AFB170EBA23CAA67B37561D371756DB29B74875506`; content hash `D8C079CEB0B1EEF2A7BB2B9859A0DF9569BC9BB620F159A4BC8DD2635CE61A54` |
+| Compute shaders | 32; `DC10E229A6D90B2667B3674B93B9343D224099F7C172DE7FF4C46D6787C87E03` |
+| D3D11 GPU resources | 27; `A8E7FC0EA823EB56789E8BA5CA70B015B5B3854E14D76F7849ABDE1D23CCED8B` |
+| D3D11 display resources | 5; unchanged `7962C5E6C8BCAE08EEB74E649239601E884515546EA8E8C926A809224896C695` |
+
+`ApplyDeposits.cso` is locked at
+`DF968D3D3DCF58CD94C056B7082F183D73720EED94A1C9B0842F8270BC6845B1`;
+`ClearParticleCounts.cso` is locked at
+`422D876612A899CB9ABE3C4E57FEDB2CA03D6CE7A79066E7D2FD27BAE3A8942A`.
+
+## 2026-09-02 exclusive particle occupancy
+
+**User-authorized:** initialization, reset, movement, and division now preserve
+one live particle per voxel. CPU initialization uses a deterministic
+pseudo-random permutation without replacement. The GPU atomically assigns each
+voxel to the lowest live slot, culls reset conflicts, reserves movement and birth
+targets, and releases ownership immediately on death. A blocked move remains in
+place without depositing and receives a new deterministic heading.
+
+The regression probe checks unique seeding, reset conflicts, blocked movement,
+division contention, ownership/count agreement, and V3/V4 population behavior.
+The two added resources are locked independently:
+
+- `ClaimParticleOwners.cso`:
+  `85654593D1FB5219009BEA77F5AA9D3638B26A9671BA795CE1A78E7B93E03C9F`
+- `CullParticleOwnerConflicts.cso`:
+  `427EEB5EA0B7AE47A503AC86CF724D6CE68601CEE4FE1873E2E275C7A9CF98B0`
+
+Net7 artifact hashes are
+`07E4A9F2C16CB62824BA5350C669130616A346955E6EBD25B42AB21106E490E9`
+for the GHA and
+`9D0428C4DB6A6DEC45A74A53169A37C00D32A7D08458CC16FF15D2BFEFB57447`
+for the compute backend. Net48 hashes are
+`EC2DED8B22EA569AA9BADA9FBD32A5BFDD67E6DA7739AE9EDA20B966F9EF5A29`
+and
+`5743B331426F28B69464E6D31BCFF31D199A4BC55ED30FD9DE14822767C7799D`.
+
+Recovery snapshots and runnable comparison deployments remain local and are
+intentionally not tracked.

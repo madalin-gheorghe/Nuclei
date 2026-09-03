@@ -96,9 +96,10 @@ V4 mirrors the V3 changes made after commit `535cde6` in the following areas.
   refreshed every step. Division retains its pre-death counts, a due normal
   division republishes post-division counts before random changes, range zero
   consumes stored state, and negative paired ranges publish zero.
-- V3's one-frame death occupancy and same-pass ghost-inclusive neighbour
-  publication are preserved. Global and per-group GPU counters are independently
-  validated against the live slots and their stored group tags.
+- Death releases occupancy in the same population pass. Neighbour publication
+  still follows V3's stage ordering, including the applicable same-pass particle
+  set. Global and per-group GPU counters are independently validated against the
+  live slots and their stored group tags.
 - Death and birth claims use an atomic reserve-then-undo operation, eliminating
   the contention-dependent dropped claims caused by the former bounded retry
   loop.
@@ -116,8 +117,9 @@ V4 mirrors the V3 changes made after commit `535cde6` in the following areas.
 - Legacy three- and four-input Voxel Settings Slime archives migrate in place,
   preserving parameter GUIDs, wires, and persistent data. The slime-group
   constructor separately normalizes the historical Exploration/Wander metadata.
-- The Dendro converter uses a rising-edge Update pulse, caches successful output,
-  prefers the native Dendro path, and republishes only successful replacements.
+- While Update is true, the Dendro converter rebuilds for every incoming solver
+  update. It caches successful output, prefers the native Dendro path, and keeps
+  the last successful result while Update is false.
 - Reset, live voxel replacement, and disposal detach voxel, particle, preview,
   and mesh callbacks before an engine is replaced. Previously emitted objects can
   no longer call a disposed or unrelated engine.
@@ -154,10 +156,12 @@ likely to regress:
 | `--blocked-parent-parity` | movement, recovery, fallback, counting, and density for active blocked parents |
 | `--sparse-active-bindings` | sparse boundary transition and scalar/ant diffusion bindings |
 | `--voxel-preview-sync` | on-demand live dynamic-field preview synchronization |
+| `--dendro-cache` | V4 held-true updates plus cache replacement and disposal |
+| `--dendro-update-v3` | V3 held-true conversion without pulse or self-scheduling state |
 | `--connected-steering-oracle` | actual-GPU strongest/exploratory endpoints and a locked known-hash sensor choice |
 | `--connected-parity-regression` | fixed-seed V3/V4 connected-steering population and coarse density-distribution bounds |
 
-The default probe also covers retained group metadata, Dendro pulse/cache
+The default probe also covers retained group metadata, Dendro continuous-update/cache
 behavior, solver-boundary priority, output callback detachment, reset/disposal,
 large sparse fields, public compatibility contracts, and embedded shader copies.
 The preservation verifier passes the same exact contracts for both net7 and
@@ -190,10 +194,10 @@ same hardware and synchronization conditions.
 | Component/parameter GUIDs | 40; `BA5DD56D2DB434E2FEEC0AD489F1DF481FAFC4FA2E3843C3C21E49DED4DCB126` |
 | Exported types / GH components | 51 / 38 |
 | Public API | 741 records; `24B466B99A06FFEB9F24730E411EA53549639C70C8C4BEDAA17100905F8DE037` |
-| GH schema | 214 records; `2C82F4DDC84E50A154F6F48DAB9C1E1C82E3A4700F99146FC2DFF128E8518DDB` |
-| Main resources | 28; name hash `5A304C5A9EE3117A8D33B999B27677FC0B5B98CA527657FC0A02E44DBE8993A7`; content hash `A76B6974498D3430B6140BE010AF04D570364F3725866B4DD455734F7253D602` |
-| Embedded shaders | 27; `C005808A049C53BB021251D0D1C0FD16538FA945153E121AE6D7FECF4740BF83` |
-| D3D11 GPU resources | 22; `76A587C8C31492F0E597DD47A6A0B55A537F6368F7E460B17D1AFF0D1A7CBA9F` |
+| GH schema | 214 records; `5D674B2C4231A47404527DA721A6E7B8C14BF256F5FA199E846ACF38CDF09841` |
+| Main resources | 33; name hash `3DD5871F8952055EC8C9E3AFB170EBA23CAA67B37561D371756DB29B74875506`; content hash `4EDE695EF78891A66A452D328B76A883BAE7E659A68B513DEF7FBEF04589306E` |
+| Embedded shaders | 32; `6EBAA739CFB2DD8F65C0E04C2BBAE9D0FE8543E5AA20EC5B749F81A26EECD68F` |
+| D3D11 GPU resources | 27; `160BC2CC7020E7A9B0E5EFA7FFA22F263A6FA6422681B6E423335C5DB848A111` |
 | D3D11 display resources | 5; `7962C5E6C8BCAE08EEB74E649239601E884515546EA8E8C926A809224896C695` |
 | Full-solver / mesh ABI | 416 bytes / 104 fields; 48 bytes / 12 fields |
 
@@ -201,9 +205,9 @@ The current artifact SHA-256 values, for traceability rather than compatibility
 gating, are:
 
 - net7 `Nuclei4.gha`:
-  `1F8A5F1E56E0A5DB47C30757388BE703D1EAD5E47CF57A2C5C8B34D7B34BCACC`
+  `4BCA0ECE3EC9FB78B197E9E13A312344B2E18BF5193E33A23D9384998BBB7440`
 - net48 `Nuclei4.gha`:
-  `C995A80D32073AF56BB041EF1FC4F9EC197D3AEA2DEF1F7CDE43E67749E1A943`
+  `F1B3071070B41542C232FFF6C4893690049861C55663552C31700EFDF2321141`
 
 Per-CSO hashes and their authorized behavioral reasons are locked in
 [`V4_PRESERVATION_CONTRACT.md`](V4_PRESERVATION_CONTRACT.md).
