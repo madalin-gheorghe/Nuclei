@@ -1,0 +1,80 @@
+name: Bug report
+description: Report a reproducible problem with Nuclei
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Nuclei. Please include enough information to reproduce the problem.
+
+  - type: dropdown
+    id: nuclei-version
+    attributes:
+      label: Nuclei version
+      options:
+        - V3
+        - V4
+        - Other / development build
+    validations:
+      required: true
+
+  - type: input
+    id: rhino-version
+    attributes:
+      label: Rhino version
+      placeholder: "Example: Rhino 8 SR... or Rhino 9 WIP..."
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Example: Windows 11 24H2"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Briefly describe the problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the smallest set of steps that reproduces the issue.
+      placeholder: |
+        1. Open...
+        2. Connect...
+        3. Set...
+        4. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect Nuclei to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What did Nuclei do instead? Include any error messages.
+    validations:
+      required: true
+
+  - type: textarea
+    id: files
+    attributes:
+      label: Files, screenshots, or additional context
+      description: Drag in screenshots, a minimal Grasshopper definition, or anything else that helps reproduce the issue. Please remove private or sensitive information before uploading.
