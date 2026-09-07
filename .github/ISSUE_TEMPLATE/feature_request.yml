@@ -1,0 +1,50 @@
+name: Feature or improvement suggestion
+description: Suggest a new feature, workflow improvement, or refinement for Nuclei
+title: "[Suggestion]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suggestions are welcome. Please describe the problem or opportunity first, then the improvement you would like to see.
+
+  - type: dropdown
+    id: nuclei-version
+    attributes:
+      label: Relevant Nuclei version
+      options:
+        - V3
+        - V4
+        - Both
+        - Not version-specific
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement
+      description: What would you like Nuclei to do differently or additionally?
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Why would this be useful?
+      description: Describe the design problem, workflow, or use case this would improve.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-behavior
+    attributes:
+      label: Proposed behavior or workflow
+      description: If you have a specific idea for how the feature should work, describe it here.
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples, references, or sketches
+      description: Add screenshots, diagrams, links, Grasshopper examples, or references if they help explain the idea.
