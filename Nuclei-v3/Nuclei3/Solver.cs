@@ -269,6 +269,11 @@ public class Solver : GH_Component
                 this.Message = reachedMaxIterations
                     ? "Complete: " + iteration + "/" + maxIterations
                     : "Iteration: " + iteration;
+
+                if (reachedMaxIterations)
+                {
+                    SolverIterationLimit.PauseDedicatedTimers(this);
+                }
             }
         }
 

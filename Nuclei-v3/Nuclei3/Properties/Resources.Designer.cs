@@ -193,6 +193,16 @@ namespace Nuclei3.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
+        internal static System.Drawing.Bitmap NucleiToDendroVolume {
+            get {
+                object obj = ResourceManager.GetObject("NucleiToDendroVolume", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
         internal static System.Drawing.Bitmap Particle {
             get {
                 object obj = ResourceManager.GetObject("Particle", resourceCulture);
@@ -240,6 +250,16 @@ namespace Nuclei3.Properties {
             }
         }
         
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap ParticleNeighborCount {
+            get {
+                object obj = ResourceManager.GetObject("ParticleNeighborCount", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>

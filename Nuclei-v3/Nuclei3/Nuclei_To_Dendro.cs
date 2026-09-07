@@ -44,15 +44,22 @@ namespace Nuclei3
             VoxelFoodValueList.EnsureSeparateFoodChoices(this, 1);
             EnsureTypeValueList();
 
+            bool convert = false;
+            DA.GetData(4, ref convert);
+            if (!ShouldConvert(convert))
+            {
+                if (cachedVolume != null) DA.SetData(0, cachedVolume);
+                Message = "Convert Off";
+                return;
+            }
+
             int valueIndex = VoxelPreviewField.SlimeChemoattractants;
             double isoValue = 0.01;
             object settingsInput = null;
-            bool convert = false;
 
             DA.GetData(1, ref valueIndex);
             DA.GetData(2, ref isoValue);
             DA.GetData(3, ref settingsInput);
-            DA.GetData(4, ref convert);
 
             if (ShouldConvert(convert))
             {
@@ -86,9 +93,18 @@ namespace Nuclei3
 
         protected override void ExpireDownStreamObjects()
         {
-            // Preserve the existing protected override while using Grasshopper's
-            // normal upstream-to-downstream expiration behavior.
-            base.ExpireDownStreamObjects();
+            if (CachedConversionUpdates.ShouldExpireDownstream(this, 4))
+                base.ExpireDownStreamObjects();
+        }
+
+        public override void ExpireSolution(bool recompute)
+        {
+            // Keep the existing output tree as well as the cached volume while
+            // off. Expiring Convert itself bypasses this guard and wakes conversion.
+            if (Phase == GH_SolutionPhase.Computed
+                && !CachedConversionUpdates.ShouldExpireDownstream(this, 4))
+                return;
+            base.ExpireSolution(recompute);
         }
 
         void TryConvert(Voxel[,,] field, int valueIndex, double isoValue, object settingsInput)
@@ -349,6 +365,11 @@ namespace Nuclei3
             DisposeObject(cachedVolume);
             cachedVolume = null;
             base.RemovedFromDocument(document);
+        }
+
+        protected override System.Drawing.Bitmap Icon
+        {
+            get { return Nuclei3.Properties.Resources.NucleiToDendroVolume; }
         }
 
         public override Guid ComponentGuid
