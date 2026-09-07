@@ -38,7 +38,8 @@ packages/
 *.tmp
 *.cache
 **/_rhino9_validation.progress.json
-Nuclei Definitions/v4_updated/_rhino9_validation.json
+Nuclei Definitions/v4/_conversion_manifest.json
+Nuclei Definitions/v4/_rhino9_validation.json
 
 # OS files
 Thumbs.db
@@ -60,6 +61,6 @@ tmp/
 /docs/performance/*
 !/docs/performance/README.md
 
-# Local definition references and one-off nested SDK selection
-Nuclei Definitions/v4/
+# Local converted-definition staging, metadata, and one-off nested SDK selection
+Nuclei Definitions/v4_updated/
 Nuclei-v4/Nuclei4/global.json

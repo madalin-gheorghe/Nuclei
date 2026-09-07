@@ -12,6 +12,7 @@
 *.csv text eol=lf
 
 # Binary assets / build artifacts
+*.gh binary
 *.png binary
 *.jpg binary
 *.jpeg binary

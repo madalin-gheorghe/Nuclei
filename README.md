@@ -18,7 +18,7 @@ Stable public releases are published on
 - `Nuclei-v3/Nuclei-v3.sln` - V3.3 CPU implementation for Rhino 8.
 - `Nuclei-v4/Nuclei-v4.sln` - V4.1 GPU implementation for Rhino 9 on Windows.
 - `Nuclei Definitions/v3` - canonical V3.3 Grasshopper examples.
-- `Nuclei Definitions/v4_updated` - structurally verified V4 conversions of those examples.
+- `Nuclei Definitions/v4` - current V4.1 Grasshopper examples.
 - `docs` - milestone, architecture, behavior-parity, and performance notes.
 - `tools` - shared repository verification and maintenance utilities.
 
@@ -37,7 +37,10 @@ Slime groups support persisted Classic and Probabilistic steering, including the
 connected weighted-sensor behavior used as the V4 parity reference. Trail Settings
 now exposes only Trail Size while safely reading the retired frequency schema, and
 Voxel Settings Slime migrates legacy input layouts to Diffuse Rate, Decay Rate,
-Falloff, and Diffuse Range.
+Falloff, and Diffuse Range. Holding the Dendro Convert input false preserves the
+last result without repeatedly recomputing downstream components. Reaching Max
+Iterations pauses a dedicated automatic Timer/Trigger while leaving the final
+solver result available.
 
 ### V4.1 GPU
 
@@ -54,7 +57,12 @@ and blocked-parent behavior, species-aware density processing, ant home and laun
 state, V3-compatible ageing and dynamic-population ordering, nonblocking population
 readback, and a dedicated ant movement dispatch. While Update is true, Dendro
 output rebuilds whenever new solver data arrives; the last successful volume stays
-cached while Update is false.
+cached while Update is false, without repeatedly recomputing the bridge or its
+downstream components. Reaching Max Iterations likewise pauses a dedicated
+automatic Timer/Trigger while keeping the completed result available.
+
+Scalar planar diffusion ranges 2-16 use a dedicated tiled compute path while
+retaining the established shaders for other ranges, ant pheromones, and 3D fields.
 
 Particle creation now uses a deterministic pseudo-random permutation without
 replacement, and both solvers enforce one live particle per voxel. Preview state
@@ -86,11 +94,12 @@ object IDs, wire endpoints, and persistent data outside documented schema
 adapters. It also migrates the retired Trail Frequency input without editing the
 source definitions.
 
-The converted 14-definition set in `Nuclei Definitions/v4_updated` includes its
-conversion manifest. The Rhino 9 validation workflow loads and reopens every
-definition against an exact V4 binary hash, rejects missing objects or V3 residue,
-and exercises the saved GPU-to-Dendro-to-mesh path. Machine-specific validation
-reports remain local rather than becoming repository inputs.
+The finalized 15-definition set in `Nuclei Definitions/v4` uses current names and
+includes two Growth examples. The Rhino 9 validation workflow loads and reopens
+definitions against an exact V4 binary hash, rejects missing objects or V3 residue,
+and exercises the saved GPU-to-Dendro-to-mesh path. Conversion manifests, progress
+files, and machine-specific validation reports remain local because they describe
+one exact conversion run and binary rather than the shipped examples themselves.
 The isolated net8 and net48 hosts and validator scripts live under
 `tools/Nuclei.DefinitionValidationHost` and `tools/Nuclei.DefinitionValidator`.
 
@@ -107,6 +116,7 @@ On the recorded Ryzen 5 7535HS / Radeon 660M system, the matched workloads
 measured 6.204x GPU speedup for standard 2D, 5.245x for high 2D, and 3.212x for
 high 3D. Later controlled high-3D GPU work reduced tiled-diffusion time by 40.78%
 and a separate test showed a 4.72% round-balanced gain from persistent counts.
+The later tiled planar path reduced high-2D solver time by 24.59%.
 Raw profiler captures and repeat logs remain local rather than adding large or redundant
 artifacts to the repository.
 
