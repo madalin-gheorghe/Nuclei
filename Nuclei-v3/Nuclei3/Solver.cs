@@ -4171,7 +4171,6 @@ public class Solver : GH_Component
                 ParticleGroup inputPG = inputParticleGroups[pg];
 
                 ParticleGroup PG = new ParticleGroup(inputPG.speed, inputPG.sensorDistance, inputPG.sensorAngle, inputPG.rotationAngle, inputPG.depositValue, inputPG.wanderFrequency, inputPG.baseWanderFrequency, inputPG.color);
-                PG.connectedSteering = inputPG.connectedSteering;
                 particleGroups.Add(PG);
 
                 for (int i = 0; i < inputPG.particles.Count; i++)
@@ -4363,8 +4362,7 @@ public class Solver : GH_Component
 
                 if (!PG.ant)
                 {
-                    if (PG.connectedSteering) PG.clampConnectedExploration();
-                    else PG.updateWanderFrequency();
+                    PG.updateWanderFrequency();
                 }
                 if (PG.ant)
                 {
@@ -4402,12 +4400,10 @@ public class Solver : GH_Component
                 PG.wanderFrequency = inputPG.wanderFrequency;
                 PG.baseWanderFrequency = inputPG.baseWanderFrequency;
                 PG.color = inputPG.color;
-                PG.connectedSteering = inputPG.connectedSteering;
 
                 if (!PG.ant)
                 {
-                    if (PG.connectedSteering) PG.clampConnectedExploration();
-                    else PG.updateWanderFrequency();
+                    PG.updateWanderFrequency();
                 }
                 if (PG.ant)
                 {
@@ -4922,7 +4918,7 @@ public class Solver : GH_Component
                     }
                 }
 
-                int bestIndex = chooseSensorIndex(value0, value1, value2, value3, value4, tridimensional, parentGroup, p);
+                int bestIndex = chooseBestSensorIndex(value0, value1, value2, value3, value4, tridimensional);
                 applySensorMoveForce(P, parentVoxel, parentGroup, bestIndex, p);
             }
             );
@@ -4996,7 +4992,7 @@ public class Solver : GH_Component
                     value4 = useScalarSensors ? sampleSlimeSensorValueScalar(sensorPos4) : sampleSlimeSensorValue(sensorPos4);
                 }
 
-                int bestIndex = chooseSensorIndex(value0, value1, value2, value3, value4, tridimensional, parentGroup, p);
+                int bestIndex = chooseBestSensorIndex(value0, value1, value2, value3, value4, tridimensional);
                 applySensorMoveForce(P, parentVoxel, parentGroup, bestIndex, p);
             }
             );
@@ -5110,117 +5106,6 @@ public class Solver : GH_Component
             }
 
             return currentValue;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int chooseSensorIndex(double value0, double value1, double value2, double value3, double value4, bool include3d, ParticleGroup parentGroup, int particleIndex)
-        {
-            if (parentGroup.ant || !parentGroup.connectedSteering)
-            {
-                return chooseBestSensorIndex(value0, value1, value2, value3, value4, include3d);
-            }
-
-            return chooseConnectedSensorIndex(
-                value0,
-                value1,
-                value2,
-                value3,
-                value4,
-                include3d,
-                parentGroup.wanderFrequency,
-                connectedSteeringSample(particleIndex)
-            );
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int chooseConnectedSensorIndex(double value0, double value1, double value2, double value3, double value4, bool include3d, double exploration, double unitSample)
-        {
-            if (exploration <= 0)
-            {
-                return chooseBestSensorIndex(value0, value1, value2, value3, value4, include3d);
-            }
-
-            double positive0 = connectedSensorValue(value0);
-            double positive1 = connectedSensorValue(value1);
-            double positive2 = connectedSensorValue(value2);
-            double positive3 = include3d ? connectedSensorValue(value3) : 0;
-            double positive4 = include3d ? connectedSensorValue(value4) : 0;
-
-            double maxPositive = Math.Max(positive0, Math.Max(positive1, positive2));
-            if (include3d)
-            {
-                maxPositive = Math.Max(maxPositive, Math.Max(positive3, positive4));
-            }
-
-            if (maxPositive <= 0)
-            {
-                return chooseBestSensorIndex(value0, value1, value2, value3, value4, include3d);
-            }
-
-            double selectivityPower = 7 * (1 - exploration);
-            double weight0 = connectedSensorWeight(positive0, maxPositive, selectivityPower);
-            double weight1 = connectedSensorWeight(positive1, maxPositive, selectivityPower);
-            double weight2 = connectedSensorWeight(positive2, maxPositive, selectivityPower);
-            double weight3 = include3d ? connectedSensorWeight(positive3, maxPositive, selectivityPower) : 0;
-            double weight4 = include3d ? connectedSensorWeight(positive4, maxPositive, selectivityPower) : 0;
-            double totalWeight = weight0 + weight1 + weight2 + weight3 + weight4;
-
-            if (totalWeight <= 0 || double.IsNaN(totalWeight))
-            {
-                return chooseBestSensorIndex(value0, value1, value2, value3, value4, include3d);
-            }
-
-            double target = unitSample * totalWeight;
-            double cumulativeWeight = weight0;
-            if (target < cumulativeWeight) return 0;
-
-            cumulativeWeight += weight1;
-            if (target < cumulativeWeight) return 1;
-
-            cumulativeWeight += weight2;
-            if (target < cumulativeWeight) return 2;
-
-            if (include3d)
-            {
-                cumulativeWeight += weight3;
-                if (target < cumulativeWeight) return 3;
-                return 4;
-            }
-
-            return 2;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        double connectedSensorWeight(double value, double maxValue, double selectivityPower)
-        {
-            if (value <= 0) return 0;
-            if (value >= maxValue) return 1;
-
-            double normalized = value / maxValue;
-            return Math.Pow(normalized, selectivityPower);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        double connectedSensorValue(double value)
-        {
-            if (double.IsNaN(value) || value <= 0) return 0;
-            if (double.IsPositiveInfinity(value)) return double.MaxValue;
-            return value;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        double connectedSteeringSample(int particleIndex)
-        {
-            unchecked
-            {
-                uint sampleKey = (uint)particleIndex ^ ((uint)iteration * 2654435769u) ^ 2738958700u;
-                sampleKey ^= sampleKey >> 16;
-                sampleKey *= 2146121005u;
-                sampleKey ^= sampleKey >> 15;
-                sampleKey *= 2221713035u;
-                sampleKey ^= sampleKey >> 16;
-                return sampleKey * (1.0 / 4294967296.0);
-            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -5491,7 +5376,7 @@ public class Solver : GH_Component
                     moveVector += xVector * 0.2;
 
                     //slime wander movement
-                    if (!parentGroup.ant && !parentGroup.connectedSteering)
+                    if (!parentGroup.ant)
                     {
                         int wanderFrequency = (int) parentGroup.wanderFrequency;
 
