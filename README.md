@@ -12,6 +12,9 @@ generative spatial workflows.
 
 Stable public releases are published on
 [Food4Rhino](https://www.food4rhino.com/en/app/nuclei).
+The [V3 Yak packaging workflow](tools/Build-V3YakPackage.md) builds the committed
+CPU source for Rhino 8: a single-file modern Windows/Mac plugin and the legacy
+Windows runtime variant, with source and package hashes recorded for each build.
 
 ## Source Layout
 
