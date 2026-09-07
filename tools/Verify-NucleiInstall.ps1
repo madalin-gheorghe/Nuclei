@@ -20,7 +20,7 @@ $expected = @{
         ConstructVoxelsId = "6526b596-0bf5-405d-9dcb-2d9db924652b"
     }
     "Nuclei3.gha" = @{
-        Version = "3.3.0.0"
+        Version = "3.3.1.0"
         LibraryId = "fe53d2b8-e56d-da70-cde9-0b078f8bc65d"
         ConstructVoxelsId = "feb0993f-6d5f-bfcf-76ae-1377559f335a"
     }

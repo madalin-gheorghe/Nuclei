@@ -10,8 +10,9 @@ namespace Nuclei3.Properties
         {
             public override Grasshopper.Kernel.GH_LoadingInstruction PriorityLoad()
             {
-                if (Rhino.RhinoApp.ExeVersion >= 9)
+                if (Rhino.RhinoApp.ExeVersion != 8)
                 {
+                    Rhino.RhinoApp.WriteLine("Nuclei3 requires Rhino 8. Use Nuclei2 for Rhino 6/7 or Nuclei4 for Rhino 9.");
                     return Grasshopper.Kernel.GH_LoadingInstruction.Abort;
                 }
 

@@ -3,7 +3,7 @@
 Run after committing the V3 source and packaging icon:
 
 ```powershell
-pwsh -NoProfile -File tools/Build-V3YakPackage.ps1 -Version 3.3.0
+pwsh -NoProfile -File tools/Build-V3YakPackage.ps1 -Version 3.3.1
 ```
 
 Requires Git, the SDK selected by `global.json`, package restore access, and Rhino 8's Yak CLI. An alternative CLI path can be supplied with `-YakPath`.
