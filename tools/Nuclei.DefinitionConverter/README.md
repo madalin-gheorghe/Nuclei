@@ -41,8 +41,8 @@ Schema adapters:
   layout at the original component pivot. This prevents Grasshopper from
   reporting a missing output chunk (and opening an interactive archive-warning
   dialog).
-- Slime Particle Group renames legacy input 8 Wander metadata to Exploration
-  while retaining its parameter ID, source, value, and probabilistic mode.
+- Slime Particle Group normalizes input 8 to Classic Wander while retaining its
+  parameter ID, source, and value, and strips retired probabilistic-steering state.
 - Current Voxel Settings Slime archives are accepted only in the order
   `[Diffuse Rate, Decay Rate, Falloff, Diffuse Range]`. A legacy unwired Gradual
   value is inverted to `Falloff = 1 - Gradual`. A wired legacy Gradual input is

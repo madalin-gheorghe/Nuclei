@@ -33,12 +33,14 @@ silently changing component identity.
 V3.x is the CPU behavioral reference. It includes internal particle generation,
 scalar-array solver paths, wrap/no-wrap behavior, balanced diffusion, ant and slime
 systems, CPU previews, and the Nuclei-to-Dendro bridge. It contains no GPU solver.
-Slime groups support persisted Classic and Probabilistic steering, including the
-connected weighted-sensor behavior used as the V4 parity reference. Trail Settings
-now exposes only Trail Size while safely reading the retired frequency schema, and
-Voxel Settings Slime migrates legacy input layouts to Diffuse Rate, Decay Rate,
-Falloff, and Diffuse Range. Holding the Dendro Convert input false preserves the
-last result without repeatedly recomputing downstream components. Reaching Max
+Slime groups use Classic strongest-sensor steering with an optional Wander
+frequency; the optional probabilistic steering mode has been removed from both
+versions. Existing definitions retain their inputs and connections. Trail Settings
+now exposes only Trail Size while safely reading the
+retired frequency schema, and Voxel Settings Slime migrates legacy input layouts
+to Diffuse Rate, Decay Rate, Falloff, and Diffuse Range. Holding the Dendro
+Convert input false preserves the last result without repeatedly recomputing
+downstream components. Reaching Max
 Iterations pauses a dedicated automatic Timer/Trigger while leaving the final
 solver result available.
 
@@ -50,9 +52,11 @@ dynamic populations, ant food and pheromone behavior, reliable hard resets, live
 wrap changes, on-demand paused-state extraction and preview refresh, and GPU
 volume-to-mesh conversion with scalar and mesh smoothing. Its trail preview keeps
 the latest ordered GPU segment current while hidden, so enabling the preview on a
-paused solver does not connect stale particle positions.
+paused solver does not connect stale particle positions. Custom-size viewport
+captures now use the capture projection so GPU trails stay aligned with native
+geometry in square and wide exports.
 
-The final V3 parity pass adds matching connected steering, non-wrapped boundary
+The final V3 parity pass adds matching classic steering, non-wrapped boundary
 and blocked-parent behavior, species-aware density processing, ant home and launch
 state, V3-compatible ageing and dynamic-population ordering, nonblocking population
 readback, and a dedicated ant movement dispatch. While Update is true, Dendro
@@ -95,7 +99,8 @@ adapters. It also migrates the retired Trail Frequency input without editing the
 source definitions.
 
 The finalized 15-definition set in `Nuclei Definitions/v4` uses current names and
-includes two Growth examples. The Rhino 9 validation workflow loads and reopens
+includes two Growth examples and preview images for all 15 examples. The Rhino 9
+validation workflow loads and reopens
 definitions against an exact V4 binary hash, rejects missing objects or V3 residue,
 and exercises the saved GPU-to-Dendro-to-mesh path. Conversion manifests, progress
 files, and machine-specific validation reports remain local because they describe

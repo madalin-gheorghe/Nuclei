@@ -97,7 +97,7 @@ namespace Nuclei4
                 }
 
                 int paletteCount = UpdatePaletteConstants(frame);
-                UpdateConstants(e.Viewport, frame, paletteCount);
+                UpdateConstants(e.Display, e.Viewport, frame, paletteCount);
 
                 D3DStateSnapshot snapshot = null;
                 try
@@ -253,10 +253,14 @@ namespace Nuclei4
             return paletteCount;
         }
 
-        void UpdateConstants(RhinoViewport viewport, ParticleTrailPreviewDisplayFrame frame, int paletteCount)
+        void UpdateConstants(DisplayPipeline display, RhinoViewport viewport, ParticleTrailPreviewDisplayFrame frame, int paletteCount)
         {
             GpuParticleTrailPreviewFrame gpuFrame = frame.GpuFrame;
-            Transform worldToScreen = viewport.GetTransform(Rhino.DocObjects.CoordinateSystem.World, Rhino.DocObjects.CoordinateSystem.Screen);
+            // Use the current drawing pass's projection, including capture framing.
+            // World-to-screen coordinates normalized by viewport.Size do not account
+            // for a capture framebuffer (or tile) that differs from the live viewport.
+            // Rhino returns OpenGL column-major data; pack rows for HLSL below.
+            float[] worldToClip = display.GetOpenGLWorldToClip(true);
             float dimX = Math.Max(gpuFrame.ResX * gpuFrame.VoxelSize, gpuFrame.VoxelSize);
             float dimY = Math.Max(gpuFrame.ResY * gpuFrame.VoxelSize, gpuFrame.VoxelSize);
             float dimZ = Math.Max(gpuFrame.ResZ * gpuFrame.VoxelSize, gpuFrame.VoxelSize);
@@ -271,14 +275,14 @@ namespace Nuclei4
 
             float[] constants =
             {
-                (float)worldToScreen.M00, (float)worldToScreen.M01, (float)worldToScreen.M02, (float)worldToScreen.M03,
-                (float)worldToScreen.M10, (float)worldToScreen.M11, (float)worldToScreen.M12, (float)worldToScreen.M13,
-                (float)worldToScreen.M20, (float)worldToScreen.M21, (float)worldToScreen.M22, (float)worldToScreen.M23,
-                (float)worldToScreen.M30, (float)worldToScreen.M31, (float)worldToScreen.M32, (float)worldToScreen.M33,
+                worldToClip[0], worldToClip[4], worldToClip[8], worldToClip[12],
+                worldToClip[1], worldToClip[5], worldToClip[9], worldToClip[13],
+                worldToClip[2], worldToClip[6], worldToClip[10], worldToClip[14],
+                worldToClip[3], worldToClip[7], worldToClip[11], worldToClip[15],
                 frame.FreshColor.R / 255.0f, frame.FreshColor.G / 255.0f, frame.FreshColor.B / 255.0f, Alpha01(frame.FreshColor),
                 frame.OldColor.R / 255.0f, frame.OldColor.G / 255.0f, frame.OldColor.B / 255.0f, Alpha01(frame.OldColor),
                 gpuFrame.TextureWidth, gpuFrame.TrailSize, gpuFrame.ValidTrailCount, gpuFrame.HeadIndex,
-                Math.Max(1.0f, viewport.Size.Width), Math.Max(1.0f, viewport.Size.Height), (float)frame.Alpha, (float)frame.FadePower,
+                0.0f, 0.0f, (float)frame.Alpha, (float)frame.FadePower,
                 dimX, dimY, dimZ, 0.0f,
                 (float)viewDirection.X, (float)viewDirection.Y, (float)viewDirection.Z, (float)minViewDepth,
                 (float)invViewDepthRange, (float)CorrectDepthFocus(frame.DepthFocus, gpuFrame), paletteCount, 0.0f
@@ -609,7 +613,7 @@ namespace Nuclei4
         const string ShaderSource = @"
 cbuffer TrailConstants : register(b0)
 {
-    row_major float4x4 WorldToScreen;
+    row_major float4x4 WorldToClip;
     float4 FreshColor;
     float4 OldColor;
     float4 Layout;
@@ -702,21 +706,20 @@ VSOutput VSMain(uint vertexId : SV_VertexID)
         color.a *= lerp(1.0, 0.0005, depthWeight);
     }
 
-    float4 screenPosition0 = mul(WorldToScreen, float4(trailPosition0.xyz, 1.0));
-    float4 screenPosition1 = mul(WorldToScreen, float4(trailPosition1.xyz, 1.0));
-    if (screenPosition0.w <= 0.000001 || screenPosition1.w <= 0.000001)
+    float4 clipPosition0 = mul(WorldToClip, float4(trailPosition0.xyz, 1.0));
+    float4 clipPosition1 = mul(WorldToClip, float4(trailPosition1.xyz, 1.0));
+    if (clipPosition0.w <= 0.000001 || clipPosition1.w <= 0.000001)
     {
         output.Position = float4(10.0, 10.0, 0.5, 1.0);
         output.Color = float4(color.rgb, 0.0);
         return output;
     }
 
-    float4 screenPosition = endpoint == 0 ? screenPosition0 : screenPosition1;
-    float2 viewportSize = max(Settings.xy, float2(1.0, 1.0));
-    float2 clientPosition = screenPosition.xy / screenPosition.w;
-    float2 clipPosition = float2((clientPosition.x / viewportSize.x) * 2.0 - 1.0, 1.0 - (clientPosition.y / viewportSize.y) * 2.0);
+    float4 clipPosition = endpoint == 0 ? clipPosition0 : clipPosition1;
 
-    output.Position = float4(clipPosition, 0.5, 1.0);
+    // Retain the existing overlay depth and screen-linear color interpolation.
+    // OpenGL and D3D share XY clip conventions; the unused Z is fixed for D3D.
+    output.Position = float4(clipPosition.xy / clipPosition.w, 0.5, 1.0);
     output.Color = color;
     return output;
 }

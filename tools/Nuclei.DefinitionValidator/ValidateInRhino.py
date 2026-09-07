@@ -193,7 +193,7 @@ def wire_connections(objects):
     return sorted(connections)
 
 
-def validate_v4_component_schema(obj, expected_converted):
+def validate_v4_component_schema(obj):
     type_name = dotnet_type_name(obj)
     inputs = []
     outputs = []
@@ -203,11 +203,8 @@ def validate_v4_component_schema(obj, expected_converted):
     except Exception:
         return
     if type_name == "Nuclei4.ParticleGroup_Constructor_Slime":
-        if len(inputs) != 10 or inputs[8] != "Exploration":
-            raise Exception("Resolved V4 Slime Group schema is not ten inputs with Exploration at index 8: " + repr(inputs))
-        expected_mode = expected_converted.get("probabilisticSteering")
-        if expected_mode is not None and bool(obj.ProbabilisticSteering) != bool(expected_mode):
-            raise Exception("Resolved V4 Slime Group lost ProbabilisticSteering state")
+        if len(inputs) != 10 or inputs[8] != "Wander":
+            raise Exception("Resolved V4 Slime Group schema is not ten inputs with Wander at index 8: " + repr(inputs))
     elif type_name == "Nuclei4.EnivronmentSettings":
         wanted = ["Diffuse Rate", "Decay Rate", "Falloff", "Diffuse Range"]
         if inputs != wanted:
@@ -266,7 +263,7 @@ def inspect_document(path, expected, components_by_target, report_progress, phas
         expected_type = components_by_target[target]["targetType"]
         if actual_type != expected_type:
             raise Exception("%s instance %s resolved as %s, expected %s" % (os.path.basename(path), instance, actual_type, expected_type))
-        validate_v4_component_schema(obj, converted)
+        validate_v4_component_schema(obj)
 
     report_progress(phase + ":wire-counting")
     wires = wire_count(objects)

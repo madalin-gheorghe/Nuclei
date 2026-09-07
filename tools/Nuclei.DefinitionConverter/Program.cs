@@ -309,10 +309,7 @@ internal static class Program
                 SourceGuid = sourceGuid,
                 TargetGuid = component.Target,
                 Name = StringItem(sourceObject, "Name"),
-                Adapter = component.Adapter,
-                ProbabilisticSteering = string.Equals(component.Adapter, "slime-group-schema", StringComparison.Ordinal)
-                    ? bool.Parse(ItemElement(ChildChunk(sourceObject, "Container"), "ProbabilisticSteering").Value)
-                    : null
+                Adapter = component.Adapter
             });
 
             if (string.Equals(component.Adapter, "dendro-schema", StringComparison.Ordinal))
@@ -560,23 +557,28 @@ internal static class Program
             throw new InvalidDataException("Slime Particle Group is not the expected ten-input schema.");
 
         string steeringName = StringItem(inputs[8], "Name");
-        if (string.Equals(steeringName, "Wander", StringComparison.Ordinal))
-        {
-            ConfigureParam(inputs[8], 8, "Exploration", "exploration", "Classic wander frequency, or probabilistic steering exploration from 0 (strongest signal) to 1 (uniform positive sensors)", false);
-            note = "Slime Particle Group: migrated legacy input 8 Wander metadata to Exploration while preserving its InstanceGuid, source wire, and persistent value.";
-        }
-        else if (string.Equals(steeringName, "Exploration", StringComparison.Ordinal))
-        {
-            note = "Slime Particle Group: verified current input 8 Exploration schema; source wire, persistent data, and ProbabilisticSteering state were preserved.";
-        }
-        else
+        if (!string.Equals(steeringName, "Wander", StringComparison.Ordinal)
+            && !string.Equals(steeringName, "Exploration", StringComparison.Ordinal))
         {
             throw new InvalidDataException("Slime Particle Group input 8 is neither Wander nor Exploration: " + steeringName);
         }
 
+        ConfigureParam(
+            inputs[8],
+            8,
+            "Wander",
+            "wander",
+            "Frequency of random directions from 0 (off) to 1 (most frequent)",
+            false);
+
         XElement? mode = OptionalItemElement(container, "ProbabilisticSteering");
-        if (mode == null || !bool.TryParse(mode.Value, out _))
-            throw new InvalidDataException("Slime Particle Group has no valid ProbabilisticSteering serialization state.");
+        if (mode != null)
+        {
+            mode.Remove();
+            UpdateChildCount(container, "items", "item");
+        }
+
+        note = "Slime Particle Group: normalized input 8 to Classic Wander, preserved its InstanceGuid, source wire, and persistent value, and removed any retired probabilistic-steering state.";
     }
 
     private static void AdaptSlimeSettings(XElement objectChunk, out string note)
@@ -719,9 +721,13 @@ internal static class Program
             }
             if (library == map.SourceLibrary.Id && component?.Adapter == "slime-group-schema")
             {
-                XElement input = ChildChunks(ChildChunk(source[i], "Container"), "param_input")
-                    .Single(chunk => Attr(chunk, "index") == "8");
-                adapter = string.Equals(StringItem(input, "Name"), "Wander", StringComparison.Ordinal);
+                XElement normalizedSource = new(source[i]);
+                AdaptSlimeGroup(normalizedSource, out _);
+                string expected = ChildChunk(normalizedSource, "Container").ToString(SaveOptions.DisableFormatting);
+                string actual = ChildChunk(target[i], "Container").ToString(SaveOptions.DisableFormatting);
+                if (!string.Equals(expected, actual, StringComparison.Ordinal))
+                    throw new InvalidDataException($"Slime Particle Group adapter changed unrelated container data for object {i}.");
+                continue;
             }
             if (library == map.SourceLibrary.Id && component?.Adapter == "slime-settings-schema")
             {
@@ -1181,7 +1187,6 @@ internal sealed class ConvertedObject
     public Guid TargetGuid { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Adapter { get; set; }
-    public bool? ProbabilisticSteering { get; set; }
 }
 
 internal sealed class WireMigration

@@ -10,12 +10,12 @@ using System.Text;
 internal static class Program
 {
     const string ExpectedComponentGuidHash = "BA5DD56D2DB434E2FEEC0AD489F1DF481FAFC4FA2E3843C3C21E49DED4DCB126";
-    const string ExpectedPublicApiHash = "17CDCDDA0A4817C3AB32E37C017193C269AD5ABBF3A7BE52BD48EB89AFB69E27";
-    const string ExpectedComponentSchemaHash = "5D674B2C4231A47404527DA721A6E7B8C14BF256F5FA199E846ACF38CDF09841";
+    const string ExpectedPublicApiHash = "CC2F81667507021DC7CCD16452CB0BB6CAE0AD5D9373D12036E91925DF643252";
+    const string ExpectedComponentSchemaHash = "4DBBA58BF7AB3C0E3EBA484F917C36032977EDD13FE10F9B2A373846FEDFF365";
     const string ExpectedMainResourceNameHash = "471155F7F1C2429746C207F91331025BB014654B626DDD875A945576A2CC5AC2";
     const string ExpectedLegacyShaderHash = "BBD3F0049D5A902B774EE45A7B5BACB52C6D20E2C2605C7115144DAB5AE5C88A";
-    const string ExpectedShaderHash = "F3115CB7995E898F28EA5E57D848E9585D120950DDAD90FFAA4F2495A177F0F1";
-    const string ExpectedGpuShaderHash = "D337D769F14AFAE3246089ADEEF0571703868CA46CB7A129783E9871963F6AF1";
+    const string ExpectedShaderHash = "323B4A5D3D7E43ECF980807D8E6556B086C3106C7B7A0A2999D34D7F4896A9BA";
+    const string ExpectedGpuShaderHash = "37A557839F7CE2DBE822D5A0EE0D72EE8990689ACD2F0A816749507C0826DC2D";
     const string ExpectedDisplayShaderHash = "7962C5E6C8BCAE08EEB74E649239601E884515546EA8E8C926A809224896C695";
     const string ExpectedSlimeIntroV3Hash = "42D0DD4C43F0D392221BD3878583FB5B4973BAFC9F20808E6D990F76D9C529DC";
     const string ExpectedSlimeIntroV4Hash = "63403F8BD5FC63C35F2EFFC2633A58C0B879C4488B3E8E72B08510BB3D140DA9";
@@ -42,8 +42,6 @@ internal static class Program
     };
 
     static bool TraceDensity;
-    static bool ConnectedSteeringParity;
-    static double ConnectedSteeringExploration = 0.5;
     static readonly Dictionary<int, double[]> V3DensitySnapshots = new Dictionary<int, double[]>();
     static readonly Dictionary<int, float[]> V4DensitySnapshots = new Dictionary<int, float[]>();
     static bool RandomHeadings;
@@ -315,16 +313,6 @@ internal static class Program
                 RunGpuBenchmark(args);
                 return 0;
             }
-            if (Array.IndexOf(args, "--connected-steering-oracle") >= 0)
-            {
-                TestGpuConnectedSteeringOracle();
-                return 0;
-            }
-            if (Array.IndexOf(args, "--connected-parity-regression") >= 0)
-            {
-                RunConnectedSteeringParityRegression(args);
-                return 0;
-            }
             if (Array.IndexOf(args, "--parity") >= 0)
             {
                 RunParity(args);
@@ -345,7 +333,6 @@ internal static class Program
             TestGpuSnapshotPacking();
             TestAntResetAndNestParity();
             TestRetainedSpeciesAndGroupMetadataParity();
-            TestConnectedSteeringPacking();
             TestDendroContinuousUpdateAndCache();
             TestSlimeSettingsLegacyArchiveMigration();
             TestSolverBoundaryParity();
@@ -372,7 +359,6 @@ internal static class Program
                 TestGpuSparseActiveBindings();
                 TestGpuPopulationPassOrdering();
                 TestGpuAntLaunchAndRandomDivisionInheritance();
-                TestGpuConnectedSteeringOracle();
             }
             if (Array.IndexOf(args, "--benchmark-gpu") >= 0)
             {
@@ -410,7 +396,7 @@ internal static class Program
 
         List<string> apiRecords = VisibleApiRecords(NucleiAssembly);
         Equal(51, NucleiAssembly.GetExportedTypes().Length, "exported public type count");
-        Equal(744, apiRecords.Count, "public API record count");
+        Equal(737, apiRecords.Count, "public API record count");
         Equal(ExpectedPublicApiHash, HashRecords(apiRecords), "public API hash");
 
         Type componentBaseType = RequiredExternalType("Grasshopper.Kernel.GH_Component, Grasshopper");
@@ -461,7 +447,7 @@ internal static class Program
         }
 
         Console.WriteLine(
-            "Compatibility contracts passed: 51 public types, 744 API records, 38 components, 214 schema records, 33 shaders ("
+            "Compatibility contracts passed: 51 public types, 737 API records, 38 components, 214 schema records, 33 shaders ("
             + (NucleiAssemblies.Count > 1 ? "split deployment" : "legacy deployment") + ").");
     }
 
@@ -1211,72 +1197,6 @@ internal static class Program
             "empty sensor choice no longer applies V3's deterministic non-wrap plane rotation");
         True(moveFunction.Contains("float3 force = 0.0;", StringComparison.Ordinal),
             "empty sensor choice can inject a movement force");
-    }
-
-    static void TestConnectedSteeringPacking()
-    {
-        Type groupType = RequiredCompatibilityType("Nuclei4.ParticleGroup");
-        object group = Activator.CreateInstance(groupType)!;
-        SetField(group, "connectedSteering", true);
-        SetField(group, "ant", false);
-        SetField(group, "wanderFrequency", 0.25);
-
-        IList groups = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(groupType))!;
-        groups.Add(group);
-
-        object[] arguments = { groups, null, null, false, false };
-        MethodInfo capture = SnapshotType.GetMethod(
-            "CaptureGroupSettings",
-            BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)!;
-        capture.Invoke(null, arguments);
-
-        float[] groupData0 = (float[])arguments[1]!;
-        float[] groupData1 = (float[])arguments[2]!;
-        Near(0.25, groupData0[3], 1e-6, "connected steering exploration");
-        Near(-1, groupData1[1], 1e-6, "connected steering mode selector");
-        True((bool)arguments[4], "connected slime population detection");
-
-        object duplicate = Invoke(group, "Duplicate");
-        True(Field<bool>(duplicate, "connectedSteering"), "connected steering duplicate state");
-
-        SetField(group, "wanderFrequency", double.NaN);
-        arguments = new object[] { groups, null, null, false, false };
-        capture.Invoke(null, arguments);
-        Near(0, ((float[])arguments[1]!)[3], 1e-6, "connected steering NaN exploration clamp");
-
-        object snapshot = Activator.CreateInstance(SnapshotType, nonPublic: true)!;
-        Invoke(snapshot, "CaptureParticleGroups", groups);
-        Array capturedGroups = (Array)Field<object>(snapshot, "ParticleGroups");
-        Near(0, Field<double>(capturedGroups.GetValue(0)!, "wanderFrequency"), 1e-12,
-            "connected steering NaN metadata clamp");
-
-        SetField(group, "wanderFrequency", -1.0);
-        Invoke(snapshot, "CaptureParticleGroups", groups);
-        capturedGroups = (Array)Field<object>(snapshot, "ParticleGroups");
-        Near(0, Field<double>(capturedGroups.GetValue(0)!, "wanderFrequency"), 1e-12,
-            "connected steering negative metadata clamp");
-
-        SetField(group, "wanderFrequency", double.PositiveInfinity);
-        arguments = new object[] { groups, null, null, false, false };
-        capture.Invoke(null, arguments);
-        Near(1, ((float[])arguments[1]!)[3], 1e-6, "connected steering infinite exploration clamp");
-        Invoke(snapshot, "CaptureParticleGroups", groups);
-        capturedGroups = (Array)Field<object>(snapshot, "ParticleGroups");
-        Near(1, Field<double>(capturedGroups.GetValue(0)!, "wanderFrequency"), 1e-12,
-            "connected steering infinite metadata clamp");
-
-        object solver = Activator.CreateInstance(RequiredCompatibilityType("Nuclei4.SolverGPU"))!;
-        object liveTarget = Activator.CreateInstance(groupType)!;
-        Invoke(solver, "CopyParticleGroupSettings", group, liveTarget);
-        Near(1, Field<double>(liveTarget, "wanderFrequency"), 1e-12,
-            "connected steering live metadata clamp");
-
-        SetField(group, "ant", true);
-        arguments = new object[] { groups, null, null, false, false };
-        capture.Invoke(null, arguments);
-        Near(1, ((float[])arguments[2]!)[1], 1e-6, "ant steering mode precedence");
-        True((bool)arguments[3], "ant population detection");
-        False((bool)arguments[4], "ant classified as slime population");
     }
 
     static void TestDendroContinuousUpdateAndCache()
@@ -3516,6 +3436,11 @@ internal static class Program
         {
             specializedSnapshot = CaptureGpuSignatureSnapshot(inputField, particleCount, true);
             genericSnapshot = CaptureGpuSignatureSnapshot(inputField, particleCount, true);
+
+            // Keep the comparison free of first-writer-wins movement races so
+            // it measures shader specialization rather than dispatch ordering.
+            Field<float[]>(specializedSnapshot, "GroupData0")[0] = 0.01f;
+            Field<float[]>(genericSnapshot, "GroupData0")[0] = 0.01f;
         }
         finally
         {
@@ -3703,9 +3628,6 @@ internal static class Program
         double decay = BenchmarkDouble(args, "--decay", 0.03);
         bool division = Array.IndexOf(args, "--no-division") < 0;
         bool death = Array.IndexOf(args, "--no-death") < 0;
-        ConnectedSteeringParity = Array.IndexOf(args, "--connected") >= 0;
-        ConnectedSteeringExploration = BenchmarkDouble(args, "--exploration", 0.5);
-
         List<string> settings = new List<string>
         {
             "VoxelSettingsSlime " + diffuse.ToString(CultureInfo.InvariantCulture) + " 1 "
@@ -3717,11 +3639,7 @@ internal static class Program
         };
 
         Console.WriteLine("PARITY grid=" + grid + "^3 particles=" + particleCount
-            + " iterations=" + iterations
-            + " connected=" + ConnectedSteeringParity
-            + (ConnectedSteeringParity
-                ? " exploration=" + ConnectedSteeringExploration.ToString(CultureInfo.InvariantCulture)
-                : ""));
+            + " iterations=" + iterations);
         foreach (string line in settings) Console.WriteLine("  setting: " + line);
         Console.WriteLine();
 
@@ -3783,186 +3701,6 @@ internal static class Program
             Console.WriteLine("  " + (i + 1).ToString().PadLeft(9)
                 + a.ToString("N0").PadLeft(10) + b.ToString("N0").PadLeft(10) + ratio.PadLeft(10));
         }
-    }
-
-    static void RunConnectedSteeringParityRegression(string[] args)
-    {
-        const int grid = 24;
-        const int particleCount = 512;
-        const int iterations = 24;
-        const double exploration = 0.65;
-
-        bool previousConnectedSteeringParity = ConnectedSteeringParity;
-        double previousConnectedSteeringExploration = ConnectedSteeringExploration;
-        bool previousTraceDensity = TraceDensity;
-        int previousTraceEvery = TraceEvery;
-        bool previousRandomHeadings = RandomHeadings;
-        bool previousBenchmarkAntParticles = BenchmarkAntParticles;
-
-        try
-        {
-            ConnectedSteeringParity = true;
-            ConnectedSteeringExploration = exploration;
-            TraceDensity = true;
-            TraceEvery = iterations;
-            RandomHeadings = true;
-            BenchmarkAntParticles = false;
-            V3DensitySnapshots.Clear();
-            V4DensitySnapshots.Clear();
-
-            // The nonzero random-division probability enables V3's dynamic-list
-            // Fisher-Yates shuffle. Equal population limits leave no birth budget,
-            // so this isolates shuffled connected-sensor assignment without
-            // conflating it with population changes.
-            List<string> settings = new List<string>
-            {
-                "VoxelSettingsSlime 0.08 1 0.01 1",
-                "DivisionSettings False 0 1 0 10 1",
-                "DeathSettings False 0 1 0 10 1",
-                "PopulationSettings 512 512 0.000001 0 1",
-                "WrapSettings True"
-            };
-
-            Console.WriteLine("CONNECTED PARITY grid=" + grid + "^3 particles=" + particleCount
-                + " iterations=" + iterations + " exploration="
-                + exploration.ToString(CultureInfo.InvariantCulture));
-
-            int[] v3 = RunV3Population(args, grid, particleCount, iterations, settings);
-            int[] v4 = RunV4Population(grid, particleCount, iterations, settings, true);
-            Equal(iterations, v3.Length, "connected parity V3 trace length");
-            Equal(iterations, v4.Length, "connected parity V4 trace length");
-            for (int i = 0; i < iterations; i++)
-            {
-                Equal(particleCount, v3[i], "connected parity V3 population at iteration " + (i + 1));
-                Equal(particleCount, v4[i], "connected parity V4 population at iteration " + (i + 1));
-            }
-
-            True(V3DensitySnapshots.TryGetValue(iterations, out double[] v3Density),
-                "connected parity V3 final density was not captured");
-            True(V4DensitySnapshots.TryGetValue(iterations, out float[] v4Density),
-                "connected parity V4 final density was not captured");
-
-            MeasureConnectedDensityParity(
-                v3Density,
-                v4Density,
-                grid,
-                out double massSimilarity,
-                out double coarseCosine,
-                out double distributionOverlap,
-                out double normalizedCentroidDistance,
-                out double v3Mass,
-                out double v4Mass);
-
-            Console.WriteLine("  density mass V3=" + v3Mass.ToString("F3", CultureInfo.InvariantCulture)
-                + " V4=" + v4Mass.ToString("F3", CultureInfo.InvariantCulture)
-                + " similarity=" + massSimilarity.ToString("F3", CultureInfo.InvariantCulture));
-            Console.WriteLine("  coarse cosine=" + coarseCosine.ToString("F3", CultureInfo.InvariantCulture)
-                + " overlap=" + distributionOverlap.ToString("F3", CultureInfo.InvariantCulture)
-                + " centroid distance=" + normalizedCentroidDistance.ToString("F4", CultureInfo.InvariantCulture));
-
-            // Five independent calibration runs produced 0.971 mass similarity,
-            // 0.948 cosine, 0.853 overlap, and 0.0105 centroid distance. These
-            // distribution-level gates retain substantial shuffled-identity and
-            // platform headroom while rejecting gross steering, deposit, or
-            // diffusion loss.
-            True(massSimilarity >= 0.75,
-                "connected parity density mass similarity fell below 0.75");
-            True(coarseCosine >= 0.75,
-                "connected parity coarse density cosine fell below 0.75");
-            True(distributionOverlap >= 0.60,
-                "connected parity normalized density overlap fell below 0.60");
-            True(normalizedCentroidDistance <= 0.08,
-                "connected parity normalized density centroid distance exceeded 0.08");
-
-            Console.WriteLine("Fixed-seed V3/V4 connected steering distribution parity passed.");
-        }
-        finally
-        {
-            ConnectedSteeringParity = previousConnectedSteeringParity;
-            ConnectedSteeringExploration = previousConnectedSteeringExploration;
-            TraceDensity = previousTraceDensity;
-            TraceEvery = previousTraceEvery;
-            RandomHeadings = previousRandomHeadings;
-            BenchmarkAntParticles = previousBenchmarkAntParticles;
-            V3DensitySnapshots.Clear();
-            V4DensitySnapshots.Clear();
-        }
-    }
-
-    static void MeasureConnectedDensityParity(
-        double[] v3,
-        float[] v4,
-        int grid,
-        out double massSimilarity,
-        out double coarseCosine,
-        out double distributionOverlap,
-        out double normalizedCentroidDistance,
-        out double v3Mass,
-        out double v4Mass)
-    {
-        const int coarseResolution = 4;
-        int expectedLength = checked(grid * grid * grid);
-        Equal(expectedLength, v3.Length, "connected parity V3 density length");
-        Equal(expectedLength, v4.Length, "connected parity V4 density length");
-
-        double[] coarseV3 = new double[coarseResolution * coarseResolution * coarseResolution];
-        double[] coarseV4 = new double[coarseV3.Length];
-        v3Mass = 0;
-        v4Mass = 0;
-        double v3X = 0, v3Y = 0, v3Z = 0;
-        double v4X = 0, v4Y = 0, v4Z = 0;
-        for (int x = 0; x < grid; x++)
-        {
-            int coarseX = Math.Min(coarseResolution - 1, x * coarseResolution / grid);
-            for (int y = 0; y < grid; y++)
-            {
-                int coarseY = Math.Min(coarseResolution - 1, y * coarseResolution / grid);
-                for (int z = 0; z < grid; z++)
-                {
-                    int index = x * grid * grid + y * grid + z;
-                    double a = v3[index];
-                    double b = v4[index];
-                    True(double.IsFinite(a) && a >= 0,
-                        "connected parity V3 density contains a non-finite or negative value");
-                    True(double.IsFinite(b) && b >= 0,
-                        "connected parity V4 density contains a non-finite or negative value");
-
-                    int coarseZ = Math.Min(coarseResolution - 1, z * coarseResolution / grid);
-                    int coarseIndex = coarseX * coarseResolution * coarseResolution
-                        + coarseY * coarseResolution + coarseZ;
-                    coarseV3[coarseIndex] += a;
-                    coarseV4[coarseIndex] += b;
-                    v3Mass += a;
-                    v4Mass += b;
-                    v3X += a * (x + 0.5);
-                    v3Y += a * (y + 0.5);
-                    v3Z += a * (z + 0.5);
-                    v4X += b * (x + 0.5);
-                    v4Y += b * (y + 0.5);
-                    v4Z += b * (z + 0.5);
-                }
-            }
-        }
-
-        True(v3Mass > 0 && v4Mass > 0, "connected parity produced an empty density field");
-        massSimilarity = Math.Min(v3Mass, v4Mass) / Math.Max(v3Mass, v4Mass);
-
-        double dot = 0, normV3 = 0, normV4 = 0, normalizedL1 = 0;
-        for (int i = 0; i < coarseV3.Length; i++)
-        {
-            dot += coarseV3[i] * coarseV4[i];
-            normV3 += coarseV3[i] * coarseV3[i];
-            normV4 += coarseV4[i] * coarseV4[i];
-            normalizedL1 += Math.Abs(coarseV3[i] / v3Mass - coarseV4[i] / v4Mass);
-        }
-        coarseCosine = dot / Math.Sqrt(normV3 * normV4);
-        distributionOverlap = 1.0 - normalizedL1 * 0.5;
-
-        double dx = v3X / v3Mass - v4X / v4Mass;
-        double dy = v3Y / v3Mass - v4Y / v4Mass;
-        double dz = v3Z / v3Mass - v4Z / v4Mass;
-        normalizedCentroidDistance = Math.Sqrt(dx * dx + dy * dy + dz * dz)
-            / (grid * Math.Sqrt(3.0));
     }
 
     /// <summary>
@@ -4120,11 +3858,10 @@ internal static class Program
         SetField(group, "sensorAngle", 37);
         SetField(group, "rotationAngle", 29);
         SetField(group, "depositValue", 0.85);
-        SetField(group, "wanderFrequency", ConnectedSteeringParity ? ConnectedSteeringExploration : 0.13);
+        SetField(group, "wanderFrequency", 0.13);
         SetField(group, "baseWanderFrequency", 0.0);
         SetField(group, "color", System.Drawing.Color.FromArgb(255, 72, 184, 112));
         SetField(group, "ant", false);
-        SetField(group, "connectedSteering", ConnectedSteeringParity);
         IList groupParticles = (IList)Field<object>(group, "particles");
         for (int i = 0; i < particleCount; i++)
         {
@@ -4496,7 +4233,7 @@ internal static class Program
             + " voxels=" + profile.VoxelCount
             + " requestedParticles=" + profile.RequestedParticles
             + " speed=1.3 sensorDistance=6 sensorAngle=45 rotationAngle=45 deposit=1"
-            + " exploration=0 diffuse=" + profile.Diffuse.ToString("0.##", CultureInfo.InvariantCulture)
+            + " wander=0 diffuse=" + profile.Diffuse.ToString("0.##", CultureInfo.InvariantCulture)
             + " diffuseRange=" + diffuseRange
             + " savedV3DiffuseRange=" + profile.V3SavedDiffuseRange
             + " savedV4DiffuseRange=" + profile.V4SavedDiffuseRange
@@ -4969,7 +4706,6 @@ internal static class Program
         SetField(group, "baseWanderFrequency", 0.0);
         SetField(group, "color", System.Drawing.Color.White);
         SetField(group, "ant", false);
-        SetField(group, "connectedSteering", false);
     }
 
     static List<string> SlimeIntroSettings(
@@ -5831,11 +5567,10 @@ internal static class Program
         SetField(group, "sensorAngle", 37);
         SetField(group, "rotationAngle", 29);
         SetField(group, "depositValue", 0.85);
-        SetField(group, "wanderFrequency", ConnectedSteeringParity ? ConnectedSteeringExploration : 0.13);
+        SetField(group, "wanderFrequency", 0.13);
         SetField(group, "baseWanderFrequency", 0.0);
         SetField(group, "color", System.Drawing.Color.FromArgb(255, 72, 184, 112));
         SetField(group, "ant", BenchmarkAntParticles);
-        SetField(group, "connectedSteering", ConnectedSteeringParity && !BenchmarkAntParticles);
 
         int resolutionX = Convert.ToInt32(PropertyValue(inputField, "ResX"));
         int resolutionY = Convert.ToInt32(PropertyValue(inputField, "ResY"));
@@ -6496,91 +6231,6 @@ internal static class Program
         int relativeOffset = absoluteOffset - baseOffset;
         True(relativeOffset >= 0, absoluteOffsetField + " was not allocated");
         return Field<int[]>(engine, "particleAuxReadback")[relativeOffset + slot];
-    }
-
-    static void TestGpuConnectedSteeringOracle()
-    {
-        const uint expectedIterationTwoKey = 3406519409u;
-        uint key = ConnectedSteeringSampleKey(0, 2);
-        Equal(expectedIterationTwoKey, key, "connected steering iteration-two sample hash");
-        double sample = key / 4294967296.0;
-        Equal(2, (int)Math.Floor(sample * 3.0),
-            "connected steering known hash did not select the right sensor ordinal");
-
-        float[] strongest = RunGpuConnectedSteeringOracleCase(0.0f);
-        Near(1.0, strongest[0], 1e-5, "connected strongest-sensor direction X");
-        Near(0.0, strongest[1], 1e-5, "connected strongest-sensor direction Y");
-        Near(0.0, strongest[2], 1e-5, "connected strongest-sensor direction Z");
-        Near(5.0, strongest[3], 1e-4, "connected strongest-sensor position X");
-        Near(4.5, strongest[4], 1e-4, "connected strongest-sensor position Y");
-
-        float[] exploratory = RunGpuConnectedSteeringOracleCase(1.0f);
-        const double expectedX = 0.19611613513818404;
-        const double expectedY = 0.9805806756909202;
-        Near(expectedX, exploratory[0], 1e-5, "connected exploratory direction X");
-        Near(expectedY, exploratory[1], 1e-5, "connected exploratory direction Y");
-        Near(0.0, exploratory[2], 1e-5, "connected exploratory direction Z");
-        Near(4.5 + expectedX * 0.5, exploratory[3], 1e-4, "connected exploratory position X");
-        Near(4.5 + expectedY * 0.5, exploratory[4], 1e-4, "connected exploratory position Y");
-
-        Console.WriteLine("Direct3D connected steering endpoints and known-hash sensor choice passed.");
-    }
-
-    static uint ConnectedSteeringSampleKey(int particleIndex, int iteration)
-    {
-        unchecked
-        {
-            uint key = (uint)particleIndex ^ ((uint)iteration * 2654435769u) ^ 2738958700u;
-            key ^= key >> 16;
-            key *= 2146121005u;
-            key ^= key >> 15;
-            key *= 2221713035u;
-            key ^= key >> 16;
-            return key;
-        }
-    }
-
-    static float[] RunGpuConnectedSteeringOracleCase(float exploration)
-    {
-        const int grid = 9;
-        const int parentIndex = 4 * grid + 4;
-        float[] density = new float[grid * grid];
-        density[4 * grid + 2] = 0.25f; // left
-        density[6 * grid + 4] = 1.0f;  // front
-        density[4 * grid + 6] = 0.25f; // right
-
-        object data = WithInitialDensity(CreateFullDomain(grid, grid, 1), density);
-        object snapshot = CaptureVoxelSnapshot(CreateField(data), true);
-        ConfigureSingleGpuParticleSnapshot(snapshot, 4.5f, 4.5f, 0.5f, parentIndex, 0.5f);
-        SetField(snapshot, "GroupData0", new[] { 0.5f, 2.0f, (float)(Math.PI * 0.5), exploration });
-        SetField(snapshot, "GroupData1", new[] { (float)(Math.PI * 0.5), -1.0f, 0.0f, 0.0f });
-
-        Type settingsType = RequiredImplementationType("Nuclei4.SolverGpuSettings");
-        object settings = CreateParityGpuSettings(settingsType);
-        object dimensionMode = InvokeStatic(
-            RequiredImplementationType("Nuclei4.SolverGpuDimensionMode"),
-            "FromResolution",
-            grid,
-            grid,
-            1);
-        Type engineType = RequiredImplementationType("Nuclei4.GpuFullSlimeSolverEngine");
-        object engine = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
-        try
-        {
-            InvokeGpuStep(engine, snapshot, settings, dimensionMode, 2);
-            Invoke(engine, "ReadBackParticles");
-            float[] positions = Field<float[]>(engine, "particlePositionReadback");
-            float[] directions = Field<float[]>(engine, "particleDirectionReadback");
-            return new[]
-            {
-                directions[0], directions[1], directions[2],
-                positions[0], positions[1], positions[2]
-            };
-        }
-        finally
-        {
-            ((IDisposable)engine).Dispose();
-        }
     }
 
     static void TestGpuPlanarOriginPreservation()

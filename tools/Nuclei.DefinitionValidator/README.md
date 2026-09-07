@@ -23,7 +23,7 @@ The run verifies:
 - object counts and object InstanceGuids;
 - exact wire endpoints after component materialization;
 - current Slime, Solver, and Dendro parameter schemas;
-- probabilistic Slime mode; and
+- the Classic Slime Wander schema; and
 - no V3 library or component GUID residue.
 
 It also performs one controlled runtime check in `15_3D Intro_v3.gh`: the saved

@@ -742,3 +742,52 @@ build and verifies disabled holding, no voxel reads while off, false/true/false
 transitions, held-true propagation, default false inputs, and explicit downstream
 cache retrieval in both corrected versions. It does not measure viewport speed
 or run Dendro's native volume generation.
+
+## Classic-only Slime steering (2026-09-07)
+
+**User-authorized:** the optional connected/probabilistic weighted-sensor mode
+was removed from V3 and V4. Slime now always selects the strongest sensor, with
+the existing Wander frequency providing optional random direction changes. The
+independent Random Division and Random Death population controls are unchanged.
+
+The Slime component keeps its GUID, ten inputs, their ordinals, wires, defaults,
+and persistent-data position. Input 8 is now named `Wander`; archived
+`Exploration` metadata is normalized while the retired `ProbabilisticSteering`
+state is ignored and stripped by the definition converter. GPU group-kind data
+now uses only `0` for Slime and `1` for Ant; the retired `-1` mode marker is gone.
+
+Seven public API records were intentionally removed: the ParticleGroup mode
+field and clamp method, plus the Slime component mode property/getter,
+attributes override, setter, and writer override. The updated contracts are:
+
+| Contract | Final value |
+| --- | --- |
+| Public API | 737 records; `CC2F81667507021DC7CCD16452CB0BB6CAE0AD5D9373D12036E91925DF643252` |
+| GH schema | 214 records; `4DBBA58BF7AB3C0E3EBA484F917C36032977EDD13FE10F9B2A373846FEDFF365` |
+| Main resources | 34; name hash `471155F7F1C2429746C207F91331025BB014654B626DDD875A945576A2CC5AC2`; content hash `7A1503EB442606ADF3FFF63E884BE84C7732E5FD9E69936EE73DE315F58DC590` |
+| Embedded shaders | 33; `323B4A5D3D7E43ECF980807D8E6556B086C3106C7B7A0A2999D34D7F4896A9BA` |
+| D3D11 GPU resources | 28; `37A557839F7CE2DBE822D5A0EE0D72EE8990689ACD2F0A816749507C0826DC2D` |
+
+Only the shared movement programs changed:
+
+- `MoveParticlesAndDeposit.cso`:
+  `6C159F4B9780EA4A8F71090C3F692616F37326FB7320AFCA9F99DB40F3FEF291`
+- `MoveAntParticlesAndDeposit.cso`:
+  `88FA992A8A34C6B618250379626F9974A438D48895ADF662CFCE409F4458B965`
+
+The other 31 shaders, component GUIDs/counts, exported type/component counts,
+resource names/counts, display shaders, entry points, GPU buffer bindings, and
+the 416-byte/104-field solver and 48-byte/12-field mesh ABIs are unchanged. The
+ant specialization regression now removes dispatch-order contention from its
+comparison so it measures the two shader paths deterministically.
+
+Final artifact SHA-256 values are:
+
+- net7 `Nuclei4.gha`:
+  `D3DB5333F2F6708C53C0E931BE6023D27015D4392FB1268DC1F786BD8241FEB5`
+- net7 `Nuclei4.Gpu.D3D11.dll`:
+  `C54E0E69623BE1E13EDDF5C4FB74DA05BA2586918A5911D6AD27923CA3448A45`
+- net48 `Nuclei4.gha`:
+  `AD9A2C8DA94909CA0AD29D39A198C049391CD44C4073FA59C79DCB89AA76C044`
+- net48 `Nuclei4.Gpu.D3D11.dll`:
+  `576C18FF6E762F84329C556A76C5B431080E898C5CF3394F094C1E41C76FA98F`

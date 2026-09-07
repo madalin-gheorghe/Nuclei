@@ -6969,90 +6969,6 @@ int ChooseBestSensor(float value0, float value1, float value2, float value3, flo
     return bestIndex;
 }
 
-float ConnectedSensorValue(float value)
-{
-    if (isnan(value) || value <= 0.0) return 0.0;
-    if (isinf(value)) return 3.402823466e+38;
-    return value;
-}
-
-float ConnectedSensorWeight(float value, float maxValue, float selectivityPower)
-{
-    if (value <= 0.0) return 0.0;
-    if (value >= maxValue) return 1.0;
-    return pow(value / maxValue, selectivityPower);
-}
-
-float ConnectedSteeringSample(int particleIndex)
-{
-    uint sampleKey = (uint)particleIndex ^ ((uint)Iteration * 2654435769u) ^ 2738958700u;
-    sampleKey ^= sampleKey >> 16;
-    sampleKey *= 2146121005u;
-    sampleKey ^= sampleKey >> 15;
-    sampleKey *= 2221713035u;
-    sampleKey ^= sampleKey >> 16;
-    // HLSL performs this multiplication in float precision. The largest hash
-    // can otherwise round to exactly 1.0 even though V3's random sample is
-    // strictly less than one, allowing a zero-weight fallthrough choice.
-    return min(sampleKey * (1.0 / 4294967296.0), asfloat(0x3f7fffffu));
-}
-
-int ChooseConnectedSensor(
-    float value0,
-    float value1,
-    float value2,
-    float value3,
-    float value4,
-    float exploration,
-    int particleIndex)
-{
-    exploration = saturate(exploration);
-    if (exploration <= 0.0)
-    {
-        return ChooseBestSensor(value0, value1, value2, value3, value4);
-    }
-
-    float positive0 = ConnectedSensorValue(value0);
-    float positive1 = ConnectedSensorValue(value1);
-    float positive2 = ConnectedSensorValue(value2);
-    float positive3 = Tridimensional != 0 ? ConnectedSensorValue(value3) : 0.0;
-    float positive4 = Tridimensional != 0 ? ConnectedSensorValue(value4) : 0.0;
-    float maxPositive = max(positive0, max(positive1, positive2));
-    if (Tridimensional != 0) maxPositive = max(maxPositive, max(positive3, positive4));
-    if (maxPositive <= 0.0)
-    {
-        return ChooseBestSensor(value0, value1, value2, value3, value4);
-    }
-
-    float selectivityPower = 7.0 * (1.0 - exploration);
-    float weight0 = ConnectedSensorWeight(positive0, maxPositive, selectivityPower);
-    float weight1 = ConnectedSensorWeight(positive1, maxPositive, selectivityPower);
-    float weight2 = ConnectedSensorWeight(positive2, maxPositive, selectivityPower);
-    float weight3 = Tridimensional != 0 ? ConnectedSensorWeight(positive3, maxPositive, selectivityPower) : 0.0;
-    float weight4 = Tridimensional != 0 ? ConnectedSensorWeight(positive4, maxPositive, selectivityPower) : 0.0;
-    float totalWeight = weight0 + weight1 + weight2 + weight3 + weight4;
-    if (totalWeight <= 0.0 || isnan(totalWeight))
-    {
-        return ChooseBestSensor(value0, value1, value2, value3, value4);
-    }
-
-    float target = ConnectedSteeringSample(particleIndex) * totalWeight;
-    float cumulativeWeight = weight0;
-    if (target < cumulativeWeight) return 0;
-    cumulativeWeight += weight1;
-    if (target < cumulativeWeight) return 1;
-    cumulativeWeight += weight2;
-    if (target < cumulativeWeight) return 2;
-    if (Tridimensional != 0)
-    {
-        cumulativeWeight += weight3;
-        if (target < cumulativeWeight) return 3;
-        return 4;
-    }
-
-    return 2;
-}
-
 float3 RotateForce(int bestIndex, float3 x, float3 y, float rotationCos, float rotationSin)
 {
     if (bestIndex == 0) return NormalizeOr(x * rotationCos - y * rotationSin, x);
@@ -7507,7 +7423,6 @@ void MoveParticlesAndDepositCore(uint3 id, bool antOnly)
     float4 group0 = GroupData0[groupIndex];
     float4 group1 = GroupData1[groupIndex];
     bool isAnt = antOnly || group1.y > 0.5;
-    bool connectedSteering = !antOnly && !isAnt && group1.y < -0.5;
     uint particleAge = DepositFixed[ParticleAgeIndex(particleIndex)];
     bool foundFood = isAnt && DepositFixed[ParticleAntStateIndex(particleIndex)] != 0u;
     float4 homeState = isAnt ? ParticleHome[particleIndex] : float4(position, 0.0);
@@ -7563,11 +7478,7 @@ void MoveParticlesAndDepositCore(uint3 id, bool antOnly)
     sincos(rotationAngle, rotationSin, rotationCos);
     float depositValue = group1.z;
     uint wanderFrequency = group1.w <= 0.0 ? 0u : max(1u, (uint)round(group1.w));
-    if (connectedSteering)
-    {
-        wanderFrequency = 0u;
-    }
-    else if (DynamicPopulation != 0)
+    if (DynamicPopulation != 0)
     {
         float groupPopulation = (float)ParticleCounts[GroupPopulationIndex(groupIndex)];
         if (isAnt)
@@ -7630,9 +7541,7 @@ void MoveParticlesAndDepositCore(uint3 id, bool antOnly)
             : SampleDensity(downSensor);
     }
 
-    int bestIndex = connectedSteering
-        ? ChooseConnectedSensor(value0, value1, value2, value3, value4, group0.w, particleIndex)
-        : ChooseBestSensor(value0, value1, value2, value3, value4);
+    int bestIndex = ChooseBestSensor(value0, value1, value2, value3, value4);
     float3 force = 0.0;
     if (bestIndex < 0)
     {
@@ -7717,7 +7626,7 @@ void MoveParticlesAndDepositCore(uint3 id, bool antOnly)
     float3 steeringDirection = NormalizeOr(force, x);
     float3 moveDirection = NormalizeOr(steeringDirection + x * 0.2, x);
     uint movementSeed = Hash((uint)particleIndex + (uint)Iteration * 2891336453u);
-    if (!isAnt && !connectedSteering && wanderFrequency > 0u && movementSeed % wanderFrequency == 0u)
+    if (!isAnt && wanderFrequency > 0u && movementSeed % wanderFrequency == 0u)
     {
         moveDirection = NormalizeOr(moveDirection + RandomPlanarVector(movementSeed) * 1.5, moveDirection);
     }
@@ -7855,8 +7764,8 @@ void MoveParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
 }
 
 // Ant-only engines compile the same movement body with the population kind as
-// a constant. D3DCompiler can then remove the disconnected slime/connected
-// branches and their register pressure without maintaining a second algorithm.
+// a constant. D3DCompiler can then remove the slime-specific branches and their
+// register pressure without maintaining a second algorithm.
 [numthreads(256, 1, 1)]
 void MoveAntParticlesAndDeposit(uint3 id : SV_DispatchThreadID)
 {

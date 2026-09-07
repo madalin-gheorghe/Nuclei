@@ -27,13 +27,11 @@ clears found-food and launch-boundary state and restores the original home plane
 
 ## Intentional execution differences
 
-- CPU ant and population selection follows shuffled sequential particle lists.
-  CPU connected steering hashes each shuffled list ordinal, while GPU connected
-  steering hashes each stable slot; other GPU selections likewise use
-  deterministic, iteration-dependent hashes because particles execute in
-  parallel. Eligibility, stage order, inherited state, probabilities, and
-  population limits match; individual selected identities, the particle
-  receiving a connected-sensor sample, and trajectories need not.
+- CPU ant and population selection follows shuffled sequential particle lists,
+  while GPU selections use deterministic, iteration-dependent hashes because
+  particles execute in parallel. Eligibility, stage order, inherited state,
+  probabilities, and population limits match; individual selected identities
+  and trajectories need not.
 - CPU fields use floating-point object mutations. GPU food and deposits use
   fixed-point atomic updates so simultaneous writes are not lost. Fractional food
   below one unit becomes zero on GPU instead of becoming negative as it can on
@@ -45,9 +43,8 @@ V4 mirrors the V3 changes made after commit `535cde6` in the following areas.
 
 ### Steering, movement, and particle state
 
-- Slime groups expose Classic and Probabilistic steering. Probabilistic mode uses
-  V3's connected weighted sensor choice and clamps Exploration to `[0, 1]` in
-  both GPU parameters and CPU-visible group metadata.
+- Slime groups use Classic steering: the strongest positive sensor direction is
+  selected, with optional random turns controlled by Wander.
 - In non-wrap mode, sensor boundary handling mutates the working particle plane
   sequentially in V3 order. A no-sensor result applies no steering force and
   retains V3's deterministic plane rotation instead of choosing a random turn.
@@ -116,7 +113,8 @@ V4 mirrors the V3 changes made after commit `535cde6` in the following areas.
   different movement specialization is selected.
 - Legacy three- and four-input Voxel Settings Slime archives migrate in place,
   preserving parameter GUIDs, wires, and persistent data. The slime-group
-  constructor separately normalizes the historical Exploration/Wander metadata.
+  constructor separately normalizes historical Exploration metadata to Wander
+  and ignores retired probabilistic-steering archive state.
 - While Update is true, the Dendro converter rebuilds for every incoming solver
   update. It caches successful output, prefers the native Dendro path, and keeps
   the last successful result while Update is false.
@@ -158,8 +156,6 @@ likely to regress:
 | `--voxel-preview-sync` | on-demand live dynamic-field preview synchronization |
 | `--dendro-cache` | V4 held-true updates plus cache replacement and disposal |
 | `--dendro-update-v3` | V3 held-true conversion without pulse or self-scheduling state |
-| `--connected-steering-oracle` | actual-GPU strongest/exploratory endpoints and a locked known-hash sensor choice |
-| `--connected-parity-regression` | fixed-seed V3/V4 connected-steering population and coarse density-distribution bounds |
 
 The default probe also covers retained group metadata, Dendro continuous-update/cache
 behavior, solver-boundary priority, output callback detachment, reset/disposal,
@@ -193,11 +189,11 @@ same hardware and synchronization conditions.
 | --- | --- |
 | Component/parameter GUIDs | 40; `BA5DD56D2DB434E2FEEC0AD489F1DF481FAFC4FA2E3843C3C21E49DED4DCB126` |
 | Exported types / GH components | 51 / 38 |
-| Public API | 744 records; `17CDCDDA0A4817C3AB32E37C017193C269AD5ABBF3A7BE52BD48EB89AFB69E27` |
-| GH schema | 214 records; `5D674B2C4231A47404527DA721A6E7B8C14BF256F5FA199E846ACF38CDF09841` |
-| Main resources | 34; name hash `471155F7F1C2429746C207F91331025BB014654B626DDD875A945576A2CC5AC2`; content hash `6FA0F8FAB443FB015DA9BF0634E93FECC8D23813D73662D5B845FA94CF1EAFDA` |
-| Embedded shaders | 33; `F3115CB7995E898F28EA5E57D848E9585D120950DDAD90FFAA4F2495A177F0F1` |
-| D3D11 GPU resources | 28; `D337D769F14AFAE3246089ADEEF0571703868CA46CB7A129783E9871963F6AF1` |
+| Public API | 737 records; `CC2F81667507021DC7CCD16452CB0BB6CAE0AD5D9373D12036E91925DF643252` |
+| GH schema | 214 records; `4DBBA58BF7AB3C0E3EBA484F917C36032977EDD13FE10F9B2A373846FEDFF365` |
+| Main resources | 34; name hash `471155F7F1C2429746C207F91331025BB014654B626DDD875A945576A2CC5AC2`; content hash `7A1503EB442606ADF3FFF63E884BE84C7732E5FD9E69936EE73DE315F58DC590` |
+| Embedded shaders | 33; `323B4A5D3D7E43ECF980807D8E6556B086C3106C7B7A0A2999D34D7F4896A9BA` |
+| D3D11 GPU resources | 28; `37A557839F7CE2DBE822D5A0EE0D72EE8990689ACD2F0A816749507C0826DC2D` |
 | D3D11 display resources | 5; `7962C5E6C8BCAE08EEB74E649239601E884515546EA8E8C926A809224896C695` |
 | Full-solver / mesh ABI | 416 bytes / 104 fields; 48 bytes / 12 fields |
 
@@ -205,13 +201,13 @@ The current artifact SHA-256 values, for traceability rather than compatibility
 gating, are:
 
 - net7 `Nuclei4.gha`:
-  `A3F792F07382595227D7345BEEBBD240AA49867FED7FD2FCB2C870B7FC7F4C64`
+  `D3DB5333F2F6708C53C0E931BE6023D27015D4392FB1268DC1F786BD8241FEB5`
 - net7 `Nuclei4.Gpu.D3D11.dll`:
-  `7EB938535F194967A09FDAFB34FAE4DFD076CCB27D87379FF0063D085C91E3F1`
+  `C54E0E69623BE1E13EDDF5C4FB74DA05BA2586918A5911D6AD27923CA3448A45`
 - net48 `Nuclei4.gha`:
-  `DA76251CBFED3675D82D4ECA868BAABD888E18E879438796C2A2E64995F25AE7`
+  `AD9A2C8DA94909CA0AD29D39A198C049391CD44C4073FA59C79DCB89AA76C044`
 - net48 `Nuclei4.Gpu.D3D11.dll`:
-  `58B386CAA93E64E219B59C0D69924E32A3EA7FD833C7BF2B97E952A9881A88AE`
+  `576C18FF6E762F84329C556A76C5B431080E898C5CF3394F094C1E41C76FA98F`
 
 Per-CSO hashes and their authorized behavioral reasons are locked in
 [`V4_PRESERVATION_CONTRACT.md`](V4_PRESERVATION_CONTRACT.md).

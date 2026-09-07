@@ -799,7 +799,6 @@ namespace Nuclei4
             target.wanderFrequency = source.wanderFrequency;
             target.baseWanderFrequency = source.baseWanderFrequency;
             target.color = source.color;
-            target.connectedSteering = source.connectedSteering;
             // V3 never recopies the source ant flag. An input ant group with no
             // retained particles remains a non-ant simulation group thereafter.
             SolverGpuInputSnapshot.ApplyV3ParticleGroupMetadata(target, population);

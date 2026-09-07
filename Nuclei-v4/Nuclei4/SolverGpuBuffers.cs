@@ -596,14 +596,8 @@ namespace Nuclei4
                 {
                     // V3 leaves a new retained group non-ant until an eligible ant
                     // particle is actually copied into it.
-                    ant = false,
-                    connectedSteering = source.connectedSteering
+                    ant = false
                 };
-
-                if (simulationGroup.connectedSteering && !simulationGroup.ant)
-                {
-                    simulationGroup.clampConnectedExploration();
-                }
 
                 ParticleGroups[i] = simulationGroup;
             }
@@ -646,8 +640,7 @@ namespace Nuclei4
                 return;
             }
 
-            if (group.connectedSteering) group.clampConnectedExploration();
-            else group.wanderFrequency = ComputeSlimeWanderFrequency(
+            group.wanderFrequency = ComputeSlimeWanderFrequency(
                 group.wanderFrequency,
                 population);
         }
@@ -760,19 +753,15 @@ namespace Nuclei4
                     : runtime != null && runtime.particles != null
                         ? runtime.particles.Count
                         : 0;
-                bool connectedSteering = source.connectedSteering && !isAnt;
-                double exploration = connectedSteering
-                    ? NormalizeConnectedExploration(source.wanderFrequency)
-                    : source.wanderFrequency;
                 float wanderFrequency = isAnt
                     ? ComputeAntBaseWanderFrequency(source.baseWanderFrequency, particleCount)
-                    : ComputeSlimeWanderFrequency(exploration, particleCount);
+                    : ComputeSlimeWanderFrequency(source.wanderFrequency, particleCount);
                 // Dynamic populations recompute the derived interval from the GPU's
-                // exact per-group count. Slime uses exploration; ants use their raw
+                // exact per-group count. Slime uses wander; ants use their raw
                 // base-wander control in the otherwise-unused fourth channel.
                 double populationControl = isAnt
                     ? NormalizeAntBaseWander(source.baseWanderFrequency)
-                    : exploration;
+                    : source.wanderFrequency;
 
                 int offset = groupIndex * 4;
                 groupData0[offset] = (float)source.speed;
@@ -781,7 +770,7 @@ namespace Nuclei4
                 groupData0[offset + 3] = (float)populationControl;
 
                 groupData1[offset] = (float)rotationAngle;
-                groupData1[offset + 1] = isAnt ? 1 : (connectedSteering ? -1 : 0);
+                groupData1[offset + 1] = isAnt ? 1 : 0;
                 groupData1[offset + 2] = (float)source.depositValue;
                 groupData1[offset + 3] = wanderFrequency;
             }
@@ -1093,13 +1082,6 @@ namespace Nuclei4
             double frequency = Math.Floor(Math.Pow(wander, 3) * particleCount / 10.0);
             if (frequency < 1) frequency = 1;
             return (float)frequency;
-        }
-
-        static double NormalizeConnectedExploration(double exploration)
-        {
-            if (double.IsNaN(exploration) || exploration < 0) return 0;
-            if (double.IsPositiveInfinity(exploration) || exploration > 1) return 1;
-            return exploration;
         }
 
         static double NormalizeAntBaseWander(double wander)
