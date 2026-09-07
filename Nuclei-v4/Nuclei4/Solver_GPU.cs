@@ -261,6 +261,11 @@ namespace Nuclei4
 
             bool reachedMaxIterations = !reset && iteration >= solverSettings.MaxIterations;
 
+            if (reachedMaxIterations)
+            {
+                SolverIterationLimit.PauseDedicatedTimers(this);
+            }
+
             if (!reset && !reachedMaxIterations)
             {
                 recordGpuTimingAverages(

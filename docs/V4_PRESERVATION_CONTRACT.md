@@ -680,3 +680,65 @@ and
 
 Recovery snapshots and runnable comparison deployments remain local and are
 intentionally not tracked.
+
+## 2026-09-04 planar tiled scalar diffusion
+
+**User-authorized:** planar XY, XZ, and YZ scalar diffusion now uses a 16 × 16
+shared-memory tile for ranges 2 through 16. Range 0, range 1, range 17 and above,
+ant pheromone diffusion, and every 3D path retain their previous shaders. The
+new resource is locked at:
+
+- `DiffuseAxisPlanarTiled.cso`:
+  `4AA985776F08D64FE2A632E11E4A136C2FCE4B37F6A47D7BCA66A81A5FD66B5F`
+
+The direct and three existing 3D tiled diffusion CSOs remain byte-identical to
+the pre-change backup. The updated preservation snapshot is:
+
+| Contract | Final value |
+| --- | --- |
+| Main resources | 34; name hash `471155F7F1C2429746C207F91331025BB014654B626DDD875A945576A2CC5AC2`; content hash `1038721F386A3DFB2993F88BAD36D65A8CDCB226B2EC91219C1E6E0DE15B7E61` |
+| Compute shaders | 33; `F3115CB7995E898F28EA5E57D848E9585D120950DDAD90FFAA4F2495A177F0F1` |
+| D3D11 GPU resources | 28; `D337D769F14AFAE3246089ADEEF0571703868CA46CB7A129783E9871963F6AF1` |
+| D3D11 display resources | 5; unchanged `7962C5E6C8BCAE08EEB74E649239601E884515546EA8E8C926A809224896C695` |
+
+The regression probe compares direct/separate, direct/fused, tiled/separate,
+and tiled/fused results bit-for-bit across all planar orientations, fixed and
+wrapped boundaries, sparse flags, density limits, tiny grids, maximum halos,
+and the live range sequence `1 → 2 → 5 → 16 → 17 → 3 → 0 → 8 → 5` while other
+diffusion settings also change. All cases pass on the target GPU.
+
+Net7 artifact hashes are
+`B79228659048E89904819EEA84D5C2A1E8E3F5012B75A8960367AC21D2161CA9`
+for the GHA and
+`7EB938535F194967A09FDAFB34FAE4DFD076CCB27D87379FF0063D085C91E3F1`
+for the compute backend. Net48 artifact hashes are
+`B2EA78BD2DC551FC851BB8DC201423270C05C3256347A0B19E5E138AC60AA257`
+and
+`58B386CAA93E64E219B59C0D69924E32A3EA7FD833C7BF2B97E952A9881A88AE`.
+The pre-change recovery archive was local verification material and was removed
+after the conclusions were recorded.
+
+## Dendro Update-off hold and component icons (2026-09-07)
+
+With Update false, the V4 Dendro bridge now retains its computed output tree and
+blocks solver-driven expiration of itself and downstream components. The Update
+input remains a normal dependency: invalidating it wakes the bridge, and holding
+it true still rebuilds on each solver update. Disabled solves check Update before
+resolving voxel data. V3 implements the same behavior for Convert.
+
+The new `GpuVolumeToMesh.ExpireSolution(bool)` override adds one declared API
+record without removing an inherited API. The separately approved component-icon
+refresh adds the Dendro Icon property/getter (two records) and three bitmap
+resources inside the existing resource bundle. Together these give 744 API
+records with hash `17CDCDDA0A4817C3AB32E37C017193C269AD5ABBF3A7BE52BD48EB89AFB69E27`
+and main resource-content hash
+`6FA0F8FAB443FB015DA9BF0634E93FECC8D23813D73662D5B845FA94CF1EAFDA`.
+Component GUIDs, input/output schemas, assembly identity, and all shaders remain
+unchanged. The icon refresh changes component artwork, not voxel rendering.
+
+The `Nuclei.SolverPauseProbe --dendro` regression uses actual converter components
+in a Grasshopper graph. It reproduces repeated downstream execution in the old
+build and verifies disabled holding, no voxel reads while off, false/true/false
+transitions, held-true propagation, default false inputs, and explicit downstream
+cache retrieval in both corrected versions. It does not measure viewport speed
+or run Dendro's native volume generation.

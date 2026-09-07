@@ -81,7 +81,7 @@ namespace Nuclei4
             {
                 //You can add image files to your project resources and access them like this:
                 // return Resources.IconForThisComponent;
-                return Nuclei4.Properties.Resources.ParticleVectors;
+                return Nuclei4.Properties.Resources.ParticleNeighborCount;
             }
         }
 

@@ -9,6 +9,10 @@ namespace Nuclei4
 {
     public class Voxel_MeshInclusion : GH_Component
     {
+        // A numerical tolerance, not a half-voxel inset: thin domains otherwise
+        // develop false interior holes along mesh triangle boundaries.
+        const double MeshInclusionToleranceScale = 1e-6;
+
         /// <summary>
         /// Initializes a new instance of the Voxel_BrepInclusion class.
         /// </summary>
@@ -80,6 +84,7 @@ namespace Nuclei4
             int resZ = inputVoxels.GetLength(2);
 
             double voxelSize = Globals.voxelSize;
+            double inclusionTolerance = voxelSize * MeshInclusionToleranceScale;
 
             //count active voxels
             int activeVoxelsCounter = 0;
@@ -131,7 +136,7 @@ namespace Nuclei4
                             for (int m = 0; m < meshes.Count; m++)
                             {
                                 Mesh M = meshes[m];
-                                bool isInside = M.IsPointInside(pt, voxelSize / 2, true);
+                                bool isInside = M.IsPointInside(pt, inclusionTolerance, true);
 
                                 if (isInside)
                                 {
@@ -269,6 +274,7 @@ namespace Nuclei4
                 return false;
             }
 
+            double inclusionTolerance = inputData.VoxelSize * MeshInclusionToleranceScale;
             BoundingBox[] meshBounds = new BoundingBox[meshes.Count];
             for (int i = 0; i < meshes.Count; i++)
             {
@@ -300,7 +306,7 @@ namespace Nuclei4
                         continue;
                     }
 
-                    if (mesh.IsPointInside(point, inputData.VoxelSize / 2, true))
+                    if (mesh.IsPointInside(point, inclusionTolerance, true))
                     {
                         insideSelection.SetThreadSafe(flatIndex);
                         break;
@@ -327,7 +333,7 @@ namespace Nuclei4
                         if (mesh == null) continue;
                         BoundingBox bounds = meshBounds[meshIndex];
                         if (bounds.IsValid && !bounds.Contains(point)) continue;
-                        if (mesh.IsPointInside(point, inputData.VoxelSize / 2, true))
+                        if (mesh.IsPointInside(point, inclusionTolerance, true))
                         {
                             pathIndex = meshIndex;
                             break;

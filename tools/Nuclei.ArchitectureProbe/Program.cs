@@ -10,12 +10,12 @@ using System.Text;
 internal static class Program
 {
     const string ExpectedComponentGuidHash = "BA5DD56D2DB434E2FEEC0AD489F1DF481FAFC4FA2E3843C3C21E49DED4DCB126";
-    const string ExpectedPublicApiHash = "24B466B99A06FFEB9F24730E411EA53549639C70C8C4BEDAA17100905F8DE037";
+    const string ExpectedPublicApiHash = "17CDCDDA0A4817C3AB32E37C017193C269AD5ABBF3A7BE52BD48EB89AFB69E27";
     const string ExpectedComponentSchemaHash = "5D674B2C4231A47404527DA721A6E7B8C14BF256F5FA199E846ACF38CDF09841";
-    const string ExpectedMainResourceNameHash = "3DD5871F8952055EC8C9E3AFB170EBA23CAA67B37561D371756DB29B74875506";
+    const string ExpectedMainResourceNameHash = "471155F7F1C2429746C207F91331025BB014654B626DDD875A945576A2CC5AC2";
     const string ExpectedLegacyShaderHash = "BBD3F0049D5A902B774EE45A7B5BACB52C6D20E2C2605C7115144DAB5AE5C88A";
-    const string ExpectedShaderHash = "DC10E229A6D90B2667B3674B93B9343D224099F7C172DE7FF4C46D6787C87E03";
-    const string ExpectedGpuShaderHash = "A8E7FC0EA823EB56789E8BA5CA70B015B5B3854E14D76F7849ABDE1D23CCED8B";
+    const string ExpectedShaderHash = "F3115CB7995E898F28EA5E57D848E9585D120950DDAD90FFAA4F2495A177F0F1";
+    const string ExpectedGpuShaderHash = "D337D769F14AFAE3246089ADEEF0571703868CA46CB7A129783E9871963F6AF1";
     const string ExpectedDisplayShaderHash = "7962C5E6C8BCAE08EEB74E649239601E884515546EA8E8C926A809224896C695";
     const string ExpectedSlimeIntroV3Hash = "42D0DD4C43F0D392221BD3878583FB5B4973BAFC9F20808E6D990F76D9C529DC";
     const string ExpectedSlimeIntroV4Hash = "63403F8BD5FC63C35F2EFFC2633A58C0B879C4488B3E8E72B08510BB3D140DA9";
@@ -410,7 +410,7 @@ internal static class Program
 
         List<string> apiRecords = VisibleApiRecords(NucleiAssembly);
         Equal(51, NucleiAssembly.GetExportedTypes().Length, "exported public type count");
-        Equal(741, apiRecords.Count, "public API record count");
+        Equal(744, apiRecords.Count, "public API record count");
         Equal(ExpectedPublicApiHash, HashRecords(apiRecords), "public API hash");
 
         Type componentBaseType = RequiredExternalType("Grasshopper.Kernel.GH_Component, Grasshopper");
@@ -424,10 +424,10 @@ internal static class Program
         Equal(ExpectedComponentSchemaHash, HashRecords(schemaRecords), "Grasshopper schema hash");
 
         List<ResourceRow> mainRows = ResourceRows(NucleiAssembly);
-        Equal(33, mainRows.Count, "compatibility assembly resource count");
+        Equal(34, mainRows.Count, "compatibility assembly resource count");
         Equal(ExpectedMainResourceNameHash, HashRecords(mainRows.Select(row => row.Name)), "compatibility resource-name hash");
         List<ResourceRow> mainShaders = mainRows.Where(row => row.Name.EndsWith(".cso", StringComparison.Ordinal)).ToList();
-        Equal(32, mainShaders.Count, "compatibility shader count");
+        Equal(33, mainShaders.Count, "compatibility shader count");
         Equal(expectedShaderHash, HashRecords(mainShaders.Select(row => row.Canonical)), "compatibility shader hash");
 
         Dictionary<string, HashSet<string>> shaderCopies = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
@@ -444,7 +444,7 @@ internal static class Program
             }
         }
 
-        Equal(32, shaderCopies.Count, "deployed unique shader count");
+        Equal(33, shaderCopies.Count, "deployed unique shader count");
         foreach (KeyValuePair<string, HashSet<string>> pair in shaderCopies)
         {
             Equal(1, pair.Value.Count, "identical deployed copies of " + pair.Key);
@@ -456,12 +456,12 @@ internal static class Program
 
         if (NucleiAssemblies.Count > 1)
         {
-            VerifySupportShaderContract("Nuclei4.Gpu.D3D11", 27, ExpectedGpuShaderHash);
+            VerifySupportShaderContract("Nuclei4.Gpu.D3D11", 28, ExpectedGpuShaderHash);
             VerifySupportShaderContract("Nuclei4.Display.D3D11", 5, ExpectedDisplayShaderHash);
         }
 
         Console.WriteLine(
-            "Compatibility contracts passed: 51 public types, 741 API records, 38 components, 214 schema records, 32 shaders ("
+            "Compatibility contracts passed: 51 public types, 744 API records, 38 components, 214 schema records, 33 shaders ("
             + (NucleiAssemblies.Count > 1 ? "split deployment" : "legacy deployment") + ").");
     }
 
@@ -2799,8 +2799,238 @@ internal static class Program
                 "direct-fallback");
         }
 
+        TestGpuPlanarTiledDiffusionParity(settingsType, dimensionType, engineType);
+
         Console.WriteLine(
-            "Tiled diffusion and final-pass decay fusion are bit-identical to direct diffusion with separate decay for range 5, the range-16 maximum halo, and range-1/range-17 direct fallbacks, including sparse active flags and density limits.");
+            "Tiled diffusion and final-pass decay fusion are bit-identical to direct diffusion with separate decay in 3D and all XY/XZ/YZ planes, including live diffusion-setting changes, wrapped/fixed boundaries, sparse active flags, density limits, maximum halos, tiny wrapped fields, and direct fallbacks.");
+    }
+
+    static void TestGpuPlanarTiledDiffusionParity(
+        Type settingsType,
+        Type dimensionType,
+        Type engineType)
+    {
+        (string Label, int X, int Y, int Z, int ActiveA, int ActiveB)[] planarCases =
+        {
+            ("xy", 23, 19, 1, 23, 19),
+            ("xz", 23, 1, 17, 23, 17),
+            ("yz", 1, 19, 17, 19, 17)
+        };
+
+        foreach ((string label, int resolutionX, int resolutionY, int resolutionZ, int activeA, int activeB) in planarCases)
+        {
+            int voxelCount = checked(resolutionX * resolutionY * resolutionZ);
+            float[] initialDensity = CreateTiledDiffusionParityDensity(voxelCount, label[0]);
+            object dimensionMode = InvokeStatic(
+                dimensionType,
+                "FromResolution",
+                resolutionX,
+                resolutionY,
+                resolutionZ);
+
+            foreach (bool wrap in new[] { false, true })
+            {
+                foreach (int range in new[] { 2, 5, 16 })
+                {
+                    object data = WithInitialDensity(
+                        CreateFullDomain(resolutionX, resolutionY, resolutionZ),
+                        initialDensity);
+                    RunGpuTiledDiffusionParityCase(
+                        settingsType,
+                        engineType,
+                        dimensionMode,
+                        data,
+                        wrap,
+                        range,
+                        range == 5 ? 4 : 2,
+                        "planar-" + label + "-full-domain");
+                }
+            }
+
+            int[] inactiveIndices = new[]
+            {
+                PlanarTiledDiffusionFlatIndex(label, 3, 5, resolutionY, resolutionZ),
+                PlanarTiledDiffusionFlatIndex(label, 10, 15, resolutionY, resolutionZ),
+                PlanarTiledDiffusionFlatIndex(label, 15, 8, resolutionY, resolutionZ),
+                PlanarTiledDiffusionFlatIndex(label, 16, 8, resolutionY, resolutionZ),
+                PlanarTiledDiffusionFlatIndex(label, activeA - 2, activeB - 2, resolutionY, resolutionZ)
+            };
+            List<double> maximumDensity = Enumerable.Repeat(-1.0, voxelCount).ToList();
+            maximumDensity[PlanarTiledDiffusionFlatIndex(label, 7, 6, resolutionY, resolutionZ)] = 0.19;
+            maximumDensity[PlanarTiledDiffusionFlatIndex(label, activeA - 6, activeB - 6, resolutionY, resolutionZ)] = 0.31;
+            List<double> minimumDensity = Enumerable.Repeat(-1.0, voxelCount).ToList();
+            minimumDensity[PlanarTiledDiffusionFlatIndex(label, 6, 13, resolutionY, resolutionZ)] = 0.12;
+            minimumDensity[PlanarTiledDiffusionFlatIndex(label, activeA - 5, 4, resolutionY, resolutionZ)] = 0.24;
+
+            foreach (bool wrap in new[] { false, true })
+            {
+                object sparseData = CreateSparseGpuData(
+                    resolutionX,
+                    resolutionY,
+                    resolutionZ,
+                    inactiveIndices);
+                sparseData = Invoke(sparseData, "WithScalarValues", 0, minimumDensity);
+                sparseData = Invoke(sparseData, "WithScalarValues", 1, maximumDensity);
+                sparseData = WithInitialDensity(sparseData, initialDensity);
+                RunGpuTiledDiffusionParityCase(
+                    settingsType,
+                    engineType,
+                    dimensionMode,
+                    sparseData,
+                    wrap,
+                    5,
+                    4,
+                    "planar-" + label + "-sparse-limited");
+            }
+
+            foreach (int fallbackRange in new[] { 0, 1, 17 })
+            {
+                object data = WithInitialDensity(
+                    CreateFullDomain(resolutionX, resolutionY, resolutionZ),
+                    initialDensity);
+                RunGpuTiledDiffusionParityCase(
+                    settingsType,
+                    engineType,
+                    dimensionMode,
+                    data,
+                    true,
+                    fallbackRange,
+                    2,
+                    "planar-" + label + "-direct-fallback");
+            }
+
+            int tinyX = label == "yz" ? 1 : 7;
+            int tinyY = label == "xz" ? 1 : (label == "yz" ? 7 : 5);
+            int tinyZ = label == "xy" ? 1 : 5;
+            int tinyVoxelCount = checked(tinyX * tinyY * tinyZ);
+            float[] tinyDensity = CreateTiledDiffusionParityDensity(tinyVoxelCount, label[1]);
+            object tinyDimensionMode = InvokeStatic(
+                dimensionType,
+                "FromResolution",
+                tinyX,
+                tinyY,
+                tinyZ);
+            foreach (bool wrap in new[] { false, true })
+            {
+                object tinyData = WithInitialDensity(
+                    CreateFullDomain(tinyX, tinyY, tinyZ),
+                    tinyDensity);
+                RunGpuTiledDiffusionParityCase(
+                    settingsType,
+                    engineType,
+                    tinyDimensionMode,
+                    tinyData,
+                    wrap,
+                    16,
+                    2,
+                    "planar-" + label + "-tiny-maximum-halo");
+            }
+
+            RunGpuLivePlanarDiffusionSettingsParity(
+                settingsType,
+                engineType,
+                dimensionMode,
+                WithInitialDensity(
+                    CreateFullDomain(resolutionX, resolutionY, resolutionZ),
+                    initialDensity),
+                label);
+        }
+    }
+
+    static float[] CreateTiledDiffusionParityDensity(int voxelCount, int salt)
+    {
+        float[] density = new float[voxelCount];
+        for (int i = 0; i < density.Length; i++)
+        {
+            density[i] = (float)(0.04 + ((i * 37 + i / 11 + salt * 13) % 211) / 500.0);
+        }
+        return density;
+    }
+
+    static int PlanarTiledDiffusionFlatIndex(
+        string plane,
+        int activeA,
+        int activeB,
+        int resolutionY,
+        int resolutionZ)
+    {
+        int x;
+        int y;
+        int z;
+        if (plane == "xy")
+        {
+            x = activeA;
+            y = activeB;
+            z = 0;
+        }
+        else if (plane == "xz")
+        {
+            x = activeA;
+            y = 0;
+            z = activeB;
+        }
+        else
+        {
+            x = 0;
+            y = activeA;
+            z = activeB;
+        }
+        return (x * resolutionY + y) * resolutionZ + z;
+    }
+
+    static void RunGpuLivePlanarDiffusionSettingsParity(
+        Type settingsType,
+        Type engineType,
+        object dimensionMode,
+        object data,
+        string planeLabel)
+    {
+        object snapshot = CaptureGpuSignatureSnapshot(CreateField(data), 0, false);
+        object settings = Activator.CreateInstance(settingsType)!;
+        SetField(settings, "WrapBoundaries", false);
+        SetField(settings, "DynamicPopulation", false);
+
+        object reference = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
+        object optimized = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
+        SetField(reference, "forceDirectDiffusionForValidation", true);
+
+        int[] ranges = { 1, 2, 5, 16, 17, 3, 0, 8, 5 };
+        double[] diffuse = { 0.17, 0.11, 0.20, 0.08, 0.16, 0.12, 0.19, 0.14, 0.23 };
+        double[] decay = { 0.013, 0.020, 0.004, 0.031, 0.009, 0.017, 0.006, 0.025, 0.011 };
+        double[] gradual = { 1.0, 0.75, 0.55, 0.0, 0.25, 1.0, 0.8, 0.4, 1.0 };
+
+        try
+        {
+            for (int i = 0; i < ranges.Length; i++)
+            {
+                SetField(settings, "DiffuseRange", ranges[i]);
+                SetField(settings, "Diffuse", diffuse[i]);
+                SetField(settings, "Decay", decay[i]);
+                SetField(settings, "DiffusionGradual", gradual[i]);
+                SetField(settings, "WrapBoundaries", (i & 1) != 0);
+                AssertPlanarTiledDiffusionDispatch(
+                    optimized,
+                    dimensionMode,
+                    ranges[i],
+                    ranges[i] >= 2 && ranges[i] <= 16,
+                    "live planar-" + planeLabel + " range-" + ranges[i]);
+
+                int iteration = i + 1;
+                InvokeGpuStep(reference, snapshot, settings, dimensionMode, iteration);
+                InvokeGpuStep(optimized, snapshot, settings, dimensionMode, iteration);
+                Invoke(reference, "ReadBackDensity");
+                Invoke(optimized, "ReadBackDensity");
+                EqualFloatBits(
+                    Field<float[]>(reference, "densityReadback"),
+                    Field<float[]>(optimized, "densityReadback"),
+                    "live planar-" + planeLabel + " diffusion settings iteration " + iteration);
+            }
+        }
+        finally
+        {
+            ((IDisposable)optimized).Dispose();
+            ((IDisposable)reference).Dispose();
+        }
     }
 
     static void RunGpuTiledDiffusionParityCase(
@@ -2831,6 +3061,17 @@ internal static class Program
         SetField(directFused, "forceDirectDiffusionForValidation", true);
         SetField(tiledSeparate, "disableScalarDecayFusionForValidation", true);
 
+        bool planar = !Field<bool>(dimensionMode, "Tridimensional");
+        if (planar)
+        {
+            AssertPlanarTiledDiffusionDispatch(
+                optimized,
+                dimensionMode,
+                diffuseRange,
+                diffuseRange >= 2 && diffuseRange <= 16,
+                "range-" + diffuseRange + " " + caseLabel);
+        }
+
         try
         {
             for (int iteration = 1; iteration <= iterations; iteration++)
@@ -2858,6 +3099,67 @@ internal static class Program
             ((IDisposable)tiledSeparate).Dispose();
             ((IDisposable)directFused).Dispose();
             ((IDisposable)reference).Dispose();
+        }
+    }
+
+    static void AssertPlanarTiledDiffusionDispatch(
+        object engine,
+        object dimensionMode,
+        int diffuseRange,
+        bool expectedTiled,
+        string label)
+    {
+        int[] axes = Field<bool>(dimensionMode, "PlanarXY")
+            ? new[] { 0, 1 }
+            : Field<bool>(dimensionMode, "PlanarXZ")
+                ? new[] { 0, 2 }
+                : new[] { 1, 2 };
+        MethodInfo selector = RequiredInstanceMethod(
+            engine.GetType(),
+            "TryGetTiledDiffusionDispatch",
+            7);
+
+        foreach (int axis in axes)
+        {
+            object[] arguments = { axis, diffuseRange, dimensionMode, null, 0, 0, 0 };
+            bool tiled = (bool)selector.Invoke(engine, arguments)!;
+            Equal(expectedTiled, tiled, label + " axis-" + axis + " tiled selection");
+            if (!expectedTiled)
+            {
+                continue;
+            }
+
+            True(
+                ReferenceEquals(Field<object>(engine, "diffusionPlanarTiledShader"), arguments[3]),
+                label + " axis-" + axis + " did not select the expected planar shader");
+            Equal(1, (int)arguments[6], label + " axis-" + axis + " dispatch Z");
+
+            int resolutionX = Field<int>(engine, "resX");
+            int resolutionY = Field<int>(engine, "resY");
+            int resolutionZ = Field<int>(engine, "resZ");
+            int axisLength = axis == 0 ? resolutionX : axis == 1 ? resolutionY : resolutionZ;
+            int lineLength;
+            if (Field<bool>(dimensionMode, "PlanarXY"))
+            {
+                lineLength = axis == 0 ? resolutionY : resolutionX;
+            }
+            else if (Field<bool>(dimensionMode, "PlanarXZ"))
+            {
+                lineLength = axis == 0 ? resolutionZ : resolutionX;
+            }
+            else
+            {
+                lineLength = axis == 1 ? resolutionZ : resolutionY;
+            }
+
+            Equal(
+                (axisLength + 15) / 16,
+                (int)arguments[4],
+                label + " axis-" + axis + " dispatch X");
+            Equal(
+                (lineLength + 15) / 16,
+                (int)arguments[5],
+                label + " axis-" + axis + " dispatch Y");
         }
     }
 

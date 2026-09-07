@@ -32,6 +32,7 @@ string[] entryPoints =
     "ApplyParticleDeath",
     "ApplyParticleDivision",
     "DiffuseAxis",
+    "DiffuseAxisPlanarTiled",
     "DiffuseAxisXTiled",
     "DiffuseAxisYTiled",
     "DiffuseAxisZTiled",

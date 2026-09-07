@@ -29,10 +29,36 @@ scheduling, output conversion, meshing, and Rhino viewport rendering.
 | Tiled 3D diffusion and fused decay | 152.053 → 90.050 ms/step: **40.78% faster** |
 | Persistent particle counts | **4.72% controlled improvement** |
 | Final GPU binary comparison | 90.109 → 83.632 ms/step: **7.19% faster** |
+| Tiled planar diffusion | 71.952 → 54.261 GPU ms/step: **24.59% faster** |
 
 Persistent counts eliminated a full 27-million-voxel clear and particle recount,
 saving approximately 5.582 ms/step. A particle-based deposit alternative was
 correct but slower, so the coalesced voxel implementation remained in production.
+
+## Planar tiled diffusion (2026-09-04)
+
+The high 2D definition (4000 × 4000 × 1, 1,000,000 requested / 999,026
+active particles, diffusion range 5) was measured against the archived
+pre-change V4 deployment. For the no-preview result, two stable fresh-process
+measurements per build used D3D11 hardware timestamps, 400 or 800 warm-up steps,
+and ten 20-step batches; the table reports the median across the two process
+medians. Preview used one stable 800-warm-up process per build:
+
+| Scope | Previous V4 | Tiled planar V4 | Improvement |
+| --- | ---: | ---: | ---: |
+| Solver core, no preview | 71.952 ms/step | **54.261 ms/step** | **24.59%; 1.326×** |
+| Synchronized wall time | 72.146 ms/step | **54.419 ms/step** | **24.57%; 1.326×** |
+| Shared particle-preview buffer | 72.860 ms/step | **55.193 ms/step** | **24.25%; 1.320×** |
+
+One candidate no-preview run was rejected before aggregation because its repeats
+showed a GPU clock transition and 49.64% spread; its 800-warm-up replacement had
+0.67% spread. Preview-buffer generation added approximately 0.91 ms/step before
+and 0.93 ms/step after (a cross-process comparison).
+Rhino viewport rasterization was not measured. Separate pass-timestamp runs
+showed 1.77×–2.20× faster diffusion while movement and deposit passes remained
+effectively unchanged. The optimized shader is selected only for scalar planar
+diffusion ranges 2–16; range 0, range 1, range 17+, ant pheromone diffusion, and
+all 3D paths retain their previous shaders.
 
 ## Additional costs
 

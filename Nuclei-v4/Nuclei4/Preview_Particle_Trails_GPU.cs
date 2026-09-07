@@ -469,7 +469,7 @@ namespace Nuclei4
 
         protected override System.Drawing.Bitmap Icon
         {
-            get { return Nuclei4.Properties.Resources.ParticleTrails; }
+            get { return Nuclei4.Properties.Resources.PreviewParticleTrails; }
         }
 
         public override Guid ComponentGuid

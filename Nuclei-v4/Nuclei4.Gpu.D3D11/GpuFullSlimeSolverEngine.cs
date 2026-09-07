@@ -106,6 +106,7 @@ namespace Nuclei4
         ID3D11ComputeShader applyParticleDeathShader;
         ID3D11ComputeShader applyParticleDivisionShader;
         ID3D11ComputeShader diffusionShader;
+        ID3D11ComputeShader diffusionPlanarTiledShader;
         ID3D11ComputeShader diffusionXTiledShader;
         ID3D11ComputeShader diffusionYTiledShader;
         ID3D11ComputeShader diffusionZTiledShader;
@@ -2245,14 +2246,54 @@ namespace Nuclei4
             groupsZ = 0;
 
             if (forceDirectDiffusionForValidation
-                || !dimensionMode.Tridimensional
                 || range < 2
                 || range > MaximumTiledDiffusionRange)
             {
                 return false;
             }
 
-            if (axis == 0)
+            if (!dimensionMode.Tridimensional)
+            {
+                shader = diffusionPlanarTiledShader;
+                groupsZ = 1;
+
+                if (dimensionMode.PlanarXY && axis == 0)
+                {
+                    groupsX = DivideRoundUpTiledDiffusion(resX);
+                    groupsY = DivideRoundUpTiledDiffusion(resY);
+                }
+                else if (dimensionMode.PlanarXY && axis == 1)
+                {
+                    groupsX = DivideRoundUpTiledDiffusion(resY);
+                    groupsY = DivideRoundUpTiledDiffusion(resX);
+                }
+                else if (dimensionMode.PlanarXZ && axis == 0)
+                {
+                    groupsX = DivideRoundUpTiledDiffusion(resX);
+                    groupsY = DivideRoundUpTiledDiffusion(resZ);
+                }
+                else if (dimensionMode.PlanarXZ && axis == 2)
+                {
+                    groupsX = DivideRoundUpTiledDiffusion(resZ);
+                    groupsY = DivideRoundUpTiledDiffusion(resX);
+                }
+                else if (dimensionMode.PlanarYZ && axis == 1)
+                {
+                    groupsX = DivideRoundUpTiledDiffusion(resY);
+                    groupsY = DivideRoundUpTiledDiffusion(resZ);
+                }
+                else if (dimensionMode.PlanarYZ && axis == 2)
+                {
+                    groupsX = DivideRoundUpTiledDiffusion(resZ);
+                    groupsY = DivideRoundUpTiledDiffusion(resY);
+                }
+                else
+                {
+                    shader = diffusionShader;
+                    return false;
+                }
+            }
+            else if (axis == 0)
             {
                 shader = diffusionXTiledShader;
                 groupsX = DivideRoundUpTiledDiffusion(resX);
@@ -5670,6 +5711,7 @@ namespace Nuclei4
             applyParticleDeathShader = CreateComputeShader("ApplyParticleDeath");
             applyParticleDivisionShader = CreateComputeShader("ApplyParticleDivision");
             diffusionShader = CreateComputeShader("DiffuseAxis");
+            diffusionPlanarTiledShader = CreateComputeShader("DiffuseAxisPlanarTiled");
             diffusionXTiledShader = CreateComputeShader("DiffuseAxisXTiled");
             diffusionYTiledShader = CreateComputeShader("DiffuseAxisYTiled");
             diffusionZTiledShader = CreateComputeShader("DiffuseAxisZTiled");
@@ -5971,6 +6013,7 @@ namespace Nuclei4
             if (applyParticleDeathShader != null) applyParticleDeathShader.Dispose();
             if (applyParticleDivisionShader != null) applyParticleDivisionShader.Dispose();
             if (diffusionShader != null) diffusionShader.Dispose();
+            if (diffusionPlanarTiledShader != null) diffusionPlanarTiledShader.Dispose();
             if (diffusionXTiledShader != null) diffusionXTiledShader.Dispose();
             if (diffusionYTiledShader != null) diffusionYTiledShader.Dispose();
             if (diffusionZTiledShader != null) diffusionZTiledShader.Dispose();
@@ -8583,6 +8626,179 @@ void DiffuseAxis(uint3 id : SV_DispatchThreadID)
 
     float value = Source[index] * Keep + Diffuse * weighted;
     Destination[index] = FinalizeDiffusionValue(value, index, x, y, z);
+}
+
+int PlanarTiledDiffusionAxisCount()
+{
+    if (Axis == 0) return ResX;
+    if (Axis == 1) return ResY;
+    return ResZ;
+}
+
+int PlanarTiledDiffusionLineCount()
+{
+    if (PlanarXY != 0) return Axis == 0 ? ResY : ResX;
+    if (PlanarXZ != 0) return Axis == 0 ? ResZ : ResX;
+    return Axis == 1 ? ResZ : ResY;
+}
+
+bool PlanarTiledDiffusionAxisIsContiguous()
+{
+    // FlatIndex stores Z contiguously, followed by Y. In an XY field Z has
+    // length one, so Y becomes contiguous as well.
+    return (PlanarXY != 0 && Axis == 1)
+        || ((PlanarXZ != 0 || PlanarYZ != 0) && Axis == 2);
+}
+
+void PlanarTiledDiffusionCoordinates(
+    int axisCoordinate,
+    int lineCoordinate,
+    out int x,
+    out int y,
+    out int z)
+{
+    x = 0;
+    y = 0;
+    z = 0;
+
+    if (PlanarXY != 0)
+    {
+        if (Axis == 0)
+        {
+            x = axisCoordinate;
+            y = lineCoordinate;
+        }
+        else
+        {
+            x = lineCoordinate;
+            y = axisCoordinate;
+        }
+    }
+    else if (PlanarXZ != 0)
+    {
+        if (Axis == 0)
+        {
+            x = axisCoordinate;
+            z = lineCoordinate;
+        }
+        else
+        {
+            x = lineCoordinate;
+            z = axisCoordinate;
+        }
+    }
+    else
+    {
+        if (Axis == 1)
+        {
+            y = axisCoordinate;
+            z = lineCoordinate;
+        }
+        else
+        {
+            y = lineCoordinate;
+            z = axisCoordinate;
+        }
+    }
+}
+
+int PlanarTiledDiffusionSlot(
+    bool contiguousAxis,
+    int localAxis,
+    int localLine,
+    int axisOffset)
+{
+    return contiguousAxis
+        ? localLine * 48 + 16 + localAxis + axisOffset
+        : (16 + localAxis + axisOffset) * 16 + localLine;
+}
+
+[numthreads(16, 16, 1)]
+void DiffuseAxisPlanarTiled(
+    uint3 groupThreadId : SV_GroupThreadID,
+    uint3 groupId : SV_GroupID)
+{
+    bool contiguousAxis = PlanarTiledDiffusionAxisIsContiguous();
+    int localAxis = contiguousAxis ? (int)groupThreadId.x : (int)groupThreadId.y;
+    int localLine = contiguousAxis ? (int)groupThreadId.y : (int)groupThreadId.x;
+    int tileAxis = (int)groupId.x * 16;
+    int axisCoordinate = tileAxis + localAxis;
+    int lineCoordinate = (int)groupId.y * 16 + localLine;
+    int axisCount = PlanarTiledDiffusionAxisCount();
+    int lineCount = PlanarTiledDiffusionLineCount();
+    bool lineIncluded = lineCoordinate >= 0 && lineCoordinate < lineCount;
+
+    bool centerIncluded;
+    int centerAxis = ResolveTiledDiffusionAxis(axisCoordinate, axisCount, centerIncluded);
+    int centerX;
+    int centerY;
+    int centerZ;
+    PlanarTiledDiffusionCoordinates(
+        centerAxis,
+        lineCoordinate,
+        centerX,
+        centerY,
+        centerZ);
+    int centerSlot = PlanarTiledDiffusionSlot(contiguousAxis, localAxis, localLine, 0);
+    float rawCenter = StoreTiledDiffusionSample(
+        centerSlot,
+        lineIncluded && centerIncluded,
+        centerX,
+        centerY,
+        centerZ);
+
+    if (localAxis < Range)
+    {
+        bool leftIncluded;
+        int leftAxis = ResolveTiledDiffusionAxis(
+            tileAxis + localAxis - Range,
+            axisCount,
+            leftIncluded);
+        int leftX;
+        int leftY;
+        int leftZ;
+        PlanarTiledDiffusionCoordinates(leftAxis, lineCoordinate, leftX, leftY, leftZ);
+        StoreTiledDiffusionSample(
+            PlanarTiledDiffusionSlot(contiguousAxis, localAxis, localLine, -Range),
+            lineIncluded && leftIncluded,
+            leftX,
+            leftY,
+            leftZ);
+
+        bool rightIncluded;
+        int rightAxis = ResolveTiledDiffusionAxis(
+            tileAxis + 16 + localAxis,
+            axisCount,
+            rightIncluded);
+        int rightX;
+        int rightY;
+        int rightZ;
+        PlanarTiledDiffusionCoordinates(rightAxis, lineCoordinate, rightX, rightY, rightZ);
+        StoreTiledDiffusionSample(
+            PlanarTiledDiffusionSlot(contiguousAxis, localAxis, localLine, 16),
+            lineIncluded && rightIncluded,
+            rightX,
+            rightY,
+            rightZ);
+    }
+
+    LoadTiledDiffusionWeight(groupThreadId);
+    GroupMemoryBarrierWithGroupSync();
+
+    // Over-dispatch threads must participate in the loads and barrier above:
+    // under wrapping, their center slots form the final partial tile's halo.
+    if (axisCoordinate >= axisCount || lineCoordinate >= lineCount) return;
+
+    float weighted = 0.0;
+    for (int offset = -Range; offset <= Range; offset++)
+    {
+        int slot = PlanarTiledDiffusionSlot(contiguousAxis, localAxis, localLine, offset);
+        weighted += TiledWeightedDensity[slot] * TiledDiffusionWeights[offset + Range];
+    }
+
+    int index = FlatIndex(centerX, centerY, centerZ);
+    float value = rawCenter * Keep + Diffuse * weighted;
+    Destination[index] = FinalizeDiffusionValue(value, index, centerX, centerY, centerZ);
 }
 
 [numthreads(16, 16, 1)]

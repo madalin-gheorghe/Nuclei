@@ -45,18 +45,25 @@ namespace Nuclei4
         {
             EnsureMethodValueList();
 
+            bool update = false;
+            DA.GetData(4, ref update);
+            if (!ShouldRebuild(update))
+            {
+                if (cachedOutput != null) DA.SetData(0, cachedOutput);
+                Message = "Update Off";
+                return;
+            }
+
             VoxelField field;
             double isoValue = 0.8;
             int method = ContinuousMethod;
             int maximumElements = 5000000;
-            bool update = false;
             int smoothingIterations = 1;
 
             VoxelFieldAccess.TryGet(DA, 0, Globals.voxelSize, out field);
             DA.GetData(1, ref isoValue);
             DA.GetData(2, ref method);
             DA.GetData(3, ref maximumElements);
-            DA.GetData(4, ref update);
             DA.GetData(5, ref smoothingIterations);
 
             if (ShouldRebuild(update))
@@ -102,9 +109,18 @@ namespace Nuclei4
 
         protected override void ExpireDownStreamObjects()
         {
-            // Preserve the existing protected override while using Grasshopper's
-            // normal upstream-to-downstream expiration behavior.
-            base.ExpireDownStreamObjects();
+            if (CachedConversionUpdates.ShouldExpireDownstream(this, 4))
+                base.ExpireDownStreamObjects();
+        }
+
+        public override void ExpireSolution(bool recompute)
+        {
+            // Keep the existing output tree as well as the cached volume while
+            // off. Expiring Update itself bypasses this guard and wakes conversion.
+            if (Phase == GH_SolutionPhase.Computed
+                && !CachedConversionUpdates.ShouldExpireDownstream(this, 4))
+                return;
+            base.ExpireSolution(recompute);
         }
 
         void BuildContinuous(VoxelField field, float threshold, int triangleLimit, int smoothPasses)
@@ -349,6 +365,11 @@ namespace Nuclei4
         internal bool UsesSolverGpuDensity
         {
             get { return true; }
+        }
+
+        protected override System.Drawing.Bitmap Icon
+        {
+            get { return Nuclei4.Properties.Resources.NucleiToDendroVolume; }
         }
 
         public override Guid ComponentGuid
