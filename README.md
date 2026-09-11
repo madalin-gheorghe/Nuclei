@@ -1,150 +1,77 @@
 # Nuclei
 
-Nuclei is an original Grasshopper/Rhino plugin for bottom-up generative systems,
-behavior-based simulations, and voxel-controlled spatial maps.
+Nuclei is a generative-design plugin for Grasshopper that combines behavior-based particle simulations with highly customizable voxel environments. Inspired by slime-mold transport networks and ant foraging systems, it allows particles to respond to spatial fields, producing branching networks, evolving patterns, and volumetric structures.
 
-The plugin combines particle simulation with highly customizable voxel
-environments, allowing movement and behavior to respond to spatial maps. Its
-slime-mold logic is inspired by
-[Physarum transport-network research](https://uwe-repository.worktribe.com/output/980579/characteristics-of-pattern-formation-and-evolution-in-approximations-of-physarum-transport-networks)
-and expanded toward computational design, speculative urban systems, and
-generative spatial workflows.
+**Development:** Madalin Gheorghe · [@madalin\_gheorghe](https://www.instagram.com/madalin_gheorghe/)
 
-Stable public releases are published on
-[Food4Rhino](https://www.food4rhino.com/en/app/nuclei).
-The [V3 Yak packaging workflow](tools/Build-V3YakPackage.md) builds the committed
-CPU source for Rhino 8: a single-file modern Windows/Mac plugin and the legacy
-Windows runtime variant, with source and package hashes recorded for each build.
+**Download:** [Food4Rhino](https://www.food4rhino.com/en/app/nuclei)
+
+**Tutorial:** [Biomorphic Networks V3.0](https://www.youtube.com/watch?v=Hl2Dd9yihHw\&t=7424s) — an older version, but the same principles apply.
+
+## Versions
+
+| Version         | Compatibility      | Description                                                                                                                       | Examples                                                                                    |
+| --------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **V2 — Legacy** | Rhino 6–9, Windows | Original slime-mold simulation tool. Displays an “old v2” banner in Rhino 8/9.                                                    | [V2 examples](https://github.com/madalin-gheorghe/Nuclei/tree/main/Nuclei%20Definitions/v2) |
+| **V3 — CPU**    | Rhino 8/9          | CPU-based slime-mold and ant simulations, voxel controls, trails, and Dendro integration. Displays an “old v3” banner in Rhino 9. | [V3 examples](https://github.com/madalin-gheorghe/Nuclei/tree/main/Nuclei%20Definitions/v3) |
+| **V4 — GPU**    | Rhino 9, Windows   | GPU-accelerated simulations for larger particle populations and voxel fields, with GPU previews and volume-to-mesh conversion.    | [V4 examples](https://github.com/madalin-gheorghe/Nuclei/tree/main/Nuclei%20Definitions/v4) |
+
+V2 and V3 are available separately in Rhino's Package Manager as **Nuclei2** and **Nuclei3**. 
+
+
 
 ## Source Layout
 
-- `Nuclei-v3/Nuclei-v3.sln` - V3.3 CPU implementation for Rhino 8.
-- `Nuclei-v4/Nuclei-v4.sln` - V4.1 GPU implementation for Rhino 9 on Windows.
-- `Nuclei Definitions/v3` - canonical V3.3 Grasshopper examples.
-- `Nuclei Definitions/v4` - current V4.1 Grasshopper examples.
-- `docs` - milestone, architecture, behavior-parity, and performance notes.
-- `tools` - shared repository verification and maintenance utilities.
+- `Nuclei-v2-old` — V2 release files; now maintained as the legacy version.
+- `Nuclei-v3` — further development of V2 \~2x speed improvements. Introduced Ant Simulations
+- `Nuclei-v4` — GPU implementation. Improved functionality and speed
+- `Nuclei Definitions` — examples organized by version.
+- `docs` and `tools` — technical documentation, build tools, and verification utilities.
 
-The V3 and V4 codebases deliberately retain different assembly and component GUID
-families. They can be developed independently without Grasshopper definitions
-silently changing component identity.
 
-## Current Checkpoints
-
-### V2.0.5 legacy
-
-V2.0.5 matches the published Yak release for
-Rhino 6/7 on Windows. The compatibility build tools and
-[V2 examples](Nuclei%20Definitions/v2) are included; the original V2 solver
-source is unavailable.
-
-### V3.3 CPU
-
-V3.x is the CPU behavioral reference. It includes internal particle generation,
-scalar-array solver paths, wrap/no-wrap behavior, balanced diffusion, ant and slime
-systems, CPU previews, and the Nuclei-to-Dendro bridge. It contains no GPU solver.
-Slime groups use Classic strongest-sensor steering with an optional Wander
-frequency; the optional probabilistic steering mode has been removed from both
-versions. Existing definitions retain their inputs and connections. Trail Settings
-now exposes only Trail Size while safely reading the
-retired frequency schema, and Voxel Settings Slime migrates legacy input layouts
-to Diffuse Rate, Decay Rate, Falloff, and Diffuse Range. Holding the Dendro
-Convert input false preserves the last result without repeatedly recomputing
-downstream components. Reaching Max
-Iterations pauses a dedicated automatic Timer/Trigger while leaving the final
-solver result available.
-
-### V4.1 GPU
-
-V4.x targets Rhino 9 on Windows. It includes the Direct3D 11 compute-shader solver,
-adaptive large voxel fields, GPU-resident dynamic maps and previews, ordered trails,
-dynamic populations, ant food and pheromone behavior, reliable hard resets, live
-wrap changes, on-demand paused-state extraction and preview refresh, and GPU
-volume-to-mesh conversion with scalar and mesh smoothing. Its trail preview keeps
-the latest ordered GPU segment current while hidden, so enabling the preview on a
-paused solver does not connect stale particle positions. Custom-size viewport
-captures now use the capture projection so GPU trails stay aligned with native
-geometry in square and wide exports.
-
-The final V3 parity pass adds matching classic steering, non-wrapped boundary
-and blocked-parent behavior, species-aware density processing, ant home and launch
-state, V3-compatible ageing and dynamic-population ordering, nonblocking population
-readback, and a dedicated ant movement dispatch. While Update is true, Dendro
-output rebuilds whenever new solver data arrives; the last successful volume stays
-cached while Update is false, without repeatedly recomputing the bridge or its
-downstream components. Reaching Max Iterations likewise pauses a dedicated
-automatic Timer/Trigger while keeping the completed result available.
-
-Scalar planar diffusion ranges 2-16 use a dedicated tiled compute path while
-retaining the established shaders for other ranges, ant pheromones, and 3D fields.
-
-Particle creation now uses a deterministic pseudo-random permutation without
-replacement, and both solvers enforce one live particle per voxel. Preview state
-is isolated to the active Grasshopper document. V4 voxel-value operations also
-invalidate stale cached inputs and preserve separate Slime Food and Ant Food data.
-
-V4 source types now use the `Nuclei4` namespace while preserving the existing
-`Nuclei4.gha` assembly name and all Grasshopper component identities.
-
-V4.1 is now separated into a GH1 compatibility adapter, platform-neutral Core,
-GPU and display contracts, and concrete Direct3D 11 compute/display backends.
-This keeps the current Windows implementation and hot GPU path intact while
-leaving explicit extension points for a future GPU-only Grasshopper 2 adapter
-and macOS Metal backends. GH2 and Metal are design targets only and are not
-shipped yet. See [V4 Architecture](docs/V4_ARCHITECTURE.md) and the executable
-[V4 Preservation Contract](docs/V4_PRESERVATION_CONTRACT.md).
-
-The CPU V3 implementation remains the reference whenever behavior is translated to
-the GPU. Known differences are documented in
-[CPU to GPU Behavior Parity](docs/GPU_BEHAVIOR_PARITY.md).
-The latest compatibility and feature checkpoint is summarized in
-[Development Status](docs/DEVELOPMENT_STATUS.md).
-
-## Definition Conversion and Validation
-
-The fail-closed definition converter under `tools/Nuclei.DefinitionConverter`
-maps the canonical V3.3 examples to V4 component identities while preserving
-object IDs, wire endpoints, and persistent data outside documented schema
-adapters. It also migrates the retired Trail Frequency input without editing the
-source definitions.
-
-The finalized 15-definition set in `Nuclei Definitions/v4` uses current names and
-includes two Growth examples and preview images for all 15 examples. The Rhino 9
-validation workflow loads and reopens
-definitions against an exact V4 binary hash, rejects missing objects or V3 residue,
-and exercises the saved GPU-to-Dendro-to-mesh path. Conversion manifests, progress
-files, and machine-specific validation reports remain local because they describe
-one exact conversion run and binary rather than the shipped examples themselves.
-The isolated net8 and net48 hosts and validator scripts live under
-`tools/Nuclei.DefinitionValidationHost` and `tools/Nuclei.DefinitionValidator`.
-
-The repository-level `global.json` pins the verification toolchain to .NET SDK
-8.0.418 with latest-patch roll-forward.
 
 ## Performance Evidence
 
-The single canonical [Performance Summary](docs/performance/README.md) contains
-the CPU optimization history, matched CPU/GPU tests, GPU breakthrough stages,
-methods, and caveats.
+Recorded comparisons of V3 CPU and V4 GPU using matched solver settings:
 
-On the recorded Ryzen 5 7535HS / Radeon 660M system, the matched workloads
-measured 6.204x GPU speedup for standard 2D, 5.245x for high 2D, and 3.212x for
-high 3D. Later controlled high-3D GPU work reduced tiled-diffusion time by 40.78%
-and a separate test showed a 4.72% round-balanced gain from persistent counts.
-The later tiled planar path reduced high-2D solver time by 24.59%.
-Raw profiler captures and repeat logs remain local rather than adding large or redundant
-artifacts to the repository.
+| Workload                                     | CPU time/step | GPU time/step | GPU speedup |
+| -------------------------------------------- | ------------: | ------------: | ----------: |
+| 2D · 500 × 500 · 25,000 particles            |      4.235 ms |      0.683 ms |   **6.20×** |
+| Large 2D · 4000 × 4000 · 1 million particles |    330.512 ms |     63.016 ms |   **5.25×** |
+| Large 3D · 300³ · 1 million particles        |    428.268 ms |    133.322 ms |   **3.21×** |
+
+Test system: AMD Ryzen 5 7535HS, Radeon 660M integrated GPU, 32 GB RAM, Windows 11.
+
+These historical results measure completed solver work—not startup, Grasshopper scheduling, meshing, or viewport rendering. Results vary by hardware and workload.
+
+See the [Performance Summary](https://github.com/madalin-gheorghe/Nuclei/blob/main/docs/performance/README.md) for methods, development stages, and limitations.
+
+
 
 ## Milestones
 
-- `v3.0` - stable self-coded baseline, hand-coded by Madalin Gheorghe.
-- `v3.1` - CPU solver stabilization and structured performance measurement.
-- `v3.2` - CPU diffusion and preview optimization.
-- `v3.3` - current CPU compatibility and behavioral-reference checkpoint.
-- `v4.0` - first meaningful GPU solver and GPU preview architecture.
-- `v4.1` - current GPU speed and main-functionality checkpoint.
+- **V2 · 2022** — initially published on Food4Rhino; now maintained as the legacy version.
+- **V3.0** — improved hand-coded baseline by Madalin Gheorghe. includes 2D ant simulations
+- **V3.1** — CPU solver stabilization and performance measurement.
+- **V3.2** — CPU diffusion and preview optimization.
+- **V3.3** — refined CPU behavior and compatibility.
+- **V4.0** — introduction of GPU simulation and previews.
+- **V4.1** — GPU performance improvements and expanded functionality.
 
-After V3.0, AI augmentation with ChatGPT in Codex was used to accelerate profiling,
-performance exploration, GPU translation, testing, and documentation. The plugin's
-original behavior-based simulation concepts and voxel-controlled spatial-map
-architecture were developed by Madalin Gheorghe.
+After V3.0, ChatGPT/Codex assisted with testing, optimization, and GPU development.
+
+
+
+## License and Feedback
+
+Free to use. Hundreds of hours and thousands of lines of code have gone into this tool. Please include credits wherever appropriate.
+
+Found a bug or have an idea? [Report it or suggest an improvement](https://github.com/madalin-gheorghe/Nuclei/issues)
+
+
+
+## Acknowledgements
+
+The Physarum algorithm mechanics are based on Jeff Jones’ paper, [Characteristics of Pattern Formation and Evolution in Approximations of Physarum Transport Networks](https://uwe-repository.worktribe.com/output/980579/characteristics-of-pattern-formation-and-evolution-in-approximations-of-physarum-transport-networks). The ant logic is inspired by [Pezzza’s Simple Ants Simulator](https://github.com/johnBuffer/AntSimulator).
+
+Special thanks to **DesignMorphine** for supporting the plugin’s development, and to all students who participated in the webinars—especially those in the [DM Masters Programme](https://designmorphine.com/education).
