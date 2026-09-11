@@ -1,0 +1,13 @@
+---
+name: Nuclei2
+version: 2.0.5
+authors:
+- Madalin Gheorghe
+description: Nuclei 2 is the legacy interactive 2D and 3D Slime Mold simulation engine for Rhino 6, 7, 8 and 9 on Windows. In Rhino 8 and 9 only, every Nuclei2 component displays an "old v2" banner. Rhino 6 and 7 retain their original appearance. The plugin ships as one nuclei2.gha with the banner embedded; no companion GHA or DLL is required. Original component GUIDs and simulation code are preserved. Remove Nuclei2.OldBanner.gha if you installed the earlier local two-file build. For migration, uninstall the old shared Nuclei package, then install Nuclei2 and Nuclei3 separately to use both together. The compact tab is named N2. On Rhino 8 and 9, installed Nuclei tabs are grouped in N2, N3, N4 order.
+url: https://www.food4rhino.com/en/app/nuclei
+keywords:
+- grasshopper
+- slime-mold
+- guid:7dd95063-16a9-40d5-a07d-717acced65aa
+platform: win
+icon: icon.png

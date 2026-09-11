@@ -46,7 +46,10 @@ Thumbs.db
 .DS_Store
 
 # Local comparison / reference material (not part of the shipped product)
-Nuclei-v2-old/
+Nuclei-v2-old/*
+!Nuclei-v2-old/README.md
+!Nuclei-v2-old/Nuclei2.OldBanner/
+!Nuclei-v2-old/release/
 .tools/
 tmp/
 /backups/
