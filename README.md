@@ -33,13 +33,10 @@ silently changing component identity.
 
 ### V2.0.5 legacy
 
-[Nuclei2 2.0.5](Nuclei-v2-old/README.md) matches the published Yak release for
-Rhino 6/7/8/9 on Windows. The [release GHA](Nuclei-v2-old/release/nuclei2.gha)
-is copied unchanged from Yak. It includes the embedded "old v2" banner for
-Rhino 8/9 and grouped N2/N3/N4 tabs. The compatibility build tools and
+V2.0.5 matches the published Yak release for
+Rhino 6/7 on Windows. The compatibility build tools and
 [V2 examples](Nuclei%20Definitions/v2) are included; the original V2 solver
-source is unavailable. Its historical assembly version remains 1.0.0.0;
-the package and Git release version is 2.0.5.
+source is unavailable.
 
 ### V3.3 CPU
 
