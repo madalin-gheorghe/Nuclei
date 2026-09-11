@@ -8,6 +8,8 @@ Nuclei is a generative-design plugin for Grasshopper that combines behavior-base
 
 **Tutorial:** [Biomorphic Networks V3.0](https://www.youtube.com/watch?v=Hl2Dd9yihHw\&t=7424s) — an older version, but the same principles apply.
 
+Learn how the simulations work in the [Slime Behavior](docs/Slime%20Behavior.md) and [Ant Behavior](docs/Ant%20Behavior.md) guides.
+
 ## Versions
 
 | Version         | Compatibility      | Description                                                                                                                       | Examples                                                                                    |
