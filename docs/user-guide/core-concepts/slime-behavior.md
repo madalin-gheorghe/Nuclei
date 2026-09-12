@@ -16,9 +16,8 @@ The trail spreads into nearby space (**diffusion**) and gradually fades (**decay
 
 **Remember: slime follows trails and makes them stronger as it moves.**
 
----
-
-## Detailed Behavior
+<details>
+<summary>Detailed behavior</summary>
 
 This explanation describes the current Nuclei v4 GPU slime simulation in 2D and 3D.
 
@@ -71,3 +70,5 @@ This feedback can form connected trails and networks. There is no explicit short
 ### Dynamic population
 
 If **dynamic population** is enabled, configured division and death rules can also change particle numbers during this cycle.
+
+</details>

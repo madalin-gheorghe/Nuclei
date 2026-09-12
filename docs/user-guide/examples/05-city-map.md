@@ -2,16 +2,18 @@
 
 Use image brightness to shape a planar simulation environment.
 
+![City Map: example simulation result.](../assets/examples/05-city-map/result.jpg)
+
 [Download 05_City Map.gh](files/05-city-map.gh)
 
-![](../assets/examples/05-city-map/definition-clean.png)
-
+![City Map: Grasshopper definition showing its connected components and controls.](../assets/examples/05-city-map/definition-clean.png)
 
 ## Follow the definition
 
-Locate **Image Mapper for Voxels** and inspect its saved image and Type. Follow the mapper outputs and union into the solver. The original grid is 3000 × 3000 × 1, so pause the Trigger while inspecting the inputs.
+Locate [Image Mapper for Voxels](../components/image-mapper-for-voxels.md) and inspect its saved image and Type. Follow the mapper outputs and union into the solver. The original grid is 3000 × 3000 × 1, so pause the Trigger while inspecting the inputs.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Construct Voxels](../components/construct-voxels.md)
 - [Particle Trail Settings](../components/particle-trail-settings.md)
@@ -25,9 +27,12 @@ Locate **Image Mapper for Voxels** and inspect its saved image and Type. Follow 
 - [Image Mapper for Voxels](../components/image-mapper-for-voxels.md)
 - [Voxel Selection Union](../components/voxel-selection-union.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -56,6 +61,8 @@ These are directly connected slider and value-list settings read from this file.
 | Image Mapper for Voxels | Target End | 0.5 |
 | Image Mapper for Voxels | Type | Maximum Density |
 
+</details>
+
 ## Run the example
 
 Open it in Rhino 9 with Nuclei V4, pause the existing Trigger, and inspect the mapped field. Reset once with True, return reset to False, and start the Trigger. Pause before editing several inputs or extracting a large result.
@@ -66,7 +73,6 @@ Compare the mapper target range first. Keep the source image fixed so the change
 
 ## Example result
 
-![](../assets/examples/05-city-map/result.jpg)
-
+![City Map: example simulation result.](../assets/examples/05-city-map/result.jpg)
 
 [Back to examples](README.md)

@@ -1,34 +1,83 @@
 # Voxel Wrap Settings
 
-Choose whether the simulation wraps at its boundaries.
+Choose whether particles wrap around the field boundaries.
 
 **Location:** Nuclei4 → Environment
 
-![](../assets/components/voxel-wrap-settings-wired.png)
-
+![Voxel Wrap Settings with its connected controls and wires.](../assets/components/voxel-wrap-settings-wired.png)
 
 ## Use it
 
-Connect the settings to the solver. Compare wrapped and non-wrapped boundaries from a fresh reset to understand their effect on movement at the domain edges.
+Connect **wrapSettings** to the solver’s **settings** input. With Wrap True, movement crossing one edge continues at the opposite edge. With Wrap False, boundaries reflect movement.
 
 ## Inputs
 
-| Input | Data | Default | Purpose |
+Defaults describe a newly placed component.
+
+| Input | Type / access | Default | Meaning |
 | --- | --- | --- | --- |
-| **Wrap** (`wrap`) | Boolean; item | False | Boundary Conditions |
+| **Wrap** (`wrap`) | Boolean / item | Optional; False | True wraps movement across edges; False uses reflective boundaries. |
 
-Defaults describe a newly placed component. A saved definition can store other values on an unconnected input.
+## Output
 
-## Outputs
-
-| Output | Data | Purpose |
+| Output | Type / access | Meaning |
 | --- | --- | --- |
-| **Wrap Settings** (`wrapSettings`) | Text; list | Settings for the Boundary Condition |
+| **Wrap Settings** (`wrapSettings`) | Text / list | Boundary settings for the solver. |
 
-## In the example collection
+## If something is wrong
 
-- [02_Gradient Map](../examples/02-gradient-map.md)
-- [05_City Map](../examples/05-city-map.md)
-- [05_City Map2](../examples/05-city-map2.md)
+| Symptom | Action |
+| --- | --- |
+| Unexpected movement at the edge | Check Wrap and reset after changing it. |
 
-[Back to the component reference](README.md)
+## Continue
+
+[Gradient Map](../examples/02-gradient-map.md) · [City Map](../examples/05-city-map.md) · [City Map — alternate definition](../examples/05-city-map2.md) · [Component reference](README.md)
+
+<details>
+<summary>Machine-readable reference (JSON)</summary>
+
+Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Voxel Wrap Settings",
+    "category": "Nuclei4",
+    "subcategory": " Environment",
+    "componentGuid": "43b61a51-6086-4cea-98f9-e482a7b6d57f",
+    "dotnetType": "Nuclei4.Voxel_Settings_Wrap",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Wrap",
+        "nickname": "wrap",
+        "ghType": "Boolean",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "False"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Wrap Settings",
+        "nickname": "wrapSettings",
+        "ghType": "Text",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}
+```
+
+</details>

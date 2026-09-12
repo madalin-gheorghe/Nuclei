@@ -2,16 +2,18 @@
 
 Compare several slime groups sharing one environment and solver.
 
+![Multiple Populations: example simulation result.](../assets/examples/10-multiple-populations/result.jpg)
+
 [Download 10_Multiple Populations.gh](files/10-multiple-populations.gh)
 
-![](../assets/examples/10-multiple-populations/definition-clean.png)
-
+![Multiple Populations: Grasshopper definition showing its connected components and controls.](../assets/examples/10-multiple-populations/definition-clean.png)
 
 ## Follow the definition
 
-Follow each **Construct Slime Particles** output to the common solver. Group settings can differ while the voxel field remains shared. Read each constructor’s values rather than assuming all populations are identical.
+Follow each [Construct Slime Particles](../components/construct-slime-particles.md) output to the common solver. Group settings can differ while the voxel field remains shared. Read each constructor’s values rather than assuming all populations are identical.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Construct Voxels](../components/construct-voxels.md)
 - [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
@@ -22,9 +24,12 @@ Follow each **Construct Slime Particles** output to the common solver. Group set
 - [Particle Trail Preview](../components/particle-trail-preview.md)
 - [Particle Trail Settings](../components/particle-trail-settings.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -53,6 +58,8 @@ These are directly connected slider and value-list settings read from this file.
 | Voxel Preview | Type | Slime Chemoattractants |
 | Particle Trail Settings | Trail Size | 3 |
 
+</details>
+
 ## Run the example
 
 Open it in Rhino 9 with Nuclei V4, pause the existing Trigger, and inspect the mapped field. Reset once with True, return reset to False, and start the Trigger. Pause before editing several inputs or extracting a large result.
@@ -63,7 +70,6 @@ Change one group’s Sensor Distance or color while keeping the others fixed. Us
 
 ## Example result
 
-![](../assets/examples/10-multiple-populations/result.jpg)
-
+![Multiple Populations: example simulation result.](../assets/examples/10-multiple-populations/result.jpg)
 
 [Back to examples](README.md)

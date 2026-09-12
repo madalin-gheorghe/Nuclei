@@ -2,16 +2,18 @@
 
 Explore a second arrangement of food regions and the networks that emerge between them.
 
+![Minimizing Transport Networks 2: example simulation result.](../assets/examples/04-minimizing-transport-networks-2/result.jpg)
+
 [Download 04_Minimizing Transport Networks 2.gh](files/04-minimizing-transport-networks-2.gh)
 
-![](../assets/examples/04-minimizing-transport-networks-2/definition-clean.png)
-
+![Minimizing Transport Networks 2: Grasshopper definition showing its connected components and controls.](../assets/examples/04-minimizing-transport-networks-2/definition-clean.png)
 
 ## Follow the definition
 
 This definition uses a point-population and region-filtering chain before its attractor mapping. Its saved Slime Food multiplier is 0.5. Compare the mapped sources with the first transport example before running.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Particle Population Settings](../components/particle-population-settings.md)
 - [Voxel Preview](../components/voxel-preview.md)
@@ -29,9 +31,12 @@ This definition uses a point-population and region-filtering chain before its at
 - [Particle Trail Settings](../components/particle-trail-settings.md)
 - [Nuclei4 Solver Iterations](../components/nuclei4-solver-iterations.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -63,6 +68,8 @@ These are directly connected slider and value-list settings read from this file.
 | Particle Trail Settings | Trail Size | 2 |
 | Nuclei4 Solver Iterations | Iterations | 1100 |
 
+</details>
+
 ## Run the example
 
 Open it in Rhino 9 with Nuclei V4, pause the existing Trigger, and inspect the mapped field. Reset once with True, return reset to False, and start the Trigger. Pause before editing several inputs or extracting a large result.
@@ -73,7 +80,6 @@ Change the point arrangement while keeping particle behavior constant. Compare t
 
 ## Example result
 
-![](../assets/examples/04-minimizing-transport-networks-2/result.jpg)
-
+![Minimizing Transport Networks 2: example simulation result.](../assets/examples/04-minimizing-transport-networks-2/result.jpg)
 
 [Back to examples](README.md)

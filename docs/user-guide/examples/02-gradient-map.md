@@ -2,16 +2,18 @@
 
 Vary sensing across the environment rather than giving every location the same conditions.
 
+![Gradient Map: example simulation result.](../assets/examples/02-gradient-map/result.jpg)
+
 [Download 02_Gradient Map.gh](files/02-gradient-map.gh)
 
-![](../assets/examples/02-gradient-map/definition-clean.png)
-
+![Gradient Map: Grasshopper definition showing its connected components and controls.](../assets/examples/02-gradient-map/definition-clean.png)
 
 ## Follow the definition
 
-Follow the voxel positions through the remapping chain into **Define Voxel Values**. The saved Type is **Sensor Distance**. Inspect the mapped field before comparing particle behavior across it.
+Follow the voxel positions through the remapping chain into [Define Voxel Values](../components/define-voxel-values.md). The saved Type is **Sensor Distance**. Inspect the mapped field before comparing particle behavior across it.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Construct Voxels](../components/construct-voxels.md)
 - [Extract Voxel Positions](../components/extract-voxel-positions.md)
@@ -26,9 +28,12 @@ Follow the voxel positions through the remapping chain into **Define Voxel Value
 - [Construct Slime Particles](../components/construct-slime-particles.md)
 - [Particle Trail Preview](../components/particle-trail-preview.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -54,6 +59,8 @@ These are directly connected slider and value-list settings read from this file.
 | Construct Slime Particles | Deposit | 1 |
 | Construct Slime Particles | Wander | 0 |
 
+</details>
+
 ## Run the example
 
 Open it in Rhino 9 with Nuclei V4, pause the existing Trigger, and inspect the mapped field. Reset once with True, return reset to False, and start the Trigger. Pause before editing several inputs or extracting a large result.
@@ -66,7 +73,6 @@ Change the remapped range while retaining its spatial ordering. Compare how part
 
 ## Example result
 
-![](../assets/examples/02-gradient-map/result.jpg)
-
+![Gradient Map: example simulation result.](../assets/examples/02-gradient-map/result.jpg)
 
 [Back to examples](README.md)

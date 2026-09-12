@@ -1,38 +1,148 @@
 # Particle Death Settings
 
-Configure particle death using age, neighborhood, and update-frequency controls.
+Remove particles when their age and neighborhood meet the death conditions.
 
 **Location:** Nuclei4 → Particles
 
-![](../assets/components/particle-death-settings-wired.png)
-
+![Particle Death Settings with its connected controls and wires.](../assets/components/particle-death-settings-wired.png)
 
 ## Use it
 
-Death is disabled by default. Enable Die and connect the settings to the solver. Compare neighbor range, bounds, and frequency with the saved Growth examples; changing several together makes their effects difficult to distinguish.
+Enable **Die** and connect **dieSettings** to the solver’s **settings** input. Eligible particles die when their neighbor count is below **Minimum Neighbours** or above **Maximum Neighbours**. Counts equal to either limit are inside the range. **Frequency** sets how often the rule is checked.
 
 ## Inputs
 
-| Input | Data | Default | Purpose |
+Defaults describe a newly placed component.
+
+| Input | Type / access | Default | Meaning |
 | --- | --- | --- | --- |
-| **Die** (`die`) | Boolean; item | False | Die Boolean |
-| **Minimum Age** (`minAge`) | Integer; item | 10 | Minimum Age Since The Particles Can Start Dying |
-| **Die Range** (`dieRange`) | Integer; item | 3 | The Range To Check For Neighbour Particle Count |
-| **Minimum Neighbours** (`minN`) | Integer; item | 0 | Minimum Number of Neighbour Particles |
-| **Maximum Neighbours** (`maxN`) | Integer; item | 10 | Maximum Number of Neighbour Particles |
-| **Frequency** (`dieFrequency`) | Integer; item | 5 | The Particles Die Once Every X Iterations |
+| **Die** (`die`) | Boolean / item | False | Enable neighborhood-based death. |
+| **Minimum Age** (`minAge`) | Integer / item | 10 | Minimum particle age, in simulation steps. |
+| **Die Range** (`dieRange`) | Integer / item | 3 | Neighborhood range used to count particles. |
+| **Minimum Neighbours** (`minN`) | Integer / item | 0 | Eligible particles die if they have fewer neighbors than this. |
+| **Maximum Neighbours** (`maxN`) | Integer / item | 10 | Eligible particles die if they have more neighbors than this. |
+| **Frequency** (`dieFrequency`) | Integer / item | 5 | Check the death rule every this many simulation steps. |
 
-Defaults describe a newly placed component. A saved definition can store other values on an unconnected input.
+## Output
 
-## Outputs
-
-| Output | Data | Purpose |
+| Output | Type / access | Meaning |
 | --- | --- | --- |
-| **Death Settings** (`dieSettings`) | Text; list | Settings Controlling Particle Death |
+| **Death Settings** (`dieSettings`) | Text / list | Death settings for the solver. |
 
-## In the example collection
+## If something is wrong
 
-- [11_Growth 1](../examples/11-growth-1.md)
-- [12_Growth 2](../examples/12-growth-2.md)
+| Symptom | Action |
+| --- | --- |
+| Population does not shrink | Check Die, Minimum Age, neighbor limits, and population limits. |
 
-[Back to the component reference](README.md)
+## Continue
+
+[Growth 1](../examples/11-growth-1.md) · [Growth 2](../examples/12-growth-2.md) · [Component reference](README.md)
+
+<details>
+<summary>Machine-readable reference (JSON)</summary>
+
+Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Particle Death Settings",
+    "category": "Nuclei4",
+    "subcategory": " Particles",
+    "componentGuid": "b8f690ec-1e23-46c8-8fa4-4d3369cacfdf",
+    "dotnetType": "Nuclei4.Particle_Settings_Death",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Die",
+        "nickname": "die",
+        "ghType": "Boolean",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "False"
+        ]
+      },
+      {
+        "index": 1,
+        "name": "Minimum Age",
+        "nickname": "minAge",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "10"
+        ]
+      },
+      {
+        "index": 2,
+        "name": "Die Range",
+        "nickname": "dieRange",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "3"
+        ]
+      },
+      {
+        "index": 3,
+        "name": "Minimum Neighbours",
+        "nickname": "minN",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0"
+        ]
+      },
+      {
+        "index": 4,
+        "name": "Maximum Neighbours",
+        "nickname": "maxN",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "10"
+        ]
+      },
+      {
+        "index": 5,
+        "name": "Frequency",
+        "nickname": "dieFrequency",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "5"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Death Settings",
+        "nickname": "dieSettings",
+        "ghType": "Text",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}
+```
+
+</details>

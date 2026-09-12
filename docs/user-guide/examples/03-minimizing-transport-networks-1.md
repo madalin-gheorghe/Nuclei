@@ -2,16 +2,18 @@
 
 Explore slime paths around selected food regions in a bounded environment.
 
+![Minimizing Transport Networks 1: example simulation result.](../assets/examples/03-minimizing-transport-networks-1/result.jpg)
+
 [Download 03_Minimizing Transport Networks 1.gh](files/03-minimizing-transport-networks-1.gh)
 
-![](../assets/examples/03-minimizing-transport-networks-1/definition-clean.png)
-
+![Minimizing Transport Networks 1: Grasshopper definition showing its connected components and controls.](../assets/examples/03-minimizing-transport-networks-1/definition-clean.png)
 
 ## Follow the definition
 
-The definition combines point-attractor and mesh-inclusion selections with **Voxel Selection Union**. **Define Voxel Values** assigns **Slime Food** with a saved multiplier of 2. Follow the resulting field into the solver.
+The definition combines point-attractor and mesh-inclusion selections with [Voxel Selection Union](../components/voxel-selection-union.md). [Define Voxel Values](../components/define-voxel-values.md) assigns **Slime Food** with a saved multiplier of 2. Follow the resulting field into the solver.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Particle Population Settings](../components/particle-population-settings.md)
 - [Voxel Preview](../components/voxel-preview.md)
@@ -29,9 +31,12 @@ The definition combines point-attractor and mesh-inclusion selections with **Vox
 - [Particle Trail Preview](../components/particle-trail-preview.md)
 - [Particle Trail Settings](../components/particle-trail-settings.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -60,6 +65,8 @@ These are directly connected slider and value-list settings read from this file.
 | Nuclei4 Solver Iterations | Iterations | 500 |
 | Particle Trail Settings | Trail Size | 15 |
 
+</details>
+
 ## Run the example
 
 Open it in Rhino 9 with Nuclei V4, pause the existing Trigger, and inspect the mapped field. Reset once with True, return reset to False, and start the Trigger. Pause before editing several inputs or extracting a large result.
@@ -70,7 +77,6 @@ Compare food strength while keeping the source geometry fixed. Observe which con
 
 ## Example result
 
-![](../assets/examples/03-minimizing-transport-networks-1/result.jpg)
-
+![Minimizing Transport Networks 1: example simulation result.](../assets/examples/03-minimizing-transport-networks-1/result.jpg)
 
 [Back to examples](README.md)

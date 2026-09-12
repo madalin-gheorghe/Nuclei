@@ -1,17 +1,17 @@
 # Voxel creation and mapping
 
-- [Construct Voxels](construct-voxels.md) — Construct Empty Voxel Field Environment
-- [Point Attractor for Voxels](point-attractor-for-voxels.md) — Use Points as Attractors for Voxel Centers
-- [Curve Attractor for Voxels](curve-attractor-for-voxels.md) — Use Curves as Attractors for Voxel Centers
-- [Mesh Attractor for Voxel](mesh-attractor-for-voxel.md) — Use Meshes as Attractors for Voxel Centers
-- [Voxel Inclusion in Mesh](voxel-inclusion-in-mesh.md) — Test if a Voxel Center is Inside a Mesh
-- [Function Attractor](function-attractor.md) — Select voxels by approximate physical distance to f(x,y,z) = isoValue on the GPU.
-- [Voxel Selection Union](voxel-selection-union.md) — Perform Union on Two or More Voxel Values (OR)
-- [Voxel Selection Intersection](voxel-selection-intersection.md) — Perform Intersection on Voxel Selection (AND)
-- [Voxel Selection Difference](voxel-selection-difference.md) — Perform Difference on Voxel Selection (AND NOT): V1 - V2
-- [Define Voxel Values](define-voxel-values.md) — Define Voxel Differentiated Values
-- [Voxel Values Blend](voxel-values-blend.md) — Blend All Values
-- [Image Mapper for Voxels](image-mapper-for-voxels.md) — Map an embedded image to a 2D voxel field on the GPU. Black maps to targetStart and white to targetEnd; color uses grayscale luminance.
-- [Define Voxel Vectors](define-voxel-vectors.md) — Define Voxel Vector Field
-- [Voxel Vectors Blend](voxel-vectors-blend.md) — Blend All Vectors By Averaging Their Neighbours
-- [Define Discrete Vectors](define-discrete-vectors.md) — Define Voxel Discrete Vectors
+- [Construct Voxels](construct-voxels.md) — Create the voxel field that defines the simulation's size and resolution.
+- [Point Attractor for Voxels](point-attractor-for-voxels.md) — Select voxels around one or more points.
+- [Curve Attractor for Voxels](curve-attractor-for-voxels.md) — Select voxels along curves.
+- [Mesh Attractor for Voxel](mesh-attractor-for-voxel.md) — Select voxels near mesh surfaces.
+- [Voxel Inclusion in Mesh](voxel-inclusion-in-mesh.md) — Select voxels inside meshes.
+- [Function Attractor](function-attractor.md) — Select voxels around a mathematical surface.
+- [Voxel Selection Union](voxel-selection-union.md) — Combine voxel selections, keeping cells found in any of them.
+- [Voxel Selection Intersection](voxel-selection-intersection.md) — Keep only voxels shared by all connected selections.
+- [Voxel Selection Difference](voxel-selection-difference.md) — Remove one voxel selection from another.
+- [Define Voxel Values](define-voxel-values.md) — Assign a scalar map, such as speed, sensing distance, food, or density limits, to a voxel field.
+- [Voxel Values Blend](voxel-values-blend.md) — Smooth a chosen property across nearby voxels.
+- [Image Mapper for Voxels](image-mapper-for-voxels.md) — Use image brightness to assign values to a flat voxel field.
+- [Define Voxel Vectors](define-voxel-vectors.md) — Assign directions to voxels to influence particle movement.
+- [Voxel Vectors Blend](voxel-vectors-blend.md) — Smooth directions across nearby voxels.
+- [Define Discrete Vectors](define-discrete-vectors.md) — Restrict particle movement to a supplied set of directions.

@@ -1,31 +1,81 @@
 # Extract Particle Neighbour Count
 
-Read each particle’s stored neighbor-count value for analysis in Grasshopper.
+Read the neighbor count stored for each particle by the division rule.
 
 **Location:** Nuclei4 → Particles
 
-![](../assets/components/extract-particle-neighbour-count-wired.png)
+![Extract Particle Neighbour Count with its connected controls and wires.](../assets/components/extract-particle-neighbour-count-wired.png)
 
 ## Use it
 
-Connect the solver’s particles output. The result reflects particle state; it is not a general-purpose proximity search with an adjustable radius. Pause before inspecting large outputs.
+Connect the solver’s **particles** output. Use **particleNC** to inspect the neighborhood information used by particle division. The counting range is set in [Particle Division Settings](particle-division-settings.md).
 
 ## Inputs
 
-| Input | Data | Default | Purpose |
+Defaults describe a newly placed component.
+
+| Input | Type / access | Default | Meaning |
 | --- | --- | --- | --- |
-| **Particles** (`particles`) | Generic Data; item | Supply input | Input Particles |
+| **Particles** (`particles`) | Generic Data / item | Required | Current particle collection from the solver. |
 
-Defaults describe a newly placed component. A saved definition can store other values on an unconnected input.
+## Output
 
-## Outputs
-
-| Output | Data | Purpose |
+| Output | Type / access | Meaning |
 | --- | --- | --- |
-| **Particle Neighbour Count** (`particleNC`) | Number; list | Particle Neighbour Count |
+| **Particle Neighbour Count** (`particleNC`) | Number / list | Stored division-neighborhood count for each particle. |
 
-## Related workflow
+## If something is wrong
 
-Use the input and output roles above with the [voxel-field](../core-concepts/voxels-and-fields.md) or [particle](../core-concepts/particles-and-populations.md) workflow.
+| Symptom | Action |
+| --- | --- |
+| Counts stay unchanged | Check whether the division rule is enabled and when it last updated. |
 
-[Back to the component reference](README.md)
+## Continue
+
+[Component reference](README.md)
+
+<details>
+<summary>Machine-readable reference (JSON)</summary>
+
+Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Extract Particle Neighbour Count",
+    "category": "Nuclei4",
+    "subcategory": " Particles",
+    "componentGuid": "d077c7a9-1db6-410c-87f9-917a0c3a353d",
+    "dotnetType": "Nuclei4.Particle_Extractor_NeighbourCount",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Particles",
+        "nickname": "particles",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Particle Neighbour Count",
+        "nickname": "particleNC",
+        "ghType": "Number",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}
+```
+
+</details>

@@ -2,16 +2,18 @@
 
 Compare a second saved growth setup using the same families of population controls.
 
+![Growth 2: example simulation result.](../assets/examples/12-growth-2/result.jpg)
+
 [Download 12_Growth 2.gh](files/12-growth-2.gh)
 
-![](../assets/examples/12-growth-2/definition-clean.png)
-
+![Growth 2: Grasshopper definition showing its connected components and controls.](../assets/examples/12-growth-2/definition-clean.png)
 
 ## Follow the definition
 
 Use Growth 1 as the starting comparison. This file also combines local division/death settings with population controls; its saved values and initial selection define a separate experiment.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Construct Voxels](../components/construct-voxels.md)
 - [Extract Voxel Bounding Box](../components/extract-voxel-bounding-box.md)
@@ -24,9 +26,12 @@ Use Growth 1 as the starting comparison. This file also combines local division/
 - [Voxel Settings Slime](../components/voxel-settings-slime.md)
 - [Construct Slime Particles](../components/construct-slime-particles.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -61,6 +66,8 @@ These are directly connected slider and value-list settings read from this file.
 | Construct Slime Particles | Deposit | 4 |
 | Construct Slime Particles | Wander | 0.5 |
 
+</details>
+
 ## Run the example
 
 Open it in Rhino 9 with Nuclei V4, pause the existing Trigger, and inspect the mapped field. Reset once with True, return reset to False, and start the Trigger. Pause before editing several inputs or extracting a large result.
@@ -71,7 +78,6 @@ Compare saved settings between the two examples, then change only one parameter 
 
 ## Example result
 
-![](../assets/examples/12-growth-2/result.jpg)
-
+![Growth 2: example simulation result.](../assets/examples/12-growth-2/result.jpg)
 
 [Back to examples](README.md)

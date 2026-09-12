@@ -1,33 +1,110 @@
 # Particle Settings Slime Ant Interaction
 
-Control how slime and ant signals influence the other particle type. Use it in a mixed simulation with both populations.
+Control how slime and ant populations respond to each other’s signals.
 
 **Location:** Nuclei4 → Particles
 
-![](../assets/components/particle-settings-slime-ant-interaction-wired.png)
+![Particle Settings Slime Ant Interaction with its connected controls and wires.](../assets/components/particle-settings-slime-ant-interaction-wired.png)
 
 ## Use it
 
-Connect its settings output to the solver. The three inputs control slime response to food pheromone, slime response to base pheromone, and ant response to slime signal. Values range from zero to one; compare each interaction separately.
+Connect **interactionSettings** to the solver’s **settings** input in a simulation containing both particle types. The three controls set slime response to ant food pheromones, slime response to base pheromones, and ant response to slime signal.
 
 ## Inputs
 
-| Input | Data | Default | Purpose |
+Defaults describe a newly placed component.
+
+| Input | Type / access | Default | Meaning |
 | --- | --- | --- | --- |
-| **Slime -> Ant Food** (`slime ~ antFood`) | Number; item | 0.5 | Interaction between SLIME Particles and ANT FOOD Pheromones. VALUES FROM 0 TO 1 |
-| **Slime -> Ant Base** (`slime ~ antBase`) | Number; item | 0.5 | Interaction between SLIME Particles and ANT BASE Pheromones. VALUES FROM 0 TO 1 |
-| **Ant -> Slime** (`ant ~ slime`) | Number; item | 0.5 | Interaction between ANT Particles and SLIME Chemoattractants. VALUES FROM 0 TO 1 |
+| **Slime -> Ant Food** (`slime ~ antFood`) | Number / item | 0.5 | Slime response to ant food pheromones, from 0 to 1. |
+| **Slime -> Ant Base** (`slime ~ antBase`) | Number / item | 0.5 | Slime response to ant home pheromones, from 0 to 1. |
+| **Ant -> Slime** (`ant ~ slime`) | Number / item | 0.5 | Ant response to slime signal, from 0 to 1. |
 
-Defaults describe a newly placed component. A saved definition can store other values on an unconnected input.
+## Output
 
-## Outputs
-
-| Output | Data | Purpose |
+| Output | Type / access | Meaning |
 | --- | --- | --- |
-| **Interaction Settings** (`interactionSettings`) | Text; list | Settings Controlling Species Interactions |
+| **Interaction Settings** (`interactionSettings`) | Text / list | Slime–ant interaction settings for the solver. |
 
-## Related workflow
+## If something is wrong
 
-Use the input and output roles above with the [voxel-field](../core-concepts/voxels-and-fields.md) or [particle](../core-concepts/particles-and-populations.md) workflow.
+| Symptom | Action |
+| --- | --- |
+| No visible interaction | Check that both populations and their signals are present. |
+| One response dominates | Adjust its interaction value separately. |
 
-[Back to the component reference](README.md)
+## Continue
+
+[Component reference](README.md)
+
+<details>
+<summary>Machine-readable reference (JSON)</summary>
+
+Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Particle Settings Slime Ant Interaction",
+    "category": "Nuclei4",
+    "subcategory": " Particles",
+    "componentGuid": "9c28782b-f3db-40e3-8bd7-f099d8b62ae3",
+    "dotnetType": "Nuclei4.Particle_Settings_Ant_Slime",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Slime -> Ant Food",
+        "nickname": "slime ~ antFood",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0.5"
+        ]
+      },
+      {
+        "index": 1,
+        "name": "Slime -> Ant Base",
+        "nickname": "slime ~ antBase",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0.5"
+        ]
+      },
+      {
+        "index": 2,
+        "name": "Ant -> Slime",
+        "nickname": "ant ~ slime",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0.5"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Interaction Settings",
+        "nickname": "interactionSettings",
+        "ghType": "Text",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}
+```
+
+</details>

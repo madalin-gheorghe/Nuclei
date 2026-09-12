@@ -1,35 +1,136 @@
 # Voxel Vectors Blend
 
-Blend neighboring voxel vectors to smooth a mapped direction field.
+Smooth directions across nearby voxels.
 
 **Location:** Nuclei4 → Environment
 
-![](../assets/components/voxel-vectors-blend-wired.png)
+![Voxel Vectors Blend with its connected controls and wires.](../assets/components/voxel-vectors-blend-wired.png)
 
 ## Use it
 
-Connect a field that already has vectors, then set blend strength, range, and iterations. Inspect the resulting directions before comparing simulations.
+Connect a field that already contains vectors. Set Blend Strength, Blend Range, and Blend Iterations, then send the output field to the solver.
+
+Use [Extract Voxel Vector](extract-voxel-vector.md) to inspect the result.
 
 ## Inputs
 
-| Input | Data | Default | Purpose |
+Defaults describe a newly placed component.
+
+| Input | Type / access | Default | Meaning |
 | --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data; item | Supply input | Connects to Voxel Constructor |
-| **Blend Strength** (`blendStrength`) | Number; item | 0.25 | Strength of Blend |
-| **Blend Range** (`range`) | Integer; item | 1 | The Range of Blend |
-| **Blend Iterations** (`iterations`) | Integer; item | 1 | Blend Number of Iterations |
-| **Wrap Blend** (`wrap`) | Boolean; item | False | Boundary conditions |
+| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
+| **Blend Strength** (`blendStrength`) | Number / item | Optional; 0.25 | Amount of smoothing, from 0 to 1. |
+| **Blend Range** (`range`) | Integer / item | Optional; 1 | Neighborhood range in voxel cells. |
+| **Blend Iterations** (`iterations`) | Integer / item | Optional; 1 | Number of smoothing passes. |
+| **Wrap Blend** (`wrap`) | Boolean / item | Optional; False | Wrap the operation across opposite grid edges. |
 
-Defaults describe a newly placed component. A saved definition can store other values on an unconnected input.
+## Output
 
-## Outputs
-
-| Output | Data | Purpose |
+| Output | Type / access | Meaning |
 | --- | --- | --- |
-| **Output Voxels** (`voxels`) | Generic Data; item | Output Voxels |
+| **Output Voxels** (`voxels`) | Generic Data / item | Selected or modified voxel field. |
 
-## Related workflow
+## If something is wrong
 
-Use the input and output roles above with the [voxel-field](../core-concepts/voxels-and-fields.md) or [particle](../core-concepts/particles-and-populations.md) workflow.
+| Symptom | Action |
+| --- | --- |
+| No change | Check that the input field contains mapped vectors. |
+| Directions are too uniform | Reduce Blend Strength or Blend Iterations. |
 
-[Back to the component reference](README.md)
+## Continue
+
+[Component reference](README.md)
+
+<details>
+<summary>Machine-readable reference (JSON)</summary>
+
+Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Voxel Vectors Blend",
+    "category": "Nuclei4",
+    "subcategory": " Environment",
+    "componentGuid": "ee2dadbd-e610-457d-8a08-e603062c4a45",
+    "dotnetType": "Nuclei4.Voxel_Vectors_BlendAll",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 1,
+        "name": "Blend Strength",
+        "nickname": "blendStrength",
+        "ghType": "Number",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "0.25"
+        ]
+      },
+      {
+        "index": 2,
+        "name": "Blend Range",
+        "nickname": "range",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "1"
+        ]
+      },
+      {
+        "index": 3,
+        "name": "Blend Iterations",
+        "nickname": "iterations",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "1"
+        ]
+      },
+      {
+        "index": 4,
+        "name": "Wrap Blend",
+        "nickname": "wrap",
+        "ghType": "Boolean",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "False"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Output Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}
+```
+
+</details>

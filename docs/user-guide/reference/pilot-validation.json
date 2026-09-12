@@ -1,0 +1,411 @@
+{
+  "passed": true,
+  "checks": [
+    "Exact requested GHA loaded",
+    "Flat multiplier list follows voxel order",
+    "Image-row tree remaps to voxel order",
+    "Single multiplier broadcasts",
+    "Mismatched count reports exact warning",
+    "Mismatched count preserves incoming map",
+    "Open original Slime Intro",
+    "Original Trigger targets solver",
+    "Original objects and wire endpoints preserved",
+    "Save test copy",
+    "Reset yields iteration zero",
+    "Expected voxel count: 1000000",
+    "Stored Voxel Size is 1",
+    "Test copy has one Z layer",
+    "Constructor generates requested 50000 particles",
+    "Solver retains particles outside reflective boundary cells",
+    "Exactly 200 non-reset steps",
+    "Retained population stays constant without growth or death",
+    "Particle positions change",
+    "Particles remain within domain",
+    "Trail history is populated",
+    "Locked Trigger does not advance while idle",
+    "Trail extractor emits group/particle paths",
+    "Trail extractor emits Rhino points",
+    "Reset after run returns to zero",
+    "Reopen saved test copy",
+    "Reopened test copy keeps original graph",
+    "Test copy reopens with Trigger paused",
+    "Test copy reopens with Reset true",
+    "Original .gh unchanged"
+  ],
+  "ghaSha256": "800CC989A3DC930E6D2D5FF6BD3C849797F9835526179D289BF3DA3BDF1EF924",
+  "pluginVersion": "4.1.0.0",
+  "rhinoVersion": "9.0.26251.12303",
+  "source": "Nuclei Definitions/v4/01_Slime Intro.gh",
+  "originalSha256": "7166DD8614BDCD6A317AC1D9EED08A2F8BD82E2C1E5615D454FF087978DAA54E",
+  "starterSha256": "B7C88AD6E747836594FE91AF35F1F329D035125F8556D031C6DB975EAF8EA9A1",
+  "originalObjectCount": 32,
+  "componentCount": 6,
+  "iterations": 200,
+  "originalIntro": true,
+  "requestedParticles": 50000,
+  "retainedParticles": 49801,
+  "elapsedMilliseconds": 92532,
+  "movedParticles": 49801,
+  "nonemptyTrails": 49801,
+  "trailPaths": [
+    "{0;0}",
+    "{0;1}",
+    "{0;2}",
+    "{0;3}"
+  ],
+  "resultImage": "Orthographic plot of actual extracted trail coordinates; not a Rhino viewport screenshot",
+  "savedInputs": [
+    {
+      "Name": "Construct Voxels",
+      "inputs": [
+        {
+          "index": 0,
+          "Name": "Voxel Size",
+          "NickName": "voxelSize",
+          "sources": [],
+          "persistent": [
+            "1"
+          ],
+          "sliders": []
+        },
+        {
+          "index": 1,
+          "Name": "X Voxels",
+          "NickName": "xVoxels",
+          "sources": [
+            "520ff89f-f0a9-4e7c-8b11-13bce7ad432b"
+          ],
+          "persistent": [
+            "100"
+          ],
+          "sliders": [
+            1000
+          ]
+        },
+        {
+          "index": 2,
+          "Name": "Y Voxels",
+          "NickName": "yVoxels",
+          "sources": [
+            "520ff89f-f0a9-4e7c-8b11-13bce7ad432b"
+          ],
+          "persistent": [
+            "100"
+          ],
+          "sliders": [
+            1000
+          ]
+        },
+        {
+          "index": 3,
+          "Name": "Z Voxels",
+          "NickName": "zVoxels",
+          "sources": [
+            "710f20a2-e74a-4f48-9eeb-16a716b8f69e"
+          ],
+          "persistent": [
+            "1"
+          ],
+          "sliders": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "Name": "Nuclei3 Solver",
+      "inputs": [
+        {
+          "index": 0,
+          "Name": "Reset",
+          "NickName": "reset",
+          "sources": [
+            "ba4a5ea4-5168-49e5-b5bd-318af87dbe16"
+          ],
+          "persistent": [],
+          "sliders": []
+        },
+        {
+          "index": 1,
+          "Name": "Voxels",
+          "NickName": "voxels",
+          "sources": [
+            "d0a77602-7d5b-4ee5-bc21-e38c3bed4f5f"
+          ],
+          "persistent": [],
+          "sliders": []
+        },
+        {
+          "index": 2,
+          "Name": "Particles",
+          "NickName": "particles",
+          "sources": [
+            "83e98b8b-3a0b-4ff7-aac6-3c9d58ed329a"
+          ],
+          "persistent": [],
+          "sliders": []
+        },
+        {
+          "index": 3,
+          "Name": "Solver Settings",
+          "NickName": "settings",
+          "sources": [
+            "660a213e-1091-4f1f-bd82-68370b8690e1",
+            "f93a6801-3967-4687-ba7f-ffcaeb047db8"
+          ],
+          "persistent": [],
+          "sliders": []
+        }
+      ]
+    },
+    {
+      "Name": "Construct Slime Particles",
+      "inputs": [
+        {
+          "index": 0,
+          "Name": "Voxel Field",
+          "NickName": "voxels",
+          "sources": [
+            "d0a77602-7d5b-4ee5-bc21-e38c3bed4f5f"
+          ],
+          "persistent": [],
+          "sliders": []
+        },
+        {
+          "index": 1,
+          "Name": "Initial Particle Positions",
+          "NickName": "particlePos",
+          "sources": [],
+          "persistent": [],
+          "sliders": []
+        },
+        {
+          "index": 2,
+          "Name": "Particle Count",
+          "NickName": "count",
+          "sources": [
+            "8568bf0c-38c9-4a7e-ae7f-88efa3ae3f86"
+          ],
+          "persistent": [
+            "0"
+          ],
+          "sliders": [
+            50000
+          ]
+        },
+        {
+          "index": 3,
+          "Name": "Speed",
+          "NickName": "speed",
+          "sources": [
+            "dd477585-0409-4221-8264-78f2a0810aa5"
+          ],
+          "persistent": [
+            "1.3"
+          ],
+          "sliders": [
+            1.3
+          ]
+        },
+        {
+          "index": 4,
+          "Name": "Sensor Distance",
+          "NickName": "sensorDistance",
+          "sources": [
+            "0f2cb393-7903-4178-ae01-2b8335d55963"
+          ],
+          "persistent": [
+            "6"
+          ],
+          "sliders": [
+            6
+          ]
+        },
+        {
+          "index": 5,
+          "Name": "Sensor Angle",
+          "NickName": "sensorAngle",
+          "sources": [
+            "064a85b7-0a65-48be-9614-48bc6b48791a"
+          ],
+          "persistent": [
+            "45"
+          ],
+          "sliders": [
+            45
+          ]
+        },
+        {
+          "index": 6,
+          "Name": "Rotation Angle",
+          "NickName": "rotationAngle",
+          "sources": [
+            "1b233e21-ebe3-4bb3-ace8-b74648abf4fe"
+          ],
+          "persistent": [
+            "45"
+          ],
+          "sliders": [
+            45
+          ]
+        },
+        {
+          "index": 7,
+          "Name": "Deposit",
+          "NickName": "deposit",
+          "sources": [
+            "f2a30ffe-2093-42f3-80a6-2ea75c6cbb0a"
+          ],
+          "persistent": [
+            "1"
+          ],
+          "sliders": [
+            1
+          ]
+        },
+        {
+          "index": 8,
+          "Name": "Wander",
+          "NickName": "wander",
+          "sources": [
+            "00bf381f-43ca-40cf-9183-383f1e0137ea"
+          ],
+          "persistent": [
+            "0"
+          ],
+          "sliders": [
+            0
+          ]
+        },
+        {
+          "index": 9,
+          "Name": "Colour",
+          "NickName": "colour",
+          "sources": [],
+          "persistent": [
+            "220,255,0 (125)"
+          ],
+          "sliders": []
+        }
+      ]
+    },
+    {
+      "Name": "Voxel Settings Slime",
+      "inputs": [
+        {
+          "index": 0,
+          "Name": "Diffuse Rate",
+          "NickName": "diffuse",
+          "sources": [
+            "4ee7f808-1186-49b5-b57e-170dd0b6e7f2"
+          ],
+          "persistent": [
+            "0.1"
+          ],
+          "sliders": [
+            0.15
+          ]
+        },
+        {
+          "index": 1,
+          "Name": "Decay Rate",
+          "NickName": "decay",
+          "sources": [
+            "a433c6b4-1602-4bbe-9540-2210b4d357b9"
+          ],
+          "persistent": [
+            "0.03"
+          ],
+          "sliders": [
+            0.03
+          ]
+        },
+        {
+          "index": 2,
+          "Name": "Falloff",
+          "NickName": "falloff",
+          "sources": [
+            "988cdbb4-f58b-4a08-b617-bd3f093d6514"
+          ],
+          "persistent": [
+            "0"
+          ],
+          "sliders": [
+            0
+          ]
+        },
+        {
+          "index": 3,
+          "Name": "Diffuse Range",
+          "NickName": "range",
+          "sources": [
+            "27ac07d0-2d80-4988-a952-78b2f0db6f24"
+          ],
+          "persistent": [
+            "1"
+          ],
+          "sliders": [
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "Name": "Particle Trail Preview",
+      "inputs": [
+        {
+          "index": 0,
+          "Name": "Particles",
+          "NickName": "particles",
+          "sources": [
+            "775fe0d2-5ebe-4b85-82b0-1d7f38732e81"
+          ],
+          "persistent": [],
+          "sliders": []
+        },
+        {
+          "index": 1,
+          "Name": "Alpha",
+          "NickName": "alpha",
+          "sources": [],
+          "persistent": [
+            "0.35"
+          ],
+          "sliders": []
+        },
+        {
+          "index": 2,
+          "Name": "Depth Focus",
+          "NickName": "depth",
+          "sources": [],
+          "persistent": [
+            "0.55"
+          ],
+          "sliders": []
+        }
+      ]
+    },
+    {
+      "Name": "Particle Trail Settings",
+      "inputs": [
+        {
+          "index": 0,
+          "Name": "Trail Size",
+          "NickName": "trailSize",
+          "sources": [
+            "cc94d8b2-1e57-48e1-bd77-da6ea763d83f"
+          ],
+          "persistent": [
+            "5"
+          ],
+          "sliders": [
+            10
+          ]
+        }
+      ]
+    }
+  ],
+  "inspection": "A temporary unsaved trail extractor requested CPU readback during runtime checks; starter topology and image retain the original component set.",
+  "warnings": [],
+  "validationScope": "Original Slime Intro settings; temporary unsaved trail extractor for CPU inspection. Programmatic stepping in isolated Rhino 9, not an interactive Trigger/viewport test."
+}

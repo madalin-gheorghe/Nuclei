@@ -1,31 +1,81 @@
 # Extract Particle Vectors
 
-Extract particle direction vectors for inspection or downstream geometry.
+Extract each particle’s current direction.
 
 **Location:** Nuclei4 → Particles
 
-![](../assets/components/extract-particle-vectors-wired.png)
+![Extract Particle Vectors with its connected controls and wires.](../assets/components/extract-particle-vectors-wired.png)
 
 ## Use it
 
-Pair directions with particle positions from the same simulation state. Pause first when comparing those outputs.
+Connect the solver’s **particles** output. Pair **particleVec** with particle positions from the same simulation state to display or use the directions.
 
 ## Inputs
 
-| Input | Data | Default | Purpose |
+Defaults describe a newly placed component.
+
+| Input | Type / access | Default | Meaning |
 | --- | --- | --- | --- |
-| **Particles** (`particles`) | Generic Data; item | Supply input | Input Particles |
+| **Particles** (`particles`) | Generic Data / item | Required | Current particle collection from the solver. |
 
-Defaults describe a newly placed component. A saved definition can store other values on an unconnected input.
+## Output
 
-## Outputs
-
-| Output | Data | Purpose |
+| Output | Type / access | Meaning |
 | --- | --- | --- |
-| **Particle Vectors** (`particleVec`) | Vector; list | Particle Vectors |
+| **Particle Vectors** (`particleVec`) | Vector / list | Current particle directions. |
 
-## Related workflow
+## If something is wrong
 
-Use the input and output roles above with the [voxel-field](../core-concepts/voxels-and-fields.md) or [particle](../core-concepts/particles-and-populations.md) workflow.
+| Symptom | Action |
+| --- | --- |
+| Vectors and points do not match | Use the same solver state and keep particle order when combining outputs. |
 
-[Back to the component reference](README.md)
+## Continue
+
+[Component reference](README.md)
+
+<details>
+<summary>Machine-readable reference (JSON)</summary>
+
+Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Extract Particle Vectors",
+    "category": "Nuclei4",
+    "subcategory": " Particles",
+    "componentGuid": "59e6dba6-2cec-4873-8b54-9f099d3599c2",
+    "dotnetType": "Nuclei4.Particle_Extractor_Vector",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Particles",
+        "nickname": "particles",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Particle Vectors",
+        "nickname": "particleVec",
+        "ghType": "Vector",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}
+```
+
+</details>

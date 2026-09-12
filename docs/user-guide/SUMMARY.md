@@ -90,3 +90,4 @@
 
 * [Troubleshooting](troubleshooting.md)
 * [Version differences](versions.md)
+* [Validation and component catalog](reference/pilot-validation.md)

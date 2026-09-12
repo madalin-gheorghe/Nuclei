@@ -2,6 +2,11 @@
 
 User-approved rules, updated 2026-09-12.
 
+## Image sizing
+
+- Display all documentation images at the same width as the text column, preserving their aspect ratio. Do not cap the height in a way that makes an image narrower than the text. Approved 2026-09-13.
+- Export full definition diagrams at 1,840 pixels wide; export component screenshots and other displayed images at 920 pixels wide. Preserve aspect ratio and optimize file size for fast loading. Display both at the text column width. Higher-resolution native captures may be kept outside the guide as source files. Never enlarge a low-resolution screenshot; recapture it first. Check pixel dimensions and file sizes before delivering the review.
+
 ## Individual component images
 
 - Render actual Grasshopper components with icons clearly visible, using the original Nuclei V4 definitions where available.

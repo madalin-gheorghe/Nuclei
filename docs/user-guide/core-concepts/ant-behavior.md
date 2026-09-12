@@ -4,7 +4,7 @@
 
 Ants search for food, bring it home, and repeat. They leave scent trails called **pheromones** to help each other find the way.
 
-1. **Leave home.** Ants spread out and explore.
+1. **Leave home.** Ants start at the supplied nest points, then spread out and explore.
 2. **Look for food.** They check nearby scents and turn toward stronger food scent. When they find a clear scent direction, they focus on following it instead of wandering. If they lose it, they explore again. Food stays in place and gives off this scent.
 3. **Leave a trail home.** While searching, ants leave **Base Pheromone**. This helps returning ants find their way home.
 4. **Pick up food.** When an ant reaches food, it takes a small amount and starts heading home.
@@ -15,9 +15,8 @@ Scent spreads into nearby space (**diffusion**) and gradually fades (**decay**).
 
 **Remember: searching ants leave a trail home; returning ants leave a trail to food.**
 
----
-
-## Detailed Behavior
+<details>
+<summary>Detailed behavior</summary>
 
 This explanation describes the current Nuclei V3 and V4 ant simulation in 2D and 3D.
 
@@ -30,7 +29,7 @@ Ants alternate between two states: **searching for food** and **carrying food ho
 
 ### 1. Leaving the nest
 
-Each ant remembers its home position. An initial outward force, with sideways variation, spreads ants away from home. This launch force gradually fades and stops when an ant encounters a boundary or obstacle. The first few steps also help orient the ant outward.
+Ants are created only at the supplied starting points in the nest region. Each ant remembers its own starting point as home. An initial outward force, with sideways variation, spreads ants away from home. This launch force gradually fades and stops when an ant encounters a boundary or obstacle. The first few steps also help orient the ant outward.
 
 Detecting a clear food-scent gradient temporarily reduces the outward and sideways launch forces, early outward steering, and random steering. This lets the ant turn toward food before its launch finishes.
 
@@ -86,8 +85,9 @@ The ant can then begin another search. A nest visit also resets a searching ant 
 | Food Pheromone | Remaining Ant Food and ants carrying food | Food Pheromone settings |
 | Base Pheromone | Searching ants | Base Pheromone settings |
 
-Both fields use the **shared ant diffusion range**, while keeping their own diffusion and decay rates. These mechanics apply in 2D and 3D.
+Both fields use the **shared ant Falloff and diffusion range**, while keeping their own diffusion and decay rates. Falloff works like slime: 0 keeps local weighted diffusion; 1 averages evenly across the range. Intermediate values gradually change the mixing and signal retention. Ant Food stays fixed; its emitted scent follows these food-pheromone settings. These mechanics apply in 2D and 3D.
 
 Repeated trips reinforce trails. When ants stop using a route, its pheromones fade according to the decay settings. The edible food itself does not spread into neighbouring voxels.
 
-Food-source emission visits cached source locations, and the two pheromone fields share neighbour traversal when both are diffusing. Ant-only simulations do not advance the slime-density field.
+
+</details>

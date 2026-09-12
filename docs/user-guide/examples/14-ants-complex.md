@@ -2,16 +2,18 @@
 
 Explore multiple food regions with an additional restrictive density map.
 
+![Ants Complex: example simulation result.](../assets/examples/14-ants-complex/result.jpg)
+
 [Download 14_Ants Complex.gh](files/14-ants-complex.gh)
 
-![](../assets/examples/14-ants-complex/definition-clean.png)
-
+![Ants Complex: Grasshopper definition showing its connected components and controls.](../assets/examples/14-ants-complex/definition-clean.png)
 
 ## Follow the definition
 
 Two mapping branches assign **Ant Food** with multiplier 1. A separate branch assigns **Maximum Density** with multiplier 0. Follow the selections and unions carefully to distinguish food from the region that restricts occupancy.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Construct Voxels](../components/construct-voxels.md)
 - [Point Attractor for Voxels](../components/point-attractor-for-voxels.md)
@@ -24,9 +26,12 @@ Two mapping branches assign **Ant Food** with multiplier 1. A separate branch as
 - [Construct Ant Particles](../components/construct-ant-particles.md)
 - [Voxel Settings Ant](../components/voxel-settings-ant.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -57,6 +62,8 @@ These are directly connected slider and value-list settings read from this file.
 | Voxel Settings Ant | Base Decay Rate | 0.05 |
 | Voxel Settings Ant | Diffuse Range | 4 |
 
+</details>
+
 ## Run the example
 
 Open it in Rhino 9 with Nuclei V4, pause the existing Trigger, and inspect the mapped field. Reset once with True, return reset to False, and start the Trigger. Pause before editing several inputs or extracting a large result.
@@ -67,7 +74,6 @@ Change one food region while keeping the restrictive map fixed. Inspect both Typ
 
 ## Example result
 
-![](../assets/examples/14-ants-complex/result.jpg)
-
+![Ants Complex: example simulation result.](../assets/examples/14-ants-complex/result.jpg)
 
 [Back to examples](README.md)

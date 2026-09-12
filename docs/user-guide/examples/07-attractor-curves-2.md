@@ -2,16 +2,18 @@
 
 Explore curve-driven density maps with an additional scalar blending stage.
 
+![Attractor Curves 2: example simulation result.](../assets/examples/07-attractor-curves-2/result.jpg)
+
 [Download 07_Attractor Curves 2.gh](files/07-attractor-curves-2.gh)
 
-![](../assets/examples/07-attractor-curves-2/definition-clean.png)
-
+![Attractor Curves 2: Grasshopper definition showing its connected components and controls.](../assets/examples/07-attractor-curves-2/definition-clean.png)
 
 ## Follow the definition
 
-The saved graph assigns **Minimum Density**, combines the mapped branches, and includes **Voxel Values Blend**. Compare the field before and after blending to understand the transition between regions.
+The saved graph assigns **Minimum Density**, combines the mapped branches, and includes [Voxel Values Blend](../components/voxel-values-blend.md). Compare the field before and after blending to understand the transition between regions.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Construct Voxels](../components/construct-voxels.md)
 - [Curve Attractor for Voxels](../components/curve-attractor-for-voxels.md)
@@ -25,9 +27,12 @@ The saved graph assigns **Minimum Density**, combines the mapped branches, and i
 - [Particle Trail Preview](../components/particle-trail-preview.md)
 - [Particle Trail Settings](../components/particle-trail-settings.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -58,6 +63,8 @@ These are directly connected slider and value-list settings read from this file.
 | Construct Slime Particles | Wander | 0.2 |
 | Particle Trail Settings | Trail Size | 5 |
 
+</details>
+
 ## Run the example
 
 Open it in Rhino 9 with Nuclei V4, pause the existing Trigger, and inspect the mapped field. Reset once with True, return reset to False, and start the Trigger. Pause before editing several inputs or extracting a large result.
@@ -68,7 +75,6 @@ Adjust blend strength or iteration count one at a time. Keep the curve arrangeme
 
 ## Example result
 
-![](../assets/examples/07-attractor-curves-2/result.jpg)
-
+![Attractor Curves 2: example simulation result.](../assets/examples/07-attractor-curves-2/result.jpg)
 
 [Back to examples](README.md)

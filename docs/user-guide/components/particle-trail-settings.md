@@ -1,34 +1,86 @@
 # Particle Trail Settings
 
-Set how much recent movement history is retained for particle trails.
+Set the number of recent positions retained in each particle trail.
 
 **Location:** Nuclei4 → Particles
 
-![](../assets/components/particle-trail-settings-wired.png)
-
+![Particle Trail Settings with its connected controls and wires.](../assets/components/particle-trail-settings-wired.png)
 
 ## Use it
 
-Connect trailSettings to the solver and its particles output to Particle Trail Preview. Increasing trail length changes visible movement history, not the diffusion or decay of the deposited field.
+Connect **trailSettings** to the solver’s **settings** input. Connect the solver’s **particles** output to [Particle Trail Preview](particle-trail-preview.md) for display or [Extract Particle Trails](extract-particle-trails.md) for points.
+
+Trail Size controls movement history. It does not change the deposited signal’s diffusion or decay.
 
 ## Inputs
 
-| Input | Data | Default | Purpose |
+Defaults describe a newly placed component.
+
+| Input | Type / access | Default | Meaning |
 | --- | --- | --- | --- |
-| **Trail Size** (`trailSize`) | Integer; item | 5 | Size Of Particle Trail |
+| **Trail Size** (`trailSize`) | Integer / item | Optional; 5 | Maximum number of recent positions retained per trail. |
 
-Defaults describe a newly placed component. A saved definition can store other values on an unconnected input.
+## Output
 
-## Outputs
-
-| Output | Data | Purpose |
+| Output | Type / access | Meaning |
 | --- | --- | --- |
-| **Trail Settings** (`trailSettings`) | Text; list | Settings For Particle Trail |
+| **Trail Settings** (`trailSettings`) | Text / list | Trail history settings for the solver. |
 
-## In the example collection
+## If something is wrong
 
-- [01_Slime Intro](../examples/01-slime-intro.md)
-- [02_Gradient Map](../examples/02-gradient-map.md)
-- [03_Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md)
+| Symptom | Action |
+| --- | --- |
+| No trail after reset | Advance the simulation to build history. |
+| Trails are too short | Increase Trail Size. |
 
-[Back to the component reference](README.md)
+## Continue
+
+[Slime Intro](../examples/01-slime-intro.md) · [Gradient Map](../examples/02-gradient-map.md) · [Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Component reference](README.md)
+
+<details>
+<summary>Machine-readable reference (JSON)</summary>
+
+Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Particle Trail Settings",
+    "category": "Nuclei4",
+    "subcategory": " Particles",
+    "componentGuid": "cd0bb03c-2b66-4dbb-864e-02015f0255e7",
+    "dotnetType": "Nuclei4.Particle_Settings_Trail",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Trail Size",
+        "nickname": "trailSize",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "5"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Trail Settings",
+        "nickname": "trailSettings",
+        "ghType": "Text",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}
+```
+
+</details>

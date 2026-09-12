@@ -1,36 +1,141 @@
 # Image Mapper for Voxels
 
-Map image brightness to a voxel property across a planar field.
+Map the light and dark areas of an image to values in a 2D voxel field.
 
 **Location:** Nuclei4 → Environment
 
-![](../assets/components/image-mapper-for-voxels-wired.png)
-
+![Image Mapper for Voxels with its connected controls and wires.](../assets/components/image-mapper-for-voxels-wired.png)
 
 ## Use it
 
-Double-click to select an image. Black maps to targetStart and white to targetEnd; reversed endpoints invert the range. The image is embedded in the definition. XY, XZ, and YZ planes are supported; 3D fields are rejected. Different aspect ratios stretch the map.
+Connect a 2D field to **voxels**. Double-click the component, or right-click and choose **Choose image…**, to load an image. Select the property with **Type**.
+
+**Target Start** sets the value for black; **Target End** sets the value for white. Gray values fall between them. Connect the output field to the solver or a preview of the same property.
 
 ## Inputs
 
-| Input | Data | Default | Purpose |
+Defaults describe a newly placed component.
+
+| Input | Type / access | Default | Meaning |
 | --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data; item | Supply input | A 2D voxel field in XY, XZ or YZ. The entire grid domain maps to 0–1 on both axes. |
-| **Type** (`type`) | Integer; item | 0 | Voxel property to define, as in Define Voxel Values. |
-| **Target Start** (`targetStart`) | Number; item | 0 | Value assigned to black. Can be higher than targetEnd to reverse the mapping. |
-| **Target End** (`targetEnd`) | Number; item | 1 | Value assigned to white. Equal endpoints create a constant map. Density types retain the limits of Define Voxel Values. |
+| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
+| **Type** (`type`) | Integer / item | 0 | Property to use; see **Type choices** below. |
+| **Target Start** (`targetStart`) | Number / item | 0 | Value assigned to black pixels. |
+| **Target End** (`targetEnd`) | Number / item | 1 | Value assigned to white pixels. |
 
-Defaults describe a newly placed component. A saved definition can store other values on an unconnected input.
+### Type choices
 
-## Outputs
+| Value | Choice |
+| --- | --- |
+| 0 | Minimum Density |
+| 1 | Maximum Density |
+| 2 | Speed |
+| 3 | Sensor Distance |
+| 4 | Sensor Angle |
+| 5 | Rotation Angle |
+| 6 | Slime Food |
+| 13 | Ant Food |
 
-| Output | Data | Purpose |
+## Output
+
+| Output | Type / access | Meaning |
 | --- | --- | --- |
-| **Output Voxels** (`voxels`) | Generic Data; item | Voxels with the selected property defined by the remapped image. |
+| **Output Voxels** (`voxels`) | Generic Data / item | Selected or modified voxel field. |
 
-## In the example collection
+## Image mapping
 
-- [05_City Map](../examples/05-city-map.md)
-- [05_City Map2](../examples/05-city-map2.md)
+The image covers the full grid domain. XY, XZ, and YZ fields are supported. Swap Target Start and Target End to reverse the mapping; equal values make a constant map.
 
-[Back to the component reference](README.md)
+## If something is wrong
+
+| Symptom | Action |
+| --- | --- |
+| Only 2D Voxel Field Allowed | Use a field with one cell along one axis. |
+| No image selected | Double-click the component and choose an image. |
+| Map appears unchanged | Check Type and the two target values. |
+
+## Continue
+
+[City Map](../examples/05-city-map.md) · [City Map — alternate definition](../examples/05-city-map2.md) · [Component reference](README.md)
+
+<details>
+<summary>Machine-readable reference (JSON)</summary>
+
+Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Image Mapper for Voxels",
+    "category": "Nuclei4",
+    "subcategory": " Environment",
+    "componentGuid": "d33e509c-f8ae-41b3-83e3-40e33685396f",
+    "dotnetType": "Nuclei4.Voxel_ImageMapper",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 1,
+        "name": "Type",
+        "nickname": "type",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0"
+        ]
+      },
+      {
+        "index": 2,
+        "name": "Target Start",
+        "nickname": "targetStart",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0"
+        ]
+      },
+      {
+        "index": 3,
+        "name": "Target End",
+        "nickname": "targetEnd",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "1"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Output Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}
+```
+
+</details>

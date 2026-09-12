@@ -1,32 +1,93 @@
 # Voxel Selection Difference
 
-Remove the second voxel selection from the first.
+Remove one voxel selection from another.
 
 **Location:** Nuclei4 → Environment
 
-![](../assets/components/voxel-selection-difference-wired.png)
+![Voxel Selection Difference with its connected controls and wires.](../assets/components/voxel-selection-difference-wired.png)
 
 ## Use it
 
-Input order matters: V1 minus V2 is different from V2 minus V1. Use selections from the same environment and inspect the resulting region.
+Connect the selection to keep to **V1** and the selection to remove to **V2**. The **voxels** output contains V1 without its overlap with V2.
 
 ## Inputs
 
-| Input | Data | Default | Purpose |
+Defaults describe a newly placed component.
+
+| Input | Type / access | Default | Meaning |
 | --- | --- | --- | --- |
-| **Voxel** (`V1`) | Generic Data; item | Supply input | Connects to Voxels |
-| **Voxel** (`V2`) | Generic Data; item | Supply input | Connects to Voxels |
+| **Voxel** (`V1`) | Generic Data / item | Required | First voxel selection. |
+| **Voxel** (`V2`) | Generic Data / item | Required | Second voxel selection. |
 
-Defaults describe a newly placed component. A saved definition can store other values on an unconnected input.
+## Output
 
-## Outputs
-
-| Output | Data | Purpose |
+| Output | Type / access | Meaning |
 | --- | --- | --- |
-| **Output Voxels** (`voxels`) | Generic Data; item | Output Voxels |
+| **Output Voxels** (`voxels`) | Generic Data / item | Selected or modified voxel field. |
 
-## Related workflow
+## If something is wrong
 
-Use the input and output roles above with the [voxel-field](../core-concepts/voxels-and-fields.md) or [particle](../core-concepts/particles-and-populations.md) workflow.
+| Symptom | Action |
+| --- | --- |
+| The wrong region remains | Check the order of V1 and V2. |
+| Output is empty | V2 may cover all of V1. |
 
-[Back to the component reference](README.md)
+## Continue
+
+[Component reference](README.md)
+
+<details>
+<summary>Machine-readable reference (JSON)</summary>
+
+Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Voxel Selection Difference",
+    "category": "Nuclei4",
+    "subcategory": " Environment",
+    "componentGuid": "9fb92daa-e99b-4ac3-985a-b985ad7bcf62",
+    "dotnetType": "Nuclei4.Voxels_AND_NOT",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Voxel",
+        "nickname": "V1",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 1,
+        "name": "Voxel",
+        "nickname": "V2",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Output Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}
+```
+
+</details>

@@ -2,16 +2,18 @@
 
 Guide movement with vectors assigned to the environment.
 
+![Vector Fields 1: example simulation result.](../assets/examples/08-vector-fields-1/result.jpg)
+
 [Download 08_Vector Fields 1.gh](files/08-vector-fields-1.gh)
 
-![](../assets/examples/08-vector-fields-1/definition-clean.png)
-
+![Vector Fields 1: Grasshopper definition showing its connected components and controls.](../assets/examples/08-vector-fields-1/definition-clean.png)
 
 ## Follow the definition
 
-Follow the geometric vector construction into **Define Voxel Vectors**. Point-attractor selections and the union determine which cells receive the map. The vector field acts alongside the slime behavior settings.
+Follow the geometric vector construction into [Define Voxel Vectors](../components/define-voxel-vectors.md). Point-attractor selections and the union determine which cells receive the map. The vector field acts alongside the slime behavior settings.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Construct Voxels](../components/construct-voxels.md)
 - [Extract Voxel Bounding Box](../components/extract-voxel-bounding-box.md)
@@ -25,9 +27,12 @@ Follow the geometric vector construction into **Define Voxel Vectors**. Point-at
 - [Construct Slime Particles](../components/construct-slime-particles.md)
 - [Particle Trail Preview](../components/particle-trail-preview.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -52,6 +57,8 @@ These are directly connected slider and value-list settings read from this file.
 | Construct Slime Particles | Deposit | 0.4 |
 | Construct Slime Particles | Wander | 0 |
 
+</details>
+
 ## Run the example
 
 Open it in Rhino 9 with Nuclei V4, pause the existing Trigger, and inspect the mapped field. Reset once with True, return reset to False, and start the Trigger. Pause before editing several inputs or extracting a large result.
@@ -62,7 +69,6 @@ Change the mapped vector direction or frequency, then reset. Compare directional
 
 ## Example result
 
-![](../assets/examples/08-vector-fields-1/result.jpg)
-
+![Vector Fields 1: example simulation result.](../assets/examples/08-vector-fields-1/result.jpg)
 
 [Back to examples](README.md)

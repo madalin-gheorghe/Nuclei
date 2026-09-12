@@ -2,16 +2,18 @@
 
 Explore changing populations with division, death, and population settings.
 
+![Growth 1: example simulation result.](../assets/examples/11-growth-1/result.jpg)
+
 [Download 11_Growth 1.gh](files/11-growth-1.gh)
 
-![](../assets/examples/11-growth-1/definition-clean.png)
-
+![Growth 1: Grasshopper definition showing its connected components and controls.](../assets/examples/11-growth-1/definition-clean.png)
 
 ## Follow the definition
 
 The saved graph includes all three population-control components. Trace their outputs into settings and compare their activation switches, neighbor criteria, and population bounds before running.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Construct Voxels](../components/construct-voxels.md)
 - [Extract Voxel Bounding Box](../components/extract-voxel-bounding-box.md)
@@ -24,9 +26,12 @@ The saved graph includes all three population-control components. Trace their ou
 - [Voxel Settings Slime](../components/voxel-settings-slime.md)
 - [Construct Slime Particles](../components/construct-slime-particles.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -61,6 +66,8 @@ These are directly connected slider and value-list settings read from this file.
 | Construct Slime Particles | Deposit | 1.5 |
 | Construct Slime Particles | Wander | 0 |
 
+</details>
+
 ## Run the example
 
 Open it in Rhino 9 with Nuclei V4, pause the existing Trigger, and inspect the mapped field. Reset once with True, return reset to False, and start the Trigger. Pause before editing several inputs or extracting a large result.
@@ -71,7 +78,6 @@ Change one division or death control at a time. Reset between runs and compare p
 
 ## Example result
 
-![](../assets/examples/11-growth-1/result.jpg)
-
+![Growth 1: example simulation result.](../assets/examples/11-growth-1/result.jpg)
 
 [Back to examples](README.md)

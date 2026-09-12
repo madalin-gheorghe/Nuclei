@@ -1,31 +1,85 @@
 # Extract Particle Positions
 
-Extract particle positions as ordinary Rhino points.
+Extract current particle positions as Rhino points.
 
 **Location:** Nuclei4 → Particles
 
-![](../assets/components/extract-particle-positions-wired.png)
+![Extract Particle Positions with its connected controls and wires.](../assets/components/extract-particle-positions-wired.png)
 
 ## Use it
 
-Use the solver output for current positions. Extraction can add data transfer and downstream computation, so use Particle Preview for interactive viewing when you do not need point geometry.
+Connect the solver’s **particles** output. Use **particlePos** wherever Grasshopper needs point geometry.
 
 ## Inputs
 
-| Input | Data | Default | Purpose |
+Defaults describe a newly placed component.
+
+| Input | Type / access | Default | Meaning |
 | --- | --- | --- | --- |
-| **Particles** (`particles`) | Generic Data; item | Supply input | Input Particles |
+| **Particles** (`particles`) | Generic Data / item | Required | Current particle collection from the solver. |
 
-Defaults describe a newly placed component. A saved definition can store other values on an unconnected input.
+## Output
 
-## Outputs
-
-| Output | Data | Purpose |
+| Output | Type / access | Meaning |
 | --- | --- | --- |
-| **Particle Positions** (`particlePos`) | Point; list | Particle Positions |
+| **Particle Positions** (`particlePos`) | Point / tree | Current positions, grouped by particle population. |
 
-## Related workflow
+## Output branches
 
-Use the input and output roles above with the [voxel-field](../core-concepts/voxels-and-fields.md) or [particle](../core-concepts/particles-and-populations.md) workflow.
+Points are grouped into branches by particle group. Keep those branches when working with several populations.
 
-[Back to the component reference](README.md)
+## If something is wrong
+
+| Symptom | Action |
+| --- | --- |
+| Points do not move | Check that the input comes from the solver, rather than the constructor. |
+
+## Continue
+
+[Component reference](README.md)
+
+<details>
+<summary>Machine-readable reference (JSON)</summary>
+
+Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Extract Particle Positions",
+    "category": "Nuclei4",
+    "subcategory": " Particles",
+    "componentGuid": "f11f6319-1d69-4c97-8734-17c3f6a13b4a",
+    "dotnetType": "Nuclei4.Particle_Extractor_Point",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Particles",
+        "nickname": "particles",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Particle Positions",
+        "nickname": "particlePos",
+        "ghType": "Point",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}
+```
+
+</details>

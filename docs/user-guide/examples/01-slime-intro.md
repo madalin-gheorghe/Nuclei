@@ -2,16 +2,18 @@
 
 Follow a complete slime setup from a flat field to a visible particle network.
 
+![Slime Intro: example simulation result.](../assets/examples/01-slime-intro/result.jpg)
+
 [Download 01_Slime Intro.gh](files/01-slime-intro.gh)
 
-![](../assets/examples/01-slime-intro/definition-clean.png)
-
+![Slime Intro: Grasshopper definition showing its connected components and controls.](../assets/examples/01-slime-intro/definition-clean.png)
 
 ## Follow the definition
 
 Start with the [first slime simulation walkthrough](../getting-started/first-slime-simulation.md), which explains each saved group in detail.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Construct Voxels](../components/construct-voxels.md)
 - [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
@@ -20,9 +22,12 @@ Start with the [first slime simulation walkthrough](../getting-started/first-sli
 - [Particle Trail Preview](../components/particle-trail-preview.md)
 - [Particle Trail Settings](../components/particle-trail-settings.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -43,6 +48,8 @@ These are directly connected slider and value-list settings read from this file.
 | Voxel Settings Slime | Diffuse Range | 5 |
 | Particle Trail Settings | Trail Size | 10 |
 
+</details>
+
 ## Run the example
 
 Open it in Rhino 9 with Nuclei V4, pause the existing Trigger, and inspect the mapped field. Reset once with True, return reset to False, and start the Trigger. Pause before editing several inputs or extracting a large result.
@@ -53,7 +60,6 @@ Compare Sensor Distance while keeping the other sliders fixed. Look for changes 
 
 ## Example result
 
-![](../assets/examples/01-slime-intro/result.jpg)
-
+![Slime Intro: example simulation result.](../assets/examples/01-slime-intro/result.jpg)
 
 [Back to examples](README.md)

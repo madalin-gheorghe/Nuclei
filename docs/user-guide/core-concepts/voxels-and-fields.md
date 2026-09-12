@@ -6,9 +6,9 @@ A **voxel** is one cell of Nuclei's environment. The voxel field gives particles
 
 **Construct Voxels** sets cell size and cell counts along X, Y, and Z. The number of cells is X × Y × Z. Keep Z at 1 for an XY study; increasing all three dimensions creates a volume.
 
-![](../assets/construct-voxels-clean.png)
+![Construct voxels with connected controls and wires.](../assets/construct-voxels-clean.png)
 
-The Slime Intro definition uses one slider for both X and Y, giving a square field. Its 1000 × 1000 × 1 grid contains one million cells. Doubling all three counts of a 3D grid creates eight times as many cells, so increase resolution gradually.
+Voxel Size sets each cell’s edge length in model units. The grid starts at the world origin; its dimensions are the cell counts multiplied by Voxel Size.
 
 ## Select cells before assigning values
 

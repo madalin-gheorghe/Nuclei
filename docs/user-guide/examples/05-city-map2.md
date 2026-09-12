@@ -4,14 +4,14 @@ Inspect the alternate saved city-map definition using image-based voxel mapping.
 
 [Download 05_City Map2.gh](files/05-city-map2.gh)
 
-![](../assets/examples/05-city-map2/definition-clean.png)
-
+![City Map — alternate definition: Grasshopper definition showing its connected components and controls.](../assets/examples/05-city-map2/definition-clean.png)
 
 ## Follow the definition
 
 This is a separate supplied file. Compare its mapped values and wiring with City Map rather than assuming the two produce identical results. Both use the image mapper and a planar 3000 × 3000 field.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Construct Voxels](../components/construct-voxels.md)
 - [Particle Trail Settings](../components/particle-trail-settings.md)
@@ -25,9 +25,12 @@ This is a separate supplied file. Compare its mapped values and wiring with City
 - [Image Mapper for Voxels](../components/image-mapper-for-voxels.md)
 - [Voxel Selection Union](../components/voxel-selection-union.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -62,6 +65,8 @@ These are directly connected slider and value-list settings read from this file.
 | Construct Slime Particles | Rotation Angle | 45 |
 | Construct Slime Particles | Deposit | 5 |
 | Construct Slime Particles | Wander | 0 |
+
+</details>
 
 ## Run the example
 

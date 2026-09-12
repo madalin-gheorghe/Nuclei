@@ -2,25 +2,26 @@
 
 Explore how slime particles organize into connected paths using **01_Slime Intro.gh**, the original Nuclei V4 example. This walkthrough follows its saved layout, groups, and slider values.
 
+![Yellow slime trails forming interconnected paths across the square simulation field.](../assets/slime-intro.jpg)
+
 **Before you begin:** use [Nuclei V4 in Rhino 9 on Windows](../installation.md).
 
 [Download the Slime Intro definition](../examples/first-slime-simulation.gh) and open it in Grasshopper. The download is a copy of the original example, not a rebuilt starter.
 
-![](../assets/01-slime-intro-original-definition-clean.png)
-
+![The original Slime Intro canvas, with the voxel field feeding particle generation and the solver, two settings components feeding the solver, and its particle output feeding Trail Preview.](../assets/01-slime-intro-original-definition-clean.png)
 
 ## 1. Define the design space
 
 The purple **Define Design Space** group contains **Construct Voxels** and the sliders that set the field dimensions. A voxel is one cell of the simulation environment.
 
-![](../assets/construct-voxels-clean.png)
+![Construct Voxels with one slider set to 1000 feeding both X and Y, Z set to 1, and connected voxel output wires continuing beyond the crop.](../assets/construct-voxels-clean.png)
 
 | Input | Example setting | Meaning |
 | --- | --- | --- |
 | X Voxels | 1000 | Cells along X. |
 | Y Voxels | 1000 | The same slider also feeds Y, keeping the field square. |
 | Z Voxels | 1 | A single layer for a 2D simulation. |
-| Voxel Size | Unconnected | Uses the value stored on the input; no separate slider is needed here. |
+| Voxel Size | 1, stored on the unconnected input | One model unit per cell edge. |
 
 The field contains **1,000,000 voxels**. Its output feeds both the particle constructor and the solver. Keep these existing connections.
 
@@ -28,7 +29,7 @@ The field contains **1,000,000 voxels**. Its output feeds both the particle cons
 
 The large yellow-green group contains **Construct Slime Particles** and its behavior sliders.
 
-![](../assets/construct-slime-clean.png)
+![Construct Slime Particles with Particle Count 50000, its saved behavior controls, and the particles output wire continuing toward the solver beyond the crop.](../assets/construct-slime-clean.png)
 
 | Slider | Saved value | What it controls |
 | --- | --- | --- |
@@ -42,13 +43,15 @@ The large yellow-green group contains **Construct Slime Particles** and its beha
 
 The voxel field is connected to **voxels**. **particlePos** is empty, so positions are generated within the field. The **particles** output supplies the solver.
 
+Count is the requested starting population. The solver can retain fewer particles after applying boundaries and occupancy rules; this is different from changing the Count slider. See [requested and retained particles](../components/construct-slime-particles.md#requested-and-retained-particles).
+
 Leave the values as saved for your first run. Each particle senses nearby signals, turns, moves, and deposits a signal that other particles can follow.
 
 ## 3. Set the visible trail length
 
 The smaller yellow-green group contains **Particle Trail Settings**.
 
-![](../assets/particle-trail-settings-clean.png)
+![Particle Trail Settings with Trail Size 10 connected to the solver settings.](../assets/particle-trail-settings-clean.png)
 
 **Trail Size = 10** controls the recent particle history retained for trail display. Its **trailSettings** output is connected to the solver's **settings** input.
 
@@ -58,7 +61,7 @@ The visible particle trail and the deposited slime signal are different: this gr
 
 The lower purple group contains **Voxel Settings Slime**.
 
-![](../assets/voxel-settings-slime-clean.png)
+![Voxel Settings Slime with Diffuse Rate 0.15, Decay Rate 0.03, Falloff 0, and Diffuse Range 5.](../assets/voxel-settings-slime-clean.png)
 
 | Slider | Saved value | What it controls |
 | --- | --- | --- |
@@ -67,15 +70,15 @@ The lower purple group contains **Voxel Settings Slime**.
 | Falloff | 0.00 | Falloff of diffusion across nearby voxels. |
 | Diffuse Range | 5 | Neighborhood range used for diffusion. |
 
-The **voxelSettings** output joins **trailSettings** at the solver's **settings** input. Both connections are intentional.
+The **voxelSettings** output joins **trailSettings** at the solver's **settings** input. Hold **Shift** when adding the second settings wire to keep the first connected.
 
 Busy routes receive repeated deposits. Diffusion spreads those deposits to nearby cells, while decay lets unused signals fade. Together with particle sensing, these processes allow paths to emerge.
 
 ## 5. Run and pause the simulation
 
-The right side contains the reset toggle, solver, existing Trigger, and **Particle Trail Preview**.
+The Boolean Toggle connects to **reset** on the solver to initialize the simulation. The Trigger requests repeated simulation steps, and **Particle Trail Preview** displays the trails.
 
-![](../assets/solver-preview-clean.png)
+![Reset toggle, the solver and its 10 ms Trigger, and Particle Trail Preview receiving the solver particles.](../assets/solver-preview-clean.png)
 
 
 1. Keep the Trigger paused while checking the definition.
@@ -89,11 +92,19 @@ The Trigger requests repeated solutions. Its interval is not a guarantee of the 
 
 The solver's **particles** output feeds **Particle Trail Preview**. The **voxels** output is available for other workflows and is unused here. The current solver has no status output or status Panel.
 
+## Check that it worked
+
+- Construct Voxels reports **1,000,000 cells**, with a 1000 × 1000 × 1 domain and Voxel Size 1.
+- The particle constructor reports **50,000 generated particles**. The solver may retain fewer at reset.
+- After Reset becomes False, the solver's **Iteration** message increases when solutions are requested.
+- Trails appear after several steps; pause the Trigger and check that the iteration stops increasing.
+- Reset returns the iteration to zero and clears accumulated history.
+
 ## 6. Watch the network develop
 
 Initially, particles are scattered and have little movement history. As they move, look for local alignments and paths. Trail preview makes their recent movement visible.
 
-![](../assets/slime-intro.jpg)
+![Yellow slime trails forming interconnected paths across the square simulation field.](../assets/slime-intro.jpg)
 
 
 ## 7. Explore one change at a time

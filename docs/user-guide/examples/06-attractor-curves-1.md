@@ -2,16 +2,18 @@
 
 Use curve-distance selections to organize local density conditions.
 
+![Attractor Curves 1: example simulation result.](../assets/examples/06-attractor-curves-1/result.jpg)
+
 [Download 06_Attractor Curves 1.gh](files/06-attractor-curves-1.gh)
 
-![](../assets/examples/06-attractor-curves-1/definition-clean.png)
-
+![Attractor Curves 1: Grasshopper definition showing its connected components and controls.](../assets/examples/06-attractor-curves-1/definition-clean.png)
 
 ## Follow the definition
 
-The curve attractors feed remapping and **Define Voxel Values** components set to **Minimum Density**. Follow each branch through the union into the solver; the curves select where the map is applied.
+The curve attractors feed remapping and [Define Voxel Values](../components/define-voxel-values.md) components set to **Minimum Density**. Follow each branch through the union into the solver; the curves select where the map is applied.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Construct Voxels](../components/construct-voxels.md)
 - [Curve Attractor for Voxels](../components/curve-attractor-for-voxels.md)
@@ -26,9 +28,12 @@ The curve attractors feed remapping and **Define Voxel Values** components set t
 - [Particle Trail Preview](../components/particle-trail-preview.md)
 - [Voxel Wrap Settings](../components/voxel-wrap-settings.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -55,6 +60,8 @@ These are directly connected slider and value-list settings read from this file.
 | Construct Slime Particles | Wander | 0 |
 | Voxel Wrap Settings | Wrap | True |
 
+</details>
+
 ## Run the example
 
 Open it in Rhino 9 with Nuclei V4, pause the existing Trigger, and inspect the mapped field. Reset once with True, return reset to False, and start the Trigger. Pause before editing several inputs or extracting a large result.
@@ -65,7 +72,6 @@ Change the attractor range or curve geometry separately. Inspect the voxel map b
 
 ## Example result
 
-![](../assets/examples/06-attractor-curves-1/result.jpg)
-
+![Attractor Curves 1: example simulation result.](../assets/examples/06-attractor-curves-1/result.jpg)
 
 [Back to examples](README.md)

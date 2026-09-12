@@ -4,14 +4,14 @@ Extend the ant-foraging workflow into a three-dimensional voxel domain.
 
 [Download 13_Ants Intro_3D.gh](files/13-ants-intro-3d.gh)
 
-![](../assets/examples/13-ants-intro-3d/definition-clean.png)
-
+![Ants Intro — 3D: Grasshopper definition showing its connected components and controls.](../assets/examples/13-ants-intro-3d/definition-clean.png)
 
 ## Follow the definition
 
 The grid is 250 × 250 × 250. The saved Ant Food multiplier is 3, and the ant constructor uses Deposit 20 and Wander 0.15. Inspect food and colony positions in more than one Rhino view before running.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Construct Voxels](../components/construct-voxels.md)
 - [Point Attractor for Voxels](../components/point-attractor-for-voxels.md)
@@ -26,9 +26,12 @@ The grid is 250 × 250 × 250. The saved Ant Food multiplier is 3, and the ant c
 - [Particle Trail Preview](../components/particle-trail-preview.md)
 - [Particle Trail Settings](../components/particle-trail-settings.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -53,6 +56,8 @@ These are directly connected slider and value-list settings read from this file.
 | Nuclei4 Solver GPU | Reset | True |
 | Voxel Preview | Type | Ants and Slime |
 | Particle Trail Settings | Trail Size | 5 |
+
+</details>
 
 ## Run the example
 

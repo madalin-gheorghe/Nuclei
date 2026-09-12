@@ -1,32 +1,82 @@
 # Extract Voxel Positions
 
-Extract voxel center positions.
+Extract voxel centers as Rhino points.
 
 **Location:** Nuclei4 → Environment
 
-![](../assets/components/extract-voxel-positions-wired.png)
-
+![Extract Voxel Positions with its connected controls and wires.](../assets/components/extract-voxel-positions-wired.png)
 
 ## Use it
 
-Use the centers to evaluate distances, expressions, or external fields. Preserve their ordering when mapping a list of values back onto the same voxel selection.
+Connect the field or selection to **voxels**. Use **voxelPosition** for point-based operations or to display the selected cells.
 
 ## Inputs
 
-| Input | Data | Default | Purpose |
+Defaults describe a newly placed component.
+
+| Input | Type / access | Default | Meaning |
 | --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data; item | Supply input | Connects to Voxel Constructor |
+| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
 
-Defaults describe a newly placed component. A saved definition can store other values on an unconnected input.
+## Output
 
-## Outputs
-
-| Output | Data | Purpose |
+| Output | Type / access | Meaning |
 | --- | --- | --- |
-| **Voxel Positions** (`voxelPosition`) | Point; list | Centers of Voxels |
+| **Voxel Positions** (`voxelPosition`) | Point / list | Centers of the selected voxels. |
 
-## In the example collection
+## If something is wrong
 
-- [02_Gradient Map](../examples/02-gradient-map.md)
+| Symptom | Action |
+| --- | --- |
+| Only part of the grid appears | Check whether the input is a selection. |
+| Points are offset from the grid boundary | The output contains cell centers. |
 
-[Back to the component reference](README.md)
+## Continue
+
+[Gradient Map](../examples/02-gradient-map.md) · [Component reference](README.md)
+
+<details>
+<summary>Machine-readable reference (JSON)</summary>
+
+Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Extract Voxel Positions",
+    "category": "Nuclei4",
+    "subcategory": " Environment",
+    "componentGuid": "deb55383-1cb3-4b17-8d01-cc05d1b9c635",
+    "dotnetType": "Nuclei4.Voxel_Extractor_Point",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Voxel Positions",
+        "nickname": "voxelPosition",
+        "ghType": "Point",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}
+```
+
+</details>

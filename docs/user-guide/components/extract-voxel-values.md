@@ -1,32 +1,113 @@
 # Extract Voxel Values
 
-Extract the selected voxel property as numeric values.
+Extract values for a chosen voxel property.
 
 **Location:** Nuclei4 → Environment
 
-![](../assets/components/extract-voxel-values-wired.png)
+![Extract Voxel Values with its connected controls and wires.](../assets/components/extract-voxel-values-wired.png)
 
 ## Use it
 
-Choose a Type matching your intended field. Use the solver’s voxels output for current density or pheromones. Keep the values aligned with positions from the same selection.
+Connect the field and choose **Type**. Use the solver’s field for evolving signals, or a mapped field for static values.
+
+Pair **voxelValues** with positions extracted from the same field to keep values and cells aligned.
 
 ## Inputs
 
-| Input | Data | Default | Purpose |
+Defaults describe a newly placed component.
+
+| Input | Type / access | Default | Meaning |
 | --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data; item | Supply input | Connects to Voxel Constructor |
-| **Type** (`type`) | Integer; item | 0 | Type of Voxel Value |
+| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
+| **Type** (`type`) | Integer / item | 0 | Property to use; see **Type choices** below. |
 
-Defaults describe a newly placed component. A saved definition can store other values on an unconnected input.
+### Type choices
 
-## Outputs
+| Value | Choice |
+| --- | --- |
+| 0 | Minimum Density |
+| 1 | Maximum Density |
+| 2 | Speed |
+| 3 | Sensor Distance |
+| 4 | Sensor Angle |
+| 5 | Rotation Angle |
+| 6 | Slime Food |
+| 13 | Ant Food |
+| 7 | Slime Chemoattractants |
+| 8 | Ant Food Pheromones |
+| 9 | Ant Base Pheromones |
 
-| Output | Data | Purpose |
+## Output
+
+| Output | Type / access | Meaning |
 | --- | --- | --- |
-| **Voxel Values** (`voxelValues`) | Number; list | Voxel Values |
+| **Voxel Values** (`voxelValues`) | Number / list | Values for the chosen property, in voxel order. |
 
-## Related workflow
+## If something is wrong
 
-Use the input and output roles above with the [voxel-field](../core-concepts/voxels-and-fields.md) or [particle](../core-concepts/particles-and-populations.md) workflow.
+| Symptom | Action |
+| --- | --- |
+| Unexpected values | Check Type and which field is connected. |
+| Values do not match the points | Extract both from the same field or selection. |
 
-[Back to the component reference](README.md)
+## Continue
+
+[Component reference](README.md)
+
+<details>
+<summary>Machine-readable reference (JSON)</summary>
+
+Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Extract Voxel Values",
+    "category": "Nuclei4",
+    "subcategory": " Environment",
+    "componentGuid": "9668d334-4d67-464e-9e19-c581c49c26a7",
+    "dotnetType": "Nuclei4.Voxel_Extractor_Values",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 1,
+        "name": "Type",
+        "nickname": "type",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Voxel Values",
+        "nickname": "voxelValues",
+        "ghType": "Number",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}
+```
+
+</details>

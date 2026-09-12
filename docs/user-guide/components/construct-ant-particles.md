@@ -1,43 +1,192 @@
 # Construct Ant Particles
 
-Create an ant population with shared movement and sensing settings. Ants search for food and return to their remembered home positions.
+Create ants that search for food and return to their starting colony.
 
 **Location:** Nuclei4 → Particles
 
-![](../assets/components/construct-ant-particles-wired.png)
-
+![Construct Ant Particles with its connected controls and wires.](../assets/components/construct-ant-particles-wired.png)
 
 ## Use it
 
-Connect the field and either supply starting positions or a positive count for generated positions. Explicit positions let you organize the starting colony. Connect the particle group to the solver and provide Ant Food in the environment. Keep food and pheromone Types distinct.
+Connect a voxel field and supply **Initial Particle Positions** in the nest region. These points define where ants start and remember home. The constructor has no Particle Count input; the supplied points determine the starting population.
+
+Connect **particles** to the solver, and use [Define Voxel Values](define-voxel-values.md) to add **Ant Food** to the environment. Preview the solver output to follow the moving ants.
 
 ## Inputs
 
-| Input | Data | Default | Purpose |
+Defaults describe a newly placed component.
+
+| Input | Type / access | Default | Meaning |
 | --- | --- | --- | --- |
-| **Voxel Field** (`voxels`) | Generic Data; item | Supply input | Voxel field used for internal particle generation |
-| **Initial Particle Positions** (`particlePos`) | Point; list | Optional | Initial Particle Positions |
-| **Particle Count** (`count`) | Integer; item | 0 | Number of particles to generate at random voxel centers when no initial positions are supplied |
-| **Speed** (`speed`) | Number; item | 1.3 | Speed of particle movement |
-| **Sensor Distance** (`sensorDistance`) | Number; item | 6 | Maximum distance for sensing surrounding voxel values |
-| **Sensor Angle** (`sensorAngle`) | Number; item | 45 | Angle of sensing surrounding voxel values |
-| **Rotation Angle** (`rotationAngle`) | Number; item | 45 | Angle of rotation for the particles |
-| **Deposit** (`deposit`) | Number; item | 1 | The Amount of Chemoattractants Each Particle Deposits in the Environment |
-| **Wander** (`wander`) | Number; item | 0 | The Frequency of Random Directions. VALUES FROM 0 TO 1. The Larger the Value the More Chaotic |
-| **Colour** (`colour`) | Colour; item | 66,236,122 (125) | The Display Color of The Particles |
+| **Voxel Field** (`voxels`) | Generic Data / item | Required | Field containing the nest and starting positions. |
+| **Initial Particle Positions** (`particlePos`) | Point / list | Required | Starting points in the nest region and remembered home locations. |
+| **Speed** (`speed`) | Number / item | 1.3 | Movement distance per step in model units, before local mapping. |
+| **Sensor Distance** (`sensorDistance`) | Number / item | 6 | Sensing distance in model units, before local mapping. |
+| **Sensor Angle** (`sensorAngle`) | Number / item | 45 | Sensing angle in degrees. |
+| **Rotation Angle** (`rotationAngle`) | Number / item | 45 | Steering angle in degrees. |
+| **Deposit** (`deposit`) | Number / item | 1 | Pheromone deposited by particles. |
+| **Wander** (`wander`) | Number / item | 0 | Random-turn control, from 0 to 1. |
+| **Colour** (`colour`) | Colour / item | Optional; 66,236,122 (125) | Population display color. |
 
-Defaults describe a newly placed component. A saved definition can store other values on an unconnected input.
+## Output
 
-## Outputs
-
-| Output | Data | Purpose |
+| Output | Type / access | Meaning |
 | --- | --- | --- |
-| **Output Particle Group** (`particles`) | Particle Group; item | OutputParticles |
+| **Output Particle Group** (`particles`) | Particle Group / item | Starting ant population and its shared settings. |
 
-## In the example collection
+## Starting the colony
 
-- [13_Ants Intro_3D](../examples/13-ants-intro-3d.md)
-- [13_Ants Intro](../examples/13-ants-intro.md)
-- [14_Ants Complex](../examples/14-ants-complex.md)
+Place starting points inside the nest region, using voxel centers or a selection of points. Each accepted point creates an ant. Without starting points, the constructor does not create ants. Points outside the field or inside blocked cells are skipped.
 
-[Back to the component reference](README.md)
+The population after reset can be smaller than the supplied point list because the solver also checks boundaries and occupied cells. Use distinct eligible voxels within the nest region.
+
+## If something is wrong
+
+| Symptom | Action |
+| --- | --- |
+| No particles | Connect starting points inside the nest region and check that its voxels are usable. |
+| Ants do not find food | Check the Ant Food map and the field entering the solver. |
+
+## Continue
+
+[Ants Intro — 3D](../examples/13-ants-intro-3d.md) · [Ants Intro](../examples/13-ants-intro.md) · [Ants Complex](../examples/14-ants-complex.md) · [Component reference](README.md)
+
+<details>
+<summary>Machine-readable reference (JSON)</summary>
+
+Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Construct Ant Particles",
+    "category": "Nuclei4",
+    "subcategory": " Particles",
+    "componentGuid": "3eab04d8-68ed-476d-b33d-a8633418ab12",
+    "dotnetType": "Nuclei4.ParticleGroup_Constructor_Ant",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Voxel Field",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 1,
+        "name": "Initial Particle Positions",
+        "nickname": "particlePos",
+        "ghType": "Point",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 2,
+        "name": "Speed",
+        "nickname": "speed",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "1.3"
+        ]
+      },
+      {
+        "index": 3,
+        "name": "Sensor Distance",
+        "nickname": "sensorDistance",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "6"
+        ]
+      },
+      {
+        "index": 4,
+        "name": "Sensor Angle",
+        "nickname": "sensorAngle",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "45"
+        ]
+      },
+      {
+        "index": 5,
+        "name": "Rotation Angle",
+        "nickname": "rotationAngle",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "45"
+        ]
+      },
+      {
+        "index": 6,
+        "name": "Deposit",
+        "nickname": "deposit",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "1"
+        ]
+      },
+      {
+        "index": 7,
+        "name": "Wander",
+        "nickname": "wander",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0"
+        ]
+      },
+      {
+        "index": 8,
+        "name": "Colour",
+        "nickname": "colour",
+        "ghType": "Colour",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "66,236,122 (125)"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Output Particle Group",
+        "nickname": "particles",
+        "ghType": "Particle Group",
+        "access": "item",
+        "optional": false,
+        "mapping": "Flatten",
+        "defaults": []
+      }
+    ]
+  }
+}
+```
+
+</details>

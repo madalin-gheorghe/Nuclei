@@ -4,14 +4,14 @@ Use an implicit function to select a volumetric region and feed it into a simula
 
 [Download 16_Function Voxels.gh](files/16-function-voxels.gh)
 
-![](../assets/examples/16-function-voxels/definition-clean.png)
-
+![Function Voxels: Grasshopper definition showing its connected components and controls.](../assets/examples/16-function-voxels/definition-clean.png)
 
 ## Follow the definition
 
-The saved grid is 300 × 300 × 300. **Function Attractor** selects the region; **Define Voxel Values** assigns **Minimum Density** with multiplier 1. Follow that field to the solver and volume conversion.
+The saved grid is 300 × 300 × 300. [Function Attractor](../components/function-attractor.md) selects the region; [Define Voxel Values](../components/define-voxel-values.md) assigns **Minimum Density** with multiplier 1. Follow that field to the solver and volume conversion.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Construct Voxels](../components/construct-voxels.md)
 - [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
@@ -24,9 +24,12 @@ The saved grid is 300 × 300 × 300. **Function Attractor** selects the region; 
 - [Nuclei4 to Dendro Volume](../components/nuclei4-to-dendro-volume.md)
 - [Voxel Preview](../components/voxel-preview.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -56,6 +59,8 @@ These are directly connected slider and value-list settings read from this file.
 | Nuclei4 to Dendro Volume | Maximum Elements | 50000000 |
 | Nuclei4 to Dendro Volume | Update | True |
 | Voxel Preview | Type | Slime Chemoattractants |
+
+</details>
 
 ## Run the example
 

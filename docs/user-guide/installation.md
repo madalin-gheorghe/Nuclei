@@ -35,7 +35,7 @@ Open Grasshopper in Rhino 9 and look for the **Nuclei4** tab. Confirm that you c
 
 Use the V4 examples rather than examples from the V2 or V3 folders. If Grasshopper reports missing components when opening a definition, check the installed version before continuing.
 
-If the solver reports an error, read its runtime message and include that message when asking for help. The current solver exposes particles and voxels outputs; there is no status output.
+If the solver reports an error, read its runtime message and include that message when asking for help.
 
 ## Ready to start
 

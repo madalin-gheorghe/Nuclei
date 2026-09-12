@@ -2,16 +2,18 @@
 
 Follow a basic 2D ant-foraging setup from colony positions to food and pheromone fields.
 
+![Ants Intro: example simulation result.](../assets/examples/13-ants-intro/result.jpg)
+
 [Download 13_Ants Intro.gh](files/13-ants-intro.gh)
 
-![](../assets/examples/13-ants-intro/definition-clean.png)
-
+![Ants Intro: Grasshopper definition showing its connected components and controls.](../assets/examples/13-ants-intro/definition-clean.png)
 
 ## Follow the definition
 
-The point-attractor and voxel-center chains establish initial positions and food regions. **Define Voxel Values** is set to **Ant Food**, with a saved multiplier of 5. **Voxel Settings Ant** controls the two pheromone fields.
+The point-attractor and voxel-center chains establish initial positions and food regions. [Define Voxel Values](../components/define-voxel-values.md) is set to **Ant Food**, with a saved multiplier of 5. [Voxel Settings Ant](../components/voxel-settings-ant.md) controls the two pheromone fields.
 
-## Components to inspect
+<details>
+<summary>Components used</summary>
 
 - [Construct Voxels](../components/construct-voxels.md)
 - [Point Attractor for Voxels](../components/point-attractor-for-voxels.md)
@@ -23,9 +25,12 @@ The point-attractor and voxel-center chains establish initial positions and food
 - [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
 - [Voxel Preview](../components/voxel-preview.md)
 
-## Saved controls
+</details>
 
-These are directly connected slider and value-list settings read from this file. Other inputs may come from geometry, expressions, or values stored on the component. Repeated rows refer to separate instances.
+<details>
+<summary>Saved controls</summary>
+
+Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
 | Component | Input | Saved control |
 | --- | --- | --- |
@@ -50,6 +55,8 @@ These are directly connected slider and value-list settings read from this file.
 | Nuclei4 Solver GPU | Reset | True |
 | Voxel Preview | Type | Ants and Slime |
 
+</details>
+
 ## Run the example
 
 Open it in Rhino 9 with Nuclei V4, pause the existing Trigger, and inspect the mapped field. Reset once with True, return reset to False, and start the Trigger. Pause before editing several inputs or extracting a large result.
@@ -60,7 +67,6 @@ Let the colony explore before judging the network. Compare searching and returni
 
 ## Example result
 
-![](../assets/examples/13-ants-intro/result.jpg)
-
+![Ants Intro: example simulation result.](../assets/examples/13-ants-intro/result.jpg)
 
 [Back to examples](README.md)

@@ -1,36 +1,141 @@
 # Voxel Preview
 
-Display a chosen voxel property or simulation signal in Rhino.
+Display a property of the voxel field in the Rhino viewport.
 
 **Location:** Nuclei4 → Preview
 
-![](../assets/components/voxel-preview-wired.png)
-
+![Voxel Preview with its connected controls and wires.](../assets/components/voxel-preview-wired.png)
 
 ## Use it
 
-Select the Type you want to inspect and set minimum/maximum thresholds. Connect the solver’s voxels output for evolving signals, or the mapping output to inspect initial conditions. This component displays the field and has no geometry output.
+Connect a field to **voxels** and select the property with **Type**. For evolving slime or ant signals, use the solver’s **voxels** output. For a static map, use the mapping component’s output.
+
+Minimum and Maximum Value set the displayed value range. For more detailed 3D previews, right-click and enable **High Resolution (3D)**.
 
 ## Inputs
 
-| Input | Data | Default | Purpose |
+Defaults describe a newly placed component.
+
+| Input | Type / access | Default | Meaning |
 | --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data; item | Supply input | Connects to Voxel Constructor |
-| **Type** (`type`) | Integer; item | 0 | Type of Voxel Value |
-| **Minimum Treshold** (`min`) | Number; item | 0 | Minimum Voxel Value for Preview |
-| **Maximum Treshold** (`max`) | Number; item | 1 | Maximum Voxel Value for Preview |
-| **Colour** (`colour`) | Colour; item | 0,0,0 (0) | The Display Colour of Voxel Values |
+| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
+| **Type** (`type`) | Integer / item | 0 | Property to use; see **Type choices** below. |
+| **Minimum Treshold** (`min`) | Number / item | Optional; 0 | Lower displayed value. |
+| **Maximum Treshold** (`max`) | Number / item | Optional; 1 | Upper displayed value. |
+| **Colour** (`colour`) | Colour / item | Optional; 0,0,0 (0) | Display color. |
 
-Defaults describe a newly placed component. A saved definition can store other values on an unconnected input.
+### Type choices
 
-## Outputs
+| Value | Choice |
+| --- | --- |
+| 0 | Minimum Density |
+| 1 | Maximum Density |
+| 2 | Speed |
+| 3 | Sensor Distance |
+| 4 | Sensor Angle |
+| 5 | Rotation Angle |
+| 6 | Slime Food |
+| 13 | Ant Food |
+| 7 | Slime Chemoattractants |
+| 8 | Ant Food Pheromones |
+| 9 | Ant Base Pheromones |
+| 10 | Ant Pheromones |
+| 11 | Ants and Slime |
 
-This component displays in the Rhino viewport and has no output parameters.
+## Output
 
-## In the example collection
+Displays directly in the Rhino viewport.
 
-- [02_Gradient Map](../examples/02-gradient-map.md)
-- [03_Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md)
-- [04_Minimizing Transport Networks 2](../examples/04-minimizing-transport-networks-2.md)
+## If something is wrong
 
-[Back to the component reference](README.md)
+| Symptom | Action |
+| --- | --- |
+| Nothing appears | Check Type, the displayed range, and Grasshopper preview. |
+| The preview stays unchanged | Use the solver output when viewing evolving signals. |
+
+## Continue
+
+[Gradient Map](../examples/02-gradient-map.md) · [Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Minimizing Transport Networks 2](../examples/04-minimizing-transport-networks-2.md) · [Component reference](README.md)
+
+<details>
+<summary>Machine-readable reference (JSON)</summary>
+
+Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Voxel Preview",
+    "category": "Nuclei4",
+    "subcategory": "Preview",
+    "componentGuid": "fb2ea9fc-5963-4587-b09b-0422f61174db",
+    "dotnetType": "Nuclei4.Preview_Voxel",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 1,
+        "name": "Type",
+        "nickname": "type",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0"
+        ]
+      },
+      {
+        "index": 2,
+        "name": "Minimum Treshold",
+        "nickname": "min",
+        "ghType": "Number",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "0"
+        ]
+      },
+      {
+        "index": 3,
+        "name": "Maximum Treshold",
+        "nickname": "max",
+        "ghType": "Number",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "1"
+        ]
+      },
+      {
+        "index": 4,
+        "name": "Colour",
+        "nickname": "colour",
+        "ghType": "Colour",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "0,0,0 (0)"
+        ]
+      }
+    ],
+    "outputs": []
+  }
+}
+```
+
+</details>

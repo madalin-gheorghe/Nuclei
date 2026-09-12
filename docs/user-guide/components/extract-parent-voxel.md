@@ -1,32 +1,96 @@
 # Extract Parent Voxel
 
-Find the voxel associated with supplied points in a field.
+Find the voxel containing each supplied point.
 
 **Location:** Nuclei4 → Utility
 
-![](../assets/components/extract-parent-voxel-wired.png)
+![Extract Parent Voxel with its connected controls and wires.](../assets/components/extract-parent-voxel-wired.png)
 
 ## Use it
 
-Use points in the same coordinate system as the voxel environment. Keep the field connected so the component can relate positions to the correct grid.
+Connect points to **points** and their field to **voxels**. The output gives the index of each containing voxel within that field or selection.
 
 ## Inputs
 
-| Input | Data | Default | Purpose |
+Defaults describe a newly placed component.
+
+| Input | Type / access | Default | Meaning |
 | --- | --- | --- | --- |
-| **Points** (`points`) | Point; tree | Supply input | Input Points |
-| **Voxels** (`voxels`) | Generic Data; item | Supply input | Connects to Voxel Constructor |
+| **Points** (`points`) | Point / tree | Required | Points to locate in the field. |
+| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
 
-Defaults describe a newly placed component. A saved definition can store other values on an unconnected input.
+## Output
 
-## Outputs
-
-| Output | Data | Purpose |
+| Output | Type / access | Meaning |
 | --- | --- | --- |
-| **Point Parent Voxel** (`parentVoxel`) | Number; list | Point Parent Voxel |
+| **Point Parent Voxel** (`parentVoxel`) | Number / tree | Containing voxel index for each point; -1 when none is found. |
 
-## Related workflow
+## Output branches
 
-Use the input and output roles above with the [voxel-field](../core-concepts/voxels-and-fields.md) or [particle](../core-concepts/particles-and-populations.md) workflow.
+The result preserves the input point branches. A value of **-1** means no active voxel was found for that point.
 
-[Back to the component reference](README.md)
+## If something is wrong
+
+| Symptom | Action |
+| --- | --- |
+| The result is -1 | Check whether the point lies inside an active voxel of the connected field. |
+
+## Continue
+
+[Component reference](README.md)
+
+<details>
+<summary>Machine-readable reference (JSON)</summary>
+
+Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
+
+```json
+{
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Extract Parent Voxel",
+    "category": "Nuclei4",
+    "subcategory": "Utility",
+    "componentGuid": "f4f3534c-1921-448d-b785-dd0854bc8bed",
+    "dotnetType": "Nuclei4.Point_Extractor_ParentVoxel",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Points",
+        "nickname": "points",
+        "ghType": "Point",
+        "access": "tree",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 1,
+        "name": "Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Point Parent Voxel",
+        "nickname": "parentVoxel",
+        "ghType": "Number",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}
+```
+
+</details>

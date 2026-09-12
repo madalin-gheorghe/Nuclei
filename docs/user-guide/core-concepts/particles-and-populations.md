@@ -4,9 +4,9 @@ A particle is a moving agent. A **particle group** collects agents that share be
 
 ## Create a group
 
-Use **Construct Slime Particles** or **Construct Ant Particles**. Connect the voxel field, then supply either initial positions or a positive particle count for generated positions. An unconnected count starts at zero.
+Connect the voxel field to the particle constructor. **Construct Slime Particles** accepts initial positions or a positive Particle Count for generated positions. **Construct Ant Particles** requires starting points in the nest region; those points determine the starting population and remembered home positions.
 
-![](../assets/construct-slime-clean.png)
+![Construct slime with connected controls and wires.](../assets/construct-slime-clean.png)
 
 The constructor defines starting conditions. The solver's **particles** output carries the evolving simulation. Connect previews and particle extractors to that output.
 
@@ -24,7 +24,7 @@ Several particle constructors can feed the same solver. Keep their shared voxel 
 
 Division, death, and population settings are separate controls. Division and death use local conditions, while population settings include population bounds and random division/death controls. Feed their settings outputs to the solver along with the environment settings.
 
-A larger starting count is not always a better result. V4 enforces exclusive voxel occupancy, and crowding affects movement. Begin with the example's values, then change the population while keeping the environment fixed.
+Particles share the available voxel space. Crowding can restrict movement and prevent new particles from occupying a cell.
 
 ## Particle trails and deposited signals
 

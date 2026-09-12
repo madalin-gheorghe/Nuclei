@@ -14,7 +14,7 @@ If a run stops at Max Iterations, the solver may pause its dedicated Trigger. Re
 
 ## No particles or trails are visible
 
-Check the requested particle count and voxel input. Connect the preview to the solver's particles output and enable Grasshopper preview. Zoom to the field in Rhino. Trail preview needs several steps of movement history after reset.
+Check the voxel input and starting positions. For slime, also check Particle Count; for ants, supply points inside the nest region. Connect the preview to the solver's particles output and enable Grasshopper preview. Zoom to the field in Rhino. Trail preview needs several steps of movement history after reset.
 
 ## A map looks unchanged
 

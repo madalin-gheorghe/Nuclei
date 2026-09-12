@@ -1,0 +1,2558 @@
+{
+  "schemaVersion": 1,
+  "scope": "Public V4 component metadata; descriptive reference, not an executable API",
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "rhinoVersion": "9.0.26251.12303",
+  "components": [
+    {
+      "name": "Construct Ant Particles",
+      "category": "Nuclei4",
+      "subcategory": " Particles",
+      "componentGuid": "3eab04d8-68ed-476d-b33d-a8633418ab12",
+      "dotnetType": "Nuclei4.ParticleGroup_Constructor_Ant",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxel Field",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Initial Particle Positions",
+          "nickname": "particlePos",
+          "ghType": "Point",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 2,
+          "name": "Speed",
+          "nickname": "speed",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "1.3"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Sensor Distance",
+          "nickname": "sensorDistance",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "6"
+          ]
+        },
+        {
+          "index": 4,
+          "name": "Sensor Angle",
+          "nickname": "sensorAngle",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "45"
+          ]
+        },
+        {
+          "index": 5,
+          "name": "Rotation Angle",
+          "nickname": "rotationAngle",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "45"
+          ]
+        },
+        {
+          "index": 6,
+          "name": "Deposit",
+          "nickname": "deposit",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        },
+        {
+          "index": 7,
+          "name": "Wander",
+          "nickname": "wander",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 8,
+          "name": "Colour",
+          "nickname": "colour",
+          "ghType": "Colour",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "66,236,122 (125)"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Particle Group",
+          "nickname": "particles",
+          "ghType": "Particle Group",
+          "access": "item",
+          "optional": false,
+          "mapping": "Flatten",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Construct Slime Particles",
+      "category": "Nuclei4",
+      "subcategory": " Particles",
+      "componentGuid": "24ede5e7-2957-4f98-8f83-80c6f5dfd31f",
+      "dotnetType": "Nuclei4.ParticleGroup_Constructor_Slime",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxel Field",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Initial Particle Positions",
+          "nickname": "particlePos",
+          "ghType": "Point",
+          "access": "list",
+          "optional": true,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 2,
+          "name": "Particle Count",
+          "nickname": "count",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Speed",
+          "nickname": "speed",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "1.3"
+          ]
+        },
+        {
+          "index": 4,
+          "name": "Sensor Distance",
+          "nickname": "sensorDistance",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "6"
+          ]
+        },
+        {
+          "index": 5,
+          "name": "Sensor Angle",
+          "nickname": "sensorAngle",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "45"
+          ]
+        },
+        {
+          "index": 6,
+          "name": "Rotation Angle",
+          "nickname": "rotationAngle",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "45"
+          ]
+        },
+        {
+          "index": 7,
+          "name": "Deposit",
+          "nickname": "deposit",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        },
+        {
+          "index": 8,
+          "name": "Wander",
+          "nickname": "wander",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 9,
+          "name": "Colour",
+          "nickname": "colour",
+          "ghType": "Colour",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "220,255,0 (125)"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Particle Group",
+          "nickname": "particles",
+          "ghType": "Particle Group",
+          "access": "item",
+          "optional": false,
+          "mapping": "Flatten",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Construct Voxels",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+      "dotnetType": "Nuclei4.VoxelConstructor",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxel Size",
+          "nickname": "voxelSize",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        },
+        {
+          "index": 1,
+          "name": "X Voxels",
+          "nickname": "xVoxels",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "100"
+          ]
+        },
+        {
+          "index": 2,
+          "name": "Y Voxels",
+          "nickname": "yVoxels",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "100"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Z Voxels",
+          "nickname": "zVoxels",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Curve Attractor for Voxels",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "59741edd-30fb-42a7-93cb-26f7dee3e03b",
+      "dotnetType": "Nuclei4.Voxel_Attractor_Curve",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Attractor Curves",
+          "nickname": "attractorCurves",
+          "ghType": "Curve",
+          "access": "list",
+          "optional": false,
+          "mapping": "Flatten",
+          "defaults": []
+        },
+        {
+          "index": 2,
+          "name": "Minimum Range",
+          "nickname": "minRange",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Maximum Range",
+          "nickname": "maxRange",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        },
+        {
+          "index": 4,
+          "name": "Invert Voxel Selection",
+          "nickname": "invertSelection",
+          "ghType": "Boolean",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "False"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Output Voxel Positions",
+          "nickname": "voxelPosition",
+          "ghType": "Point",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 2,
+          "name": "Output Distances to Voxels",
+          "nickname": "voxelDistance",
+          "ghType": "Number",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 3,
+          "name": "Output Voxel Indices",
+          "nickname": "voxelIndex",
+          "ghType": "Integer",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Define Discrete Vectors",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "c4f37772-d03a-44a5-bd50-755442b1c5f3",
+      "dotnetType": "Nuclei4.Voxel_Vectors_Discretize",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxel Discrete Vectors",
+          "nickname": "discreteVectors",
+          "ghType": "Vector",
+          "access": "list",
+          "optional": false,
+          "mapping": "Flatten",
+          "defaults": []
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Discrete Vector Settings",
+          "nickname": "discreteSettings",
+          "ghType": "Text",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Define Voxel Values",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "6a35ef3b-11f7-4d48-8103-683e82b2dd5d",
+      "dotnetType": "Nuclei4.Voxel_Values",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Type",
+          "nickname": "type",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 2,
+          "name": "Multiplier Value",
+          "nickname": "multiplier",
+          "ghType": "Number",
+          "access": "tree",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Define Voxel Vectors",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "fd6a6fc7-5500-464d-9c1f-94de266ab994",
+      "dotnetType": "Nuclei4.Voxel_Vectors",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Voxel Vector",
+          "nickname": "vector",
+          "ghType": "Vector",
+          "access": "list",
+          "optional": false,
+          "mapping": "Flatten",
+          "defaults": []
+        },
+        {
+          "index": 2,
+          "name": "Frequency",
+          "nickname": "frequency",
+          "ghType": "Integer",
+          "access": "list",
+          "optional": false,
+          "mapping": "Flatten",
+          "defaults": [
+            "1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Extract Parent Voxel",
+      "category": "Nuclei4",
+      "subcategory": "Utility",
+      "componentGuid": "f4f3534c-1921-448d-b785-dd0854bc8bed",
+      "dotnetType": "Nuclei4.Point_Extractor_ParentVoxel",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Points",
+          "nickname": "points",
+          "ghType": "Point",
+          "access": "tree",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Point Parent Voxel",
+          "nickname": "parentVoxel",
+          "ghType": "Number",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Extract Particle Neighbour Count",
+      "category": "Nuclei4",
+      "subcategory": " Particles",
+      "componentGuid": "d077c7a9-1db6-410c-87f9-917a0c3a353d",
+      "dotnetType": "Nuclei4.Particle_Extractor_NeighbourCount",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Particles",
+          "nickname": "particles",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Particle Neighbour Count",
+          "nickname": "particleNC",
+          "ghType": "Number",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Extract Particle Positions",
+      "category": "Nuclei4",
+      "subcategory": " Particles",
+      "componentGuid": "f11f6319-1d69-4c97-8734-17c3f6a13b4a",
+      "dotnetType": "Nuclei4.Particle_Extractor_Point",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Particles",
+          "nickname": "particles",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Particle Positions",
+          "nickname": "particlePos",
+          "ghType": "Point",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Extract Particle Trails",
+      "category": "Nuclei4",
+      "subcategory": " Particles",
+      "componentGuid": "0a97c625-4da3-4143-89c6-d88249de8741",
+      "dotnetType": "Nuclei4.Particle_Extractor_TrailPoints",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Particles",
+          "nickname": "particles",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Particle Positions",
+          "nickname": "trailPos",
+          "ghType": "Point",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Extract Particle Vectors",
+      "category": "Nuclei4",
+      "subcategory": " Particles",
+      "componentGuid": "59e6dba6-2cec-4873-8b54-9f099d3599c2",
+      "dotnetType": "Nuclei4.Particle_Extractor_Vector",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Particles",
+          "nickname": "particles",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Particle Vectors",
+          "nickname": "particleVec",
+          "ghType": "Vector",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Extract Voxel Bounding Box",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "f02270d9-89f0-4465-93ac-750061478aed",
+      "dotnetType": "Nuclei4.Voxel_Extractor_Box",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Voxel Box",
+          "nickname": "BBox",
+          "ghType": "Box",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Extract Voxel Positions",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "deb55383-1cb3-4b17-8d01-cc05d1b9c635",
+      "dotnetType": "Nuclei4.Voxel_Extractor_Point",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Voxel Positions",
+          "nickname": "voxelPosition",
+          "ghType": "Point",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Extract Voxel Values",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "9668d334-4d67-464e-9e19-c581c49c26a7",
+      "dotnetType": "Nuclei4.Voxel_Extractor_Values",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Type",
+          "nickname": "type",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Voxel Values",
+          "nickname": "voxelValues",
+          "ghType": "Number",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Extract Voxel Vector",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "8f334745-181f-4bf2-a60f-4b11bbdfcc8b",
+      "dotnetType": "Nuclei4.Voxel_Extractor_Vector",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Voxel Vectors",
+          "nickname": "voxelVector",
+          "ghType": "Vector",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Function Attractor",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "99408ead-53f2-4ecb-8d3d-afd2f4dca58c",
+      "dotnetType": "Nuclei4.Voxel_PeriodicSurface",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Surface",
+          "nickname": "surface",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        },
+        {
+          "index": 2,
+          "name": "Custom",
+          "nickname": "custom",
+          "ghType": "Text",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            ""
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Scale",
+          "nickname": "scale",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "2.0 * Pi"
+          ]
+        },
+        {
+          "index": 4,
+          "name": "Iso Value",
+          "nickname": "isoValue",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 5,
+          "name": "Minimum Range",
+          "nickname": "minRange",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 6,
+          "name": "Maximum Range",
+          "nickname": "maxRange",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "2"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Output Voxel Positions",
+          "nickname": "voxelPosition",
+          "ghType": "Point",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 2,
+          "name": "Output Voxel Indices",
+          "nickname": "voxelIndex",
+          "ghType": "Integer",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Image Mapper for Voxels",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "d33e509c-f8ae-41b3-83e3-40e33685396f",
+      "dotnetType": "Nuclei4.Voxel_ImageMapper",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Type",
+          "nickname": "type",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 2,
+          "name": "Target Start",
+          "nickname": "targetStart",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Target End",
+          "nickname": "targetEnd",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Mesh Attractor for Voxel",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "6bb5c231-45a2-4fd8-8698-93da2b8631aa",
+      "dotnetType": "Nuclei4.Voxel_Attractor_Mesh",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Attractor Meshes",
+          "nickname": "attractorMeshes",
+          "ghType": "Mesh",
+          "access": "list",
+          "optional": false,
+          "mapping": "Flatten",
+          "defaults": []
+        },
+        {
+          "index": 2,
+          "name": "Minimum Range",
+          "nickname": "minRange",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Maximum Range",
+          "nickname": "maxRange",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        },
+        {
+          "index": 4,
+          "name": "Invert Voxel Selection",
+          "nickname": "invertSelection",
+          "ghType": "Boolean",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "False"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Output Voxel Positions",
+          "nickname": "voxelPosition",
+          "ghType": "Point",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 2,
+          "name": "Output Distances to Voxels",
+          "nickname": "voxelDistance",
+          "ghType": "Number",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 3,
+          "name": "Output Voxel Indices",
+          "nickname": "voxelIndex",
+          "ghType": "Integer",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Nuclei4 Solver GPU",
+      "category": "Nuclei4",
+      "subcategory": " Solver",
+      "componentGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+      "dotnetType": "Nuclei4.SolverGPU",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Reset",
+          "nickname": "reset",
+          "ghType": "Boolean",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 2,
+          "name": "Particles",
+          "nickname": "particles",
+          "ghType": "Particle Group",
+          "access": "list",
+          "optional": false,
+          "mapping": "Flatten",
+          "defaults": []
+        },
+        {
+          "index": 3,
+          "name": "Solver Settings",
+          "nickname": "settings",
+          "ghType": "Text",
+          "access": "list",
+          "optional": true,
+          "mapping": "Flatten",
+          "defaults": []
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Particles",
+          "nickname": "particles",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Output Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Nuclei4 Solver Iterations",
+      "category": "Nuclei4",
+      "subcategory": " Solver",
+      "componentGuid": "117cfcd7-ca25-4b01-8d76-688e2661ebb6",
+      "dotnetType": "Nuclei4.Iterations",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Iterations",
+          "nickname": "iterations",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Solver Settings",
+          "nickname": "solverSettings",
+          "ghType": "Text",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Nuclei4 to Dendro Volume",
+      "category": "Nuclei4",
+      "subcategory": "Voxels",
+      "componentGuid": "2cc99696-1f20-4add-82d5-a317c252edb8",
+      "dotnetType": "Nuclei4.GpuVolumeToMesh",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Type",
+          "nickname": "type",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "7"
+          ]
+        },
+        {
+          "index": 2,
+          "name": "Iso Value",
+          "nickname": "iso",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0.8"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Method",
+          "nickname": "method",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 4,
+          "name": "Maximum Elements",
+          "nickname": "max",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "5000000"
+          ]
+        },
+        {
+          "index": 5,
+          "name": "Update",
+          "nickname": "update",
+          "ghType": "Boolean",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "False"
+          ]
+        },
+        {
+          "index": 6,
+          "name": "Smoothing Iterations",
+          "nickname": "smooth",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Dendro Volume / Mesh",
+          "nickname": "volume",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Particle Death Settings",
+      "category": "Nuclei4",
+      "subcategory": " Particles",
+      "componentGuid": "b8f690ec-1e23-46c8-8fa4-4d3369cacfdf",
+      "dotnetType": "Nuclei4.Particle_Settings_Death",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Die",
+          "nickname": "die",
+          "ghType": "Boolean",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "False"
+          ]
+        },
+        {
+          "index": 1,
+          "name": "Minimum Age",
+          "nickname": "minAge",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "10"
+          ]
+        },
+        {
+          "index": 2,
+          "name": "Die Range",
+          "nickname": "dieRange",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "3"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Minimum Neighbours",
+          "nickname": "minN",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 4,
+          "name": "Maximum Neighbours",
+          "nickname": "maxN",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "10"
+          ]
+        },
+        {
+          "index": 5,
+          "name": "Frequency",
+          "nickname": "dieFrequency",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "5"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Death Settings",
+          "nickname": "dieSettings",
+          "ghType": "Text",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Particle Division Settings",
+      "category": "Nuclei4",
+      "subcategory": " Particles",
+      "componentGuid": "7e505abb-dc4f-4226-a922-f92e25ab70da",
+      "dotnetType": "Nuclei4.Particle_Settings_Division",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Divide",
+          "nickname": "divide",
+          "ghType": "Boolean",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "False"
+          ]
+        },
+        {
+          "index": 1,
+          "name": "Minimum Age",
+          "nickname": "minAge",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "10"
+          ]
+        },
+        {
+          "index": 2,
+          "name": "Division Range",
+          "nickname": "divRange",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "3"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Minimum Neighbours",
+          "nickname": "minN",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 4,
+          "name": "Maximum Neighbours",
+          "nickname": "maxN",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "10"
+          ]
+        },
+        {
+          "index": 5,
+          "name": "Frequency",
+          "nickname": "divFrequency",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "5"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Division Settings",
+          "nickname": "divSettings",
+          "ghType": "Text",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Particle Population Settings",
+      "category": "Nuclei4",
+      "subcategory": " Particles",
+      "componentGuid": "0224814f-9543-481b-9ec0-5f206c39b408",
+      "dotnetType": "Nuclei4.Particle_Settings_Population",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Minimum Population",
+          "nickname": "minPop",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "100"
+          ]
+        },
+        {
+          "index": 1,
+          "name": "Maximum Population",
+          "nickname": "maxPop",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "20000"
+          ]
+        },
+        {
+          "index": 2,
+          "name": "Random Division",
+          "nickname": "randomDiv",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Random Death",
+          "nickname": "randomDie",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 4,
+          "name": "Frequency",
+          "nickname": "frequency",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Population Settings",
+          "nickname": "populationSettings",
+          "ghType": "Text",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Particle Preview",
+      "category": "Nuclei4",
+      "subcategory": "Preview",
+      "componentGuid": "60649521-0784-4a2e-8dfa-27e4a04600ac",
+      "dotnetType": "Nuclei4.Preview_Particle",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Particles",
+          "nickname": "particles",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Point Size",
+          "nickname": "size",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "2"
+          ]
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "name": "Particle Settings Slime Ant Interaction",
+      "category": "Nuclei4",
+      "subcategory": " Particles",
+      "componentGuid": "9c28782b-f3db-40e3-8bd7-f099d8b62ae3",
+      "dotnetType": "Nuclei4.Particle_Settings_Ant_Slime",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Slime -> Ant Food",
+          "nickname": "slime ~ antFood",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0.5"
+          ]
+        },
+        {
+          "index": 1,
+          "name": "Slime -> Ant Base",
+          "nickname": "slime ~ antBase",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0.5"
+          ]
+        },
+        {
+          "index": 2,
+          "name": "Ant -> Slime",
+          "nickname": "ant ~ slime",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0.5"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Interaction Settings",
+          "nickname": "interactionSettings",
+          "ghType": "Text",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Particle Trail Preview",
+      "category": "Nuclei4",
+      "subcategory": "Preview",
+      "componentGuid": "b17ecf97-0425-4ae2-a6b0-b3f869a5bc72",
+      "dotnetType": "Nuclei4.Preview_Particle_Trails_GPU",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Particles",
+          "nickname": "particles",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Alpha",
+          "nickname": "alpha",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0.35"
+          ]
+        },
+        {
+          "index": 2,
+          "name": "Depth Focus",
+          "nickname": "depth",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0.55"
+          ]
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "name": "Particle Trail Settings",
+      "category": "Nuclei4",
+      "subcategory": " Particles",
+      "componentGuid": "cd0bb03c-2b66-4dbb-864e-02015f0255e7",
+      "dotnetType": "Nuclei4.Particle_Settings_Trail",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Trail Size",
+          "nickname": "trailSize",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "5"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Trail Settings",
+          "nickname": "trailSettings",
+          "ghType": "Text",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Point Attractor for Voxels",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "a0ac8ea3-c26e-4852-8e48-e507d0cc6132",
+      "dotnetType": "Nuclei4.Voxel_Attractor_Point",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Attractor Points",
+          "nickname": "attractorPoints",
+          "ghType": "Point",
+          "access": "list",
+          "optional": false,
+          "mapping": "Flatten",
+          "defaults": []
+        },
+        {
+          "index": 2,
+          "name": "Minimum Range",
+          "nickname": "minRange",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Maximum Range",
+          "nickname": "maxRange",
+          "ghType": "Number",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        },
+        {
+          "index": 4,
+          "name": "Invert Voxel Selection",
+          "nickname": "invertSelection",
+          "ghType": "Boolean",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "False"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Output Voxel Positions",
+          "nickname": "voxelPosition",
+          "ghType": "Point",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 2,
+          "name": "Output Distances to Voxels",
+          "nickname": "voxelDistance",
+          "ghType": "Number",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 3,
+          "name": "Output Voxel Indices",
+          "nickname": "voxelIndex",
+          "ghType": "Integer",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Voxel Inclusion in Mesh",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "74684ab4-cbf5-4cc1-a75a-4253eb83599b",
+      "dotnetType": "Nuclei4.Voxel_MeshInclusion",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Inclusion Meshes",
+          "nickname": "inclusionMeshes",
+          "ghType": "Mesh",
+          "access": "list",
+          "optional": false,
+          "mapping": "Flatten",
+          "defaults": []
+        },
+        {
+          "index": 2,
+          "name": "Invert Voxel Selection",
+          "nickname": "invertSelection",
+          "ghType": "Boolean",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "False"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Output Voxel Positions",
+          "nickname": "voxelPosition",
+          "ghType": "Point",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 2,
+          "name": "Output Voxel Indices",
+          "nickname": "voxelIndex",
+          "ghType": "Integer",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Voxel Preview",
+      "category": "Nuclei4",
+      "subcategory": "Preview",
+      "componentGuid": "fb2ea9fc-5963-4587-b09b-0422f61174db",
+      "dotnetType": "Nuclei4.Preview_Voxel",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Type",
+          "nickname": "type",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 2,
+          "name": "Minimum Treshold",
+          "nickname": "min",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Maximum Treshold",
+          "nickname": "max",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        },
+        {
+          "index": 4,
+          "name": "Colour",
+          "nickname": "colour",
+          "ghType": "Colour",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0,0,0 (0)"
+          ]
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "name": "Voxel Selection Difference",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "9fb92daa-e99b-4ac3-985a-b985ad7bcf62",
+      "dotnetType": "Nuclei4.Voxels_AND_NOT",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxel",
+          "nickname": "V1",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Voxel",
+          "nickname": "V2",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Voxel Selection Intersection",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "e1c26fa2-35ea-4c83-8f1b-df7d90280196",
+      "dotnetType": "Nuclei4.Voxels_AND",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxel",
+          "nickname": "V1",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Voxel",
+          "nickname": "V2",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Voxel Selection Union",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "0e3c0d1c-1057-4f08-9368-a0078a3d9d35",
+      "dotnetType": "Nuclei4.Voxels_OR",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxel",
+          "nickname": "V1",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Voxel",
+          "nickname": "V2",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Voxel Settings Ant",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "3486cda4-b3f3-47a1-886b-f047d6d7a13a",
+      "dotnetType": "Nuclei4.EnivronmentSettings_Ant",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Food Pheromones Diffuse Rate",
+          "nickname": "foodDiffuse",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0.05"
+          ]
+        },
+        {
+          "index": 1,
+          "name": "Food Decay Rate",
+          "nickname": "foodDecay",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0.005"
+          ]
+        },
+        {
+          "index": 2,
+          "name": "Base Pheromones Diffuse Rate",
+          "nickname": "baseDiffuse",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0.1"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Base Decay Rate",
+          "nickname": "baseDecay",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0.01"
+          ]
+        },
+        {
+          "index": 4,
+          "name": "Falloff",
+          "nickname": "falloff",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 5,
+          "name": "Diffuse Range",
+          "nickname": "range",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Voxel Settings",
+          "nickname": "voxelSettings",
+          "ghType": "Text",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Voxel Settings Slime",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "dc1f1c7b-2376-487d-a4ac-d14d9cad856d",
+      "dotnetType": "Nuclei4.EnivronmentSettings",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Diffuse Rate",
+          "nickname": "diffuse",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0.1"
+          ]
+        },
+        {
+          "index": 1,
+          "name": "Decay Rate",
+          "nickname": "decay",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0.03"
+          ]
+        },
+        {
+          "index": 2,
+          "name": "Falloff",
+          "nickname": "falloff",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Diffuse Range",
+          "nickname": "range",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Voxel Settings",
+          "nickname": "voxelSettings",
+          "ghType": "Text",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Voxel Values Blend",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "0a968da4-646c-41fb-b48c-7e1d6c258d94",
+      "dotnetType": "Nuclei4.Voxel_Values_BlendAll",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Type",
+          "nickname": "type",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": [
+            "0"
+          ]
+        },
+        {
+          "index": 2,
+          "name": "Blend Strength",
+          "nickname": "blendStrength",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0.25"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Blend Range",
+          "nickname": "range",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        },
+        {
+          "index": 4,
+          "name": "Blend Iterations",
+          "nickname": "iterations",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        },
+        {
+          "index": 5,
+          "name": "Wrap Blend",
+          "nickname": "wrap",
+          "ghType": "Boolean",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "False"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Voxel Vectors Blend",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "ee2dadbd-e610-457d-8a08-e603062c4a45",
+      "dotnetType": "Nuclei4.Voxel_Vectors_BlendAll",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        },
+        {
+          "index": 1,
+          "name": "Blend Strength",
+          "nickname": "blendStrength",
+          "ghType": "Number",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "0.25"
+          ]
+        },
+        {
+          "index": 2,
+          "name": "Blend Range",
+          "nickname": "range",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Blend Iterations",
+          "nickname": "iterations",
+          "ghType": "Integer",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "1"
+          ]
+        },
+        {
+          "index": 4,
+          "name": "Wrap Blend",
+          "nickname": "wrap",
+          "ghType": "Boolean",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "False"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Output Voxels",
+          "nickname": "voxels",
+          "ghType": "Generic Data",
+          "access": "item",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    },
+    {
+      "name": "Voxel Wrap Settings",
+      "category": "Nuclei4",
+      "subcategory": " Environment",
+      "componentGuid": "43b61a51-6086-4cea-98f9-e482a7b6d57f",
+      "dotnetType": "Nuclei4.Voxel_Settings_Wrap",
+      "inputs": [
+        {
+          "index": 0,
+          "name": "Wrap",
+          "nickname": "wrap",
+          "ghType": "Boolean",
+          "access": "item",
+          "optional": true,
+          "mapping": "None",
+          "defaults": [
+            "False"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "Wrap Settings",
+          "nickname": "wrapSettings",
+          "ghType": "Text",
+          "access": "list",
+          "optional": false,
+          "mapping": "None",
+          "defaults": []
+        }
+      ]
+    }
+  ]
+}
