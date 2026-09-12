@@ -12,7 +12,7 @@ Learn how the simulations work in the [Slime Behavior](docs/Slime%20Behavior.md)
 
 ## User documentation
 
-The [Nuclei V4 guide](https://nuclei.gitbook.io/docs/) includes installation instructions, slime and ant walkthroughs, core concepts, a 40-component reference, and 18 downloadable examples. Screenshots preserve the original Grasshopper definitions and their layouts. The expanded library is a draft; technical review and screenshot refinements are ongoing.
+The [Nuclei V4 guide](https://nuclei.gitbook.io/docs/) includes installation instructions, slime and ant walkthroughs, core concepts, a 40-component reference, and 18 downloadable examples. Definition screenshots preserve the original Grasshopper layouts. Every component reference includes an isolated Grasshopper image with visible input and output wires and neatly arranged controls. The expanded library is a draft; technical review and screenshot refinements are ongoing.
 
 The GitBook content lives in [docs/user-guide](docs/user-guide/README.md), with navigation maintained in `SUMMARY.md`. Internal development notes remain separate from the user guide.
 

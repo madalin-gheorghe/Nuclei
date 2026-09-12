@@ -4,9 +4,8 @@ Extract the bounding box of the whole voxel design space.
 
 **Location:** Nuclei4 → Environment
 
-![Extract Voxel Bounding Box from the saved 03_Minimizing Transport Networks 1 definition.](../assets/components/extract-voxel-bounding-box-clean.png)
+![](../assets/components/extract-voxel-bounding-box-wired.png)
 
-*Captured from 03_Minimizing Transport Networks 1.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

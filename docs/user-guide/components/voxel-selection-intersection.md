@@ -4,6 +4,8 @@ Keep the cells shared by two voxel selections.
 
 **Location:** Nuclei4 → Environment
 
+![](../assets/components/voxel-selection-intersection-wired.png)
+
 ## Use it
 
 Supply selections derived from the same environment. Use the intersection to restrict a value map to an overlapping region, then preview the result before connecting the solver.

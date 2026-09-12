@@ -4,9 +4,8 @@ Inspect the alternate saved city-map definition using image-based voxel mapping.
 
 [Download 05_City Map2.gh](files/05-city-map2.gh)
 
-![Original City Map — alternate definition Grasshopper definition.](../assets/examples/05-city-map2/definition-clean.png)
+![](../assets/examples/05-city-map2/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 

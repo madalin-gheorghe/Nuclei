@@ -4,6 +4,8 @@ Extract particle direction vectors for inspection or downstream geometry.
 
 **Location:** Nuclei4 → Particles
 
+![](../assets/components/extract-particle-vectors-wired.png)
+
 ## Use it
 
 Pair directions with particle positions from the same simulation state. Pause first when comparing those outputs.

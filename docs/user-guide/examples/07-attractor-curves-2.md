@@ -4,9 +4,8 @@ Explore curve-driven density maps with an additional scalar blending stage.
 
 [Download 07_Attractor Curves 2.gh](files/07-attractor-curves-2.gh)
 
-![Original Attractor Curves 2 Grasshopper definition.](../assets/examples/07-attractor-curves-2/definition-clean.png)
+![](../assets/examples/07-attractor-curves-2/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 
@@ -69,8 +68,7 @@ Adjust blend strength or iteration count one at a time. Keep the curve arrangeme
 
 ## Example result
 
-![Result supplied with Attractor Curves 2.](../assets/examples/07-attractor-curves-2/result.jpg)
+![](../assets/examples/07-attractor-curves-2/result.jpg)
 
-*Original result image supplied with this example. Your result depends on initial conditions and simulation duration.*
 
 [Back to examples](README.md)

@@ -4,6 +4,8 @@ Provide a set of discrete direction vectors as solver settings.
 
 **Location:** Nuclei4 → Environment
 
+![](../assets/components/define-discrete-vectors-wired.png)
+
 ## Use it
 
 The supplied vectors are normalized by the component. Connect its settings output to the solver. Use meaningful nonzero directions; this tool produces settings rather than a voxel-field output.

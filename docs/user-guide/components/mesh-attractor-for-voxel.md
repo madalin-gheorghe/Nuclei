@@ -4,6 +4,8 @@ Select voxels within a distance band around meshes.
 
 **Location:** Nuclei4 → Environment
 
+![](../assets/components/mesh-attractor-for-voxel-wired.png)
+
 ## Use it
 
 Use this for a near-surface region. Use Voxel Inclusion in Mesh when you want an inside/outside selection instead. Distance bands are limited by voxel resolution and the input selection.

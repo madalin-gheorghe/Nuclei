@@ -4,6 +4,8 @@ Find the voxel associated with supplied points in a field.
 
 **Location:** Nuclei4 → Utility
 
+![](../assets/components/extract-parent-voxel-wired.png)
+
 ## Use it
 
 Use points in the same coordinate system as the voxel environment. Keep the field connected so the component can relate positions to the correct grid.

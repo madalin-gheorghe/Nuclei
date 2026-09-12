@@ -4,9 +4,8 @@ Create an ant population with shared movement and sensing settings. Ants search 
 
 **Location:** Nuclei4 → Particles
 
-![Construct Ant Particles from the saved 13_Ants Intro_3D definition.](../assets/components/construct-ant-particles-clean.png)
+![](../assets/components/construct-ant-particles-wired.png)
 
-*Captured from 13_Ants Intro_3D.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

@@ -4,9 +4,8 @@ Explore multiple food regions with an additional restrictive density map.
 
 [Download 14_Ants Complex.gh](files/14-ants-complex.gh)
 
-![Original Ants Complex Grasshopper definition.](../assets/examples/14-ants-complex/definition-clean.png)
+![](../assets/examples/14-ants-complex/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 
@@ -68,8 +67,7 @@ Change one food region while keeping the restrictive map fixed. Inspect both Typ
 
 ## Example result
 
-![Result supplied with Ants Complex.](../assets/examples/14-ants-complex/result.jpg)
+![](../assets/examples/14-ants-complex/result.jpg)
 
-*Original result image supplied with this example. Your result depends on initial conditions and simulation duration.*
 
 [Back to examples](README.md)

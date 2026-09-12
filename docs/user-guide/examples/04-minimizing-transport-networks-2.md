@@ -4,9 +4,8 @@ Explore a second arrangement of food regions and the networks that emerge betwee
 
 [Download 04_Minimizing Transport Networks 2.gh](files/04-minimizing-transport-networks-2.gh)
 
-![Original Minimizing Transport Networks 2 Grasshopper definition.](../assets/examples/04-minimizing-transport-networks-2/definition-clean.png)
+![](../assets/examples/04-minimizing-transport-networks-2/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 
@@ -74,8 +73,7 @@ Change the point arrangement while keeping particle behavior constant. Compare t
 
 ## Example result
 
-![Result supplied with Minimizing Transport Networks 2.](../assets/examples/04-minimizing-transport-networks-2/result.jpg)
+![](../assets/examples/04-minimizing-transport-networks-2/result.jpg)
 
-*Original result image supplied with this example. Your result depends on initial conditions and simulation duration.*
 
 [Back to examples](README.md)

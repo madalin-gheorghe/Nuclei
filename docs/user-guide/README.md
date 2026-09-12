@@ -10,12 +10,7 @@ Nuclei is a generative-design plugin that lets you explore how simple particle b
 
 
 
-![A yellow slime network forming a web of interconnected paths on a black background.](assets/slime-intro.jpg)
-
-
-
-*A result from the V4 Slime Intro example. Patterns vary with the starting particles, settings, and time allowed to evolve.*
-
+![](assets/slime-intro.jpg)
 
 
 ## What can you make?

@@ -4,6 +4,8 @@ Extract the selected voxel property as numeric values.
 
 **Location:** Nuclei4 → Environment
 
+![](../assets/components/extract-voxel-values-wired.png)
+
 ## Use it
 
 Choose a Type matching your intended field. Use the solver’s voxels output for current density or pheromones. Keep the values aligned with positions from the same selection.

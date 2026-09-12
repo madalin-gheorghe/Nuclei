@@ -4,9 +4,8 @@ Set how much recent movement history is retained for particle trails.
 
 **Location:** Nuclei4 → Particles
 
-![Particle Trail Settings from the saved 01_Slime Intro definition.](../assets/components/particle-trail-settings-clean.png)
+![](../assets/components/particle-trail-settings-wired.png)
 
-*Captured from 01_Slime Intro.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

@@ -4,9 +4,8 @@ Use an implicit function to select a volumetric region and feed it into a simula
 
 [Download 16_Function Voxels.gh](files/16-function-voxels.gh)
 
-![Original Function Voxels Grasshopper definition.](../assets/examples/16-function-voxels/definition-clean.png)
+![](../assets/examples/16-function-voxels/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 

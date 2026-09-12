@@ -4,9 +4,8 @@ Assign a selected scalar property to voxels.
 
 **Location:** Nuclei4 → Environment
 
-![Define Voxel Values from the saved 02_Gradient Map definition.](../assets/components/define-voxel-values-clean.png)
+![](../assets/components/define-voxel-values-wired.png)
 
-*Captured from 02_Gradient Map.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

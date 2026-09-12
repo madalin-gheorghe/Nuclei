@@ -4,9 +4,8 @@ Control how the slime signal spreads and fades.
 
 **Location:** Nuclei4 → Environment
 
-![Voxel Settings Slime from the saved 01_Slime Intro definition.](../assets/components/voxel-settings-slime-clean.png)
+![](../assets/components/voxel-settings-slime-wired.png)
 
-*Captured from 01_Slime Intro.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

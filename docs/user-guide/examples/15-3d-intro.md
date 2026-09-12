@@ -4,9 +4,8 @@ Explore a volumetric slime simulation and convert its field for meshing.
 
 [Download 15_3D Intro.gh](files/15-3d-intro.gh)
 
-![Original 3D Intro Grasshopper definition.](../assets/examples/15-3d-intro/definition-clean.png)
+![](../assets/examples/15-3d-intro/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 
@@ -66,8 +65,7 @@ Compare Iso Value and smoothing on a retained simulation state. Keep the particl
 
 ## Example result
 
-![Result supplied with 3D Intro.](../assets/examples/15-3d-intro/result.jpg)
+![](../assets/examples/15-3d-intro/result.jpg)
 
-*Original result image supplied with this example. Your result depends on initial conditions and simulation duration.*
 
 [Back to examples](README.md)

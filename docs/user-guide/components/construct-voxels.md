@@ -4,9 +4,8 @@ Create the simulation’s voxel domain from a cell size and three cell counts.
 
 **Location:** Nuclei4 → Environment
 
-![Construct Voxels from the saved 01_Slime Intro definition.](../assets/components/construct-voxels-clean.png)
+![](../assets/components/construct-voxels-wired.png)
 
-*Captured from 01_Slime Intro.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

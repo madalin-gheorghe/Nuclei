@@ -4,9 +4,8 @@ Advance the V4 simulation using the input voxel field, particle groups, and sett
 
 **Location:** Nuclei4 → Solver
 
-![Nuclei4 Solver GPU from the saved 01_Slime Intro definition.](../assets/components/nuclei4-solver-gpu-clean.png)
+![](../assets/components/nuclei4-solver-gpu-wired.png)
 
-*Captured from 01_Slime Intro.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

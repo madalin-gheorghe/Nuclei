@@ -4,6 +4,8 @@ Remove the second voxel selection from the first.
 
 **Location:** Nuclei4 → Environment
 
+![](../assets/components/voxel-selection-difference-wired.png)
+
 ## Use it
 
 Input order matters: V1 minus V2 is different from V2 minus V1. Use selections from the same environment and inspect the resulting region.

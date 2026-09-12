@@ -4,9 +4,8 @@ Follow a basic 2D ant-foraging setup from colony positions to food and pheromone
 
 [Download 13_Ants Intro.gh](files/13-ants-intro.gh)
 
-![Original Ants Intro Grasshopper definition.](../assets/examples/13-ants-intro/definition-clean.png)
+![](../assets/examples/13-ants-intro/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 
@@ -61,8 +60,7 @@ Let the colony explore before judging the network. Compare searching and returni
 
 ## Example result
 
-![Result supplied with Ants Intro.](../assets/examples/13-ants-intro/result.jpg)
+![](../assets/examples/13-ants-intro/result.jpg)
 
-*Original result image supplied with this example. Your result depends on initial conditions and simulation duration.*
 
 [Back to examples](README.md)

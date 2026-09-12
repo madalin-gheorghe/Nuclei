@@ -4,9 +4,8 @@ Follow a complete slime setup from a flat field to a visible particle network.
 
 [Download 01_Slime Intro.gh](files/01-slime-intro.gh)
 
-![Original Slime Intro Grasshopper definition.](../assets/examples/01-slime-intro/definition-clean.png)
+![](../assets/examples/01-slime-intro/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 
@@ -54,8 +53,7 @@ Compare Sensor Distance while keeping the other sliders fixed. Look for changes 
 
 ## Example result
 
-![Result supplied with Slime Intro.](../assets/examples/01-slime-intro/result.jpg)
+![](../assets/examples/01-slime-intro/result.jpg)
 
-*Original result image supplied with this example. Your result depends on initial conditions and simulation duration.*
 
 [Back to examples](README.md)

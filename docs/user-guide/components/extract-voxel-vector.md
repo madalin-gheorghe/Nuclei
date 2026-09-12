@@ -4,6 +4,8 @@ Extract the vectors stored in a voxel field.
 
 **Location:** Nuclei4 → Environment
 
+![](../assets/components/extract-voxel-vector-wired.png)
+
 ## Use it
 
 Use positions from the same field to visualize directions. Vector data describes the mapped field, rather than individual particle headings.

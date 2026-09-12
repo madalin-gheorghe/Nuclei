@@ -4,9 +4,8 @@ Explore changing populations with division, death, and population settings.
 
 [Download 11_Growth 1.gh](files/11-growth-1.gh)
 
-![Original Growth 1 Grasshopper definition.](../assets/examples/11-growth-1/definition-clean.png)
+![](../assets/examples/11-growth-1/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 
@@ -72,8 +71,7 @@ Change one division or death control at a time. Reset between runs and compare p
 
 ## Example result
 
-![Result supplied with Growth 1.](../assets/examples/11-growth-1/result.jpg)
+![](../assets/examples/11-growth-1/result.jpg)
 
-*Original result image supplied with this example. Your result depends on initial conditions and simulation duration.*
 
 [Back to examples](README.md)

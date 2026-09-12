@@ -4,6 +4,8 @@ Blend neighboring voxel vectors to smooth a mapped direction field.
 
 **Location:** Nuclei4 → Environment
 
+![](../assets/components/voxel-vectors-blend-wired.png)
+
 ## Use it
 
 Connect a field that already has vectors, then set blend strength, range, and iterations. Inspect the resulting directions before comparing simulations.

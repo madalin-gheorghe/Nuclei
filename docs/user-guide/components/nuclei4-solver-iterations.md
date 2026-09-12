@@ -4,9 +4,8 @@ Set a maximum iteration count for the solver. Use a limit to compare runs at the
 
 **Location:** Nuclei4 → Solver
 
-![Nuclei4 Solver Iterations from the saved 02_Gradient Map definition.](../assets/components/nuclei4-solver-iterations-clean.png)
+![](../assets/components/nuclei4-solver-iterations-wired.png)
 
-*Captured from 02_Gradient Map.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

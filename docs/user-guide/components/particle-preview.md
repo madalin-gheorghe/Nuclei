@@ -4,9 +4,8 @@ Display current particle positions in the Rhino viewport.
 
 **Location:** Nuclei4 → Preview
 
-![Particle Preview from the saved 02_Gradient Map definition.](../assets/components/particle-preview-clean.png)
+![](../assets/components/particle-preview-wired.png)
 
-*Captured from 02_Gradient Map.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

@@ -4,6 +4,8 @@ Read each particle’s stored neighbor-count value for analysis in Grasshopper.
 
 **Location:** Nuclei4 → Particles
 
+![](../assets/components/extract-particle-neighbour-count-wired.png)
+
 ## Use it
 
 Connect the solver’s particles output. The result reflects particle state; it is not a general-purpose proximity search with an adjustable radius. Pause before inspecting large outputs.

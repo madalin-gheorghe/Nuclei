@@ -4,9 +4,8 @@ Compare several slime groups sharing one environment and solver.
 
 [Download 10_Multiple Populations.gh](files/10-multiple-populations.gh)
 
-![Original Multiple Populations Grasshopper definition.](../assets/examples/10-multiple-populations/definition-clean.png)
+![](../assets/examples/10-multiple-populations/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 
@@ -64,8 +63,7 @@ Change one group’s Sensor Distance or color while keeping the others fixed. Us
 
 ## Example result
 
-![Result supplied with Multiple Populations.](../assets/examples/10-multiple-populations/result.jpg)
+![](../assets/examples/10-multiple-populations/result.jpg)
 
-*Original result image supplied with this example. Your result depends on initial conditions and simulation duration.*
 
 [Back to examples](README.md)

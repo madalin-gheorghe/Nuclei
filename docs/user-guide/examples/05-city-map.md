@@ -4,9 +4,8 @@ Use image brightness to shape a planar simulation environment.
 
 [Download 05_City Map.gh](files/05-city-map.gh)
 
-![Original City Map Grasshopper definition.](../assets/examples/05-city-map/definition-clean.png)
+![](../assets/examples/05-city-map/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 
@@ -67,8 +66,7 @@ Compare the mapper target range first. Keep the source image fixed so the change
 
 ## Example result
 
-![Result supplied with City Map.](../assets/examples/05-city-map/result.jpg)
+![](../assets/examples/05-city-map/result.jpg)
 
-*Original result image supplied with this example. Your result depends on initial conditions and simulation duration.*
 
 [Back to examples](README.md)

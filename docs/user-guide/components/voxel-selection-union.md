@@ -4,9 +4,8 @@ Combine two voxel selections into one selection.
 
 **Location:** Nuclei4 → Environment
 
-![Voxel Selection Union from the saved 03_Minimizing Transport Networks 1 definition.](../assets/components/voxel-selection-union-clean.png)
+![](../assets/components/voxel-selection-union-wired.png)
 
-*Captured from 03_Minimizing Transport Networks 1.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

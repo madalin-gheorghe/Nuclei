@@ -4,9 +4,8 @@ Compare a second saved growth setup using the same families of population contro
 
 [Download 12_Growth 2.gh](files/12-growth-2.gh)
 
-![Original Growth 2 Grasshopper definition.](../assets/examples/12-growth-2/definition-clean.png)
+![](../assets/examples/12-growth-2/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 
@@ -72,8 +71,7 @@ Compare saved settings between the two examples, then change only one parameter 
 
 ## Example result
 
-![Result supplied with Growth 2.](../assets/examples/12-growth-2/result.jpg)
+![](../assets/examples/12-growth-2/result.jpg)
 
-*Original result image supplied with this example. Your result depends on initial conditions and simulation duration.*
 
 [Back to examples](README.md)

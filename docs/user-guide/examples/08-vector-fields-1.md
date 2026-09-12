@@ -4,9 +4,8 @@ Guide movement with vectors assigned to the environment.
 
 [Download 08_Vector Fields 1.gh](files/08-vector-fields-1.gh)
 
-![Original Vector Fields 1 Grasshopper definition.](../assets/examples/08-vector-fields-1/definition-clean.png)
+![](../assets/examples/08-vector-fields-1/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 
@@ -63,8 +62,7 @@ Change the mapped vector direction or frequency, then reset. Compare directional
 
 ## Example result
 
-![Result supplied with Vector Fields 1.](../assets/examples/08-vector-fields-1/result.jpg)
+![](../assets/examples/08-vector-fields-1/result.jpg)
 
-*Original result image supplied with this example. Your result depends on initial conditions and simulation duration.*
 
 [Back to examples](README.md)

@@ -4,6 +4,8 @@ Extract particle positions as ordinary Rhino points.
 
 **Location:** Nuclei4 → Particles
 
+![](../assets/components/extract-particle-positions-wired.png)
+
 ## Use it
 
 Use the solver output for current positions. Extraction can add data transfer and downstream computation, so use Particle Preview for interactive viewing when you do not need point geometry.

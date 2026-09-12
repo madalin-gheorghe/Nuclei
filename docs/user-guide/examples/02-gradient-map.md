@@ -4,9 +4,8 @@ Vary sensing across the environment rather than giving every location the same c
 
 [Download 02_Gradient Map.gh](files/02-gradient-map.gh)
 
-![Original Gradient Map Grasshopper definition.](../assets/examples/02-gradient-map/definition-clean.png)
+![](../assets/examples/02-gradient-map/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 
@@ -67,8 +66,7 @@ Change the remapped range while retaining its spatial ordering. Compare how part
 
 ## Example result
 
-![Result supplied with Gradient Map.](../assets/examples/02-gradient-map/result.jpg)
+![](../assets/examples/02-gradient-map/result.jpg)
 
-*Original result image supplied with this example. Your result depends on initial conditions and simulation duration.*
 
 [Back to examples](README.md)

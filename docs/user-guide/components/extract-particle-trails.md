@@ -4,6 +4,8 @@ Extract the points of recorded particle trails for further curve or path constru
 
 **Location:** Nuclei4 → Particles
 
+![](../assets/components/extract-particle-trails-wired.png)
+
 ## Use it
 
 Connect the solver’s particles output and provide trail settings to retain history. The output is organized by particle group and particle in a data tree. Preserve branches when building polylines so unrelated trails are not connected.

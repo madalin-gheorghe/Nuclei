@@ -4,9 +4,8 @@ Follow **13_Ants Intro.gh**, the original 2D ant example. You will identify the 
 
 Install [Nuclei V4 in Rhino 9](../installation.md), then [download the original Ants Intro definition](../examples/files/13-ants-intro.gh). Keep its groups and connections as supplied.
 
-![The original 2D Ants Intro canvas.](../assets/examples/13-ants-intro/definition-clean.png)
+![](../assets/examples/13-ants-intro/definition-clean.png)
 
-*The saved layout. The existing Trigger is paused for capture; no geometry has been rearranged.*
 
 ## 1. Inspect the environment
 
@@ -65,9 +64,8 @@ The saved **Voxel Preview** is connected to the solver’s voxels output and use
 
 Ants first spread out and search. When they detect food scent, their movement becomes directed toward it. On reaching food, they take some and return toward home, leaving food pheromone along the route. Other ants can reinforce the route over repeated trips.
 
-![Result image supplied with the original 2D Ants Intro example.](../assets/examples/13-ants-intro/result.jpg)
+![](../assets/examples/13-ants-intro/result.jpg)
 
-*An existing example result, not a new capture from this walkthrough. The exact pattern depends on the initial state and how long the simulation runs.*
 
 ## 7. Compare one change
 

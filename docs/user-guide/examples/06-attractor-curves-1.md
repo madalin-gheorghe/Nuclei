@@ -4,9 +4,8 @@ Use curve-distance selections to organize local density conditions.
 
 [Download 06_Attractor Curves 1.gh](files/06-attractor-curves-1.gh)
 
-![Original Attractor Curves 1 Grasshopper definition.](../assets/examples/06-attractor-curves-1/definition-clean.png)
+![](../assets/examples/06-attractor-curves-1/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 
@@ -66,8 +65,7 @@ Change the attractor range or curve geometry separately. Inspect the voxel map b
 
 ## Example result
 
-![Result supplied with Attractor Curves 1.](../assets/examples/06-attractor-curves-1/result.jpg)
+![](../assets/examples/06-attractor-curves-1/result.jpg)
 
-*Original result image supplied with this example. Your result depends on initial conditions and simulation duration.*
 
 [Back to examples](README.md)

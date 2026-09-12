@@ -4,9 +4,8 @@ Explore slime paths around selected food regions in a bounded environment.
 
 [Download 03_Minimizing Transport Networks 1.gh](files/03-minimizing-transport-networks-1.gh)
 
-![Original Minimizing Transport Networks 1 Grasshopper definition.](../assets/examples/03-minimizing-transport-networks-1/definition-clean.png)
+![](../assets/examples/03-minimizing-transport-networks-1/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 
@@ -71,8 +70,7 @@ Compare food strength while keeping the source geometry fixed. Observe which con
 
 ## Example result
 
-![Result supplied with Minimizing Transport Networks 1.](../assets/examples/03-minimizing-transport-networks-1/result.jpg)
+![](../assets/examples/03-minimizing-transport-networks-1/result.jpg)
 
-*Original result image supplied with this example. Your result depends on initial conditions and simulation duration.*
 
 [Back to examples](README.md)

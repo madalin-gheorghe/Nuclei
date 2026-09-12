@@ -4,9 +4,8 @@ Map a field evaluated from Grasshopper point charges into the voxel environment.
 
 [Download 09_Vector Fields 2.gh](files/09-vector-fields-2.gh)
 
-![Original Vector Fields 2 Grasshopper definition.](../assets/examples/09-vector-fields-2/definition-clean.png)
+![](../assets/examples/09-vector-fields-2/definition-clean.png)
 
-*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 
@@ -64,8 +63,7 @@ Move one charge in a copy while retaining the particle settings. Compare the fie
 
 ## Example result
 
-![Result supplied with Vector Fields 2.](../assets/examples/09-vector-fields-2/result.jpg)
+![](../assets/examples/09-vector-fields-2/result.jpg)
 
-*Original result image supplied with this example. Your result depends on initial conditions and simulation duration.*
 
 [Back to examples](README.md)

@@ -4,6 +4,8 @@ Control how slime and ant signals influence the other particle type. Use it in a
 
 **Location:** Nuclei4 → Particles
 
+![](../assets/components/particle-settings-slime-ant-interaction-wired.png)
+
 ## Use it
 
 Connect its settings output to the solver. The three inputs control slime response to food pheromone, slime response to base pheromone, and ant response to slime signal. Values range from zero to one; compare each interaction separately.
