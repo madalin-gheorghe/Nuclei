@@ -5,20 +5,8 @@ site:
   structure:
     - type: space
       key: space-documentation
-      title: Documentation
+      title: Nuclei V4
       path: documentation
       default: true
       content:
-        directory: ./
-    - type: space
-      key: space-performance
-      title: Performance
-      path: performance
-      content:
-        directory: ./performance
-    - type: space
-      key: space-versioning
-      title: Versioning
-      path: versioning
-      content:
-        directory: ./versioning
+        directory: ./user-guide
