@@ -10,11 +10,19 @@ This guide uses **Nuclei V4 in Rhino 9 on Windows**. V4 runs its simulation on t
 | V3 — CPU | Rhino 8/9 | Earlier version; component layouts and behavior can differ. |
 | V2 — Legacy | Rhino 6–9, Windows | Legacy examples and workflows. |
 
-## Get V4
+## Install with Rhino Package Manager (recommended)
 
-The project's download page is [Nuclei on Food4Rhino](https://www.food4rhino.com/en/app/nuclei). Check that the download you choose explicitly identifies **V4** and **Rhino 9**.
+1. Open **Rhino 9 on Windows**.
+2. Run the **PackageManager** command.
+3. Search for **Nuclei** and select the **V4** package. Check the version before installing; Nuclei2 and Nuclei3 are the older editions.
+4. Install the package and restart Rhino when prompted.
+5. Open Grasshopper and check for the **Nuclei4** tab.
 
-The Package Manager entries named **Nuclei2** and **Nuclei3** install the older versions. Use the installation instructions supplied with your V4 download.
+## Install from Food4Rhino
+
+Alternatively, visit [Nuclei on Food4Rhino](https://www.food4rhino.com/en/app/nuclei), choose the V4 download for Rhino 9, and follow the instructions supplied with that download. Restart Rhino after installation, then check the Nuclei4 tab.
+
+Use one installation route for a given version to avoid duplicate plugin copies. If the components are missing, first confirm that Rhino 9 loaded the V4 package.
 
 ## Check your setup
 

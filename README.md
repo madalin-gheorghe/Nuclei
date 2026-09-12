@@ -12,7 +12,7 @@ Learn how the simulations work in the [Slime Behavior](docs/Slime%20Behavior.md)
 
 ## User documentation
 
-The [Nuclei V4 guide](https://madalin-gheorghe.gitbook.io/madalin-gheorghe-docs/) introduces the plugin, compatibility, and a first slime simulation using the original V4 example. The walkthrough includes Grasshopper screenshots, explanations of the saved settings, and a downloadable definition. Slime and ant behavior guides explain the underlying simulations.
+The [Nuclei V4 guide](https://nuclei.gitbook.io/docs/) includes installation instructions, slime and ant walkthroughs, core concepts, a 40-component reference, and 18 downloadable examples. Screenshots preserve the original Grasshopper definitions and their layouts. The expanded library is a draft; technical review and screenshot refinements are ongoing.
 
 The GitBook content lives in [docs/user-guide](docs/user-guide/README.md), with navigation maintained in `SUMMARY.md`. Internal development notes remain separate from the user guide.
 
