@@ -4,9 +4,9 @@ Vary sensing across the environment rather than giving every location the same c
 
 [Download 02_Gradient Map.gh](files/02-gradient-map.gh)
 
-![Original Gradient Map Grasshopper definition.](../assets/examples/02-gradient-map/definition.png)
+![Original Gradient Map Grasshopper definition.](../assets/examples/02-gradient-map/definition-clean.png)
 
-*The saved definition, with its layout and values preserved. The capture is a canvas reference, not a newly simulated result.*
+*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 

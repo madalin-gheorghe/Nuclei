@@ -4,9 +4,9 @@ Use curve-distance selections to organize local density conditions.
 
 [Download 06_Attractor Curves 1.gh](files/06-attractor-curves-1.gh)
 
-![Original Attractor Curves 1 Grasshopper definition.](../assets/examples/06-attractor-curves-1/definition.png)
+![Original Attractor Curves 1 Grasshopper definition.](../assets/examples/06-attractor-curves-1/definition-clean.png)
 
-*The saved definition, with its layout and values preserved. The capture is a canvas reference, not a newly simulated result.*
+*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 

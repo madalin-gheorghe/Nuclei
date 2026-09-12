@@ -4,9 +4,9 @@ Display recent particle paths in the Rhino viewport.
 
 **Location:** Nuclei4 → Preview
 
-![Particle Trail Preview in the saved 01_Slime Intro definition.](../assets/components/particle-trail-preview.png)
+![Particle Trail Preview from the saved 01_Slime Intro definition.](../assets/components/particle-trail-preview-clean.png)
 
-*Captured from 01_Slime Intro.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 01_Slime Intro.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

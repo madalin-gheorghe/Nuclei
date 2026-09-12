@@ -4,9 +4,9 @@ Blend a chosen scalar property across nearby voxels.
 
 **Location:** Nuclei4 → Environment
 
-![Voxel Values Blend in the saved 07_Attractor Curves 2 definition.](../assets/components/voxel-values-blend.png)
+![Voxel Values Blend from the saved 07_Attractor Curves 2 definition.](../assets/components/voxel-values-blend-clean.png)
 
-*Captured from 07_Attractor Curves 2.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 07_Attractor Curves 2.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

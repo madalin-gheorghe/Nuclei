@@ -4,9 +4,9 @@ Follow a basic 2D ant-foraging setup from colony positions to food and pheromone
 
 [Download 13_Ants Intro.gh](files/13-ants-intro.gh)
 
-![Original Ants Intro Grasshopper definition.](../assets/examples/13-ants-intro/definition.png)
+![Original Ants Intro Grasshopper definition.](../assets/examples/13-ants-intro/definition-clean.png)
 
-*The saved definition, with its layout and values preserved. The capture is a canvas reference, not a newly simulated result.*
+*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 

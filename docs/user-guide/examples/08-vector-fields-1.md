@@ -4,9 +4,9 @@ Guide movement with vectors assigned to the environment.
 
 [Download 08_Vector Fields 1.gh](files/08-vector-fields-1.gh)
 
-![Original Vector Fields 1 Grasshopper definition.](../assets/examples/08-vector-fields-1/definition.png)
+![Original Vector Fields 1 Grasshopper definition.](../assets/examples/08-vector-fields-1/definition-clean.png)
 
-*The saved definition, with its layout and values preserved. The capture is a canvas reference, not a newly simulated result.*
+*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 

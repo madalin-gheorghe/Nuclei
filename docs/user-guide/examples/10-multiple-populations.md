@@ -4,9 +4,9 @@ Compare several slime groups sharing one environment and solver.
 
 [Download 10_Multiple Populations.gh](files/10-multiple-populations.gh)
 
-![Original Multiple Populations Grasshopper definition.](../assets/examples/10-multiple-populations/definition.png)
+![Original Multiple Populations Grasshopper definition.](../assets/examples/10-multiple-populations/definition-clean.png)
 
-*The saved definition, with its layout and values preserved. The capture is a canvas reference, not a newly simulated result.*
+*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 

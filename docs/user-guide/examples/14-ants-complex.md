@@ -4,9 +4,9 @@ Explore multiple food regions with an additional restrictive density map.
 
 [Download 14_Ants Complex.gh](files/14-ants-complex.gh)
 
-![Original Ants Complex Grasshopper definition.](../assets/examples/14-ants-complex/definition.png)
+![Original Ants Complex Grasshopper definition.](../assets/examples/14-ants-complex/definition-clean.png)
 
-*The saved definition, with its layout and values preserved. The capture is a canvas reference, not a newly simulated result.*
+*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 

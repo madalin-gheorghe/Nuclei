@@ -4,9 +4,9 @@ Extend the ant-foraging workflow into a three-dimensional voxel domain.
 
 [Download 13_Ants Intro_3D.gh](files/13-ants-intro-3d.gh)
 
-![Original Ants Intro — 3D Grasshopper definition.](../assets/examples/13-ants-intro-3d/definition.png)
+![Original Ants Intro — 3D Grasshopper definition.](../assets/examples/13-ants-intro-3d/definition-clean.png)
 
-*The saved definition, with its layout and values preserved. The capture is a canvas reference, not a newly simulated result.*
+*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 

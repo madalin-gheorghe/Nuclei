@@ -4,9 +4,9 @@ Configure particle death using age, neighborhood, and update-frequency controls.
 
 **Location:** Nuclei4 → Particles
 
-![Particle Death Settings in the saved 11_Growth 1 definition.](../assets/components/particle-death-settings.png)
+![Particle Death Settings from the saved 11_Growth 1 definition.](../assets/components/particle-death-settings-clean.png)
 
-*Captured from 11_Growth 1.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 11_Growth 1.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

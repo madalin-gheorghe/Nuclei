@@ -4,9 +4,9 @@ Select a band of voxels around an implicit function surface.
 
 **Location:** Nuclei4 → Environment
 
-![Function Attractor in the saved 16_Function Voxels definition.](../assets/components/function-attractor.png)
+![Function Attractor from the saved 16_Function Voxels definition.](../assets/components/function-attractor-clean.png)
 
-*Captured from 16_Function Voxels.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 16_Function Voxels.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

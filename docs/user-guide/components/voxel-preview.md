@@ -4,9 +4,9 @@ Display a chosen voxel property or simulation signal in Rhino.
 
 **Location:** Nuclei4 → Preview
 
-![Voxel Preview in the saved 02_Gradient Map definition.](../assets/components/voxel-preview.png)
+![Voxel Preview from the saved 02_Gradient Map definition.](../assets/components/voxel-preview-clean.png)
 
-*Captured from 02_Gradient Map.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 02_Gradient Map.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

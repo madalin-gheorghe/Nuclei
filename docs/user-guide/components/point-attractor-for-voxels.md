@@ -4,9 +4,9 @@ Select voxels within a distance band around points.
 
 **Location:** Nuclei4 → Environment
 
-![Point Attractor for Voxels in the saved 03_Minimizing Transport Networks 1 definition.](../assets/components/point-attractor-for-voxels.png)
+![Point Attractor for Voxels from the saved 03_Minimizing Transport Networks 1 definition.](../assets/components/point-attractor-for-voxels-clean.png)
 
-*Captured from 03_Minimizing Transport Networks 1.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 03_Minimizing Transport Networks 1.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

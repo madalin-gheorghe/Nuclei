@@ -4,9 +4,9 @@ Configure particle division using age, neighborhood, and update-frequency contro
 
 **Location:** Nuclei4 → Particles
 
-![Particle Division Settings in the saved 11_Growth 1 definition.](../assets/components/particle-division-settings.png)
+![Particle Division Settings from the saved 11_Growth 1 definition.](../assets/components/particle-division-settings-clean.png)
 
-*Captured from 11_Growth 1.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 11_Growth 1.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

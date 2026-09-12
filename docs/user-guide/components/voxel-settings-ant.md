@@ -4,9 +4,9 @@ Control the diffusion and decay of food and base pheromones.
 
 **Location:** Nuclei4 → Environment
 
-![Voxel Settings Ant in the saved 13_Ants Intro_3D definition.](../assets/components/voxel-settings-ant.png)
+![Voxel Settings Ant from the saved 13_Ants Intro_3D definition.](../assets/components/voxel-settings-ant-clean.png)
 
-*Captured from 13_Ants Intro_3D.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 13_Ants Intro_3D.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

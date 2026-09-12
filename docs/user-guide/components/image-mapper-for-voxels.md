@@ -4,9 +4,9 @@ Map image brightness to a voxel property across a planar field.
 
 **Location:** Nuclei4 → Environment
 
-![Image Mapper for Voxels in the saved 05_City Map definition.](../assets/components/image-mapper-for-voxels.png)
+![Image Mapper for Voxels from the saved 05_City Map definition.](../assets/components/image-mapper-for-voxels-clean.png)
 
-*Captured from 05_City Map.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 05_City Map.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

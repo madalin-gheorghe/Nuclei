@@ -4,9 +4,9 @@ Select cells according to whether their centers are inside a mesh.
 
 **Location:** Nuclei4 → Environment
 
-![Voxel Inclusion in Mesh in the saved 03_Minimizing Transport Networks 1 definition.](../assets/components/voxel-inclusion-in-mesh.png)
+![Voxel Inclusion in Mesh from the saved 03_Minimizing Transport Networks 1 definition.](../assets/components/voxel-inclusion-in-mesh-clean.png)
 
-*Captured from 03_Minimizing Transport Networks 1.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 03_Minimizing Transport Networks 1.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

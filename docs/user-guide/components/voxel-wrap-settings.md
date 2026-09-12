@@ -4,9 +4,9 @@ Choose whether the simulation wraps at its boundaries.
 
 **Location:** Nuclei4 → Environment
 
-![Voxel Wrap Settings in the saved 02_Gradient Map definition.](../assets/components/voxel-wrap-settings.png)
+![Voxel Wrap Settings from the saved 02_Gradient Map definition.](../assets/components/voxel-wrap-settings-clean.png)
 
-*Captured from 02_Gradient Map.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 02_Gradient Map.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

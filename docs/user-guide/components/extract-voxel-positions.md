@@ -4,9 +4,9 @@ Extract voxel center positions.
 
 **Location:** Nuclei4 → Environment
 
-![Extract Voxel Positions in the saved 02_Gradient Map definition.](../assets/components/extract-voxel-positions.png)
+![Extract Voxel Positions from the saved 02_Gradient Map definition.](../assets/components/extract-voxel-positions-clean.png)
 
-*Captured from 02_Gradient Map.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 02_Gradient Map.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

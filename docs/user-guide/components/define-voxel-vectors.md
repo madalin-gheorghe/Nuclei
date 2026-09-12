@@ -4,9 +4,9 @@ Assign movement-influencing vectors to voxels.
 
 **Location:** Nuclei4 → Environment
 
-![Define Voxel Vectors in the saved 08_Vector Fields 1 definition.](../assets/components/define-voxel-vectors.png)
+![Define Voxel Vectors from the saved 08_Vector Fields 1 definition.](../assets/components/define-voxel-vectors-clean.png)
 
-*Captured from 08_Vector Fields 1.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 08_Vector Fields 1.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

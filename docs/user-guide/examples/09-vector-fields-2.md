@@ -4,9 +4,9 @@ Map a field evaluated from Grasshopper point charges into the voxel environment.
 
 [Download 09_Vector Fields 2.gh](files/09-vector-fields-2.gh)
 
-![Original Vector Fields 2 Grasshopper definition.](../assets/examples/09-vector-fields-2/definition.png)
+![Original Vector Fields 2 Grasshopper definition.](../assets/examples/09-vector-fields-2/definition-clean.png)
 
-*The saved definition, with its layout and values preserved. The capture is a canvas reference, not a newly simulated result.*
+*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 

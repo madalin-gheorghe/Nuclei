@@ -4,9 +4,9 @@ Turn a selected scalar field into a Dendro volume, with a Rhino mesh fallback wh
 
 **Location:** Nuclei4 → Voxels
 
-![Nuclei4 to Dendro Volume in the saved 15_3D Intro definition.](../assets/components/nuclei4-to-dendro-volume.png)
+![Nuclei4 to Dendro Volume from the saved 15_3D Intro definition.](../assets/components/nuclei4-to-dendro-volume-clean.png)
 
-*Captured from 15_3D Intro.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 15_3D Intro.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

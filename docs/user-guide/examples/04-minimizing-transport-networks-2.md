@@ -4,9 +4,9 @@ Explore a second arrangement of food regions and the networks that emerge betwee
 
 [Download 04_Minimizing Transport Networks 2.gh](files/04-minimizing-transport-networks-2.gh)
 
-![Original Minimizing Transport Networks 2 Grasshopper definition.](../assets/examples/04-minimizing-transport-networks-2/definition.png)
+![Original Minimizing Transport Networks 2 Grasshopper definition.](../assets/examples/04-minimizing-transport-networks-2/definition-clean.png)
 
-*The saved definition, with its layout and values preserved. The capture is a canvas reference, not a newly simulated result.*
+*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 

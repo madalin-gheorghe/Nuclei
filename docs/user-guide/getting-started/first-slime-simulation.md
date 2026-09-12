@@ -6,15 +6,15 @@ Explore how slime particles organize into connected paths using **01_Slime Intro
 
 [Download the Slime Intro definition](../examples/first-slime-simulation.gh) and open it in Grasshopper. The download is a copy of the original example, not a rebuilt starter.
 
-![The original Slime Intro definition, with its design-space, particle, trail, and diffusion groups connected to the solver and trail preview.](../assets/01-slime-intro-original-definition.png)
+![The original Slime Intro definition, with its design-space, particle, trail, and diffusion groups connected to the solver and trail preview.](../assets/01-slime-intro-original-definition-clean.png)
 
-*Your existing canvas layout, captured with component icons visible. Close-ups below follow the same definition. The solver has particles and voxels outputs.*
+*Your existing canvas layout, captured with component icons visible and group descriptions hidden. Close-ups below follow the same definition. The solver has particles and voxels outputs.*
 
 ## 1. Define the design space
 
 The purple **Define Design Space** group contains **Construct Voxels** and the sliders that set the field dimensions. A voxel is one cell of the simulation environment.
 
-![The original purple Define Design Space group. The X Voxels slider feeds both xVoxels and yVoxels; Z Voxels is 1.](../assets/construct-voxels.png)
+![The original purple design-space group. The X Voxels slider feeds both xVoxels and yVoxels; Z Voxels is 1.](../assets/construct-voxels-clean.png)
 
 | Input | Example setting | Meaning |
 | --- | --- | --- |
@@ -29,7 +29,7 @@ The field contains **1,000,000 voxels**. Its output feeds both the particle cons
 
 The large yellow-green group contains **Construct Slime Particles** and its behavior sliders.
 
-![The original particle group with 50,000 particles and all seven behavior and count sliders.](../assets/construct-slime.png)
+![The original particle group with 50,000 particles and all seven behavior and count sliders.](../assets/construct-slime-clean.png)
 
 | Slider | Saved value | What it controls |
 | --- | --- | --- |
@@ -49,7 +49,7 @@ Leave the values as saved for your first run. Each particle senses nearby signal
 
 The smaller yellow-green group contains **Particle Trail Settings**.
 
-![The original Particle Trail Settings group with Trail Size set to 10.](../assets/particle-trail-settings.png)
+![The original Particle Trail Settings group with Trail Size set to 10.](../assets/particle-trail-settings-clean.png)
 
 **Trail Size = 10** controls the recent particle history retained for trail display. Its **trailSettings** output is connected to the solver's **settings** input.
 
@@ -59,7 +59,7 @@ The visible particle trail and the deposited slime signal are different: this gr
 
 The lower purple group contains **Voxel Settings Slime**.
 
-![The original Voxel Settings Slime group, showing diffuse rate 0.15, decay rate 0.03, falloff 0, and diffuse range 5.](../assets/voxel-settings-slime.png)
+![The original Voxel Settings Slime group, showing diffuse rate 0.15, decay rate 0.03, falloff 0, and diffuse range 5.](../assets/voxel-settings-slime-clean.png)
 
 | Slider | Saved value | What it controls |
 | --- | --- | --- |
@@ -76,7 +76,7 @@ Busy routes receive repeated deposits. Diffusion spreads those deposits to nearb
 
 The right side contains the reset toggle, solver, existing Trigger, and **Particle Trail Preview**.
 
-![The saved reset toggle, updated solver with two outputs, existing Trigger, and Particle Trail Preview.](../assets/solver-preview.png)
+![The saved reset toggle, updated solver with two outputs, existing Trigger, and Particle Trail Preview.](../assets/solver-preview-clean.png)
 
 *Shown in the reset state with the Trigger paused for capture. No trail is expected before the particles have moved.*
 

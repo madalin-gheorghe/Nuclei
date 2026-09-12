@@ -4,9 +4,9 @@ Explore changing populations with division, death, and population settings.
 
 [Download 11_Growth 1.gh](files/11-growth-1.gh)
 
-![Original Growth 1 Grasshopper definition.](../assets/examples/11-growth-1/definition.png)
+![Original Growth 1 Grasshopper definition.](../assets/examples/11-growth-1/definition-clean.png)
 
-*The saved definition, with its layout and values preserved. The capture is a canvas reference, not a newly simulated result.*
+*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 

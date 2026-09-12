@@ -4,9 +4,9 @@ Compare a second saved growth setup using the same families of population contro
 
 [Download 12_Growth 2.gh](files/12-growth-2.gh)
 
-![Original Growth 2 Grasshopper definition.](../assets/examples/12-growth-2/definition.png)
+![Original Growth 2 Grasshopper definition.](../assets/examples/12-growth-2/definition-clean.png)
 
-*The saved definition, with its layout and values preserved. The capture is a canvas reference, not a newly simulated result.*
+*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 

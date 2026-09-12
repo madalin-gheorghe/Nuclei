@@ -4,9 +4,9 @@ Explore slime paths around selected food regions in a bounded environment.
 
 [Download 03_Minimizing Transport Networks 1.gh](files/03-minimizing-transport-networks-1.gh)
 
-![Original Minimizing Transport Networks 1 Grasshopper definition.](../assets/examples/03-minimizing-transport-networks-1/definition.png)
+![Original Minimizing Transport Networks 1 Grasshopper definition.](../assets/examples/03-minimizing-transport-networks-1/definition-clean.png)
 
-*The saved definition, with its layout and values preserved. The capture is a canvas reference, not a newly simulated result.*
+*The saved definition, with its layout, groups, and values preserved. Group descriptions are hidden for clarity. The capture is a canvas reference, not a newly simulated result.*
 
 ## Follow the definition
 

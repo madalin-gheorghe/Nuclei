@@ -4,9 +4,9 @@ Select voxels within a distance band around curves.
 
 **Location:** Nuclei4 → Environment
 
-![Curve Attractor for Voxels in the saved 06_Attractor Curves 1 definition.](../assets/components/curve-attractor-for-voxels.png)
+![Curve Attractor for Voxels from the saved 06_Attractor Curves 1 definition.](../assets/components/curve-attractor-for-voxels-clean.png)
 
-*Captured from 06_Attractor Curves 1.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 06_Attractor Curves 1.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 

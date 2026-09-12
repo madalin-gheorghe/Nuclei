@@ -4,9 +4,9 @@ Set population bounds and independent random division and death probabilities.
 
 **Location:** Nuclei4 → Particles
 
-![Particle Population Settings in the saved 03_Minimizing Transport Networks 1 definition.](../assets/components/particle-population-settings.png)
+![Particle Population Settings from the saved 03_Minimizing Transport Networks 1 definition.](../assets/components/particle-population-settings-clean.png)
 
-*Captured from 03_Minimizing Transport Networks 1.gh, preserving its component position and connected controls. Example values can differ from the fresh-component defaults below.*
+*Captured from 03_Minimizing Transport Networks 1.gh, with its connected sliders and primitives arranged beside the component for readability. Example values can differ from the fresh-component defaults below.*
 
 ## Use it
 
