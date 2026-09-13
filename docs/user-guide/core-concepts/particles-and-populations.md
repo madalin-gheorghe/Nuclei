@@ -24,7 +24,7 @@ Several particle constructors can feed the same solver. Keep their shared voxel 
 
 Division, death, and population settings are separate controls. Division and death use local conditions, while population settings include population bounds and random division/death controls. Feed their settings outputs to the solver along with the environment settings.
 
-Particles share the available voxel space. Crowding can restrict movement and prevent new particles from occupying a cell.
+Particles share the available voxel space. Crowding can restrict movement and prevent new particles from occupying a cell. Ants can share cells within twice their Sensor Distance of their own nest, allowing food delivery and departure through a crowded nest.
 
 ## Particle trails and deposited signals
 

@@ -1,0 +1,63 @@
+{
+  "$schema": "../component.schema.json",
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Particle Settings Slime Ant Interaction",
+    "category": "Nuclei4",
+    "subcategory": " Particles",
+    "componentGuid": "9c28782b-f3db-40e3-8bd7-f099d8b62ae3",
+    "dotnetType": "Nuclei4.Particle_Settings_Ant_Slime",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Slime -> Ant Food",
+        "nickname": "slime ~ antFood",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0.5"
+        ]
+      },
+      {
+        "index": 1,
+        "name": "Slime -> Ant Base",
+        "nickname": "slime ~ antBase",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0.5"
+        ]
+      },
+      {
+        "index": 2,
+        "name": "Ant -> Slime",
+        "nickname": "ant ~ slime",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0.5"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Interaction Settings",
+        "nickname": "interactionSettings",
+        "ghType": "Text",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}

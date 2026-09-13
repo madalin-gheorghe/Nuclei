@@ -1,0 +1,113 @@
+{
+  "$schema": "../component.schema.json",
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Point Attractor for Voxels",
+    "category": "Nuclei4",
+    "subcategory": " Environment",
+    "componentGuid": "a0ac8ea3-c26e-4852-8e48-e507d0cc6132",
+    "dotnetType": "Nuclei4.Voxel_Attractor_Point",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 1,
+        "name": "Attractor Points",
+        "nickname": "attractorPoints",
+        "ghType": "Point",
+        "access": "list",
+        "optional": false,
+        "mapping": "Flatten",
+        "defaults": []
+      },
+      {
+        "index": 2,
+        "name": "Minimum Range",
+        "nickname": "minRange",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0"
+        ]
+      },
+      {
+        "index": 3,
+        "name": "Maximum Range",
+        "nickname": "maxRange",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "1"
+        ]
+      },
+      {
+        "index": 4,
+        "name": "Invert Voxel Selection",
+        "nickname": "invertSelection",
+        "ghType": "Boolean",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "False"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Output Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 1,
+        "name": "Output Voxel Positions",
+        "nickname": "voxelPosition",
+        "ghType": "Point",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 2,
+        "name": "Output Distances to Voxels",
+        "nickname": "voxelDistance",
+        "ghType": "Number",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 3,
+        "name": "Output Voxel Indices",
+        "nickname": "voxelIndex",
+        "ghType": "Integer",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}

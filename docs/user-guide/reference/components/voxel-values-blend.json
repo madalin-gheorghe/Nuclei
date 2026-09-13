@@ -1,0 +1,97 @@
+{
+  "$schema": "../component.schema.json",
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Voxel Values Blend",
+    "category": "Nuclei4",
+    "subcategory": " Environment",
+    "componentGuid": "0a968da4-646c-41fb-b48c-7e1d6c258d94",
+    "dotnetType": "Nuclei4.Voxel_Values_BlendAll",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 1,
+        "name": "Type",
+        "nickname": "type",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0"
+        ]
+      },
+      {
+        "index": 2,
+        "name": "Blend Strength",
+        "nickname": "blendStrength",
+        "ghType": "Number",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "0.25"
+        ]
+      },
+      {
+        "index": 3,
+        "name": "Blend Range",
+        "nickname": "range",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "1"
+        ]
+      },
+      {
+        "index": 4,
+        "name": "Blend Iterations",
+        "nickname": "iterations",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "1"
+        ]
+      },
+      {
+        "index": 5,
+        "name": "Wrap Blend",
+        "nickname": "wrap",
+        "ghType": "Boolean",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "False"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Output Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}

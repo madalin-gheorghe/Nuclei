@@ -1,0 +1,37 @@
+{
+  "$schema": "../component.schema.json",
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Extract Particle Vectors",
+    "category": "Nuclei4",
+    "subcategory": " Particles",
+    "componentGuid": "59e6dba6-2cec-4873-8b54-9f099d3599c2",
+    "dotnetType": "Nuclei4.Particle_Extractor_Vector",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Particles",
+        "nickname": "particles",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Particle Vectors",
+        "nickname": "particleVec",
+        "ghType": "Vector",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}

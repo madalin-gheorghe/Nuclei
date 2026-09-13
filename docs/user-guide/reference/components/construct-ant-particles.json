@@ -1,0 +1,131 @@
+{
+  "$schema": "../component.schema.json",
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Construct Ant Particles",
+    "category": "Nuclei4",
+    "subcategory": " Particles",
+    "componentGuid": "3eab04d8-68ed-476d-b33d-a8633418ab12",
+    "dotnetType": "Nuclei4.ParticleGroup_Constructor_Ant",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Voxel Field",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 1,
+        "name": "Initial Particle Positions",
+        "nickname": "particlePos",
+        "ghType": "Point",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 2,
+        "name": "Speed",
+        "nickname": "speed",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "1.3"
+        ]
+      },
+      {
+        "index": 3,
+        "name": "Sensor Distance",
+        "nickname": "sensorDistance",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "6"
+        ]
+      },
+      {
+        "index": 4,
+        "name": "Sensor Angle",
+        "nickname": "sensorAngle",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "45"
+        ]
+      },
+      {
+        "index": 5,
+        "name": "Rotation Angle",
+        "nickname": "rotationAngle",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "45"
+        ]
+      },
+      {
+        "index": 6,
+        "name": "Deposit",
+        "nickname": "deposit",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "1"
+        ]
+      },
+      {
+        "index": 7,
+        "name": "Wander",
+        "nickname": "wander",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0"
+        ]
+      },
+      {
+        "index": 8,
+        "name": "Colour",
+        "nickname": "colour",
+        "ghType": "Colour",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "66,236,122 (125)"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Output Particle Group",
+        "nickname": "particles",
+        "ghType": "Particle Group",
+        "access": "item",
+        "optional": false,
+        "mapping": "Flatten",
+        "defaults": []
+      }
+    ]
+  }
+}

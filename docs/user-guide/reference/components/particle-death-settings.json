@@ -1,0 +1,99 @@
+{
+  "$schema": "../component.schema.json",
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Particle Death Settings",
+    "category": "Nuclei4",
+    "subcategory": " Particles",
+    "componentGuid": "b8f690ec-1e23-46c8-8fa4-4d3369cacfdf",
+    "dotnetType": "Nuclei4.Particle_Settings_Death",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Die",
+        "nickname": "die",
+        "ghType": "Boolean",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "False"
+        ]
+      },
+      {
+        "index": 1,
+        "name": "Minimum Age",
+        "nickname": "minAge",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "10"
+        ]
+      },
+      {
+        "index": 2,
+        "name": "Die Range",
+        "nickname": "dieRange",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "3"
+        ]
+      },
+      {
+        "index": 3,
+        "name": "Minimum Neighbours",
+        "nickname": "minN",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0"
+        ]
+      },
+      {
+        "index": 4,
+        "name": "Maximum Neighbours",
+        "nickname": "maxN",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "10"
+        ]
+      },
+      {
+        "index": 5,
+        "name": "Frequency",
+        "nickname": "dieFrequency",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "5"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Death Settings",
+        "nickname": "dieSettings",
+        "ghType": "Text",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}

@@ -20,7 +20,7 @@ Shape either simulation with **voxel fields**: the cells that describe its envir
 
 2. [Build your first slime simulation](getting-started/first-slime-simulation.md).
 
-3. Follow [your first ant simulation](getting-started/first-ant-simulation.md).
+3. [Follow your first ant simulation.](getting-started/first-ant-simulation.md)
 4. [Explore the V4 example collection.](examples/README.md)
 
 You should be comfortable placing Grasshopper components, connecting wires, and using number sliders and Boolean Toggles. No programming is required.

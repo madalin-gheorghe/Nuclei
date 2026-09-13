@@ -1,0 +1,338 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nuclei saved Grasshopper definition reference, version 1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "title": {
+      "type": "string"
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "documentId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "sha256",
+        "documentId"
+      ],
+      "additionalProperties": false
+    },
+    "extraction": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "coverage": {
+          "type": "string"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "omittedBinaryPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unresolvedGroupMembers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "groupId": {
+                "type": "string"
+              },
+              "memberId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "groupId",
+              "memberId"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "method",
+        "coverage",
+        "limitations",
+        "omittedBinaryPaths",
+        "unresolvedGroupMembers"
+      ],
+      "additionalProperties": false
+    },
+    "libraries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/archiveChunk"
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "connections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "$ref": "#/$defs/endpoint"
+          },
+          "to": {
+            "$ref": "#/$defs/endpoint"
+          },
+          "sourceOrder": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "sourceOrder"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "title",
+    "source",
+    "extraction",
+    "libraries",
+    "nodes",
+    "connections"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "archiveItem": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "value": {
+          "type": "string"
+        },
+        "xmlValue": {
+          "type": "string"
+        },
+        "omitted": {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "archiveXmlSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "reason",
+            "archiveXmlSha256"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "value"
+          ]
+        },
+        {
+          "required": [
+            "xmlValue"
+          ]
+        },
+        {
+          "required": [
+            "omitted"
+          ]
+        }
+      ]
+    },
+    "archiveChunk": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/archiveItem"
+          }
+        },
+        "chunks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/archiveChunk"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "items",
+        "chunks"
+      ],
+      "additionalProperties": false
+    },
+    "endpoint": {
+      "type": "object",
+      "properties": {
+        "nodeId": {
+          "type": "string"
+        },
+        "parameterId": {
+          "type": "string"
+        },
+        "portIndex": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "required": [
+        "nodeId",
+        "parameterId",
+        "portIndex"
+      ],
+      "additionalProperties": false
+    },
+    "port": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "name": {
+          "type": "string"
+        },
+        "nickname": {
+          "type": "string"
+        },
+        "savedState": {
+          "$ref": "#/$defs/archiveChunk"
+        }
+      },
+      "required": [
+        "id",
+        "index",
+        "name",
+        "nickname",
+        "savedState"
+      ],
+      "additionalProperties": false
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "componentGuid": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nickname": {
+          "type": "string"
+        },
+        "libraryId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/port"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/port"
+          }
+        },
+        "savedState": {
+          "$ref": "#/$defs/archiveChunk"
+        },
+        "canvas": {
+          "$ref": "#/$defs/archiveChunk"
+        },
+        "groupMembers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "componentGuid",
+        "name",
+        "nickname",
+        "libraryId",
+        "inputs",
+        "outputs",
+        "savedState",
+        "groupMembers"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

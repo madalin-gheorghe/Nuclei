@@ -1,0 +1,59 @@
+{
+  "$schema": "../component.schema.json",
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Define Voxel Values",
+    "category": "Nuclei4",
+    "subcategory": " Environment",
+    "componentGuid": "6a35ef3b-11f7-4d48-8103-683e82b2dd5d",
+    "dotnetType": "Nuclei4.Voxel_Values",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 1,
+        "name": "Type",
+        "nickname": "type",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "0"
+        ]
+      },
+      {
+        "index": 2,
+        "name": "Multiplier Value",
+        "nickname": "multiplier",
+        "ghType": "Number",
+        "access": "tree",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Output Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}

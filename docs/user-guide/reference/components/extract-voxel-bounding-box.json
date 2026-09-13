@@ -1,0 +1,37 @@
+{
+  "$schema": "../component.schema.json",
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Extract Voxel Bounding Box",
+    "category": "Nuclei4",
+    "subcategory": " Environment",
+    "componentGuid": "f02270d9-89f0-4465-93ac-750061478aed",
+    "dotnetType": "Nuclei4.Voxel_Extractor_Box",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Voxel Box",
+        "nickname": "BBox",
+        "ghType": "Box",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}

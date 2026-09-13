@@ -12,6 +12,10 @@ Connect a field to **voxels** and select the property with **Type**. For evolvin
 
 Minimum and Maximum Value set the displayed value range. For more detailed 3D previews, right-click and enable **High Resolution (3D)**.
 
+Slime Chemoattractants, the ant pheromone views, and Ants and Slime also show blocked voxels (`maxDensity = 0`) in dark purple. This obstacle layer stays visible independently of the displayed signal range.
+
+These views draw food last, above signals and obstacles. Slime food sources and remaining ant food stay visible independently of the signal thresholds; consumed ant food disappears as the simulation advances.
+
 ## Inputs
 
 Defaults describe a newly placed component.
@@ -60,10 +64,13 @@ Displays directly in the Rhino viewport.
 <details>
 <summary>Machine-readable reference (JSON)</summary>
 
+[Download JSON](../reference/components/voxel-preview.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)
+
 Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. [Full catalog](../reference/component-contracts.json).
 
 ```json
 {
+  "$schema": "../component.schema.json",
   "schemaVersion": 1,
   "pluginVersion": "4.1.0.0",
   "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",

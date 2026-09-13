@@ -1,0 +1,75 @@
+{
+  "$schema": "../component.schema.json",
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Construct Voxels",
+    "category": "Nuclei4",
+    "subcategory": " Environment",
+    "componentGuid": "a3940a4d-9015-411c-9ffa-e38ecc90d394",
+    "dotnetType": "Nuclei4.VoxelConstructor",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Voxel Size",
+        "nickname": "voxelSize",
+        "ghType": "Number",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "1"
+        ]
+      },
+      {
+        "index": 1,
+        "name": "X Voxels",
+        "nickname": "xVoxels",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "100"
+        ]
+      },
+      {
+        "index": 2,
+        "name": "Y Voxels",
+        "nickname": "yVoxels",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "100"
+        ]
+      },
+      {
+        "index": 3,
+        "name": "Z Voxels",
+        "nickname": "zVoxels",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": [
+          "1"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Output Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "../component.schema.json",
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Extract Particle Trails",
+    "category": "Nuclei4",
+    "subcategory": " Particles",
+    "componentGuid": "0a97c625-4da3-4143-89c6-d88249de8741",
+    "dotnetType": "Nuclei4.Particle_Extractor_TrailPoints",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Particles",
+        "nickname": "particles",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Particle Positions",
+        "nickname": "trailPos",
+        "ghType": "Point",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}

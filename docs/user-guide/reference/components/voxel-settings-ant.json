@@ -1,0 +1,99 @@
+{
+  "$schema": "../component.schema.json",
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Voxel Settings Ant",
+    "category": "Nuclei4",
+    "subcategory": " Environment",
+    "componentGuid": "3486cda4-b3f3-47a1-886b-f047d6d7a13a",
+    "dotnetType": "Nuclei4.EnivronmentSettings_Ant",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Food Pheromones Diffuse Rate",
+        "nickname": "foodDiffuse",
+        "ghType": "Number",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "0.05"
+        ]
+      },
+      {
+        "index": 1,
+        "name": "Food Decay Rate",
+        "nickname": "foodDecay",
+        "ghType": "Number",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "0.005"
+        ]
+      },
+      {
+        "index": 2,
+        "name": "Base Pheromones Diffuse Rate",
+        "nickname": "baseDiffuse",
+        "ghType": "Number",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "0.1"
+        ]
+      },
+      {
+        "index": 3,
+        "name": "Base Decay Rate",
+        "nickname": "baseDecay",
+        "ghType": "Number",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "0.01"
+        ]
+      },
+      {
+        "index": 4,
+        "name": "Falloff",
+        "nickname": "falloff",
+        "ghType": "Number",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "0"
+        ]
+      },
+      {
+        "index": 5,
+        "name": "Diffuse Range",
+        "nickname": "range",
+        "ghType": "Integer",
+        "access": "item",
+        "optional": true,
+        "mapping": "None",
+        "defaults": [
+          "1"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Voxel Settings",
+        "nickname": "voxelSettings",
+        "ghType": "Text",
+        "access": "list",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}

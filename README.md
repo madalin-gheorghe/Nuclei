@@ -14,6 +14,8 @@ Learn how the simulations work in the [Slime Behavior](docs/Slime%20Behavior.md)
 
 The [Nuclei V4 guide](https://nuclei.gitbook.io/docs/) includes installation instructions, reviewed slime and ant walkthroughs, core concepts, a 40-component reference, and a visual gallery of 18 downloadable examples. Component pages document inputs, outputs, Value List choices, and troubleshooting, with a collapsed machine-readable JSON reference. Optimized screenshots show connected wires and aligned controls; full definition diagrams preserve the original Grasshopper layouts.
 
+The V3 and V4 example folders follow the revised example order and include refreshed definitions and result images. Every V4 example also provides its saved components, controls, and connections as downloadable JSON, with shared JSON Schemas and a reading guide.
+
 The GitBook content lives in [docs/user-guide](docs/user-guide/README.md), with navigation maintained in `SUMMARY.md`. Internal development notes remain separate from the user guide.
 
 ## Versions

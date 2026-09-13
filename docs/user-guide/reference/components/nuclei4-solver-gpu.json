@@ -1,0 +1,77 @@
+{
+  "$schema": "../component.schema.json",
+  "schemaVersion": 1,
+  "pluginVersion": "4.1.0.0",
+  "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
+  "component": {
+    "name": "Nuclei4 Solver GPU",
+    "category": "Nuclei4",
+    "subcategory": " Solver",
+    "componentGuid": "e794ab27-6d27-4107-929f-b88e16209976",
+    "dotnetType": "Nuclei4.SolverGPU",
+    "inputs": [
+      {
+        "index": 0,
+        "name": "Reset",
+        "nickname": "reset",
+        "ghType": "Boolean",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 1,
+        "name": "Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 2,
+        "name": "Particles",
+        "nickname": "particles",
+        "ghType": "Particle Group",
+        "access": "list",
+        "optional": false,
+        "mapping": "Flatten",
+        "defaults": []
+      },
+      {
+        "index": 3,
+        "name": "Solver Settings",
+        "nickname": "settings",
+        "ghType": "Text",
+        "access": "list",
+        "optional": true,
+        "mapping": "Flatten",
+        "defaults": []
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "name": "Output Particles",
+        "nickname": "particles",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      },
+      {
+        "index": 1,
+        "name": "Output Voxels",
+        "nickname": "voxels",
+        "ghType": "Generic Data",
+        "access": "item",
+        "optional": false,
+        "mapping": "None",
+        "defaults": []
+      }
+    ]
+  }
+}

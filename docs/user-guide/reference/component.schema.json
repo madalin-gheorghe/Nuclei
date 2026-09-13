@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nuclei component reference, version 1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "pluginVersion": {
+      "type": "string"
+    },
+    "ghaSha256": {
+      "type": "string",
+      "pattern": "^[A-Fa-f0-9]{64}$"
+    },
+    "component": {
+      "$ref": "#/$defs/component"
+    }
+  },
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "pluginVersion",
+    "ghaSha256",
+    "component"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "port": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "name": {
+          "type": "string"
+        },
+        "nickname": {
+          "type": "string"
+        },
+        "ghType": {
+          "type": "string"
+        },
+        "access": {
+          "enum": [
+            "item",
+            "list",
+            "tree"
+          ]
+        },
+        "optional": {
+          "type": "boolean"
+        },
+        "mapping": {
+          "type": "string"
+        },
+        "defaults": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "index",
+        "name",
+        "nickname",
+        "ghType",
+        "access",
+        "optional",
+        "mapping",
+        "defaults"
+      ],
+      "additionalProperties": false
+    },
+    "component": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "subcategory": {
+          "type": "string"
+        },
+        "componentGuid": {
+          "type": "string"
+        },
+        "dotnetType": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/port"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/port"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "category",
+        "subcategory",
+        "componentGuid",
+        "dotnetType",
+        "inputs",
+        "outputs"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

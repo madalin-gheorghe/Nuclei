@@ -53,12 +53,15 @@ The full-grid count is `X × Y × Z`. Doubling all three dimensions makes eight 
 <details>
 <summary>Machine-readable reference (JSON)</summary>
 
+[Download JSON](../reference/components/construct-voxels.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)
+
 Runtime output: `Nuclei4.VoxelField`.
 
 Component metadata for scripts and AI tools. Indices are zero-based; defaults are display strings. This describes the component, not an executable API. [Full catalog](../reference/component-contracts.json).
 
 ```json
 {
+  "$schema": "../component.schema.json",
   "schemaVersion": 1,
   "pluginVersion": "4.1.0.0",
   "ghaSha256": "700C1620FD839DD1511E67359961787C8EC08EA595812B2EDED27828F96800C5",
