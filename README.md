@@ -2,21 +2,21 @@
 
 Nuclei is a generative-design plugin for Grasshopper that combines behavior-based particle simulations with highly customizable voxel environments. Inspired by slime-mold transport networks and ant foraging systems, it allows particles to respond to spatial fields, producing branching networks, evolving patterns, and volumetric structures.
 
-**Development:** Madalin Gheorghe · [@madalin\_gheorghe](https://www.instagram.com/madalin_gheorghe/)
+**Development:** Madalin Gheorghe · [LinkedIn](https://www.linkedin.com/in/madalin-gheorghe-5026884a/) · [Instagram](https://www.instagram.com/madalin_gheorghe/)
 
-**Download:** [Food4Rhino](https://www.food4rhino.com/en/app/nuclei)
+**Recommended Install:** Rhino Package Manager
+
+**Download Link:** [Food4Rhino](https://www.food4rhino.com/en/app/nuclei) 
 
 **Tutorial:** [Biomorphic Networks V3.0](https://www.youtube.com/watch?v=Hl2Dd9yihHw\&t=7424s) — an older version, but the same principles apply.
 
-Learn how the simulations work in the [Slime Behavior](docs/Slime%20Behavior.md) and [Ant Behavior](docs/Ant%20Behavior.md) guides.
 
 ## User documentation
 
-The [Nuclei V4 guide](https://nuclei.gitbook.io/docs/) includes installation instructions, reviewed slime and ant walkthroughs, core concepts, a 40-component reference, and a visual gallery of 18 downloadable examples. Component pages document inputs, outputs, Value List choices, and troubleshooting, with a collapsed machine-readable JSON reference. Optimized screenshots show connected wires and aligned controls; full definition diagrams preserve the original Grasshopper layouts.
+The [Nuclei V4 GitBook Guide](https://nuclei.gitbook.io/docs/) includes installation instructions, reviewed slime and ant walkthroughs, core concepts, a 40-component reference, and a visual gallery of 18 downloadable examples. Component pages document inputs, outputs, Value List choices, and troubleshooting, with a collapsed machine-readable JSON reference. Optimized screenshots show connected wires and aligned controls; full definition diagrams preserve the original Grasshopper layouts.
 
-The V3 and V4 example folders follow the revised example order and include refreshed definitions and result images. Every V4 example also provides its saved components, controls, and connections as downloadable JSON, with shared JSON Schemas and a reading guide.
+The [V3](https://github.com/madalin-gheorghe/Nuclei/tree/main/Nuclei%20Definitions/v3) and [V4](https://github.com/madalin-gheorghe/Nuclei/tree/main/Nuclei%20Definitions/v4) example folders follow the revised example order and include refreshed definitions and result images. Every V4 example also provides its saved components, controls, and connections as downloadable JSON, with shared JSON Schemas and a reading guide.
 
-The GitBook content lives in [docs/user-guide](docs/user-guide/README.md), with navigation maintained in `SUMMARY.md`. Internal development notes remain separate from the user guide.
 
 ## Versions
 
@@ -77,7 +77,8 @@ After V3.0, ChatGPT/Codex assisted with testing, optimization, and GPU developme
 
 ## License and Feedback
 
-Free to use. Hundreds of hours and thousands of lines of code have gone into this tool. Please include credits wherever appropriate.
+Free to use. Hundreds of hours and thousands of lines of code have gone into this tool. 
+**Please include credits wherever appropriate.**
 
 Found a bug or have an idea? [Report it or suggest an improvement](https://github.com/madalin-gheorghe/Nuclei/issues)
 
