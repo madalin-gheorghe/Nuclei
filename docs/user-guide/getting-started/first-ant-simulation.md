@@ -2,7 +2,7 @@
 
 Follow **16\_Ants Intro.gh**, the original 2D ant example. You will identify the colony positions, map food, inspect the pheromone settings, and run the foraging simulation.
 
-![Ant foraging paths connecting the colony and food regions.](../.gitbook/assets/result.jpg)
+![Ant foraging paths connecting the colony and food regions.](<../.gitbook/assets/result (1).jpg>)
 
 Install [Nuclei V4 in Rhino 9](../installation.md), then [download the original Ants Intro definition](../examples/files/13-ants-intro.gh). Keep its groups and connections as supplied.
 
@@ -12,7 +12,7 @@ Install [Nuclei V4 in Rhino 9](../installation.md), then [download the original 
 
 **Construct Voxels** creates a **1000 × 1000 × 1** field. Z = 1 keeps the study planar. Its output connects to the point-attractor branches and the ant constructor.
 
-![Construct Voxels with the saved ant-example dimensions and connected output wires.](../.gitbook/assets/ant-current-construct-voxels.png)
+![Construct Voxels with the saved ant-example dimensions and connected output wires.](../.gitbook/assets/construct-voxels.png)
 
 One point-attractor branch uses **Maximum Range = 15** and feeds the food mapping. The other uses **Maximum Range = 60** and feeds the chain of voxel positions and selection used to initialize the colony.
 
@@ -22,7 +22,7 @@ Follow the lower attractor branch through the point-selection chain to **particl
 
 Those starting positions establish where ants begin and remember home. The constructor’s **particles** output connects to the solver.
 
-![Construct Ant Particles with starting positions, behavior controls, and its output wire to the solver.](../.gitbook/assets/ant-final-construct-ants.png)
+![Construct Ant Particles with starting positions, behavior controls, and its output wire to the solver.](../.gitbook/assets/construct-ants.png)
 
 | Ant control     | Saved value |
 | --------------- | ----------- |
@@ -39,7 +39,7 @@ These are this example’s settings, not the defaults of a newly placed construc
 
 The upper mapping branch uses **Define Voxel Values** with **Type = Ant Food** and **Multiplier Value = 1**. Its field is combined through **Voxel Selection Union** before entering the solver.
 
-![Define Voxel Values set to Ant Food with Multiplier Value 1 and connected output.](../.gitbook/assets/ant-current-food-map.png)
+![Define Voxel Values set to Ant Food with Multiplier Value 1 and connected output.](../.gitbook/assets/food-map.png)
 
 Ant Food is edible material that stays in place until ants consume it. It also emits food pheromone. The food itself, the pheromone it emits, and the trail left by returning ants are related but distinct parts of the simulation.
 
@@ -47,7 +47,7 @@ Ant Food is edible material that stays in place until ants consume it. It also e
 
 The **Voxel Settings Ant** group controls two signals. Searching ants leave a base trail; returning ants leave a food trail. Its **voxelSettings** output connects to the solver’s **settings** input.
 
-![Voxel Settings Ant with separate food and base diffusion and decay controls connected to the solver.](../.gitbook/assets/ant-current-ant-settings.png)
+![Voxel Settings Ant with separate food and base diffusion and decay controls connected to the solver.](../.gitbook/assets/ant-settings.png)
 
 | Control                      | Saved value |
 | ---------------------------- | ----------- |
@@ -62,9 +62,9 @@ Diffusion spreads the signal into neighboring cells. Decay fades it. Food and ba
 
 ## 5. Initialize and run
 
-The Boolean Toggle connects to **reset**. The Trigger advances the solver, and the solver’s **voxels** output feeds Voxel Preview. Its **particles** output also connects to Particle Preview.
+The Boolean Toggle connects to **reset**. The Trigger advances the solver, and the solver’s **voxels** output feeds Voxel Preview.
 
-![Reset toggle and Trigger controlling the solver, with voxel and particle outputs connected to their preview components.](../.gitbook/assets/ant-final-solver-preview.png)
+![Reset toggle and Trigger controlling the solver, with voxel and particle outputs connected to their preview components.](../.gitbook/assets/ant-solver-preview-refreshed.png)
 
 1. Pause the existing Trigger while inspecting the graph.
 2. Set the solver’s reset toggle to **True**, then back to **False**.
@@ -85,7 +85,7 @@ The saved **Voxel Preview** is connected to the solver’s voxels output and use
 
 Ants first spread out and search. When they detect food scent, their movement becomes directed toward it. On reaching food, they take some and return toward home, leaving food pheromone along the route. Other ants can reinforce the route over repeated trips.
 
-![Your first ant simulation: example simulation result.](../.gitbook/assets/result.jpg)
+![Your first ant simulation: example simulation result.](<../.gitbook/assets/result (1).jpg>)
 
 ## 7. Compare one change
 

@@ -4,7 +4,7 @@ Guide a slime simulation with several curve-based attraction regions, then softe
 
 Particles respond to this prepared signal while continuing to deposit their own. Compare the mapped field before and after blending, then observe how the trails respond. Use this example to explore how the strength and reach of blending change the influence of the curves without having to change the curve geometry itself.
 
-![Attractor Curves 2: example simulation result.](<../.gitbook/assets/result (3).jpg>)
+![Attractor Curves 2: example simulation result.](<../.gitbook/assets/result (4).jpg>)
 
 [Download 11\_Attractor Curves 2.gh](files/07-attractor-curves-2.gh)
 
@@ -79,7 +79,7 @@ Adjust blend strength or iteration count one at a time. Keep the curve arrangeme
 
 ## Example result
 
-![Attractor Curves 2: example simulation result.](<../.gitbook/assets/result (3).jpg>)
+![Attractor Curves 2: example simulation result.](<../.gitbook/assets/result (4).jpg>)
 
 [Back to examples](./)
 

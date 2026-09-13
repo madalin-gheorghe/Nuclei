@@ -4,7 +4,7 @@ Use curves to guide where a slime network develops. Curve attractors select voxe
 
 The curves establish the attraction pattern, while particles add their own signal as they move. Watch how the trails respond to the mapped regions and develop connections around them. Use this example to explore how changing a curve or the selection distance changes the area of influence and the resulting particle network.
 
-![Attractor Curves 1: example simulation result.](<../.gitbook/assets/result (4).jpg>)
+![Attractor Curves 1: example simulation result.](<../.gitbook/assets/result (5).jpg>)
 
 [Download 10\_Attractor Curves 1.gh](files/06-attractor-curves-1.gh)
 
@@ -76,7 +76,7 @@ Change the attractor range or curve geometry separately. Inspect the voxel map b
 
 ## Example result
 
-![Attractor Curves 1: example simulation result.](<../.gitbook/assets/result (4).jpg>)
+![Attractor Curves 1: example simulation result.](<../.gitbook/assets/result (5).jpg>)
 
 [Back to examples](./)
 

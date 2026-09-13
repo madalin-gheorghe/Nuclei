@@ -4,7 +4,7 @@ Watch a slime network emerge from particles moving across a flat voxel field. Ea
 
 This example introduces the complete workflow: create the environment, add particles, connect their behavior settings, and run the solver. Follow the trails as local movements develop into connected paths. Use it to learn how sensing, movement, and signal settings influence the network before adding food regions, attractors, or mapped values.
 
-![Slime Intro: example simulation result.](<../.gitbook/assets/result (6).jpg>)
+![Slime Intro: example simulation result.](../.gitbook/assets/result.jpg)
 
 [Download 01\_Slime Intro.gh](files/01-slime-intro.gh)
 
@@ -64,7 +64,7 @@ Compare Sensor Distance while keeping the other sliders fixed. Look for changes 
 
 ## Example result
 
-![Slime Intro: example simulation result.](<../.gitbook/assets/result (6).jpg>)
+![Slime Intro: example simulation result.](../.gitbook/assets/result.jpg)
 
 [Back to examples](./)
 

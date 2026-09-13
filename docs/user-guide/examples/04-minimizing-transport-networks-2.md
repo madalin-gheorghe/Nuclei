@@ -4,7 +4,7 @@ Build a slime network around a second arrangement of food sources. This definiti
 
 The setup also uses different food strength and population settings from the first transport example. Follow how connections develop as particles explore and reinforce their own signal. Use the two definitions to investigate how food placement affects connectivity, then keep the behavior settings fixed when comparing changes to the point arrangement.
 
-![Minimizing Transport Networks 2: example simulation result.](<../.gitbook/assets/result (2).jpg>)
+![Minimizing Transport Networks 2: example simulation result.](<../.gitbook/assets/result (3).jpg>)
 
 [Download 03\_Minimizing Transport Networks Complex.gh](files/04-minimizing-transport-networks-2.gh)
 
@@ -83,7 +83,7 @@ Change the point arrangement while keeping particle behavior constant. Compare t
 
 ## Example result
 
-![Minimizing Transport Networks 2: example simulation result.](<../.gitbook/assets/result (2).jpg>)
+![Minimizing Transport Networks 2: example simulation result.](<../.gitbook/assets/result (3).jpg>)
 
 [Back to examples](./)
 

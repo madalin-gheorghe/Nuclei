@@ -4,7 +4,7 @@ Give slime particles different sensing distances depending on where they are in 
 
 The particles still deposit and follow a shared signal, but their sensing conditions vary from one region to another. Look for changes in the spacing and organization of paths across the gradient. Use this example to explore how a continuous change in one environmental property can produce variation within a single simulation.
 
-![Gradient Map: example simulation result.](<../.gitbook/assets/result (5).jpg>)
+![Gradient Map: example simulation result.](<../.gitbook/assets/result (6).jpg>)
 
 [Download 07\_Gradient Map.gh](files/02-gradient-map.gh)
 
@@ -77,7 +77,7 @@ Change the remapped range while retaining its spatial ordering. Compare how part
 
 ## Example result
 
-![Gradient Map: example simulation result.](<../.gitbook/assets/result (5).jpg>)
+![Gradient Map: example simulation result.](<../.gitbook/assets/result (6).jpg>)
 
 [Back to examples](./)
 

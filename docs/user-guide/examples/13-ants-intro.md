@@ -4,7 +4,7 @@ Watch ants discover food and establish routes back to their colony in a flat vox
 
 Diffusion spreads those signals into nearby cells, and decay controls how long they remain. Follow the change from early exploration to routes reinforced by repeated journeys. Use this example to learn the basic ant workflow and explore how food placement and pheromone settings affect the paths that develop.
 
-![Ants Intro: example simulation result.](../.gitbook/assets/result.jpg)
+![Ants Intro: example simulation result.](<../.gitbook/assets/result (1).jpg>)
 
 [Download 16\_Ants Intro.gh](files/13-ants-intro.gh)
 
@@ -73,7 +73,7 @@ Let the colony explore before judging the network. Compare searching and returni
 
 ## Example result
 
-![Ants Intro: example simulation result.](../.gitbook/assets/result.jpg)
+![Ants Intro: example simulation result.](<../.gitbook/assets/result (1).jpg>)
 
 [Back to examples](./)
 

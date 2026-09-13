@@ -4,7 +4,7 @@ Explore how slime particles form connections around food regions in a bounded en
 
 As the simulation develops, particles reinforce frequently followed routes and the network reorganizes around the food arrangement. Watch which connections persist and how they respond when the food strength changes. This example lets you study the relationship between source locations, the available space, and the paths that emerge between them.
 
-![Minimizing Transport Networks 1: example simulation result.](<../.gitbook/assets/result (1).jpg>)
+![Minimizing Transport Networks 1: example simulation result.](<../.gitbook/assets/result (2).jpg>)
 
 [Download 02\_Minimizing Transport Networks Simple.gh](files/03-minimizing-transport-networks-1.gh)
 
@@ -81,7 +81,7 @@ Compare food strength while keeping the source geometry fixed. Observe which con
 
 ## Example result
 
-![Minimizing Transport Networks 1: example simulation result.](<../.gitbook/assets/result (1).jpg>)
+![Minimizing Transport Networks 1: example simulation result.](<../.gitbook/assets/result (2).jpg>)
 
 [Back to examples](./)
 
