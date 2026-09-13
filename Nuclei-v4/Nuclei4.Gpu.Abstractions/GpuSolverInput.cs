@@ -17,6 +17,7 @@
         public float[] ParticleYAxesXyz;
         public float[] ParticleHomesXyz;
         public uint[] ParticleAntStates;
+        // Bit 0: launch hit a boundary; bit 1: protected departure after food delivery.
         public uint[] ParticleAntLaunchBoundaryStates;
         public int[] ParticleAges;
         public int[] ParticleGroupIndices;

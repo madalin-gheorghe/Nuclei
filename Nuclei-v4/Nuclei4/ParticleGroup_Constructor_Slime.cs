@@ -150,14 +150,11 @@ namespace Nuclei4
         {
             if (initialPtList != null && initialPtList.Count > 0)
             {
-                outputParticles = ParticleGenerator.CreateFromPoints(initialPtList, _PG);
+                outputParticles = ParticleGenerator.CreateFromPointsInField(initialPtList, _PG, inputVoxelField);
             }
             else
             {
-                VoxelGridData voxelData = inputVoxelField != null ? inputVoxelField.Data : null;
-                outputParticles = voxelData != null
-                    ? ParticleGenerator.CreateScatteredParticles(generatedParticleCount, _PG, voxelData)
-                    : new List<Particle>();
+                outputParticles = ParticleGenerator.CreateScatteredParticlesForField(generatedParticleCount, _PG, inputVoxelField);
             }
 
             _PG.particles = outputParticles;

@@ -28,6 +28,8 @@
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\DensityPreviewOccupancy.cso" LogicalName="Nuclei4.GpuShaders.DensityPreviewOccupancy.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\DensityPreviewShadow.cso" LogicalName="Nuclei4.GpuShaders.DensityPreviewShadow.cso" />
     <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\DensityPreviewComposite.cso" LogicalName="Nuclei4.GpuShaders.DensityPreviewComposite.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\DensityPreviewNewRay.cso" LogicalName="Nuclei4.GpuShaders.DensityPreviewNewRay.cso" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)GpuShaders\DensityPreviewNewComposite.cso" LogicalName="Nuclei4.GpuShaders.DensityPreviewNewComposite.cso" />
   </ItemGroup>
 
   <Target Name="CompileDisplayShaders" BeforeTargets="PrepareResources"

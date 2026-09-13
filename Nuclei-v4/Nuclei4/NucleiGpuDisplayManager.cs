@@ -269,6 +269,7 @@ namespace Nuclei4
             if (previews.Length == 0) return;
 
             bool hasPlanarPreview = false;
+            var gpuPreviews = new List<Preview_Voxel>(previews.Length);
             for (int i = 0; i < previews.Length; i++)
             {
                 Preview_Voxel preview = previews[i];
@@ -278,6 +279,7 @@ namespace Nuclei4
                     continue;
                 }
 
+                gpuPreviews.Add(preview);
                 hasPlanarPreview |= NucleiGpuDisplayManager.IsPlanarSimulationFrame(frame);
 
                 long drawStart = Stopwatch.GetTimestamp();
@@ -291,9 +293,36 @@ namespace Nuclei4
                 }
             }
 
+            // Draw authored obstacles after all GPU field layers so an opaque
+            // planar field background cannot cover them, then draw particles.
+            for (int i = 0; i < gpuPreviews.Count; i++)
+            {
+                gpuPreviews[i].DrawObstaclePreview(e.Display);
+            }
+
             if (hasPlanarPreview)
             {
                 ParticlePreviewDisplayConduit.DrawRegisteredPreviews(e);
+            }
+        }
+
+        protected override void DrawForeground(DrawEventArgs e)
+        {
+            // Food is the final layer, including where obstacles or stronger
+            // signals occupy the same voxel. Foreground also follows particle
+            // conduits, regardless of their registration order.
+            Preview_Voxel[] previews = NucleiGpuDisplayManager.SnapshotVoxelDensityPreviews();
+            for (int i = 0; i < previews.Length; i++)
+            {
+                Preview_Voxel preview = previews[i];
+                GpuDensityFieldPreviewFrame frame = preview.GetGpuDensityFieldPreviewFrame();
+                if (frame != null && VoxelPreviewField.HasFoodOverlay(frame.ValueIndex))
+                {
+                    long drawStart = Stopwatch.GetTimestamp();
+                    if (GpuDensityFieldD3DRenderer.TryDrawFoodOverlay(preview.InstanceGuid, e, frame))
+                        preview.RecordGpuDensityFieldPreviewDrawTiming(Stopwatch.GetTimestamp() - drawStart);
+                }
+                preview.DrawFoodPreview(e.Display);
             }
         }
     }

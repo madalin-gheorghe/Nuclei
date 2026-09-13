@@ -36,7 +36,6 @@ namespace Nuclei4
         {
             pManager.AddGenericParameter("Output Particles", "particles", "Output Particles", GH_ParamAccess.item);
             pManager.AddGenericParameter("Output Voxels", "voxels", "Output Voxels", GH_ParamAccess.item);
-            pManager.AddTextParameter("GPU Status", "status", "GPU compute status", GH_ParamAccess.item);
         }
 
         public override GH_Exposure Exposure
@@ -247,8 +246,20 @@ namespace Nuclei4
             setVoxelsTicks = Stopwatch.GetTimestamp() - outputStageStart;
             outputsTicks = Stopwatch.GetTimestamp() - stageStart;
 
-            string status = CreateStatus(solverSettings, solverResult);
-            DA.SetData(2, status);
+            string capacityWarning = null;
+            if (!stateResetFailed && voxels != null)
+            {
+                long requestedParticles = 0;
+                foreach (ParticleGroup group in inputParticleGroups)
+                {
+                    if (group == null) continue;
+                    requestedParticles += Math.Max(group.RequestedParticleCount, group.particles != null ? group.particles.Count : 0);
+                }
+                capacityWarning = ParticleCapacityWarning.Create(requestedParticles, particleCount, walkableVoxelCount);
+                if (capacityWarning != null)
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, capacityWarning);
+            }
+
             latestTimingContext = createTimingContext(solverSettings);
             if (voxels != null)
             {
@@ -326,6 +337,7 @@ namespace Nuclei4
             voxelSize = snapshot.VoxelSize;
             ApplyGlobalDimensionState();
             activeVoxelCount = snapshot.ActiveVoxelCount;
+            UpdateWalkableVoxelCount();
             particleCount = snapshot.ParticleCount;
             particleGroupCount = snapshot.GroupCount;
             antParticles = snapshot.HasAntParticles;
@@ -366,6 +378,16 @@ namespace Nuclei4
                 resetTimer.Elapsed.TotalMilliseconds,
                 snapshotMs,
                 restoreMs);
+        }
+
+        void UpdateWalkableVoxelCount()
+        {
+            VoxelGridData data = voxels != null ? voxels.Data : null;
+            walkableVoxelCount = data != null ? data.ActiveCount : 0;
+            if (data == null || !data.MayContainBlockedMaxDensity()) return;
+            walkableVoxelCount = 0;
+            for (int i = 0; i < data.ActiveCount; i++)
+                if (data.IsWalkableFlatIndex(data.ActiveFlatIndexAt(i))) walkableVoxelCount++;
         }
 
         void ClearParticleTrails(ParticleList particleList)
@@ -615,6 +637,7 @@ namespace Nuclei4
                 gpuOutputSink.UpdateVoxelField(voxels);
             }
             activeVoxelCount = snapshot.ActiveVoxelCount;
+            UpdateWalkableVoxelCount();
             inputVoxelReference = inputVoxels;
             inputVoxelWrapState = wrapBoundaries;
             ConfigureGpuVolumeMeshProvider();
@@ -959,55 +982,6 @@ namespace Nuclei4
             }
 
             return density;
-        }
-
-        string CreateStatus(SolverGpuSettings settings, GpuFullSolverStepResult solverResult)
-        {
-            string status = gpuStatus.Message
-                + " | driver: " + (string.IsNullOrEmpty(gpuStatus.Driver) ? "none" : gpuStatus.Driver)
-                + " | feature: " + gpuStatus.FeatureLevel
-                + " | iteration: " + iteration
-                + " | particles: " + (particles != null ? particles.Count : 0)
-                + " | active voxels: " + activeVoxelCount
-                + " | mode: " + SolverGpuDimensionMode.FromResolution(resX, resY, resZ).Name
-                + " | field preview: " + (gpuDensityFieldPreviewEnabled ? "on" : "off")
-                + " | max iterations: " + settings.MaxIterations
-                + " | state: " + (iteration >= settings.MaxIterations ? "complete" : "running")
-                + " | wrap: " + settings.WrapBoundaries
-                + " | range: " + settings.DiffuseRange;
-
-            if (!string.IsNullOrEmpty(unsupportedGpuReason))
-            {
-                status += " | " + unsupportedGpuReason;
-            }
-
-            if (gpuStatus.Milliseconds > 0)
-            {
-                status += " | smoke test ms: " + gpuStatus.Milliseconds.ToString("0.###");
-            }
-
-            if (solverResult != null)
-            {
-                status += " | gpu step ms: " + solverResult.TotalMilliseconds.ToString("0.###")
-                    + " | particle ms: " + solverResult.ParticleMilliseconds.ToString("0.###")
-                    + " | population ms: " + solverResult.PopulationMilliseconds.ToString("0.###")
-                    + " | diffusion ms: " + solverResult.DiffusionMilliseconds.ToString("0.###")
-                    + " | readback ms: " + solverResult.ReadbackMilliseconds.ToString("0.###")
-                    + " | sync: " + ParticleSyncMarker(solverResult) + (solverResult.SyncedVoxels ? "v" : "-")
-                    + (solverResult.SyncedParticles && solverResult.BuiltPreviewCache ? " cache" : "")
-                    + " | passes: " + solverResult.Passes
-                    + " | moved: " + solverResult.MovedParticles;
-            }
-
-            return status;
-        }
-
-        string ParticleSyncMarker(GpuFullSolverStepResult solverResult)
-        {
-            if (solverResult.SyncedParticles) return "p";
-            if (solverResult.BuiltPreviewCache) return "c";
-            if (solverResult.QueuedPreviewReadback) return "q";
-            return "-";
         }
 
         bool HasOutputRecipient(IGH_Param sourceParam)
@@ -1640,6 +1614,7 @@ namespace Nuclei4
         int resZ;
         double voxelSize;
         int activeVoxelCount;
+        int walkableVoxelCount;
         int particleCount;
         int particleGroupCount;
         bool antParticles;

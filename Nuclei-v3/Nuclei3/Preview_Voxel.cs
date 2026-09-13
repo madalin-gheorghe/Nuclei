@@ -347,7 +347,8 @@ namespace Nuclei3
                 return;
             }
 
-            args.Display.DrawPointCloud(voxelPointCloud, 3);
+            if (transparentPointSet != null)
+                args.Display.DrawPoints(transparentPointSet);
         }
 
         public override BoundingBox ClippingBox
@@ -474,6 +475,8 @@ namespace Nuclei3
 
         void clearPointCloudPreview()
         {
+            transparentPointSet?.Dispose();
+            transparentPointSet = null;
             voxelPoints = null;
             voxelValues = null;
             voxelPointCloud = null;
@@ -571,6 +574,9 @@ namespace Nuclei3
 
         void buildCachedPointCloud(ConcurrentBag<VoxelPreviewSample> samples)
         {
+            transparentPointSet?.Dispose();
+            transparentPointSet = null;
+            var displayPoints = tridimensional ? new List<Rhino.Display.DisplayPoint>(samples.Count) : null;
             voxelPoints = new List<Point3d>(samples.Count);
             voxelValues = new List<double>(samples.Count);
             voxelPointCloud = new PointCloud();
@@ -612,12 +618,26 @@ namespace Nuclei3
                 voxelPoints.Add(sample.Point);
                 voxelValues.Add(sample.Value);
                 voxelPointCloud.Add(sample.Point, sampleColor);
+                if (displayPoints != null && sampleColor.A > 0)
+                {
+                    displayPoints.Add(new Rhino.Display.DisplayPoint(sample.Point).WithAttributes(
+                        new Rhino.Display.DisplayPointAttributes
+                        {
+                            PointStyle = Rhino.Display.PointStyle.RoundSimple,
+                            Diameter = 3.0f,
+                            StrokeWidth = 0.0f,
+                            StrokeColor = sampleColor,
+                            FillColor = sampleColor
+                        }));
+                }
 
                 if (stablePointBuckets != null)
                 {
                     addStablePoint(sample.Point, sampleColor);
                 }
             }
+            if (displayPoints != null && displayPoints.Count > 0)
+                transparentPointSet = Rhino.Display.DisplayPointSet.Create(displayPoints);
         }
 
         const int MaxPlanarPreviewMeshVertices = 1500000;
@@ -863,6 +883,7 @@ namespace Nuclei3
         List<double> voxelValues;
 
         PointCloud voxelPointCloud;
+        Rhino.Display.DisplayPointSet transparentPointSet;
         List<StablePointBucket> stablePointBuckets;
         Mesh planarPreviewMesh;
         BoundingBox clippingBox = BoundingBox.Empty;
@@ -934,6 +955,8 @@ namespace Nuclei3
             Color voxelColor = Color.Black;
 
             int index = previewValueToColorIndex(d);
+            int opacity = index;
+            if (tridimensional) index = 255;
 
             if (colour.R == 0 && colour.G == 0 && colour.B == 0)
             {
@@ -960,6 +983,9 @@ namespace Nuclei3
             {
                 voxelColor = voxelColorList[index];
             }
+
+            if (tridimensional)
+                voxelColor = Color.FromArgb(opacity, voxelColor);
 
             //in case max density is blocked
             if (valueIndex == 1)
@@ -1046,6 +1072,18 @@ namespace Nuclei3
             }
 
             double foodBackground = 255.0 * foodVisual * (1.0 - foregroundStrength);
+            if (tridimensional)
+            {
+                // Convert the weighted colour to straight alpha so weak fields
+                // retain their hue instead of becoming opaque dark points.
+                double opacity = foregroundStrength + foodVisual * (1.0 - foregroundStrength);
+                if (opacity <= 0) return Color.Transparent;
+                return Color.FromArgb(
+                    clampColorChannel(255.0 * opacity),
+                    clampColorChannel((red + foodBackground) / opacity),
+                    clampColorChannel((green + foodBackground) / opacity),
+                    clampColorChannel((blue + foodBackground) / opacity));
+            }
             return Color.FromArgb(
                 255,
                 clampColorChannel(red + foodBackground),

@@ -11,6 +11,7 @@ namespace Nuclei4
         public static List<Particle> CreateFromPoints(IList<Point3d> points, ParticleGroup group)
         {
             int count = points != null ? points.Count : 0;
+            group.RequestedParticleCount = count;
             Particle[] particles = new Particle[count];
 
             for (int i = 0; i < count; i++)
@@ -23,13 +24,50 @@ namespace Nuclei4
 
         public static List<Particle> CreateScatteredParticles(int count, ParticleGroup group, VoxelGridData voxelData)
         {
+            return CreateScatteredParticles(count, group, voxelData, null);
+        }
+
+        public static List<Particle> CreateFromPointsInField(IList<Point3d> points, ParticleGroup group, VoxelField field)
+        {
+            if (field == null) return CreateFromPoints(points, group);
+
+            int count = points != null ? points.Count : 0;
+            group.RequestedParticleCount = count;
+            List<Particle> particles = new List<Particle>(count);
+            VoxelGridData data = field.Data;
+            for (int i = 0; i < count; i++)
+            {
+                Point3d point = points[i];
+                double x = point.X / data.VoxelSize;
+                double y = point.Y / data.VoxelSize;
+                double z = point.Z / data.VoxelSize;
+                // Check before casting so negative, non-finite and out-of-grid
+                // positions cannot be assigned to an otherwise valid voxel.
+                if (!(x >= 0 && x < data.ResX && y >= 0 && y < data.ResY && z >= 0 && z < data.ResZ)) continue;
+                if (!field.IsSolverWalkableFlatIndex(data.FlatIndex((int)x, (int)y, (int)z))) continue;
+                particles.Add(CreateParticle(point, group, (uint)i));
+            }
+
+            return particles;
+        }
+
+        public static List<Particle> CreateScatteredParticlesForField(int count, ParticleGroup group, VoxelField field)
+        {
+            return CreateScatteredParticles(count, group, field != null ? field.Data : null, field);
+        }
+
+        static List<Particle> CreateScatteredParticles(int count, ParticleGroup group, VoxelGridData voxelData, VoxelField field)
+        {
+            group.RequestedParticleCount = Math.Max(0, count);
             if (count <= 0 || voxelData == null || voxelData.ActiveCount <= 0 || voxelData.VoxelSize <= 0)
             {
                 return new List<Particle>();
             }
 
-            WalkableOrdinalIndex walkableIndices = voxelData.MayContainBlockedMaxDensity()
-                ? WalkableOrdinalIndex.Create(voxelData)
+            // Solver boundaries have an effective max density of zero even when
+            // the shared authored density map is unrestricted.
+            WalkableOrdinalIndex walkableIndices = voxelData.MayContainBlockedMaxDensity() || (field != null && field.MayContainSolverBoundaries)
+                ? WalkableOrdinalIndex.Create(voxelData, field)
                 : null;
             int voxelCount = walkableIndices != null ? walkableIndices.Count : voxelData.ActiveCount;
             if (voxelCount <= 0)
@@ -159,14 +197,14 @@ namespace Nuclei4
 
             public int Count { get; private set; }
 
-            public static WalkableOrdinalIndex Create(VoxelGridData data)
+            public static WalkableOrdinalIndex Create(VoxelGridData data, VoxelField field)
             {
                 int activeCount = data != null ? data.ActiveCount : 0;
                 ulong[] words = new ulong[(activeCount + 63) / 64];
                 for (int ordinal = 0; ordinal < activeCount; ordinal++)
                 {
                     int flatIndex = data.ActiveFlatIndexAt(ordinal);
-                    if (data.IsWalkableFlatIndex(flatIndex))
+                    if (field != null ? field.IsSolverWalkableFlatIndex(flatIndex) : data.IsWalkableFlatIndex(flatIndex))
                     {
                         words[ordinal >> 6] |= 1UL << (ordinal & 63);
                     }

@@ -20,7 +20,7 @@ namespace Nuclei4
           : base(
                 "Nuclei4 to Dendro Volume",
                 "Nuclei4 to Dendro Volume",
-                "Converts the Solver GPU density field to a Dendro volume; outputs a Rhino mesh when Dendro is unavailable",
+                "Converts a selected voxel scalar field to a Dendro volume; outputs a Rhino mesh when Dendro is unavailable",
                 "Nuclei4",
                 "Voxels")
         {
@@ -28,12 +28,13 @@ namespace Nuclei4
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddGenericParameter("Voxels", "voxels", "Voxel output from Nuclei4 Solver GPU", GH_ParamAccess.item);
-            pManager.AddNumberParameter("Iso Value", "iso", "Density level used to select the volume", GH_ParamAccess.item, 0.8);
-            pManager.AddIntegerParameter("Method", "method", "Continuous uses GPU marching tetrahedra; Discrete uses selected voxel centres as Dendro point kernels", GH_ParamAccess.item, ContinuousMethod);
+            pManager.AddGenericParameter("Voxels", "voxels", "Nuclei4 voxel field", GH_ParamAccess.item);
+            pManager.AddIntegerParameter("Type", "type", "Type of Voxel Value, matching Voxel Preview", GH_ParamAccess.item, VoxelPreviewField.SlimeChemoattractants);
+            pManager.AddNumberParameter("Iso Value", "iso", "Scalar level used to select the volume", GH_ParamAccess.item, 0.8);
+            pManager.AddIntegerParameter("Method", "method", "Continuous uses marching tetrahedra; Discrete uses selected voxel centres as Dendro point kernels", GH_ParamAccess.item, ContinuousMethod);
             pManager.AddIntegerParameter("Maximum Elements", "max", "Safety limit for triangles in Continuous mode or selected voxel centres in Discrete mode", GH_ParamAccess.item, 5000000);
             pManager.AddBooleanParameter("Update", "update", "When true, rebuilds the cached output whenever the component receives updated data", GH_ParamAccess.item, false);
-            pManager.AddIntegerParameter("Smoothing Iterations", "smooth", "GPU volume-smoothing passes used by Continuous mode; 0 disables smoothing", GH_ParamAccess.item, 1);
+            pManager.AddIntegerParameter("Smoothing Iterations", "smooth", "Volume-smoothing passes used by Continuous mode; 0 disables smoothing", GH_ParamAccess.item, 1);
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -43,10 +44,8 @@ namespace Nuclei4
 
         protected override void SolveInstance(IGH_DataAccess DA)
         {
-            EnsureMethodValueList();
-
             bool update = false;
-            DA.GetData(4, ref update);
+            DA.GetData(5, ref update);
             if (!ShouldRebuild(update))
             {
                 if (cachedOutput != null) DA.SetData(0, cachedOutput);
@@ -61,10 +60,12 @@ namespace Nuclei4
             int smoothingIterations = 1;
 
             VoxelFieldAccess.TryGet(DA, 0, Globals.voxelSize, out field);
-            DA.GetData(1, ref isoValue);
-            DA.GetData(2, ref method);
-            DA.GetData(3, ref maximumElements);
-            DA.GetData(5, ref smoothingIterations);
+            int valueIndex = VoxelPreviewField.SlimeChemoattractants;
+            DA.GetData(1, ref valueIndex);
+            DA.GetData(2, ref isoValue);
+            DA.GetData(3, ref method);
+            DA.GetData(4, ref maximumElements);
+            DA.GetData(6, ref smoothingIterations);
 
             if (ShouldRebuild(update))
             {
@@ -72,22 +73,22 @@ namespace Nuclei4
                 {
                     AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Connect a valid Nuclei voxel field.");
                 }
-                else if (field.GpuVolumeMeshProvider == null)
+                else if (!VoxelPreviewField.IsGpuSupported(valueIndex) || double.IsNaN(isoValue) || double.IsInfinity(isoValue))
                 {
-                    AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "GPU density is unavailable. Connect the voxel output of Nuclei4 Solver GPU.");
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Select a valid voxel Type and a finite Iso Value.");
                 }
                 else
                 {
-                    float threshold = (float)Math.Max(0.000001, isoValue);
+                    double threshold = isoValue;
                     int elementLimit = Math.Max(1, maximumElements);
                     int smoothPasses = Math.Max(0, Math.Min(8, smoothingIterations));
                     if (method == DiscreteMethod)
                     {
-                        BuildDiscrete(field, threshold, elementLimit);
+                        BuildDiscrete(field, valueIndex, threshold, elementLimit);
                     }
                     else
                     {
-                        BuildContinuous(field, threshold, elementLimit, smoothPasses);
+                        BuildContinuous(field, valueIndex, threshold, elementLimit, smoothPasses);
                     }
                 }
             }
@@ -109,7 +110,7 @@ namespace Nuclei4
 
         protected override void ExpireDownStreamObjects()
         {
-            if (CachedConversionUpdates.ShouldExpireDownstream(this, 4))
+            if (CachedConversionUpdates.ShouldExpireDownstream(this, 5))
                 base.ExpireDownStreamObjects();
         }
 
@@ -118,14 +119,14 @@ namespace Nuclei4
             // Keep the existing output tree as well as the cached volume while
             // off. Expiring Update itself bypasses this guard and wakes conversion.
             if (Phase == GH_SolutionPhase.Computed
-                && !CachedConversionUpdates.ShouldExpireDownstream(this, 4))
+                && !CachedConversionUpdates.ShouldExpireDownstream(this, 5))
                 return;
             base.ExpireSolution(recompute);
         }
 
-        void BuildContinuous(VoxelField field, float threshold, int triangleLimit, int smoothPasses)
+        void BuildContinuous(VoxelField field, int valueIndex, double threshold, int triangleLimit, int smoothPasses)
         {
-            GpuVolumeMeshResult result = field.GpuVolumeMeshProvider(threshold, triangleLimit, smoothPasses);
+            GpuVolumeMeshResult result = VoxelScalarMesher.Create(field, valueIndex, threshold, triangleLimit, smoothPasses);
             if (result == null || !result.Success)
             {
                 AddRuntimeMessage(
@@ -153,14 +154,14 @@ namespace Nuclei4
                 "Continuous | " + result.TriangleCount.ToString("N0") + " tris | " + smoothPasses + " smooth | " + result.Milliseconds.ToString("0.0") + " ms");
         }
 
-        void BuildDiscrete(VoxelField field, float threshold, int pointLimit)
+        void BuildDiscrete(VoxelField field, int valueIndex, double threshold, int pointLimit)
         {
             Type settingsType;
             Type volumeType;
             Type volumeGooType;
             if (!TryGetDendroTypes(out settingsType, out volumeType, out volumeGooType))
             {
-                GpuVolumeMeshResult fallback = field.GpuVolumeMeshProvider(threshold, pointLimit, 0);
+                GpuVolumeMeshResult fallback = VoxelScalarMesher.Create(field, valueIndex, threshold, pointLimit, 0);
                 if (fallback == null || !fallback.Success)
                 {
                     AddRuntimeMessage(
@@ -175,13 +176,13 @@ namespace Nuclei4
                 return;
             }
 
-            field.EnsureDynamicStateCurrent();
+            if (VoxelPreviewField.IsDynamicDensity(valueIndex)) field.EnsureDynamicStateCurrent();
             VoxelGridData data = field.Data;
             int selectedCount = 0;
             for (int ordinal = 0; ordinal < data.ActiveCount; ordinal++)
             {
                 int flatIndex = data.ActiveFlatIndexAt(ordinal);
-                double value = field.GetScalarValue(VoxelPreviewField.SlimeChemoattractants, flatIndex);
+                double value = VoxelScalarMesher.Value(field, valueIndex, flatIndex);
                 if (!double.IsNaN(value) && !double.IsInfinity(value) && value >= threshold)
                 {
                     selectedCount++;
@@ -197,7 +198,7 @@ namespace Nuclei4
 
             if (selectedCount == 0)
             {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, "No voxel density values meet the iso value.");
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, "No voxel values meet the iso value.");
                 return;
             }
 
@@ -205,7 +206,7 @@ namespace Nuclei4
             for (int ordinal = 0; ordinal < data.ActiveCount; ordinal++)
             {
                 int flatIndex = data.ActiveFlatIndexAt(ordinal);
-                double value = field.GetScalarValue(VoxelPreviewField.SlimeChemoattractants, flatIndex);
+                double value = VoxelScalarMesher.Value(field, valueIndex, flatIndex);
                 if (!double.IsNaN(value) && !double.IsInfinity(value) && value >= threshold)
                 {
                     points.Add(data.CenterPoint(flatIndex));
@@ -276,9 +277,61 @@ namespace Nuclei4
             return settings;
         }
 
+        public override bool Read(GH_IO.Serialization.GH_IReader reader)
+        {
+            // Read the old six-input schema before inserting Type, preserving wires and values.
+            var second = reader.FindChunk("param_input", 1);
+            string name = string.Empty;
+            bool legacy = second != null && second.TryGetString("Name", ref name) && name == "Iso Value";
+            if (!legacy) return base.Read(reader);
+            var type = Params.Input[1];
+            Params.UnregisterInputParameter(type, false);
+            try { return base.Read(reader); }
+            finally
+            {
+                Params.RegisterInputParam(type, 1);
+                Params.OnParametersChanged();
+            }
+        }
+
+        public override void AddedToDocument(GH_Document document)
+        {
+            base.AddedToDocument(document);
+            document.SolutionStart -= PrepareValueLists;
+            document.SolutionStart += PrepareValueLists;
+        }
+
+        public override void RemovedFromDocument(GH_Document document)
+        {
+            document.SolutionStart -= PrepareValueLists;
+            base.RemovedFromDocument(document);
+        }
+
+        void PrepareValueLists(object sender, GH_SolutionEventArgs args)
+        {
+            // Runs even when required Voxels data is missing. Waiting until here
+            // also preserves wires restored after AddedToDocument during load/paste.
+            EnsureTypeValueList();
+            EnsureMethodValueList();
+        }
+
+        void EnsureTypeValueList()
+        {
+            VoxelFoodValueList.EnsureSeparateFoodChoices(this, 1);
+            if (Params.Input[1].SourceCount != 0 || OnPingDocument() == null || Attributes == null) return;
+            var list = new GH_ValueList { ListMode = GH_ValueListMode.DropDown };
+            list.CreateAttributes();
+            list.Attributes.Pivot = new System.Drawing.PointF(Attributes.Pivot.X - 250, Attributes.Pivot.Y - 60);
+            list.ListItems.Clear();
+            list.ListItems.AddRange(VoxelTypeChoices.Create());
+            VoxelTypeChoices.SelectStoredValue(this, 1, list);
+            OnPingDocument().AddObject(list, false);
+            Params.Input[1].AddSource(list);
+        }
+
         void EnsureMethodValueList()
         {
-            if (Params.Input[2].SourceCount != 0 || OnPingDocument() == null || Attributes == null)
+            if (Params.Input[3].SourceCount != 0 || OnPingDocument() == null || Attributes == null)
             {
                 return;
             }
@@ -292,9 +345,9 @@ namespace Nuclei4
             list.ListItems.Clear();
             list.ListItems.Add(new GH_ValueListItem("Continuous", "0"));
             list.ListItems.Add(new GH_ValueListItem("Discrete", "1"));
+            VoxelTypeChoices.SelectStoredValue(this, 3, list);
             OnPingDocument().AddObject(list, false);
-            Params.Input[2].AddSource(list);
-            Params.Input[2].CollectData();
+            Params.Input[3].AddSource(list);
         }
 
         static bool TryGetDendroTypes(out Type settingsType, out Type volumeType, out Type volumeGooType)

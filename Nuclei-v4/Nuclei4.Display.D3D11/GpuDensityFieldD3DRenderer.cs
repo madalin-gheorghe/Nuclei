@@ -25,6 +25,7 @@ namespace Nuclei4
         static readonly GpuDensityFieldD3DRenderer instance = new GpuDensityFieldD3DRenderer();
 
         readonly Dictionary<Guid, SharedTextureView> sharedTextureViews = new Dictionary<Guid, SharedTextureView>();
+        readonly Dictionary<Guid, SharedTextureView> foodOverlayTextureViews = new Dictionary<Guid, SharedTextureView>();
 
         IntPtr devicePtr = IntPtr.Zero;
         IntPtr contextPtr = IntPtr.Zero;
@@ -55,6 +56,12 @@ namespace Nuclei4
         public static bool TryDraw(Guid solverId, DrawEventArgs e, GpuDensityFieldPreviewFrame frame)
         {
             return instance.TryDrawInternal(solverId, e, frame);
+        }
+
+        public static bool TryDrawFoodOverlay(Guid solverId, DrawEventArgs e, GpuDensityFieldPreviewFrame frame)
+        {
+            if (frame == null || !frame.ColorTexture) return false;
+            return instance.TryDrawInternal(solverId, e, frame.CreateFoodOverlay());
         }
 
         public static void Unregister(Guid solverId)
@@ -104,7 +111,7 @@ namespace Nuclei4
                 EnsureDevice(currentDevicePtr, currentContextPtr);
                 if (device == null || context == null) return false;
 
-                SharedTextureView textureView = GetSharedTextureView(solverId);
+                SharedTextureView textureView = GetSharedTextureView(solverId, frame.FoodOverlay);
                 if (!textureView.TryUpdate(device, frame))
                 {
                     return false;
@@ -175,7 +182,14 @@ namespace Nuclei4
 
                     ID3D11RenderTargetView[] originalTargets = null;
                     ID3D11DepthStencilView originalDepth = null;
-                    if (frame.FancyRender && textureView.HistoryWriteTarget != null)
+                    bool drewNewRenderer = frame.UseNewRenderer && frame.VolumeMode && !frame.FancyRender
+                        && textureView.TryDrawNewRenderer(device, context, e.Viewport.Id);
+                    if (!frame.UseNewRenderer || !frame.VolumeMode) textureView.DisableNewRenderer();
+                    if (drewNewRenderer)
+                    {
+                        // The new path has already ray-marched off-screen and composited.
+                    }
+                    else if (frame.FancyRender && textureView.HistoryWriteTarget != null)
                     {
                         originalTargets = new ID3D11RenderTargetView[1];
                         context.OMGetRenderTargets(1, originalTargets, out originalDepth);
@@ -198,6 +212,7 @@ namespace Nuclei4
                     }
                     else
                     {
+                        context.OMSetBlendState(blendState);
                         context.Draw(FullscreenVertexCount, 0);
                     }
                     context.PSSetShaderResource(0, null);
@@ -453,7 +468,8 @@ namespace Nuclei4
             float volumeContrast = frame.VolumeContrast > 0
                 ? ClampFloat(frame.VolumeContrast, 0.01f, 12.0f)
                 : (frame.PreviewScale > 0 ? ClampFloat(frame.PreviewScale, 0.01f, 12.0f) : 1.0f);
-            float planarBackground = !volumeMode && (frame.ResX == 1 || frame.ResY == 1 || frame.ResZ == 1) ? 1.0f : 0.0f;
+            float planarBackground = !frame.FoodOverlay && !volumeMode
+                && (frame.ResX == 1 || frame.ResY == 1 || frame.ResZ == 1) ? 1.0f : 0.0f;
 
             float[] constants =
             {
@@ -483,7 +499,7 @@ namespace Nuclei4
                 0.92f,
                 volumeContrast,
                 planarBackground,
-                0.0f,
+                frame.FoodOverlay ? 1.0f : 0.0f,
                 (float)screenToWorld.M00, (float)screenToWorld.M01, (float)screenToWorld.M02, (float)screenToWorld.M03,
                 (float)screenToWorld.M10, (float)screenToWorld.M11, (float)screenToWorld.M12, (float)screenToWorld.M13,
                 (float)screenToWorld.M20, (float)screenToWorld.M21, (float)screenToWorld.M22, (float)screenToWorld.M23,
@@ -655,13 +671,16 @@ namespace Nuclei4
             return value;
         }
 
-        SharedTextureView GetSharedTextureView(Guid solverId)
+        SharedTextureView GetSharedTextureView(Guid solverId, bool foodOverlay)
         {
+            // Food and signal passes need independent occupancy and reduced
+            // render targets, including when both draw the same paused atlas.
+            Dictionary<Guid, SharedTextureView> views = foodOverlay ? foodOverlayTextureViews : sharedTextureViews;
             SharedTextureView textureView;
-            if (!sharedTextureViews.TryGetValue(solverId, out textureView))
+            if (!views.TryGetValue(solverId, out textureView))
             {
                 textureView = new SharedTextureView();
-                sharedTextureViews[solverId] = textureView;
+                views[solverId] = textureView;
             }
 
             return textureView;
@@ -675,6 +694,11 @@ namespace Nuclei4
                 textureView.Dispose();
                 sharedTextureViews.Remove(solverId);
             }
+            if (foodOverlayTextureViews.TryGetValue(solverId, out textureView))
+            {
+                textureView.Dispose();
+                foodOverlayTextureViews.Remove(solverId);
+            }
             loggedFancyStates.Remove(solverId);
         }
 
@@ -685,6 +709,11 @@ namespace Nuclei4
                 textureView.Dispose();
             }
             sharedTextureViews.Clear();
+            foreach (SharedTextureView textureView in foodOverlayTextureViews.Values)
+            {
+                textureView.Dispose();
+            }
+            foodOverlayTextureViews.Clear();
             loggedFancyStates.Clear();
 
             DisposeCom(constantBuffer);
@@ -744,6 +773,39 @@ namespace Nuclei4
 
         sealed class SharedTextureView : IDisposable
         {
+            NewVolumeD3DRenderer newRenderer;
+            bool newRendererFailed;
+
+            public bool TryDrawNewRenderer(ID3D11Device device, ID3D11DeviceContext1 context, Guid viewportId)
+            {
+                if (newRendererFailed) return false;
+                try
+                {
+                    if (newRenderer == null)
+                    {
+                        newRenderer = new NewVolumeD3DRenderer(device,
+                            LoadShaderBytecode("DensityPreviewNewRay", "PSNewRenderer", "ps_5_0"),
+                            LoadShaderBytecode("DensityPreviewNewComposite", "PSNewComposite", "ps_5_0"));
+                        WriteStatus("new_renderer_ready screen_scale=0.5 temporal=false");
+                    }
+                    return newRenderer.TryDraw(context, viewportId);
+                }
+                catch (Exception ex)
+                {
+                    DisableNewRenderer();
+                    newRendererFailed = true;
+                    WriteStatus("new_renderer_fallback exception=" + ex.GetType().Name + " message=" + ex.Message);
+                    return false;
+                }
+            }
+
+            public void DisableNewRenderer()
+            {
+                if (newRenderer != null) newRenderer.Dispose();
+                newRenderer = null;
+                newRendererFailed = false;
+            }
+
             public ID3D11ShaderResourceView ShaderResourceView;
             public ID3D11ShaderResourceView GradientShaderResourceView;
             public ID3D11ShaderResourceView OccupancyShaderResourceView;
@@ -1161,6 +1223,7 @@ namespace Nuclei4
 
             public void Dispose()
             {
+                DisableNewRenderer();
                 DisposeCom(ShaderResourceView);
                 DisposeCom(GradientShaderResourceView);
                 DisposeOccupancyTexture();
@@ -1335,6 +1398,7 @@ float2 ScreenToUv(float2 screen)
 
 bool InPreviewRange(float value)
 {
+    if (Style.w > 0.5) return value > 0.0;
     bool allowZero = Thresholds.w > 0.5 && Thresholds.w < 1.5;
     return (allowZero || value > 0.001) && value >= Thresholds.x && value <= Thresholds.y;
 }
@@ -1347,6 +1411,7 @@ bool IsDynamicColorPreview()
 float PreviewValue(float4 sample)
 {
     if (!IsDynamicColorPreview()) return sample.r;
+    if (Thresholds.w > 12.5) return sample.a;
 
     float food = sample.a;
     if (Thresholds.w < 6.5) return food;
@@ -1393,6 +1458,8 @@ float3 PreviewColor(float value, float n)
 
 float3 PreviewSampleColor(float4 sample, float value, float n)
 {
+    if (Thresholds.w > 12.5)
+        return (Thresholds.z > 0.5 ? CustomColor.rgb : float3(1.0, 1.0, 1.0)) * saturate(sample.a * Style.y);
     if (IsDynamicColorPreview())
     {
         float foodVisual = saturate(sample.a * Style.y);
@@ -1477,7 +1544,7 @@ float4 RenderPlane(VSOutput input)
     {
         color = float3(0.0, 0.0, 0.0);
     }
-    float alpha = Style.z > 0.5 ? 1.0 : saturate(0.12 + n * Style.x);
+    float alpha = Style.z > 0.5 || Style.w > 0.5 ? 1.0 : saturate(0.12 + n * Style.x);
     return float4(color, alpha);
 }
 
@@ -1601,6 +1668,7 @@ float4 SampleFancyVolume(float3 worldPosition)
 float OccupancyPreviewValue(float4 sample)
 {
     if (Thresholds.w < 5.5) return sample.r;
+    if (Thresholds.w > 12.5) return sample.a;
 
     float food = sample.a;
     if (Thresholds.w < 6.5) return food;
@@ -2026,7 +2094,7 @@ float4 RenderVolume(VSOutput input, out float representativeDepth)
 
         float3 currentPosition = rayOrigin + direction * t;
         float occupancy = SampleOccupancy(currentPosition);
-        if (occupancy * Style.y < 0.006)
+        if (Style.w > 0.5 ? occupancy <= 0.0 : occupancy * Style.y < 0.006)
         {
             float blockWorldSize = voxelSize * 4.0;
             float3 blockCoord = floor(currentPosition / blockWorldSize);
@@ -2054,7 +2122,20 @@ float4 RenderVolume(VSOutput input, out float representativeDepth)
         localStepLength = sampleT - t;
         float3 position = rayOrigin + direction * sampleT;
         float4 sample = SampleFancyVolume(position);
+        // Edible food occupies authored voxels; interpolation must not inflate
+        // it into rounded blobs. Both Ant Food and combined modes read the same
+        // atlas channel and use the same moderately opaque material below.
+        if (IsDynamicColorPreview())
+        {
+            int3 foodVoxel = (int3)round(saturate(position / VolumeBox.xyz) * (VolumeGrid.xyz - 1.0));
+            sample.a = LoadVolumeAtlasVoxel(foodVoxel.x, foodVoxel.y, foodVoxel.z).a;
+        }
         float value = PreviewValue(sample);
+        bool foodSample = IsDynamicColorPreview() && sample.a > (Style.w > 0.5 ? 0.0 : 0.001);
+        // Food keeps its own material even when a stronger pheromone occupies
+        // the same voxel. Otherwise partially consumed food changes appearance
+        // simply by switching between standalone and combined previews.
+        if (foodSample) value = sample.a;
         float normalizedValue = saturate(value * Style.y);
         float4 gradientSample = version2 ? SampleGradientAtlasTrilinear(position) : 0.0;
         float gradientMagnitude = gradientSample.a * Style.y;
@@ -2064,20 +2145,24 @@ float4 RenderVolume(VSOutput input, out float representativeDepth)
             float3 transferSample = version2
                 ? VolumeTransferV2(previousNormalizedValue, normalizedValue, gradientMagnitude)
                 : float3(VolumeTransfer(normalizedValue), 1.0, 0.0);
+            if (foodSample) transferSample = float3(sqrt(saturate(sample.a * Style.y)), 1.0, 0.0);
             float visual = transferSample.r;
             float emission = transferSample.g;
             float boundary = transferSample.b;
             float extinctionScale = version2 ? 0.076 : 0.075;
+            if (foodSample) extinctionScale = 0.25;
             float opticalDepth = visual * VolumeAtlas.z * extinctionScale * (localStepLength / voxelSize);
             float sampleAlpha = 1.0 - exp(-opticalDepth);
             float contribution = (1.0 - accumulated.a) * sampleAlpha;
             float3 color = PreviewSampleColor(sample, value, visual);
+            if (foodSample)
+                color = Thresholds.w > 12.5 && Thresholds.z > 0.5 ? CustomColor.rgb : float3(0.82, 0.86, 0.90);
             if (Thresholds.z > 0.5 && !IsDynamicColorPreview())
             {
                 color = CustomColor.rgb * visual;
             }
 
-            if (version2)
+            if (version2 && !foodSample)
             {
                 float3 normal = gradientSample.xyz;
                 float normalLength = length(normal);
@@ -2252,6 +2337,27 @@ float4 PSMain(VSOutput input) : SV_Target
 float4 PSComposite(VSOutput input) : SV_Target
 {
     return HistoryTexture.Load(int3((int2)input.Position.xy, 0));
+}
+
+// Kept in separate entry points: PSMain and its original constants are unchanged.
+cbuffer NewRendererConstants : register(b1)
+{
+    float4 FullRasterViewport;
+    float4 ReducedRayMapping;
+};
+
+float4 PSNewRenderer(VSOutput input) : SV_Target
+{
+    input.Position.xy = FullRasterViewport.xy + input.Position.xy * ReducedRayMapping.xy;
+    float representativeDepth;
+    float4 color = RenderVolume(input, representativeDepth);
+    return float4(color.rgb * color.a, color.a);
+}
+
+float4 PSNewComposite(VSOutput input) : SV_Target
+{
+    float2 uv = (input.Position.xy - FullRasterViewport.xy) * ReducedRayMapping.zw;
+    return HistoryTexture.SampleLevel(AtlasSampler, uv, 0);
 }";
     }
 }

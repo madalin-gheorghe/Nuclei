@@ -75,6 +75,10 @@ namespace Nuclei4
 
         public float[] Positions { get; }
 
+        /// <summary>
+        /// Float4 layout: xyz is the heading; w contains the parent voxel's
+        /// int32 bits, decoded with GpuVoxelIndexEncoding.Decode.
+        /// </summary>
         public float[] Directions { get; }
 
         public float[] YAxes { get; }

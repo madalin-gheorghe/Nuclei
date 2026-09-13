@@ -10,15 +10,19 @@ namespace Nuclei3.Properties
         {
             public override Grasshopper.Kernel.GH_LoadingInstruction PriorityLoad()
             {
-                if (Rhino.RhinoApp.ExeVersion != 8)
+                int rhinoVersion = Rhino.RhinoApp.ExeVersion;
+                if (rhinoVersion != 8 && rhinoVersion != 9)
                 {
-                    Rhino.RhinoApp.WriteLine("Nuclei3 requires Rhino 8. Use Nuclei2 for Rhino 6/7 or Nuclei4 for Rhino 9.");
+                    Rhino.RhinoApp.WriteLine("Nuclei3 requires Rhino 8 or 9. Use Nuclei2 for Rhino 6/7.");
                     return Grasshopper.Kernel.GH_LoadingInstruction.Abort;
                 }
 
                 Grasshopper.Instances.ComponentServer.AddCategoryIcon("Nuclei3", Nuclei3.Properties.Resources.Nuclei2);
                 Grasshopper.Instances.ComponentServer.AddCategoryShortName("Nuclei3", "N3");
                 Grasshopper.Instances.ComponentServer.AddCategorySymbolName("Nuclei3", 'N');
+
+                if (rhinoVersion == 9)
+                    OldV3Banner.Register();
 
                 return Grasshopper.Kernel.GH_LoadingInstruction.Proceed;
             }

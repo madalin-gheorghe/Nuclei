@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Nuclei4
@@ -17,6 +17,7 @@ namespace Nuclei4
         public double AntBaseDiffuse = 0.1;
         public double AntBaseDecay = 0.01;
         public int AntDiffuseRange = 1;
+        public double AntDiffusionGradual = 1.0;
         public double SlimeAntFood = 0;
         public double SlimeAntBase = 0;
         public double AntSlime = 0;
@@ -78,6 +79,7 @@ namespace Nuclei4
                         if (parts.Length > 3) parsed.AntBaseDiffuse = Convert.ToDouble(parts[3]);
                         if (parts.Length > 4) parsed.AntBaseDecay = Convert.ToDouble(parts[4]);
                         if (parts.Length > 5) parsed.AntDiffuseRange = Convert.ToInt32(parts[5]);
+                        parsed.AntDiffusionGradual = parts.Length > 6 ? 1.0 - NormalizeDiffusionGradual(Convert.ToDouble(parts[6])) : 1.0;
                         parsed.AntDiffuseRange = Math.Max(0, parsed.AntDiffuseRange);
                         break;
 

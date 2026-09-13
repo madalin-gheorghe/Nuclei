@@ -1,4 +1,5 @@
 using System;
+using GH_IO.Serialization;
 using System.Collections.Generic;
 using System.Linq;
 using System.Collections.Concurrent;
@@ -29,12 +30,10 @@ namespace Nuclei3
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
             //0
-            pManager.AddGenericParameter("Voxel Field", "voxels", "Voxel field used for internal particle generation", GH_ParamAccess.item);
+            pManager.AddGenericParameter("Voxel Field", "voxels", "Voxel field containing the ant nest and starting positions", GH_ParamAccess.item);
             //1
-            pManager.AddPointParameter("Initial Particle Positions", "particlePos", "Initial Particle Positions", GH_ParamAccess.list);
-            pManager[1].Optional = true;
-            //2
-            pManager.AddIntegerParameter("Particle Count", "count", "Number of particles to generate at random voxel centers when no initial positions are supplied", GH_ParamAccess.item, 0);
+            pManager.AddPointParameter("Initial Particle Positions", "particlePos", "Starting positions in the nest region. Ants are created only at these supplied points.", GH_ParamAccess.list);
+            pManager[1].Optional = false;
             //3
             pManager.AddNumberParameter("Speed", "speed", "Speed of particle movement", GH_ParamAccess.item, 1.3);
             //4
@@ -49,7 +48,7 @@ namespace Nuclei3
             pManager.AddNumberParameter("Wander", "wander", "The Frequency of Random Directions. VALUES FROM 0 TO 1. The Larger the Value the More Chaotic", GH_ParamAccess.item, 0);
             //9
             pManager.AddColourParameter("Colour", "colour", "The Display Color of The Particles", GH_ParamAccess.item, Color.FromArgb(125, 66, 236, 122));
-            pManager[9].Optional = true;
+            pManager[8].Optional = true;
         }
 
         /// <summary>
@@ -60,6 +59,23 @@ namespace Nuclei3
             //0
             pManager.RegisterParam(new ParticleGroupParameter(), "Output Particle Group", "particles", "OutputParticles");
             pManager[0].DataMapping = GH_DataMapping.Flatten;
+        }
+
+        public override bool Read(GH_IReader reader)
+        {
+            // Read the removed legacy port in its original slot so later port
+            // instance IDs, persistent values and wires cannot shift.
+            if (!reader.ChunkExists("param_input", 9)) return base.Read(reader);
+            var legacyCount = new Grasshopper.Kernel.Parameters.Param_Integer();
+            Params.RegisterInputParam(legacyCount, 2);
+            try { return base.Read(reader); }
+            finally
+            {
+                Params.UnregisterInputParameter(legacyCount, false);
+                Params.Input[1].Optional = false;
+                Params.Input[1].Description = "Starting positions in the nest region. Ants are created only at these supplied points.";
+                Params.OnParametersChanged();
+            }
         }
 
         public override GH_Exposure Exposure
@@ -80,8 +96,6 @@ namespace Nuclei3
             initialPtList = new List<Point3d>();
             DA.GetDataList(1, initialPtList);
 
-            DA.GetData("Particle Count", ref generatedParticleCount);
-            if (generatedParticleCount < 0) generatedParticleCount = 0;
 
             DA.GetData("Speed", ref particleSpeed);
             DA.GetData("Sensor Distance", ref particleSensorDistance);
@@ -107,7 +121,6 @@ namespace Nuclei3
 
         //inputs
         List<Point3d> initialPtList;
-        int generatedParticleCount;
         Voxel[,,] inputVoxels;
 
         double particleSpeed;
@@ -127,17 +140,7 @@ namespace Nuclei3
 
         void createParticles(ParticleGroup _PG)
         {
-            if (initialPtList != null && initialPtList.Count > 0)
-            {
-                outputParticles = ParticleGenerator.CreateFromPoints(initialPtList, _PG);
-            }
-            else
-            {
-                VoxelGridData voxelData = inputVoxels != null ? VoxelGridRegistry.GetOrCapture(inputVoxels, 1.0) : null;
-                outputParticles = voxelData != null
-                    ? ParticleGenerator.CreateScatteredParticles(generatedParticleCount, _PG, voxelData)
-                    : new List<Particle>();
-            }
+            outputParticles = ParticleGenerator.CreateFromPoints(initialPtList, _PG);
 
             _PG.particles = outputParticles;
         }

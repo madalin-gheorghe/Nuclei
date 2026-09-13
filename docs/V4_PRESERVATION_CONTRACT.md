@@ -12,6 +12,99 @@ smoothing correction recorded below.
 
 ## Identity baseline
 
+### Obstacle layer in dynamic voxel previews (2026-09-13)
+
+The user-requested obstacle display adds the existing dark-purple maximum-density
+colour to slime chemoattractants, individual and combined ant pheromones, and
+ants/slime previews. It uses active authored voxels with the existing blocked
+criterion (`0 <= maxDensity < 0.01`), independently of signal thresholds.
+Cached planar obstacle faces and sampled 3D obstacle points draw over the dynamic
+field. Solver shaders, density textures, volume rendering, and simulation behavior
+are unchanged; no dynamic-field readback is added.
+
+### Paired ant fields and species-gated density (2026-09-11)
+
+The user's follow-up authorizes keeping the scalar slime field static when no
+slime is present. Ant-only solvers now skip scalar diffusion and decay, while
+retaining authored scalar values for preview, output and sensing. Mixed and
+slime-only populations continue updating that field. Species changes invalidate
+the existing solver state and follow the normal reset path.
+
+Food and home pheromones share one diffusion range and Gaussian weights, with
+independent diffusion strengths and decay rates. When both diffuse, the new
+paired kernels resolve each neighbour and validity check once, accumulate both
+channels together, and share target limit reads. Both channels retain their
+independent buffer selection and original arithmetic order. A single active
+field uses its existing stencil; two fields with disabled diffusion share a
+decay-only pass. Fixed-boundary and min/max rules remain field-specific.
+
+Six additive compute shaders implement the paired direct/tiled/decay paths.
+All 35 preceding shader resources and the compatibility assembly's 1,310
+method bodies remain unchanged. The shared constant-buffer layout is preserved.
+
+Sparse, fixed ant-only populations also use the existing particle-driven deposit
+resolver when particle capacity is at most one 1024th of voxel count. Movement
+publishes deposits only at uniquely owned final parents; the separate resolver
+still runs after movement and before population updates. Larger capacities,
+mixed populations and dynamic populations retain the coalesced voxel resolver.
+The capacity threshold was measured at 1,436 and 15,000 ants on a 250³ grid;
+it is conservative and does not claim a universal hardware crossover.
+
+Validation passes 33 fixtures across ten separate/paired/deposit variants
+(2,940 steps), including actual mixed species, static ant-only scalar values,
+live settings and observed automatic sparse dispatch. The isolated scalar
+stencil matrix explicitly forces updates in its zero-particle fixtures and
+asserts that density changes before comparing direct/tiled results. All 135
+voxel-preview frames pass; Release net7.0-windows and net48 builds succeed.
+
+### Ant pheromone diffusion performance (2026-09-11)
+
+The user-requested ant performance fix extends the existing slime tiled diffusion
+dispatch to both pheromone fields for ranges 2–16, including planar grids. Decay
+is fused into the final diffusion axis for every range. Disabled diffusion keeps
+the separate decay pass and its distinct food/base boundary behavior. The shared
+finalization helper preserves the arithmetic order, density limits, masks, and
+field-specific decay rules; the final axis now writes the already-decayed result.
+Particle movement, settings, scalar-field processing, and preview rendering are
+unchanged. This supersedes the historical statements below that ants retain
+direct diffusion and separate decay.
+Only the five diffusion shader resources change; the main compatibility
+assembly's method bodies and all preview shaders remain identical.
+
+`tools/Nuclei.AntDiffusionProbe` compares direct/separate, direct/fused,
+tiled/separate, and tiled/fused execution over 24 fixtures and eight steps each.
+All variants preserve the complete GPU state bit-for-bit, including pheromones,
+particle state, remaining food, ownership, and packed deposit buffers. The
+hardware-timestamp benchmark and its scope are recorded in
+[`docs/performance/README.md`](performance/README.md).
+
+### Ant pheromone volume preview correction (2026-09-11)
+
+The user-requested ant preview fix extends slime's gradient-based 3D renderer to
+food pheromones, base pheromones, combined ants, and ants/slime. Each requested
+source field owns a cached gradient texture; field switches cannot overwrite a
+sibling preview's normals. The gradient shader selects the visible ant channels
+and remaining-food background. Slime retains its original red-channel gradient.
+Only `BuildDensityGradientPreview.cso` changes among the 35 compiled shaders;
+simulation and display shader bytecode remain identical. The GPU regression
+preserves all 135 density-atlas hashes, 63 planar frames, and 24 slime-gradient
+hashes, and verifies per-field isolation, cleanup, and refresh after stepping.
+
+### Additive image mapper component (2026-09-11)
+
+The authorized **Image Mapper for Voxels** addition uses GUID
+`d33e509c-f8ae-41b3-83e3-40e33685396f`. Its inputs are Voxels, Type,
+Target Start (0), and Target End (1); its output is a voxel field.
+The embedded image archive keys are `EmbeddedMapImage` and `MapImageName`.
+Existing component identities, parameters, solver shaders and renderer resources
+are unchanged by this addition. Its internal D3D11 mapper compiles a separate
+compute shader and does not change the solver shader manifest. The historical
+catalogue hashes below predate this additive component.
+
+`tools/Nuclei.ImageMapperProbe` verifies GPU sampling against a CPU reference,
+reversed remaps, retained voxel maps/selections, cached output, embedded-image
+roundtrips, warnings, and canvas rendering in an isolated Rhino 9 host.
+
 - Output and assembly identity: `Nuclei4.gha`, `Nuclei4, Version=4.1.0.0`.
 - Namespace: `Nuclei4`; V4 source contains no `Nuclei3`. The architecture probe
   names V3 types only inside its explicit cross-version parity harness.
@@ -791,3 +884,53 @@ Final artifact SHA-256 values are:
   `AD9A2C8DA94909CA0AD29D39A198C049391CD44C4073FA59C79DCB89AA76C044`
 - net48 `Nuclei4.Gpu.D3D11.dll`:
   `576C18FF6E762F84329C556A76C5B431080E898C5CF3394F094C1E41C76FA98F`
+
+## Dendro scalar types (2026-09-10)
+
+The user-authorized V4 Dendro bridge change inserts `Type` at input index 1.
+Its dropdown shares the exact 13 labels and numeric values used by Voxel Preview.
+Slime Chemoattractants (7) remains the default. Reading the old six-input schema
+inserts the new parameter after deserialization, retaining the existing input
+parameters, values and source references. Update is now index 5.
+
+Both Continuous and Discrete select the requested scalar field. Combined ant
+fields use the maximum of the food/base pheromone channels; Ants and Slime also
+includes slime density, giving their union at the iso threshold. Dynamic fields
+synchronize on demand only when conversion is enabled. Static fields and food
+maps can be converted directly without a solver connection.
+
+Live slime retains the existing GPU mesher. Other fields use CPU marching
+tetrahedra with optional scalar smoothing and mesh smoothing; these conversions
+may take longer on large grids. Discrete uses selected voxel centres for Dendro
+kernels. Without Dendro, both modes use the selected field for their mesh fallback.
+Zero and negative iso values are supported by the scalar mesher. Element limits
+and Update-off caching remain in effect. Voxel Preview rendering is unchanged.
+
+Validation: Release net48 and net7.0-windows builds passed. The isolated Rhino
+net48 probe passed all 13 field selections with closed meshes, smoothing,
+zero/negative thresholds, empty selections, element limits, legacy parameter
+migration, and the V3/V4 Update graph regressions. Native Dendro construction
+and interactive viewport performance were not exercised.
+
+### Fixed Ant Food scent emission (September 2026)
+
+Ant Food remains consumable food at its authored voxels. Each solver step projects its remaining quantity into Food Pheromone after consumption and before field updates, matching Slime Food's additive source behavior. The scent uses `AntFoodDiffuse`, `AntFoodDecay`, and the shared `AntDiffuseRange`; Base Pheromone retains its independent rates. Exhausted food stops emitting while existing scent continues to diffuse and decay. This applies to 3D and all planar orientations.
+
+Projection visits a cached union of food-source voxel indices, rebuilt on reset. Ant and slime sources sharing a voxel each update their own channel once in the same dispatch. An empty source map skips projection. No extra neighbour traversal or full-grid source scan is added per step.
+`tools/Nuclei.AntDiffusionProbe --food-source-emission`: 32 source cases passed. Full ant parity: 33 fixtures × 10 variants passed. Volume preview: 135 frames passed. Release net7.0-windows and net48 builds passed. Only the food-projection shader resource changed in the main assembly; existing main assembly method bodies and dependency semantics are unchanged.
+
+### V4 food-gradient following (September 2026)
+
+Searching ants now use food values returned by their existing movement sensors to detect a useful gradient. The strongest valid sample must exceed 0.000001, and the difference between strongest and weakest valid samples must exceed both 0.000001 and 1% of the strongest sample. Invalid samples are excluded from the contrast calculation. A detected gradient selects the strongest food sensor and reduces launch, early outward steering, and random steering to 2%. When the gradient disappears, normal exploration resumes immediately. Carrying ants retain their existing return rules. No extra sensor or neighbour queries, buffers, or dispatches are introduced. V3 is unchanged.
+
+The food-following probe compares actual GPU movement against the preserved previous build across all planar orientations and 3D, generic and specialized kernels, useful/absent/flat/trace scent, an invalid sensor beside flat scent, carrying ants, and slime particles. It also removes scent without resetting the ant to check that exploration resumes.
+Validation: both framework builds passed. All 56 focused movement cases passed; the eight gradient cases followed scent and resumed exploration on loss, while 48 other cases matched baseline directions exactly. All 33 ant diffusion fixtures passed across ten variants. Main assembly methods and dependency semantics match the prior build; only the generic and specialized ant movement shader resources changed.
+
+### Consistent Ant Food volume previews (September 2026)
+
+Ant Food (13) now uses the existing combined GPU atlas's remaining-food alpha channel, rather than the CPU point-cloud path when a GPU solver preview is available. Standalone food and combined modes share the same voxel-footprint sampling and moderately opaque neutral material. Food avoids the pheromone surface lighting that made it look like rounded blobs. Its material remains independent of stronger pheromones in the same voxel. Custom colour remains available for standalone food.
+
+No additional food-density atlas or simulation field is allocated. Source quantities, food consumption, diffusion, decay, particle movement, and pheromone deposits are unchanged. The food-only gradient is cached separately like the other selected fields. Slime Food retains its existing preview route.
+
+Validation: 156 GPU atlas/gradient frames passed, including standalone Ant Food, field switching, scales, planar orientations, and live depletion reflected in both food-only and combined modes. All 135 existing reference frames retained identical atlas and gradient hashes. Simulation shader resources are byte-identical; only the gradient preview compute shader changed.
+Both framework builds passed. Five actual Rhino render checks passed: food-only and combined food images were pixel-identical in Standard/parallel and High Resolution/perspective views; an overlapping stronger-pheromone fixture also rendered successfully. Synthetic image checks verify the shared material and footprint, not a capture of a user definition.

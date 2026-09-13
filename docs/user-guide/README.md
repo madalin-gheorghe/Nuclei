@@ -29,4 +29,4 @@ You should be comfortable placing Grasshopper components, connecting wires, and 
 
 This guide teaches **Nuclei V4**, the GPU version for **Rhino 9 on Windows**. Use components from the **Nuclei4** tab when following the tutorials. Older Nuclei versions have different capabilities and component layouts.
 
-Nuclei is developed by **Madalin Gheorghe**. Find downloads on [Food4Rhino](https://www.food4rhino.com/en/app/nuclei), or [report a problem on GitHub](https://github.com/madalin-gheorghe/Nuclei/issues).
+Nuclei is developed by [**Madalin Gheorghe**](https://www.linkedin.com/in/madalin-gheorghe-5026884a/). Find downloads on [Food4Rhino](https://www.food4rhino.com/en/app/nuclei), or [report a problem on GitHub](https://github.com/madalin-gheorghe/Nuclei/issues).

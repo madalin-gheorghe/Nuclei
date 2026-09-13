@@ -1,6 +1,6 @@
 # Your first ant simulation
 
-Follow **13_Ants Intro.gh**, the original 2D ant example. You will identify the colony positions, map food, inspect the pheromone settings, and run the foraging simulation.
+Follow **16_Ants Intro.gh**, the original 2D ant example. You will identify the colony positions, map food, inspect the pheromone settings, and run the foraging simulation.
 
 ![Ant foraging paths connecting the colony and food regions.](../assets/examples/13-ants-intro/result.jpg)
 
@@ -10,11 +10,11 @@ Install [Nuclei V4 in Rhino 9](../installation.md), then [download the original 
 
 ## 1. Inspect the environment
 
-The **Define Design Space** group creates a **1000 × 1000 × 1** field. Z = 1 keeps the study planar. Its output connects to the point-attractor branches and the ant constructor.
+**Construct Voxels** creates a **1000 × 1000 × 1** field. Z = 1 keeps the study planar. Its output connects to the point-attractor branches and the ant constructor.
 
 ![Construct Voxels with the saved ant-example dimensions and connected output wires.](../assets/ant-intro/construct-voxels.png)
 
-One point-attractor branch uses **Maximum Range = 15** and feeds the food mapping. The other uses **Maximum Range = 30** and feeds the chain of voxel positions and selection used to initialize the colony.
+One point-attractor branch uses **Maximum Range = 15** and feeds the food mapping. The other uses **Maximum Range = 60** and feeds the chain of voxel positions and selection used to initialize the colony.
 
 ## 2. Find the initial colony
 
@@ -30,16 +30,16 @@ Those starting positions establish where ants begin and remember home. The const
 | Sensor Distance | 9 |
 | Sensor Angle | 45 |
 | Rotation Angle | 45 |
-| Deposit | 10 |
-| Wander | 0.2 |
+| Deposit | 8 |
+| Wander | 0.1 |
 
 These are this example’s settings, not the defaults of a newly placed constructor.
 
 ## 3. Locate the food map
 
-The upper mapping branch uses **Define Voxel Values** with **Type = Ant Food** and **Multiplier Value = 5**. Its field is combined through **Voxel Selection Union** before entering the solver.
+The upper mapping branch uses **Define Voxel Values** with **Type = Ant Food** and **Multiplier Value = 1**. Its field is combined through **Voxel Selection Union** before entering the solver.
 
-![Define Voxel Values set to Ant Food with Multiplier Value 5 and connected output.](../assets/ant-intro/food-map.png)
+![Define Voxel Values set to Ant Food with Multiplier Value 1 and connected output.](../assets/ant-intro/food-map.png)
 
 Ant Food is edible material that stays in place until ants consume it. It also emits food pheromone. The food itself, the pheromone it emits, and the trail left by returning ants are related but distinct parts of the simulation.
 
@@ -51,12 +51,12 @@ The **Voxel Settings Ant** group controls two signals. Searching ants leave a ba
 
 | Control | Saved value |
 | --- | --- |
-| Food Pheromones Diffuse Rate | 0.1 |
-| Food Decay Rate | 0.003 |
+| Food Pheromones Diffuse Rate | 0.15 |
+| Food Decay Rate | 0.001 |
 | Base Pheromones Diffuse Rate | 0.1 |
-| Base Decay Rate | 0.05 |
+| Base Decay Rate | 0.003 |
 | Falloff | 0 |
-| Diffuse Range | 4 |
+| Diffuse Range | 2 |
 
 Diffusion spreads the signal into neighboring cells. Decay fades it. Food and base trails have separate rates, so they can persist differently. Both share Falloff and Range. Falloff 0 keeps local weighted diffusion; increasing it spreads the scent more evenly across the range, like slime. Leave the saved values unchanged for the first run.
 
@@ -64,7 +64,7 @@ Diffusion spreads the signal into neighboring cells. Decay fades it. Food and ba
 
 The Boolean Toggle connects to **reset**. The Trigger advances the solver, and the solver’s **voxels** output feeds Voxel Preview.
 
-![Reset toggle and Trigger controlling the solver, with the voxel output connected to Voxel Preview.](../assets/ant-intro/solver-preview.png)
+![Reset toggle and Trigger controlling the solver, with voxel and particle outputs connected to their preview components.](../assets/ant-intro/solver-preview.png)
 
 1. Pause the existing Trigger while inspecting the graph.
 2. Set the solver’s reset toggle to **True**, then back to **False**.

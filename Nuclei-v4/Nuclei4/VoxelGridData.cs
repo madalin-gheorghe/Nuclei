@@ -955,7 +955,7 @@ namespace Nuclei4
             return vector;
         }
 
-        VoxelScalarMap GetMap(VoxelScalarField field)
+        internal VoxelScalarMap GetMap(VoxelScalarField field)
         {
             switch (field)
             {

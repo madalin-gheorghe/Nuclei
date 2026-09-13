@@ -49,6 +49,21 @@ namespace Nuclei4
             get { return GH_Exposure.septenary; }
         }
 
+        public override void AddedToDocument(GH_Document document)
+        {
+            base.AddedToDocument(document);
+            document.SolutionStart -= PrepareValueLists;
+            document.SolutionStart += PrepareValueLists;
+        }
+
+        public override void RemovedFromDocument(GH_Document document)
+        {
+            document.SolutionStart -= PrepareValueLists;
+            base.RemovedFromDocument(document);
+        }
+
+        void PrepareValueLists(object sender, GH_SolutionEventArgs args) => VoxelTypeChoices.Ensure(this, 9, 280);
+
         /// <summary>
         /// This is the method that actually does the work.
         /// </summary>
@@ -56,45 +71,6 @@ namespace Nuclei4
         protected override void SolveInstance(IGH_DataAccess DA)
         {
             VoxelFoodValueList.EnsureSeparateFoodChoices(this, 1);
-            //add value list
-            if (Params.Input[1].SourceCount == 0)
-            {
-                //instantiate new value list
-                var vallist = new Grasshopper.Kernel.Special.GH_ValueList();
-                vallist.ListMode = Grasshopper.Kernel.Special.GH_ValueListMode.DropDown;
-                vallist.CreateAttributes();
-
-                //customise value list position
-                GH_Component Component = this;
-                GH_Document GrasshopperDocument = this.OnPingDocument();
-                float xCoord = (float)Component.Attributes.Pivot.X - 280;
-                float yCoord = (float)Component.Attributes.Pivot.Y - 31;
-                PointF cornerPt = new PointF(xCoord, yCoord);
-                vallist.Attributes.Pivot = cornerPt;
-
-                //populate value list with our own data
-                vallist.ListItems.Clear();
-                var items = new List<Grasshopper.Kernel.Special.GH_ValueListItem>();
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Minimum Density", "0"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Maximum Density", "1"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Speed", "2"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Distance", "3"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Angle", "4"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Rotation Angle", "5"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Food", "6"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food", "13"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Chemoattractants", "7"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food Pheromones", "8"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Base Pheromones", "9"));
-
-                vallist.ListItems.AddRange(items);
-                // Until now, the slider is a hypothetical object.
-                // This command makes it 'real' and adds it to the canvas.
-                GrasshopperDocument.AddObject(vallist, false);
-                //Connect the new slider to this component
-                Component.Params.Input[1].AddSource(vallist);
-                Component.Params.Input[1].CollectData();
-            }
 
             //set inputs
             DA.GetData("Type", ref valueIndex);

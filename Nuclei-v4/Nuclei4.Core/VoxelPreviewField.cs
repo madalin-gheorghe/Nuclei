@@ -40,22 +40,30 @@
         }
 
         /// <summary>
-        /// True when the field is backed by a float density buffer the GPU can
-        /// raymarch. Slime food and ant food are dynamic (ant food is consumed and
-        /// read back) but live in the packed deposit buffer, not a density buffer,
-        /// so they must use the CPU preview path instead of allocating a second
-        /// volumetric atlas.
+        /// True when the field can use the shared GPU preview atlas. Ant Food
+        /// reuses its existing alpha channel in the combined atlas, so standalone
+        /// and combined previews render the same live remaining-food values.
+        /// Slime Food still uses the CPU preview path.
         /// </summary>
         public static bool HasGpuDensityTexture(int valueIndex)
         {
             return IsDynamicDensity(valueIndex)
-                && valueIndex != Food
-                && valueIndex != AntFood;
+                && valueIndex != Food;
         }
 
         public static bool IsCombinedDynamicDensity(int valueIndex)
         {
             return valueIndex == AntPheromones || valueIndex == AntsAndSlime;
+        }
+
+        public static bool HasObstacleOverlay(int valueIndex)
+        {
+            return valueIndex >= SlimeChemoattractants && valueIndex <= SlimeChemoattractantsV2;
+        }
+
+        public static bool HasFoodOverlay(int valueIndex)
+        {
+            return valueIndex >= SlimeChemoattractants && valueIndex <= SlimeChemoattractantsV2;
         }
 
         public static bool IsGpuSupported(int valueIndex)

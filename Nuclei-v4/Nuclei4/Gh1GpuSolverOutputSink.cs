@@ -156,7 +156,11 @@ namespace Nuclei4
                 particle.antLaunchBoundaryHit = particle.parentParticleGroup != null
                     && particle.parentParticleGroup.ant
                     && auxiliary.Length >= view.Capacity * 7
-                    && auxiliary[view.Capacity * 6 + i] != 0;
+                    && (auxiliary[view.Capacity * 6 + i] & 1) != 0;
+                particle.antDepartingNest = particle.parentParticleGroup != null
+                    && particle.parentParticleGroup.ant
+                    && auxiliary.Length >= view.Capacity * 7
+                    && (auxiliary[view.Capacity * 6 + i] & 2) != 0;
 
                 Point3d origin = new Point3d(
                     positions[offset],
@@ -221,7 +225,7 @@ namespace Nuclei4
                     particle.home = new Plane();
                 }
 
-                int parentIndex = (int)Math.Round(directions[offset + 3]);
+                int parentIndex = GpuVoxelIndexEncoding.Decode(directions[offset + 3]);
                 particle.parentVoxel = VoxelFromFlatIndex(parentIndex);
                 particle.age = auxiliary[i];
                 particle.neighbourCount_Die = auxiliary[view.Capacity + i];

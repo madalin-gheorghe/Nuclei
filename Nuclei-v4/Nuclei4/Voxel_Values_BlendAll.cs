@@ -39,10 +39,24 @@ namespace Nuclei4
             get { return GH_Exposure.tertiary; }
         }
 
+        public override void AddedToDocument(GH_Document document)
+        {
+            base.AddedToDocument(document);
+            document.SolutionStart -= PrepareValueLists;
+            document.SolutionStart += PrepareValueLists;
+        }
+
+        public override void RemovedFromDocument(GH_Document document)
+        {
+            document.SolutionStart -= PrepareValueLists;
+            base.RemovedFromDocument(document);
+        }
+
+        void PrepareValueLists(object sender, GH_SolutionEventArgs args) => VoxelTypeChoices.Ensure(this, 6);
+
         protected override void SolveInstance(IGH_DataAccess DA)
         {
             VoxelFoodValueList.EnsureSeparateFoodChoices(this, 1);
-            EnsureValueList();
 
             int valueIndex = 0;
             double diffuse = 0.25;
@@ -223,34 +237,6 @@ namespace Nuclei4
             }
 
             return weights;
-        }
-
-        void EnsureValueList()
-        {
-            if (Params.Input[1].SourceCount != 0) return;
-
-            var valueList = new Grasshopper.Kernel.Special.GH_ValueList();
-            valueList.ListMode = Grasshopper.Kernel.Special.GH_ValueListMode.DropDown;
-            valueList.CreateAttributes();
-            GH_Document document = OnPingDocument();
-            if (document == null) return;
-
-            valueList.Attributes.Pivot = new PointF((float)Attributes.Pivot.X - 250, (float)Attributes.Pivot.Y - 31);
-            valueList.ListItems.Clear();
-            valueList.ListItems.AddRange(new List<Grasshopper.Kernel.Special.GH_ValueListItem>
-            {
-                new Grasshopper.Kernel.Special.GH_ValueListItem("Minimum Density", "0"),
-                new Grasshopper.Kernel.Special.GH_ValueListItem("Maximum Density", "1"),
-                new Grasshopper.Kernel.Special.GH_ValueListItem("Speed", "2"),
-                new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Distance", "3"),
-                new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Angle", "4"),
-                new Grasshopper.Kernel.Special.GH_ValueListItem("Rotation Angle", "5"),
-                new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Food", "6"),
-                new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food", "13")
-            });
-            document.AddObject(valueList, false);
-            Params.Input[1].AddSource(valueList);
-            Params.Input[1].CollectData();
         }
 
         protected override Bitmap Icon

@@ -23,8 +23,8 @@ The GitBook content lives in [docs/user-guide](docs/user-guide/README.md), with 
 | Version         | Compatibility      | Description                                                                                                                       | Examples                                                                                    |
 | --------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | **V2 — Legacy** | Rhino 6–9, Windows | Original slime-mold simulation tool. Displays an “old v2” banner in Rhino 8/9.                                                    | [V2 examples](https://github.com/madalin-gheorghe/Nuclei/tree/main/Nuclei%20Definitions/v2) |
-| **V3 — CPU**    | Rhino 8/9          | CPU-based slime-mold and ant simulations, voxel controls, trails, and Dendro integration. Displays an “old v3” banner in Rhino 9. | [V3 examples](https://github.com/madalin-gheorghe/Nuclei/tree/main/Nuclei%20Definitions/v3) |
-| **V4 — GPU**    | Rhino 9, Windows   | GPU-accelerated simulations for larger particle populations and voxel fields, with GPU previews and volume-to-mesh conversion.    | [V4 examples](https://github.com/madalin-gheorghe/Nuclei/tree/main/Nuclei%20Definitions/v4) |
+| **V3.4 — CPU**  | Rhino 8/9          | Major CPU-speed milestone with SIMD field updates, refined ant behavior, voxel controls, trails, and Dendro integration. Displays an “old v3” banner in Rhino 9. | [V3 examples](https://github.com/madalin-gheorghe/Nuclei/tree/main/Nuclei%20Definitions/v3) |
+| **V4.2 — GPU**  | Rhino 9, Windows   | Major GPU-speed and feature milestone with scalable previews, image mapping, periodic surfaces, expanded voxel tools, and volume-to-mesh conversion. | [V4 examples](https://github.com/madalin-gheorghe/Nuclei/tree/main/Nuclei%20Definitions/v4) |
 
 V2 and V3 are available separately in Rhino's Package Manager as **Nuclei2** and **Nuclei3**. 
 
@@ -42,13 +42,14 @@ V2 and V3 are available separately in Rhino's Package Manager as **Nuclei2** and
 
 ## Performance Evidence
 
-Recorded comparisons of V3 CPU and V4 GPU using matched solver settings:
+Recorded comparisons of the V3.4 CPU and V4.2 GPU implementations using matched solver settings:
 
-| Workload                                     | CPU time/step | GPU time/step | GPU speedup |
-| -------------------------------------------- | ------------: | ------------: | ----------: |
-| 2D · 500 × 500 · 25,000 particles            |      4.235 ms |      0.683 ms |   **6.20×** |
-| Large 2D · 4000 × 4000 · 1 million particles |    330.512 ms |     63.016 ms |   **5.25×** |
-| Large 3D · 300³ · 1 million particles        |    428.268 ms |    133.322 ms |   **3.21×** |
+| Workload | V3.4 CPU | V4.2 GPU | GPU speedup |
+| --- | ---: | ---: | ---: |
+| Slime · 500 × 500 · 25,000 particles | 17.012 ms | 1.026 ms | **16.58×** |
+| Slime · 64³ · 1,572 particles | 4.487 ms | 0.713 ms | **6.29×** |
+| Ants · 500 × 500 · 25,000 particles | 17.511 ms | 1.453 ms | **12.05×** |
+| Ants · 64³ · 1,572 particles | 9.164 ms | 1.120 ms | **8.18×** |
 
 Test system: AMD Ryzen 5 7535HS, Radeon 660M integrated GPU, 32 GB RAM, Windows 11.
 
@@ -65,8 +66,10 @@ See the [Performance Summary](https://github.com/madalin-gheorghe/Nuclei/blob/ma
 - **V3.1** — CPU solver stabilization and performance measurement.
 - **V3.2** — CPU diffusion and preview optimization.
 - **V3.3** — refined CPU behavior and compatibility.
+- **V3.4** — SIMD-accelerated slime and ant fields, improved ant mechanics, refreshed examples, and expanded documentation.
 - **V4.0** — introduction of GPU simulation and previews.
 - **V4.1** — GPU performance improvements and expanded functionality.
+- **V4.2** — faster GPU simulation and previews, image mapping, periodic surfaces, expanded voxel tools, and a new volume renderer.
 
 After V3.0, ChatGPT/Codex assisted with testing, optimization, and GPU development.
 

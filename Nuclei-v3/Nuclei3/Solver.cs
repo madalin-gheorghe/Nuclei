@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using Grasshopper;
@@ -24,7 +24,7 @@ using static Nuclei3.ParticleGroup;
 
 namespace Nuclei3
 {
-public class Solver : GH_Component
+    public partial class Solver : GH_Component
     {
         /// <summary>
         /// Initializes a new instance of the Solver class.
@@ -123,12 +123,6 @@ public class Solver : GH_Component
                 //global colors
                 //initializeParticleColors();
 
-                //ant utility
-                if (antParticles)
-                {
-                    createAntAgeMultipliers();
-                }
-
                 //create discrete vectors
                 //createDiscreteVectors();
 
@@ -200,17 +194,16 @@ public class Solver : GH_Component
                     particleRecordTrail(); //careful with list.Add, better make arrays
                     trailTicks = Stopwatch.GetTimestamp() - stageStart;
 
-                    //voxel logics
-                    stageStart = Stopwatch.GetTimestamp();
-                    projectFoodSources();
-                    diffuseVoxels();
-                    diffuseTicks = Stopwatch.GetTimestamp() - stageStart;
-
-                    //reorder data
+                    // Resolve food pickup and nest visits before source emission,
+                    // matching V4: consumed food stops emitting in this same step.
                     stageStart = Stopwatch.GetTimestamp();
                     particleCheckParentVoxel();
                     parentTicks = Stopwatch.GetTimestamp() - stageStart;
 
+                    stageStart = Stopwatch.GetTimestamp();
+                    projectFoodSources();
+                    diffuseVoxels();
+                    diffuseTicks = Stopwatch.GetTimestamp() - stageStart;
                     //adaptive population
                     stageStart = Stopwatch.GetTimestamp();
                     if (iteration > 1 && dynPop)
@@ -346,6 +339,7 @@ public class Solver : GH_Component
         double baseDecayRate = 0.01;
 
         int diffuseRange_Ant = 1;
+        double antDiffusionGradual = 1.0;
 
         //voxel particularities
         bool planarXY = false;
@@ -390,12 +384,7 @@ public class Solver : GH_Component
         bool antParticles = false;
         bool slimeParticles = false;
 
-        int maxAge = 100;
-        double minBase = 0.1;
-        double minFood = 0.2;
-        double max = 1;
-        double[] multiplierBase;
-        double[] multiplierFood;
+
 
         //ant slime settings
         double ant_slime = 0;
@@ -414,6 +403,7 @@ public class Solver : GH_Component
         //reusable arrays for diffusion logic
         double[] reusableWeights;
         double[] reusableAntWeights;
+        double reusableAntWeightsGradual = double.NaN;
         int reusableWeightsRange = int.MinValue;
         int reusableAntWeightsRange = int.MinValue;
         double reusableWeightsGradual = double.NaN;
@@ -432,7 +422,7 @@ public class Solver : GH_Component
 
         //random
         System.Random random = new System.Random(89);
-        private static readonly ThreadLocal<double[]> threadLocalValues = new ThreadLocal<double[]>(() => new double[5]);
+
         private static readonly ThreadLocal<Voxel[]> threadLocalNeighbors = new ThreadLocal<Voxel[]>(() => new Voxel[27]);
 
         /////////////////////////////////////////////
@@ -740,6 +730,8 @@ public class Solver : GH_Component
             }
 
             activeVoxels = tempActiveVoxels;
+            cacheFoodSourceVoxels();
+            antActiveLines = new int[3][];
             denseVoxelGrid = activeVoxelCount == voxelCount;
 
             refreshVoxelBoundaryDensityLimits();
@@ -951,123 +943,46 @@ public class Solver : GH_Component
         void diffuseVoxels()
         {
             ensureReusableDiffusionWeights();
-
-            if (useScalarDensityPath())
+            if (tryDiffuseScalarSimd()) return;
+            if (slimeParticles && useScalarDensityPath())
             {
                 ensureScalarDensityAuthoritative();
-
-                if (diffuse > 0 || diffusionGradual < 1)
-                {
-                    diffuseScalarVoxels();
-                }
-
+                if (diffuse > 0 || diffusionGradual < 1) diffuseScalarVoxels();
                 applyBoundaryAndDecayScalar();
                 return;
             }
-
-            scalarVoxelDensityAuthoritative = false;
-
-            if (diffuse > 0 || diffusionGradual < 1)
+            if (slimeParticles)
             {
-                int axisCount = getDiffusionAxisOrder(reusableDiffusionAxes);
-                double strength = gradualDiffusionStrength(diffuse, diffusionGradual);
-                double retention = gradualDiffusionRetention(diffuse, diffusionGradual);
-                double baseKeep = 1 - strength;
-
-                for (int i = 0; i < axisCount; i++)
+                scalarVoxelDensityAuthoritative = false;
+                if (diffuse > 0 || diffusionGradual < 1)
                 {
-                    double finalScale = i == axisCount - 1 ? retention : 1;
-                    double keep = baseKeep * finalScale;
-                    double diffuseAmount = strength * finalScale;
-
-                    switch (reusableDiffusionAxes[i])
+                    int count = getDiffusionAxisOrder(reusableDiffusionAxes);
+                    double strength = gradualDiffusionStrength(diffuse, diffusionGradual);
+                    double retention = gradualDiffusionRetention(diffuse, diffusionGradual);
+                    for (int i = 0; i < count; i++)
                     {
-                        case 0:
-                            xPassInPlace(reusableWeights, keep, diffuseAmount);
-                            break;
-                        case 1:
-                            yPassInPlace(reusableWeights, keep, diffuseAmount);
-                            break;
-                        case 2:
-                            zPassInPlace(reusableWeights, keep, diffuseAmount);
-                            break;
-                    }
-                }
-
-                /*
-                if (iteration % 2 == 0)
-                {
-                    if (!planarYZ)
-                    {
-                        newVoxelDensity = xPass(newVoxelDensity, weights);
-                        assignPassDensityToVoxel(newVoxelDensity);
-                    }
-
-                    if (!planarXZ)
-                    {
-                        newVoxelDensity = yPass(newVoxelDensity, weights);
-                        assignPassDensityToVoxel(newVoxelDensity);
-                    }
-
-                    if (!planarXY)
-                    {
-                        newVoxelDensity = zPass(newVoxelDensity, weights);
-                        assignPassDensityToVoxel(newVoxelDensity);
-                    }
-                }
-
-                else
-                {
-                    if (!planarXY)
-                    {
-                        newVoxelDensity = zPass(newVoxelDensity, weights);
-                        assignPassDensityToVoxel(newVoxelDensity);
-                    }
-
-                    if (!planarXZ)
-                    {
-                        newVoxelDensity = yPass(newVoxelDensity, weights);
-                        assignPassDensityToVoxel(newVoxelDensity);
-                    }
-
-                    if (!planarYZ)
-                    {
-                        newVoxelDensity = xPass(newVoxelDensity, weights);
-                        assignPassDensityToVoxel(newVoxelDensity);
-                    }
-                }
-                */
-
-            }
-
-            //ant particles
-            if (antParticles)
-            {
-                if (baseDiffuseRate > 0 || foodDiffuseRate > 0)
-                {
-                    int axisCount = getDiffusionAxisOrder(reusableDiffusionAxes);
-                    for (int i = 0; i < axisCount; i++)
-                    {
+                        double scale = i == count - 1 ? retention : 1;
                         switch (reusableDiffusionAxes[i])
                         {
-                            case 0:
-                                ants_xPass(reusableAntWeights);
-                                break;
-                            case 1:
-                                ants_yPass(reusableAntWeights);
-                                break;
-                            case 2:
-                                ants_zPass(reusableAntWeights);
-                                break;
+                            case 0: xPassInPlace(reusableWeights, (1 - strength) * scale, strength * scale); break;
+                            case 1: yPassInPlace(reusableWeights, (1 - strength) * scale, strength * scale); break;
+                            case 2: zPassInPlace(reusableWeights, (1 - strength) * scale, strength * scale); break;
                         }
                     }
                 }
             }
-
-
-            applyBoundaryAndDecay();
+            if (antParticles && !tryDiffuseAntSimd())
+            {
+                if (foodDiffuseRate > 0 || baseDiffuseRate > 0 || antDiffusionGradual < 1)
+                {
+                    int count = getDiffusionAxisOrder(reusableDiffusionAxes);
+                    for (int i = 0; i < count; i++)
+                        diffuseAntAxis(reusableDiffusionAxes[i], reusableAntWeights, i == count - 1);
+                }
+                else applyAntBoundaryAndDecay();
+            }
+            if (slimeParticles) applyBoundaryAndDecay(false);
         }
-
         //-------------
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1076,31 +991,6 @@ public class Solver : GH_Component
             if (gradual <= 0) return 1;
             if (gradual >= 1) return rate;
             return 1 - gradual * (1 - rate);
-        }
-
-        /// <summary>
-        /// Projects the initial food-map value into the slime chemoattractant
-        /// field. Projection happens before diffusion so the injected value is
-        /// diffused and decayed by the normal slime-field update during the
-        /// same solver iteration. Ant food retains its original consumable-map
-        /// behavior and ant pheromone remains agent-deposited.
-        /// </summary>
-        void projectFoodSources()
-        {
-            if (!voxelHasPositiveFood || !slimeParticles) return;
-
-            Voxel[] active = activeVoxels;
-
-            Parallel.For(0, active.Length, i =>
-            {
-                Voxel V = active[i];
-                // Use the immutable slime-food input-map value so every reset
-                // establishes a stable persistent source strength.
-                double foodValue = foodSourceValues[V.flatIndex];
-                if (foodValue <= 0) return;
-
-                addWorkingDensity(V, foodValue);
-            });
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1113,7 +1003,7 @@ public class Solver : GH_Component
 
         //-------------
 
-        void applyBoundaryAndDecay()
+        void applyBoundaryAndDecay(bool decayAntFields = true)
         {
             Voxel[] active = activeVoxels;
             int activeCount = active.Length;
@@ -1121,7 +1011,7 @@ public class Solver : GH_Component
 
             if (!wrapBoundaries)
             {
-                bool ant = antParticles;
+                bool ant = antParticles && decayAntFields;
                 int maxX = resX - 1;
                 int maxY = resY - 1;
                 int maxZ = resZ - 1;
@@ -1169,7 +1059,7 @@ public class Solver : GH_Component
                     }
                 });
             }
-            else if (antParticles)
+            else if (antParticles && decayAntFields)
             {
                 double foodDecay = foodDecayRate;
                 double baseDecay = baseDecayRate;
@@ -3646,17 +3536,18 @@ public class Solver : GH_Component
 
         void ensureReusableDiffusionWeights()
         {
-            if (reusableWeights == null || reusableWeightsRange != diffuseRange || reusableWeightsGradual != diffusionGradual)
+            if (slimeParticles && (reusableWeights == null || reusableWeightsRange != diffuseRange || reusableWeightsGradual != diffusionGradual))
             {
                 reusableWeights = precomputeWeights(diffuseRange, diffusionGradual);
                 reusableWeightsRange = diffuseRange;
                 reusableWeightsGradual = diffusionGradual;
             }
 
-            if (antParticles && (reusableAntWeights == null || reusableAntWeightsRange != diffuseRange_Ant))
+            if (antParticles && (reusableAntWeights == null || reusableAntWeightsRange != diffuseRange_Ant || reusableAntWeightsGradual != antDiffusionGradual))
             {
-                reusableAntWeights = precomputeWeights(diffuseRange_Ant, 1.0);
+                reusableAntWeights = precomputeWeights(diffuseRange_Ant, antDiffusionGradual);
                 reusableAntWeightsRange = diffuseRange_Ant;
+                reusableAntWeightsGradual = antDiffusionGradual;
             }
         }
 
@@ -3675,464 +3566,9 @@ public class Solver : GH_Component
 
         //-------------
 
-        void ants_xPass(double[] weights)
-        {
-            if (foodDiffuseRate <= 0 && baseDiffuseRate <= 0) return;
-
-            if (tridimensional)
-            {
-                Parallel.For(0, activeVoxels.Length, i =>
-                {
-                    Voxel V = activeVoxels[i];
-                    double foodSum = 0;
-                    double baseSum = 0;
-                    int weightIndex = 0;
-
-                    for (int x = -diffuseRange_Ant; x <= diffuseRange_Ant; x++)
-                    {
-                        int d_xID = V.idX + x;
-
-                        if (wrapBoundaries)
-                        {
-                            if (d_xID < 0) d_xID += resX;
-                            if (d_xID > resX - 1) d_xID -= resX;
-                        }
-
-                        if (d_xID >= 0 && d_xID < resX)
-                        {
-                            Voxel neighbour = voxels[d_xID, V.idY, V.idZ];
-                            if (VoxelOccupancy.IsWalkable(neighbour))
-                            {
-                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
-                            }
-                        }
-                        weightIndex++;
-                    }
-
-                    if (foodDiffuseRate > 0)
-                    {
-                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
-                        if (fVal > 1) fVal = 1;
-                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
-                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
-                        V.towardsFoodPheromone = fVal;
-                    }
-                    if (baseDiffuseRate > 0)
-                    {
-                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
-                        if (bVal > 1) bVal = 1;
-                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
-                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
-                        V.towardsBasePheromone = bVal;
-                    }
-                });
-            }
-            else if (planarXY)
-            {
-                Parallel.For(0, activeVoxels.Length, i =>
-                {
-                    Voxel V = activeVoxels[i];
-                    double foodSum = 0;
-                    double baseSum = 0;
-                    int weightIndex = 0;
-
-                    for (int x = -diffuseRange_Ant; x <= diffuseRange_Ant; x++)
-                    {
-                        int d_xID = V.idX + x;
-
-                        if (wrapBoundaries)
-                        {
-                            if (d_xID < 0) d_xID += resX;
-                            if (d_xID > resX - 1) d_xID -= resX;
-                        }
-
-                        if (d_xID >= 0 && d_xID < resX)
-                        {
-                            Voxel neighbour = voxels[d_xID, V.idY, 0];
-                            if (VoxelOccupancy.IsWalkable(neighbour))
-                            {
-                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
-                            }
-                        }
-                        weightIndex++;
-                    }
-
-                    if (foodDiffuseRate > 0)
-                    {
-                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
-                        if (fVal > 1) fVal = 1;
-                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
-                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
-                        V.towardsFoodPheromone = fVal;
-                    }
-                    if (baseDiffuseRate > 0)
-                    {
-                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
-                        if (bVal > 1) bVal = 1;
-                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
-                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
-                        V.towardsBasePheromone = bVal;
-                    }
-                });
-            }
-            else if (planarXZ)
-            {
-                Parallel.For(0, activeVoxels.Length, i =>
-                {
-                    Voxel V = activeVoxels[i];
-                    double foodSum = 0;
-                    double baseSum = 0;
-                    int weightIndex = 0;
-
-                    for (int x = -diffuseRange_Ant; x <= diffuseRange_Ant; x++)
-                    {
-                        int d_xID = V.idX + x;
-
-                        if (wrapBoundaries)
-                        {
-                            if (d_xID < 0) d_xID += resX;
-                            if (d_xID > resX - 1) d_xID -= resX;
-                        }
-
-                        if (d_xID >= 0 && d_xID < resX)
-                        {
-                            Voxel neighbour = voxels[d_xID, 0, V.idZ];
-                            if (VoxelOccupancy.IsWalkable(neighbour))
-                            {
-                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
-                            }
-                        }
-                        weightIndex++;
-                    }
-
-                    if (foodDiffuseRate > 0)
-                    {
-                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
-                        if (fVal > 1) fVal = 1;
-                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
-                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
-                        V.towardsFoodPheromone = fVal;
-                    }
-                    if (baseDiffuseRate > 0)
-                    {
-                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
-                        if (bVal > 1) bVal = 1;
-                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
-                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
-                        V.towardsBasePheromone = bVal;
-                    }
-                });
-            }
-        }
-
-        void ants_yPass(double[] weights)
-        {
-            if (foodDiffuseRate <= 0 && baseDiffuseRate <= 0) return;
-
-            if (tridimensional)
-            {
-                Parallel.For(0, activeVoxels.Length, i =>
-                {
-                    Voxel V = activeVoxels[i];
-                    double foodSum = 0;
-                    double baseSum = 0;
-                    int weightIndex = 0;
-
-                    for (int y = -diffuseRange_Ant; y <= diffuseRange_Ant; y++)
-                    {
-                        int d_yID = V.idY + y;
-
-                        if (wrapBoundaries)
-                        {
-                            if (d_yID < 0) d_yID += resY;
-                            if (d_yID > resY - 1) d_yID -= resY;
-                        }
-
-                        if (d_yID >= 0 && d_yID < resY)
-                        {
-                            Voxel neighbour = voxels[V.idX, d_yID, V.idZ];
-                            if (VoxelOccupancy.IsWalkable(neighbour))
-                            {
-                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
-                            }
-                        }
-                        weightIndex++;
-                    }
-
-                    if (foodDiffuseRate > 0)
-                    {
-                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
-                        if (fVal > 1) fVal = 1;
-                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
-                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
-                        V.towardsFoodPheromone = fVal;
-                    }
-                    if (baseDiffuseRate > 0)
-                    {
-                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
-                        if (bVal > 1) bVal = 1;
-                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
-                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
-                        V.towardsBasePheromone = bVal;
-                    }
-                });
-            }
-            else if (planarXY)
-            {
-                Parallel.For(0, activeVoxels.Length, i =>
-                {
-                    Voxel V = activeVoxels[i];
-                    double foodSum = 0;
-                    double baseSum = 0;
-                    int weightIndex = 0;
-
-                    for (int y = -diffuseRange_Ant; y <= diffuseRange_Ant; y++)
-                    {
-                        int d_yID = V.idY + y;
-
-                        if (wrapBoundaries)
-                        {
-                            if (d_yID < 0) d_yID += resY;
-                            if (d_yID > resY - 1) d_yID -= resY;
-                        }
-
-                        if (d_yID >= 0 && d_yID < resY)
-                        {
-                            Voxel neighbour = voxels[V.idX, d_yID, 0];
-                            if (VoxelOccupancy.IsWalkable(neighbour))
-                            {
-                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
-                            }
-                        }
-                        weightIndex++;
-                    }
-
-                    if (foodDiffuseRate > 0)
-                    {
-                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
-                        if (fVal > 1) fVal = 1;
-                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
-                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
-                        V.towardsFoodPheromone = fVal;
-                    }
-                    if (baseDiffuseRate > 0)
-                    {
-                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
-                        if (bVal > 1) bVal = 1;
-                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
-                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
-                        V.towardsBasePheromone = bVal;
-                    }
-                });
-            }
-            else if (planarYZ)
-            {
-                Parallel.For(0, activeVoxels.Length, i =>
-                {
-                    Voxel V = activeVoxels[i];
-                    double foodSum = 0;
-                    double baseSum = 0;
-                    int weightIndex = 0;
-
-                    for (int y = -diffuseRange_Ant; y <= diffuseRange_Ant; y++)
-                    {
-                        int d_yID = V.idY + y;
-
-                        if (wrapBoundaries)
-                        {
-                            if (d_yID < 0) d_yID += resY;
-                            if (d_yID > resY - 1) d_yID -= resY;
-                        }
-
-                        if (d_yID >= 0 && d_yID < resY)
-                        {
-                            Voxel neighbour = voxels[0, d_yID, V.idZ];
-                            if (VoxelOccupancy.IsWalkable(neighbour))
-                            {
-                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
-                            }
-                        }
-                        weightIndex++;
-                    }
-
-                    if (foodDiffuseRate > 0)
-                    {
-                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
-                        if (fVal > 1) fVal = 1;
-                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
-                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
-                        V.towardsFoodPheromone = fVal;
-                    }
-                    if (baseDiffuseRate > 0)
-                    {
-                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
-                        if (bVal > 1) bVal = 1;
-                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
-                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
-                        V.towardsBasePheromone = bVal;
-                    }
-                });
-            }
-        }
-
-        void ants_zPass(double[] weights)
-        {
-            if (foodDiffuseRate <= 0 && baseDiffuseRate <= 0) return;
-
-            if (tridimensional)
-            {
-                Parallel.For(0, activeVoxels.Length, i =>
-                {
-                    Voxel V = activeVoxels[i];
-                    double foodSum = 0;
-                    double baseSum = 0;
-                    int weightIndex = 0;
-
-                    for (int z = -diffuseRange_Ant; z <= diffuseRange_Ant; z++)
-                    {
-                        int d_zID = V.idZ + z;
-
-                        if (wrapBoundaries)
-                        {
-                            if (d_zID < 0) d_zID += resZ;
-                            if (d_zID > resZ - 1) d_zID -= resZ;
-                        }
-
-                        if (d_zID >= 0 && d_zID < resZ)
-                        {
-                            Voxel neighbour = voxels[V.idX, V.idY, d_zID];
-                            if (VoxelOccupancy.IsWalkable(neighbour))
-                            {
-                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
-                            }
-                        }
-                        weightIndex++;
-                    }
-
-                    if (foodDiffuseRate > 0)
-                    {
-                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
-                        if (fVal > 1) fVal = 1;
-                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
-                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
-                        V.towardsFoodPheromone = fVal;
-                    }
-                    if (baseDiffuseRate > 0)
-                    {
-                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
-                        if (bVal > 1) bVal = 1;
-                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
-                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
-                        V.towardsBasePheromone = bVal;
-                    }
-                });
-            }
-            else if (planarXZ)
-            {
-                Parallel.For(0, activeVoxels.Length, i =>
-                {
-                    Voxel V = activeVoxels[i];
-                    double foodSum = 0;
-                    double baseSum = 0;
-                    int weightIndex = 0;
-
-                    for (int z = -diffuseRange_Ant; z <= diffuseRange_Ant; z++)
-                    {
-                        int d_zID = V.idZ + z;
-
-                        if (wrapBoundaries)
-                        {
-                            if (d_zID < 0) d_zID += resZ;
-                            if (d_zID > resZ - 1) d_zID -= resZ;
-                        }
-
-                        if (d_zID >= 0 && d_zID < resZ)
-                        {
-                            Voxel neighbour = voxels[V.idX, 0, d_zID];
-                            if (VoxelOccupancy.IsWalkable(neighbour))
-                            {
-                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
-                            }
-                        }
-                        weightIndex++;
-                    }
-
-                    if (foodDiffuseRate > 0)
-                    {
-                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
-                        if (fVal > 1) fVal = 1;
-                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
-                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
-                        V.towardsFoodPheromone = fVal;
-                    }
-                    if (baseDiffuseRate > 0)
-                    {
-                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
-                        if (bVal > 1) bVal = 1;
-                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
-                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
-                        V.towardsBasePheromone = bVal;
-                    }
-                });
-            }
-            else if (planarYZ)
-            {
-                Parallel.For(0, activeVoxels.Length, i =>
-                {
-                    Voxel V = activeVoxels[i];
-                    double foodSum = 0;
-                    double baseSum = 0;
-                    int weightIndex = 0;
-
-                    for (int z = -diffuseRange_Ant; z <= diffuseRange_Ant; z++)
-                    {
-                        int d_zID = V.idZ + z;
-
-                        if (wrapBoundaries)
-                        {
-                            if (d_zID < 0) d_zID += resZ;
-                            if (d_zID > resZ - 1) d_zID -= resZ;
-                        }
-
-                        if (d_zID >= 0 && d_zID < resZ)
-                        {
-                            Voxel neighbour = voxels[0, V.idY, d_zID];
-                            if (VoxelOccupancy.IsWalkable(neighbour))
-                            {
-                                if (foodDiffuseRate > 0) foodSum += neighbour.towardsFoodPheromone * weights[weightIndex];
-                                if (baseDiffuseRate > 0) baseSum += neighbour.towardsBasePheromone * weights[weightIndex];
-                            }
-                        }
-                        weightIndex++;
-                    }
-
-                    if (foodDiffuseRate > 0)
-                    {
-                        double fVal = V.towardsFoodPheromone * (1 - foodDiffuseRate) + foodDiffuseRate * foodSum;
-                        if (fVal > 1) fVal = 1;
-                        if (V.maxDensity != -1 && fVal > V.maxDensity) fVal = V.maxDensity;
-                        if (V.minDensity != -1 && fVal < V.minDensity) fVal = V.minDensity;
-                        V.towardsFoodPheromone = fVal;
-                    }
-                    if (baseDiffuseRate > 0)
-                    {
-                        double bVal = V.towardsBasePheromone * (1 - baseDiffuseRate) + baseDiffuseRate * baseSum;
-                        if (bVal > 1) bVal = 1;
-                        if (V.maxDensity != -1 && bVal > V.maxDensity) bVal = V.maxDensity;
-                        if (V.minDensity != -1 && bVal < V.minDensity) bVal = V.minDensity;
-                        V.towardsBasePheromone = bVal;
-                    }
-                });
-            }
-        }
+        void ants_xPass(double[] weights) { diffuseAntAxis(0, weights, false); }
+        void ants_yPass(double[] weights) { diffuseAntAxis(1, weights, false); }
+        void ants_zPass(double[] weights) { diffuseAntAxis(2, weights, false); }
 
         //-------------------------------------------------------------------
 
@@ -4416,6 +3852,7 @@ public class Solver : GH_Component
 
         void particleCheckParentVoxel()
         {
+            if (antParticles) ensureMovementVoxelOwnerCapacity();
             resetParticleCountsForCurrentFrame();
             ensureParticleCountTouchedCapacity(particles.Count);
             int particleCount = particles.Count;
@@ -4454,30 +3891,41 @@ public class Solver : GH_Component
 
                     if (parentVoxel != null)
                     {
-                        if (System.Threading.Interlocked.CompareExchange(ref parentVoxel.particleCount, 1, 0) == 0)
+                        if (antParticles
+                            ? antSharesNestVoxel(P, P.pPlane.Origin) || System.Threading.Interlocked.CompareExchange(ref movementVoxelOwners[parentVoxel.flatIndex], i + 1, 0) == 0
+                            : System.Threading.Interlocked.CompareExchange(ref parentVoxel.particleCount, 1, 0) == 0)
                         {
+                            if (antParticles) System.Threading.Interlocked.Increment(ref parentVoxel.particleCount);
                             P.parentVoxel = parentVoxel;
                             particleCountTouchedVoxels[i] = parentVoxel;
 
                             //ant particles
                             if (P.parentParticleGroup.ant && iteration > 1)
                             {
-                                //found food
-                                if (parentVoxel.antFood > 0 && P.foundFood == false)
+                                // Several nest ants may share a food voxel. Consume each
+                                // unit once, including a final fractional portion.
+                                if (!P.foundFood && parentVoxel.antFood > 0)
                                 {
-                                    P.foundFood = true;
-                                    P.age = 0;
-
-                                    if (P.age == 0)
+                                    lock (parentVoxel)
                                     {
-                                        parentVoxel.antFood -= 1;
-                                        P.age++;
+                                        if (parentVoxel.antFood > 0)
+                                        {
+                                            parentVoxel.antFood = Math.Max(0, parentVoxel.antFood - 1);
+                                            P.foundFood = true;
+                                            P.antDepartingNest = false;
+                                            P.age = 1;
+                                        }
                                     }
                                 }
 
                                 //returned home
-                                if (P.pPlane.Origin.DistanceTo(P.home.Origin) < retrieveSpeed(P))
+                                if (P.pPlane.Origin.DistanceTo(antNestPosition(P)) <= (P.foundFood ? 0.000001 * voxelSize : P.parentParticleGroup.speed))
                                 {
+                                    if (P.foundFood)
+                                    {
+                                        P.antDepartingNest = true;
+                                        P.alignToVector(-P.pPlane.XAxis);
+                                    }
                                     P.foundFood = false;
                                     P.age = 1;
                                     P.antLaunchBoundaryHit = false;
@@ -4597,6 +4045,7 @@ public class Solver : GH_Component
                 Parallel.For(0, activeVoxels.Length, i =>
                 {
                     activeVoxels[i].particleCount = 0;
+                    if (antParticles && movementVoxelOwners != null) movementVoxelOwners[activeVoxels[i].flatIndex] = 0;
                 }
                 );
 
@@ -4611,6 +4060,7 @@ public class Solver : GH_Component
                 if (touchedVoxel != null)
                 {
                     touchedVoxel.particleCount = 0;
+                    if (antParticles && movementVoxelOwners != null) movementVoxelOwners[touchedVoxel.flatIndex] = 0;
                     particleCountTouchedVoxels[i] = null;
                 }
             }
@@ -4881,14 +4331,16 @@ public class Solver : GH_Component
                 Vector3d planeX = P.pPlane.XAxis;
                 Vector3d planeY = P.pPlane.YAxis;
 
-                double[] previousValues = ant ? threadLocalValues.Value : null;
+                P.followingFood = false;
                 Point3d sensorPos0 = sensorSamplePosition(P, origin + (planeX * sensorCos - planeY * sensorSin) * sensorDistance);
                 Point3d sensorPos1 = sensorSamplePosition(P, origin + planeX * sensorDistance);
                 Point3d sensorPos2 = sensorSamplePosition(P, origin + (planeX * sensorCos + planeY * sensorSin) * sensorDistance);
 
-                double value0 = sampleSensorValue(sensorPos0, parentVoxel, P, ant, ant ? previousValues[0] : -1, p);
-                double value1 = sampleSensorValue(sensorPos1, parentVoxel, P, ant, ant ? previousValues[1] : -1, p);
-                double value2 = sampleSensorValue(sensorPos2, parentVoxel, P, ant, ant ? previousValues[2] : -1, p);
+                double food0, food1, food2, food3 = -1, food4 = -1;
+                double edible0, edible1, edible2, edible3 = -1, edible4 = -1;
+                double value0 = sampleSensorValue(sensorPos0, parentVoxel, P, ant, p, out food0, out edible0);
+                double value1 = sampleSensorValue(sensorPos1, parentVoxel, P, ant, p, out food1, out edible1);
+                double value2 = sampleSensorValue(sensorPos2, parentVoxel, P, ant, p, out food2, out edible2);
                 double value3 = -1;
                 double value4 = -1;
 
@@ -4902,23 +4354,17 @@ public class Solver : GH_Component
                     vectorD.Rotate(-sensorAngle, P.pPlane.YAxis);
                     Point3d sensorPos4 = sensorSamplePosition(P, origin + vectorD * sensorDistance);
 
-                    value3 = sampleSensorValue(sensorPos3, parentVoxel, P, ant, ant ? previousValues[3] : -1, p);
-                    value4 = sampleSensorValue(sensorPos4, parentVoxel, P, ant, ant ? previousValues[4] : -1, p);
+                    value3 = sampleSensorValue(sensorPos3, parentVoxel, P, ant, p, out food3, out edible3);
+                    value4 = sampleSensorValue(sensorPos4, parentVoxel, P, ant, p, out food4, out edible4);
                 }
 
-                if (ant)
-                {
-                    previousValues[0] = value0;
-                    previousValues[1] = value1;
-                    previousValues[2] = value2;
-                    if (tridimensional)
-                    {
-                        previousValues[3] = value3;
-                        previousValues[4] = value4;
-                    }
-                }
-
-                int bestIndex = chooseBestSensorIndex(value0, value1, value2, value3, value4, tridimensional);
+                bool seesEdibleFood = ant && !P.foundFood && Math.Max(Math.Max(edible0, edible1), Math.Max(edible2, Math.Max(edible3, edible4))) > 0;
+                P.followingFood = ant && !P.foundFood && (seesEdibleFood || hasFoodGradient(food0, food1, food2, food3, food4));
+                int bestIndex = seesEdibleFood
+                    ? chooseBestSensorIndex(edible0, edible1, edible2, edible3, edible4, tridimensional)
+                    : P.followingFood
+                    ? chooseBestSensorIndex(food0, food1, food2, food3, food4, tridimensional)
+                    : chooseBestSensorIndex(value0, value1, value2, value3, value4, tridimensional);
                 applySensorMoveForce(P, parentVoxel, parentGroup, bestIndex, p);
             }
             );
@@ -5047,13 +4493,15 @@ public class Solver : GH_Component
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        double sampleSensorValue(Point3d potPos, Voxel parentVoxel, Particle P, bool ant, double currentValue, int particleIndex)
+        double sampleSensorValue(Point3d potPos, Voxel parentVoxel, Particle P, bool ant, int particleIndex, out double sensedFood, out double sensedEdibleFood)
         {
+            sensedFood = -1;
+            sensedEdibleFood = -1;
             Voxel potentialVoxel = getParentVoxel(potPos.X, potPos.Y, potPos.Z);
             if (potentialVoxel == null) return -1;
             if (!wrapBoundaries && potentialVoxel.boundary) return -1;
 
-            double voxelValue = -99;
+            double voxelValue = 0;
 
             if (!ant)
             {
@@ -5095,19 +4543,14 @@ public class Solver : GH_Component
                 }
             }
 
-            if (voxelValue != -99)
+            if (VoxelOccupancy.IsBlockedMaxDensity(potentialVoxel.maxDensity)) return -1;
+            if (ant)
             {
-                currentValue = voxelValue;
+                sensedFood = potentialVoxel.towardsFoodPheromone;
+                sensedEdibleFood = !P.foundFood ? potentialVoxel.antFood : 0;
             }
-
-            if (VoxelOccupancy.IsBlockedMaxDensity(potentialVoxel.maxDensity))
-            {
-                currentValue = -1;
-            }
-
-            return currentValue;
+            return voxelValue;
         }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int chooseBestSensorIndex(double value0, double value1, double value2, double value3, double value4, bool include3d)
         {
@@ -5217,7 +4660,8 @@ public class Solver : GH_Component
                         Vector3d outsideVector = P.pPlane.Origin - P.home.Origin;
                         Vector3d towardsHomeVector = -outsideVector;
                         towardsHomeVector.Unitize();
-                        int launchDuration = antLaunchDuration(P, parentGroup);
+                        double homeDistance = outsideVector.Length;
+                        double explorationScale = !P.foundFood && P.followingFood ? 0.02 : 1.0;
 
                         //turn
                         if (P.age < 15)
@@ -5229,10 +4673,10 @@ public class Solver : GH_Component
                                 Vector3d pVector = P.pPlane.XAxis;
                                 pVector.Unitize();
 
-                                Vector3d turnVector = (15 - P.age) / 15 * pVector + outsideVector * P.age / 15;
+                                Vector3d turnVector = (15 - P.age) / 15.0 * pVector + outsideVector * P.age / 15;
                                 turnVector.Unitize();
 
-                                P.moveVector += turnVector * 2;
+                                P.moveVector += turnVector * (2 * explorationScale);
                             }
 
                             if (P.foundFood)
@@ -5240,10 +4684,10 @@ public class Solver : GH_Component
                                 Vector3d pVector = P.pPlane.XAxis;
                                 pVector.Unitize();
 
-                                Vector3d turnVector = (15 - P.age) / 15 * pVector + towardsHomeVector * P.age / 15;
+                                Vector3d turnVector = (15 - P.age) / 15.0 * pVector + towardsHomeVector * P.age / 15;
                                 turnVector.Unitize();
 
-                                P.moveVector += turnVector * 2;
+                                P.moveVector += turnVector * (2 * explorationScale);
                             }
                         }
 
@@ -5251,32 +4695,36 @@ public class Solver : GH_Component
                         //wander
                         if (p % 7 == 0)
                         {
-                            P.moveVector += wanderVectors[(p + iteration) % wanderVectors.Count];
+                            P.moveVector += wanderVectors[(p + iteration) % wanderVectors.Count] * explorationScale;
                         }
 
                         // Launch searching ants for long enough to cross the distance
                         // from their nest to the farthest voxel-field corner.
-                        if (!P.foundFood && !P.antLaunchBoundaryHit && P.age < launchDuration)
+                        if (!P.foundFood && !P.antLaunchBoundaryHit)
                         {
-                            Vector3d launchVector = outsideVector;
-                            if (!launchVector.Unitize())
+                            int launchDuration = antLaunchDuration(P, parentGroup);
+                            if (P.age < launchDuration)
                             {
-                                launchVector = P.pPlane.XAxis;
-                                launchVector.Unitize();
-                            }
+                                Vector3d launchVector = outsideVector;
+                                if (!launchVector.Unitize())
+                                {
+                                    launchVector = P.pPlane.XAxis;
+                                    launchVector.Unitize();
+                                }
 
-                            double launchProgress = Math.Min(1.0, Math.Max(0.0, P.age / (double)launchDuration));
-                            double launchFade = 0.5 * (1.0 + Math.Cos(Math.PI * launchProgress));
-                            double outwardStrength = (7 + antLaunchVariation(P, 17.17) * 2) * launchFade;
-                            double lateralStrength = outwardStrength * (0.55 + antLaunchVariation(P, 41.73) * 0.20);
-                            P.moveVector += launchVector * outwardStrength;
-                            P.moveVector += antLaunchWaveVector(P) * lateralStrength;
+                                double launchProgress = Math.Min(1.0, Math.Max(0.0, P.age / (double)launchDuration));
+                                double launchFade = 0.5 * (1.0 + Math.Cos(Math.PI * launchProgress));
+                                double outwardStrength = (7 + antLaunchVariation(P, 17.17) * 2) * launchFade;
+                                double lateralStrength = outwardStrength * (0.55 + antLaunchVariation(P, 41.73) * 0.20);
+                                P.moveVector += launchVector * (outwardStrength * explorationScale);
+                                P.moveVector += antLaunchWaveVector(P) * (lateralStrength * explorationScale);
+                            }
                         }
 
                         //towards home
                         if (P.foundFood)
                         {
-                            if (p % (int) parentGroup.baseWanderFrequency == 0)
+                            if (p % Math.Max(1, (int)parentGroup.baseWanderFrequency) == 0)
                             {
                                 P.moveVector += towardsHomeVector;
                             }
@@ -5288,7 +4736,7 @@ public class Solver : GH_Component
                         }
 
                         //when close to home, visit
-                        if (outsideVector.Length <= sensorDistance * 2 && P.age > 30)
+                        if (!P.foundFood && homeDistance <= sensorDistance * 2 && P.age > 30)
                         {
                             P.alignToVector(towardsHomeVector);
                             P.moveVector += towardsHomeVector;
@@ -5430,12 +4878,25 @@ public class Solver : GH_Component
                     }
                     else if (!moveVector.Unitize())
                     {
-                        return;
+                        if (parentGroup.ant && P.antDepartingNest) moveVector = P.pPlane.XAxis;
+                        else return;
                     }
 
+                    if (parentGroup.ant && P.foundFood)
+                        moveVector = blendAntNestApproach(P, moveVector);
+                    if (parentGroup.ant && P.antDepartingNest)
+                        moveVector = antNestDeparture(P, moveVector);
                     alignParticleToUnitMoveVector(P, moveVector);
                     moveVector *= moveSpeed;
                     Point3d nextLoc = P.pPlane.Origin + moveVector;
+                    if (parentGroup.ant && P.foundFood && moveSpeed > 0 && antSharesNestVoxel(P, P.pPlane.Origin)
+                        && P.pPlane.Origin.DistanceTo(antNestPosition(P)) <= moveSpeed)
+                    {
+                        // Complete the last step at home instead of orbiting or overshooting.
+                        nextLoc = antNestPosition(P);
+                        Vector3d finalDirection = nextLoc - P.pPlane.Origin;
+                        if (finalDirection.Unitize()) alignParticleToUnitMoveVector(P, finalDirection);
+                    }
 
                     //if 2D, adapt coordinates
                     if (planarXY) nextLoc.Z = dimZ / 2;
@@ -5533,7 +4994,21 @@ public class Solver : GH_Component
                         int targetFlatIndex = nextVoxel.flatIndex;
                         int ownerToken = i + 1;
 
-                        if (targetFlatIndex == sourceFlatIndex)
+                        bool sharedMove = antSharesNestVoxel(P, P.pPlane.Origin) || antSharesNestVoxel(P, nextLoc);
+                        if (sharedMove && tryTransferAntNestOwnership(voxelOwners, P, nextVoxel, nextLoc, ownerToken))
+                        {
+                            P.pPlane.Origin = nextLoc;
+                            P.parentVoxel = nextVoxel;
+                            particleCountTouchedVoxels[i] = nextVoxel;
+                            P.highDeposit = targetFlatIndex != sourceFlatIndex;
+                            if (P.highDeposit) particleDeposit(P, parentGroup.depositValue);
+                        }
+                        else if (sharedMove)
+                        {
+                            P.highDeposit = false;
+                            randomizeOrientationAfterOccupiedMove(P, i, movementIterationSeed);
+                        }
+                        else if (targetFlatIndex == sourceFlatIndex)
                         {
                             // Moving inside the particle's own voxel does not
                             // collide, but retains the old no-deposit behavior.
@@ -5542,7 +5017,7 @@ public class Solver : GH_Component
                             particleCountTouchedVoxels[i] = nextVoxel;
                             P.highDeposit = false;
                         }
-                        else if (tryTransferVoxelOwnership(voxelOwners, parentVoxel, nextVoxel, ownerToken))
+                        else if (tryTransferVoxelOwnership(voxelOwners, parentVoxel, nextVoxel, ownerToken, antParticles))
                         {
                             P.pPlane.Origin = nextLoc;
                             P.parentVoxel = nextVoxel;
@@ -5578,7 +5053,7 @@ public class Solver : GH_Component
             {
                 Particle particle = particles[i];
                 Voxel voxel = particle.parentVoxel;
-                if (voxel == null) continue;
+                if (voxel == null || antSharesNestVoxel(particle, particle.pPlane.Origin)) continue;
 
                 int flatIndex = voxel.flatIndex;
                 if (flatIndex < 0 || flatIndex >= movementVoxelOwners.Length) continue;
@@ -5619,7 +5094,9 @@ public class Solver : GH_Component
             // avoids a second O(voxelCount) clear every simulation step.
             for (int i = 0; i < particles.Count; i++)
             {
-                Voxel voxel = particles[i].parentVoxel;
+                Particle particle = particles[i];
+                if (antSharesNestVoxel(particle, particle.pPlane.Origin)) continue;
+                Voxel voxel = particle.parentVoxel;
                 if (voxel == null) continue;
 
                 int flatIndex = voxel.flatIndex;
@@ -5640,7 +5117,7 @@ public class Solver : GH_Component
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static bool tryTransferVoxelOwnership(int[] voxelOwners, Voxel sourceVoxel, Voxel targetVoxel, int ownerToken)
+        static bool tryTransferVoxelOwnership(int[] voxelOwners, Voxel sourceVoxel, Voxel targetVoxel, int ownerToken, bool counted = false)
         {
             int sourceFlatIndex = sourceVoxel != null ? sourceVoxel.flatIndex : -1;
             int targetFlatIndex = targetVoxel != null ? targetVoxel.flatIndex : -1;
@@ -5659,8 +5136,8 @@ public class Solver : GH_Component
             // Publish the count transition while the source is still owned.
             // A different particle cannot claim the source until its owner
             // token is released after the count reaches 0.
-            System.Threading.Interlocked.Exchange(ref targetVoxel.particleCount, 1);
-            System.Threading.Interlocked.Exchange(ref sourceVoxel.particleCount, 0);
+            if (counted) { System.Threading.Interlocked.Increment(ref targetVoxel.particleCount); System.Threading.Interlocked.Decrement(ref sourceVoxel.particleCount); }
+            else { System.Threading.Interlocked.Exchange(ref targetVoxel.particleCount, 1); System.Threading.Interlocked.Exchange(ref sourceVoxel.particleCount, 0); }
 
             if (System.Threading.Interlocked.CompareExchange(ref voxelOwners[sourceFlatIndex], 0, ownerToken) == ownerToken)
             {
@@ -5669,8 +5146,8 @@ public class Solver : GH_Component
 
             // This is only a defensive rollback; a source remains owned until
             // this particle releases it, so the exchange should always match.
-            System.Threading.Interlocked.Exchange(ref sourceVoxel.particleCount, 1);
-            System.Threading.Interlocked.Exchange(ref targetVoxel.particleCount, 0);
+            if (counted) { System.Threading.Interlocked.Increment(ref sourceVoxel.particleCount); System.Threading.Interlocked.Decrement(ref targetVoxel.particleCount); }
+            else { System.Threading.Interlocked.Exchange(ref sourceVoxel.particleCount, 1); System.Threading.Interlocked.Exchange(ref targetVoxel.particleCount, 0); }
             System.Threading.Interlocked.CompareExchange(ref voxelOwners[targetFlatIndex], 0, ownerToken);
             return false;
         }
@@ -5915,27 +5392,18 @@ public class Solver : GH_Component
         {
             if (parentGroup.ant)
             {
-                double baseMultiplier;
-                double foodMultiplier;
-
-                if (P.age < maxAge)
-                {
-                    baseMultiplier = multiplierBase[P.age];
-                    foodMultiplier = multiplierFood[P.age];
-                }
-                else
-                {
-                    baseMultiplier = minBase;
-                    foodMultiplier = minFood;
-                }
+                int duration = antLaunchDuration(P, parentGroup);
+                double progress = duration > 0 ? Math.Max(0, Math.Min(1, P.age / (double)duration)) : 1;
+                double remaining = 1 - progress;
+                double trailMultiplier = 0.02 + 0.98 * Math.Pow(remaining, 2.5);
 
                 if (P.foundFood)
                 {
-                    parentVoxel.towardsFoodPheromone += depositValue * foodMultiplier;
+                    addAntPheromone(ref parentVoxel.towardsFoodPheromone, depositValue * trailMultiplier);
                 }
                 else
                 {
-                    parentVoxel.towardsBasePheromone += (parentVoxel.towardsFoodPheromone > 0 ? 1.1 : 0.9) * depositValue * baseMultiplier;
+                    addAntPheromone(ref parentVoxel.towardsBasePheromone, (parentVoxel.towardsFoodPheromone > 0 ? 1.1 : 0.9) * depositValue * trailMultiplier);
                 }
 
                 return;
@@ -5956,26 +5424,6 @@ public class Solver : GH_Component
             if (slime_antBase > 0)
             {
                 addWorkingDensity(parentVoxel, slimeDeposit * (1 - slime_antBase) + parentVoxel.towardsBasePheromone * slime_antBase);
-            }
-        }
-
-        //----------------------------------
-
-        //deposits for ants are dependent on age
-        void createAntAgeMultipliers()
-        {
-            //create age multiplier list for ant
-            maxAge = 100;
-            minBase = 0.2;
-            minFood = 0.3;
-            max = 1;
-            multiplierBase = new double[maxAge];
-            multiplierFood = new double[maxAge];
-
-            for (int i = 0; i < maxAge; i++)
-            {
-                multiplierBase[i] = reMapValue(i, 0, maxAge - 1, max, minBase);
-                multiplierFood[i] = reMapValue(i, 0, maxAge - 1, max, minFood);
             }
         }
 
@@ -6454,6 +5902,7 @@ public class Solver : GH_Component
                 child.foundFood = parent.foundFood;
                 child.age = parent.age;
                 child.antLaunchBoundaryHit = parent.antLaunchBoundaryHit;
+                child.antDepartingNest = parent.antDepartingNest;
 
                 children.Add(child);
                 parent.parentParticleGroup.particles.Add(child);
@@ -6475,7 +5924,7 @@ public class Solver : GH_Component
                 Voxel parentVoxel = particle.parentVoxel;
                 if (parentVoxel != null)
                 {
-                    System.Threading.Interlocked.Exchange(ref parentVoxel.particleCount, 0);
+                    System.Threading.Interlocked.Decrement(ref parentVoxel.particleCount);
                 }
             }
 
@@ -6990,6 +6439,7 @@ public class Solver : GH_Component
             baseDiffuseRate = 0.1;
             baseDecayRate = 0.01;
             diffuseRange_Ant = 1;
+            antDiffusionGradual = 1.0;
 
             wrapBoundaries = false;
 
@@ -7059,6 +6509,8 @@ public class Solver : GH_Component
                         baseDiffuseRate = Convert.ToDouble(inputSettings_components[3]);
                         baseDecayRate = Convert.ToDouble(inputSettings_components[4]);
                         diffuseRange_Ant = Convert.ToInt32(inputSettings_components[5]);
+                        antDiffusionGradual = inputSettings_components.Length > 6
+                            ? 1.0 - normalizeDiffusionGradual(Convert.ToDouble(inputSettings_components[6])) : 1.0;
                         if (diffuseRange_Ant < 0) diffuseRange_Ant = 0;
                         break;
 

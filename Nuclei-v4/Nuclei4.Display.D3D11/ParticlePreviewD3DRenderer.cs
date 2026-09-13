@@ -106,7 +106,7 @@ namespace Nuclei4
                 int vertexCount = previewBuffer.Update(device, context, frame);
                 if (vertexCount == 0) return false;
 
-                UpdateConstants(e.Viewport, frame.PointSize, null);
+                UpdateConstants(e.Display, e.Viewport, frame.PointSize, null);
 
                 D3DStateSnapshot snapshot = D3DStateSnapshot.Capture(context);
                 try
@@ -157,7 +157,7 @@ namespace Nuclei4
                 return false;
             }
 
-            UpdateConstants(e.Viewport, pointSize, gpuFrame);
+            UpdateConstants(e.Display, e.Viewport, pointSize, gpuFrame);
 
             D3DStateSnapshot snapshot = D3DStateSnapshot.Capture(context);
             try
@@ -285,17 +285,45 @@ namespace Nuclei4
             }
         }
 
-        void UpdateConstants(RhinoViewport viewport, double pointSize, GpuParticlePreviewFrame gpuFrame)
+        void UpdateConstants(DisplayPipeline display, RhinoViewport viewport, double pointSize, GpuParticlePreviewFrame gpuFrame)
         {
             Transform worldToScreen = viewport.GetTransform(Rhino.DocObjects.CoordinateSystem.World, Rhino.DocObjects.CoordinateSystem.Screen);
+            float viewportWidth = Math.Max(1.0f, viewport.Size.Width);
+            float viewportHeight = Math.Max(1.0f, viewport.Size.Height);
+            if (display.IsInViewCapture || display.IsPrinting)
+            {
+                // Match the drawing pass, not the live window. In particular, use
+                // the bound raster viewport to keep point sprites round in captures.
+                Vortice.Mathematics.Viewport[] rasterViewports = context.RSGetViewports<Vortice.Mathematics.Viewport>();
+                viewportWidth = Math.Max(1.0f, rasterViewports.Length > 0 ? rasterViewports[0].Width : display.FrameSize.Width);
+                viewportHeight = Math.Max(1.0f, rasterViewports.Length > 0 ? rasterViewports[0].Height : display.FrameSize.Height);
+                float[] projection = display.GetOpenGLWorldToClip(true);
+                Transform worldToClip = new Transform();
+                for (int row = 0; row < 4; row++)
+                {
+                    for (int column = 0; column < 4; column++)
+                    {
+                        worldToClip[row, column] = projection[column * 4 + row];
+                    }
+                }
+
+                // The shader normalizes these local pixels back to clip coordinates.
+                // D3D applies the bound viewport's origin after the vertex shader.
+                Transform clipToScreen = Transform.Identity;
+                clipToScreen.M00 = viewportWidth * 0.5;
+                clipToScreen.M03 = viewportWidth * 0.5;
+                clipToScreen.M11 = -viewportHeight * 0.5;
+                clipToScreen.M13 = viewportHeight * 0.5;
+                worldToScreen = clipToScreen * worldToClip;
+            }
             float[] constants =
             {
                 (float)worldToScreen.M00, (float)worldToScreen.M01, (float)worldToScreen.M02, (float)worldToScreen.M03,
                 (float)worldToScreen.M10, (float)worldToScreen.M11, (float)worldToScreen.M12, (float)worldToScreen.M13,
                 (float)worldToScreen.M20, (float)worldToScreen.M21, (float)worldToScreen.M22, (float)worldToScreen.M23,
                 (float)worldToScreen.M30, (float)worldToScreen.M31, (float)worldToScreen.M32, (float)worldToScreen.M33,
-                Math.Max(1.0f, viewport.Size.Width),
-                Math.Max(1.0f, viewport.Size.Height),
+                viewportWidth,
+                viewportHeight,
                 (float)Math.Max(1.0, pointSize),
                 0.0f,
                 gpuFrame != null ? (float)gpuFrame.TextureWidth : 0.0f,

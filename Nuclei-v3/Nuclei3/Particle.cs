@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -265,7 +265,9 @@ namespace Nuclei3
         public Vector3d moveVector;
 
         public bool foundFood = false;
+        internal bool followingFood;
         public bool antLaunchBoundaryHit = false;
+        public bool antDepartingNest = false;
         #endregion
 
         //-------------------------------------------------------------------

@@ -1,4 +1,5 @@
 using System;
+using GH_IO.Serialization;
 using System.Collections.Generic;
 
 using Grasshopper.Kernel;
@@ -40,8 +41,12 @@ namespace Nuclei4
             pManager[3].Optional = true;
 
             //4
-            pManager.AddIntegerParameter("Diffuse Range", "range", "The Range of Diffusion of the Deposited Values", GH_ParamAccess.item, 1);
+            pManager.AddNumberParameter("Falloff", "falloff", "Shared food and base pheromone falloff, from 0 (local weighted diffusion) to 1 (uniform averaging across the range).", GH_ParamAccess.item, 0.0);
             pManager[4].Optional = true;
+
+            //5
+            pManager.AddIntegerParameter("Diffuse Range", "range", "The Range of Diffusion of the Deposited Values", GH_ParamAccess.item, 1);
+            pManager[5].Optional = true;
         }
 
         /// <summary>
@@ -50,6 +55,21 @@ namespace Nuclei4
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
             pManager.AddTextParameter("Voxel Settings", "voxelSettings", "Settings For How The Environment and Data Is Interpreted", GH_ParamAccess.list);
+        }
+
+        public override bool Read(GH_IReader reader)
+        {
+            if (reader.ChunkExists("param_input", 5)) return base.Read(reader);
+            // Keep the old Range parameter in slot four while reading, then
+            // insert Falloff without replacing Range or its existing wires.
+            IGH_Param falloffParameter = Params.Input[4];
+            Params.UnregisterInputParameter(falloffParameter, false);
+            try { return base.Read(reader); }
+            finally
+            {
+                Params.RegisterInputParam(falloffParameter, 4);
+                Params.OnParametersChanged();
+            }
         }
 
         public override GH_Exposure Exposure
@@ -70,8 +90,11 @@ namespace Nuclei4
             DA.GetData("Base Decay Rate", ref baseDecayRate);
 
             DA.GetData("Diffuse Range", ref diffuseRange);
+            DA.GetData("Falloff", ref falloff);
+            if (double.IsNaN(falloff) || falloff < 0) falloff = 0;
+            if (falloff > 1) falloff = 1;
 
-            String voxelSettings = "VoxelSettingsAnt" + " " + foodDiffuseRate + " " + foodDecayRate + " " + baseDiffuseRate + " " + baseDecayRate + " " + diffuseRange;
+            String voxelSettings = "VoxelSettingsAnt" + " " + foodDiffuseRate + " " + foodDecayRate + " " + baseDiffuseRate + " " + baseDecayRate + " " + diffuseRange + " " + falloff;
 
             List<String> outputSettings = new List<String>();
             outputSettings.Add(voxelSettings);
@@ -88,6 +111,7 @@ namespace Nuclei4
         double baseDecayRate;
 
         int diffuseRange;
+        double falloff;
 
         //-------------------------------------------------------------------
 

@@ -22,6 +22,9 @@ namespace Nuclei4
 
         public List<Particle> particles = new List<Particle>();
 
+        // Preserve the user's count before generation caps it to walkable cells.
+        public int RequestedParticleCount;
+
         public double speed, sensorDistance, depositValue = 0;
         public double wanderFrequency, baseWanderFrequency = 0;
         public int sensorAngle, rotationAngle = 0;
@@ -62,6 +65,7 @@ namespace Nuclei4
         public ParticleGroup Duplicate()
         {
             ParticleGroup dup = new ParticleGroup(speed,sensorDistance,sensorAngle,rotationAngle,depositValue,wanderFrequency,baseWanderFrequency,color);
+            dup.RequestedParticleCount = RequestedParticleCount;
             return dup;
         }
         #endregion

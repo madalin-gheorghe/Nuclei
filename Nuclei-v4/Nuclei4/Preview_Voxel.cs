@@ -1,4 +1,4 @@
-﻿using Grasshopper.Kernel;
+using Grasshopper.Kernel;
 using Rhino.Geometry;
 using Grasshopper.Kernel.Types;
 using System;
@@ -82,48 +82,6 @@ namespace Nuclei4
                 clearPreviewCache();
             }
 
-            //add value list
-            if (Params.Input[1].SourceCount == 0)
-            {
-                //instantiate new value list
-                var vallist = new Grasshopper.Kernel.Special.GH_ValueList();
-                vallist.ListMode = Grasshopper.Kernel.Special.GH_ValueListMode.DropDown;
-                vallist.CreateAttributes();
-
-                //customise value list position
-                GH_Component Component = this;
-                GH_Document GrasshopperDocument = this.OnPingDocument();
-                float xCoord = (float)Component.Attributes.Pivot.X - 250;
-                float yCoord = (float)Component.Attributes.Pivot.Y - 31;
-                PointF cornerPt = new PointF(xCoord, yCoord);
-                vallist.Attributes.Pivot = cornerPt;
-
-                //populate value list with our own data
-                vallist.ListItems.Clear();
-                var items = new List<Grasshopper.Kernel.Special.GH_ValueListItem>();
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Minimum Density", "0"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Maximum Density", "1"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Speed", "2"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Distance", "3"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Sensor Angle", "4"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Rotation Angle", "5"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Food", "6"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food", "13"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Slime Chemoattractants", "7"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Food Pheromones", "8"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Base Pheromones", "9"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ant Pheromones", "10"));
-                items.Add(new Grasshopper.Kernel.Special.GH_ValueListItem("Ants and Slime", "11"));
-
-                vallist.ListItems.AddRange(items);
-                // Until now, the slider is a hypothetical object.
-                // This command makes it 'real' and adds it to the canvas.
-                GrasshopperDocument.AddObject(vallist, false);
-                //Connect the new slider to this component
-                Component.Params.Input[1].AddSource(vallist);
-                Component.Params.Input[1].CollectData();
-            }
-
             ensureCombinedPreviewChoices();
 
             //DA.GetData("Display", ref display);
@@ -205,6 +163,9 @@ namespace Nuclei4
                     tridimensional = false;
                 }
 
+                updateObstaclePreview(previewPlanarOffset());
+                updateFoodPreview(previewPlanarOffset(), false);
+
                 if (tryReuseStaticPreviewCache(resX, resY, resZ))
                 {
                     return;
@@ -216,7 +177,7 @@ namespace Nuclei4
                 }
 
                 VoxelGridData previewData = voxel.Data;
-                if (!tridimensional && buildPlanarPreviewMesh(previewData))
+                if (!tridimensional && buildPlanarPreviewTexture(previewData))
                 {
                     clearPointCloudOnly();
                     updateClippingBox();
@@ -250,9 +211,9 @@ namespace Nuclei4
 
             if (Hidden || Locked) return;
 
-            bool hasPlanarMesh = planarPreviewMesh != null && planarPreviewMesh.Faces.Count > 0;
+            bool hasPlanarTexture = planarPreviewTexture != null;
             bool hasPointCloud = voxelPointCloud != null && voxelPointCloud.Count > 0;
-            if (!hasPlanarMesh && !hasPointCloud) return;
+            if (!hasPlanarTexture && !hasPointCloud && obstaclePreview == null && foodPreview == null) return;
 
             //draw background polygon
             if (!Globals.tridimensional)
@@ -260,22 +221,99 @@ namespace Nuclei4
                 args.Display.DrawPolygon(Globals.bgPolygon, Color.Black, true);
             }
 
-            if (!Globals.tridimensional && hasPlanarMesh)
+            if (hasPlanarTexture)
             {
-                args.Display.DrawMeshFalseColors(planarPreviewMesh);
-                return;
+                planarPreviewTexture.Draw(args.Display);
             }
-
-            if (!Globals.tridimensional && stablePointBuckets != null && stablePointBuckets.Count > 0)
+            else if (!Globals.tridimensional && stablePointBuckets != null && stablePointBuckets.Count > 0)
             {
                 drawStablePlanarPreview(args);
-                return;
             }
-
-            if (hasPointCloud)
+            else if (hasPointCloud)
             {
                 args.Display.DrawPointCloud(voxelPointCloud, 3);
             }
+
+            DrawObstaclePreview(args.Display);
+        }
+
+        internal void DrawFoodPreview(Rhino.Display.DisplayPipeline display)
+        {
+            if (Hidden || Locked || !VoxelPreviewField.HasFoodOverlay(CurrentValueIndex())) return;
+            foodPreview?.Draw(display);
+        }
+
+        void updateFoodPreview(double planarOffset, bool gpuPreview)
+        {
+            if (voxel == null || Hidden || Locked || !VoxelPreviewField.HasFoodOverlay(valueIndex))
+            {
+                clearFoodPreview();
+                return;
+            }
+
+            VoxelGridData data = voxel.Data;
+            // GPU ant food stays live in the shared atlas. Only immutable slime
+            // sources need CPU geometry, so this path never triggers readback.
+            if (gpuPreview && foodPreviewStatic && ReferenceEquals(foodPreviewData, data)
+                && ReferenceEquals(foodPreviewSources, data.Food) && foodPreviewPlanarOffset == planarOffset) return;
+            clearFoodPreview();
+            foodPreview = new VoxelFoodPreview(data, planarOffset, index => gpuPreview
+                ? data.Food.Get(index)
+                : Math.Max(data.Food.Get(index), voxel.GetScalarValue(VoxelPreviewField.AntFood, index)));
+            foodPreviewStatic = gpuPreview;
+            foodPreviewData = data;
+            foodPreviewSources = data.Food;
+            foodPreviewPlanarOffset = planarOffset;
+            // CPU fallback food also joins the final foreground pass, after
+            // every voxel component and particle conduit has drawn its field.
+            NucleiGpuDisplayManager.SetVoxelDensityPreview(this);
+        }
+
+        void clearFoodPreview()
+        {
+            if (!gpuDensityPreviewActive)
+                NucleiGpuDisplayManager.DisableVoxelDensityPreview(InstanceGuid);
+            foodPreview?.Dispose();
+            foodPreview = null;
+            foodPreviewData = null;
+            foodPreviewSources = null;
+            foodPreviewStatic = false;
+        }
+
+        internal void DrawObstaclePreview(Rhino.Display.DisplayPipeline display)
+        {
+            if (Hidden || Locked || !VoxelPreviewField.HasObstacleOverlay(CurrentValueIndex())) return;
+            obstaclePreview?.Draw(display);
+        }
+
+        void updateObstaclePreview(double planarOffset)
+        {
+            if (voxel == null || Hidden || Locked || !VoxelPreviewField.HasObstacleOverlay(valueIndex))
+            {
+                clearObstaclePreview();
+                return;
+            }
+
+            // Authored obstacle data is independent of the live density buffers.
+            // Reuse geometry while the simulation advances; no GPU readback is needed.
+            VoxelGridData data = voxel.Data;
+            if (ReferenceEquals(obstaclePreviewData, data)
+                && ReferenceEquals(obstaclePreviewMaximumDensity, data.MaximumDensity)
+                && obstaclePreviewPlanarOffset == planarOffset) return;
+
+            clearObstaclePreview();
+            obstaclePreview = new VoxelObstaclePreview(data, planarOffset);
+            obstaclePreviewData = data;
+            obstaclePreviewMaximumDensity = data.MaximumDensity;
+            obstaclePreviewPlanarOffset = planarOffset;
+        }
+
+        void clearObstaclePreview()
+        {
+            obstaclePreview?.Dispose();
+            obstaclePreview = null;
+            obstaclePreviewData = null;
+            obstaclePreviewMaximumDensity = null;
         }
 
         public override BoundingBox ClippingBox
@@ -293,16 +331,42 @@ namespace Nuclei4
 
         public override void RemovedFromDocument(GH_Document document)
         {
+            document.SolutionStart -= PrepareValueLists;
             ObjectChanged -= previewObjectChanged;
             NucleiGpuDisplayManager.DisableVoxelDensityPreview(InstanceGuid);
+            clearPreviewCache();
             base.RemovedFromDocument(document);
         }
 
         public override void AddedToDocument(GH_Document document)
         {
             base.AddedToDocument(document);
+            document.SolutionStart -= PrepareValueLists;
+            document.SolutionStart += PrepareValueLists;
             ObjectChanged -= previewObjectChanged;
             ObjectChanged += previewObjectChanged;
+        }
+
+        public override void DocumentContextChanged(GH_Document document, GH_DocumentContext context)
+        {
+            if (context == GH_DocumentContext.Close) clearPreviewCache();
+            base.DocumentContextChanged(document, context);
+        }
+
+        void PrepareValueLists(object sender, GH_SolutionEventArgs args)
+        {
+            // Input validation can skip SolveInstance on a newly placed component.
+            // Wait until the first solution so saved/pasted wires are already restored.
+            if (Params.Input[1].SourceCount != 0 || OnPingDocument() == null || Attributes == null) return;
+            var list = new Grasshopper.Kernel.Special.GH_ValueList
+            { ListMode = Grasshopper.Kernel.Special.GH_ValueListMode.DropDown };
+            list.CreateAttributes();
+            list.Attributes.Pivot = new PointF(Attributes.Pivot.X - 250, Attributes.Pivot.Y - 31);
+            list.ListItems.Clear();
+            list.ListItems.AddRange(VoxelTypeChoices.Create());
+            VoxelTypeChoices.SelectStoredValue(this, 1, list);
+            OnPingDocument().AddObject(list, false);
+            Params.Input[1].AddSource(list);
         }
 
         void previewObjectChanged(IGH_DocumentObject sender, GH_ObjectChangedEventArgs e)
@@ -372,6 +436,7 @@ namespace Nuclei4
             }
 
             applyGpuPreviewStyle(frame, currentValueIndex);
+            updateGpuPreviewResolution(frame);
             gpuDensitySolver = solver;
             gpuDensityClippingBox = frame.ClippingBox;
             return frame;
@@ -407,6 +472,9 @@ namespace Nuclei4
             gpuDensitySolver = solver;
             gpuDensityPreviewActive = true;
             gpuDensityClippingBox = frame.ClippingBox;
+            updateObstaclePreview(0);
+            updateFoodPreview(0, true);
+            updateGpuPreviewResolution(frame);
             NucleiGpuDisplayManager.SetVoxelDensityPreview(this);
             return true;
         }
@@ -416,9 +484,13 @@ namespace Nuclei4
             if (frame == null) return;
 
             int sourceValueIndex = VoxelPreviewField.SourceField(currentValueIndex);
-            bool slimeVolume = sourceValueIndex == VoxelPreviewField.SlimeChemoattractants && frame.VolumeMode;
-            frame.VolumeRendererVersion = slimeVolume && frame.HasGradientTexture ? 2 : 1;
+            bool densityVolume = VoxelPreviewField.HasGpuDensityTexture(sourceValueIndex) && frame.VolumeMode;
+            frame.VolumeRendererVersion = densityVolume && frame.HasGradientTexture ? 2 : 1;
             frame.FancyRender = false;
+            // The menu quality setting is applied on every draw, including while paused.
+            // Default: fast half-XY rendering. High Resolution: original full-resolution
+            // rendering with 256 ray samples. Planar previews keep their existing path.
+            frame.UseNewRenderer = frame.VolumeMode && !highResolutionPreview;
             frame.ValueIndex = sourceValueIndex;
             frame.MinimumThreshold = ValidFloat(min, 0);
             frame.MaximumThreshold = ValidFloat(max, float.MaxValue);
@@ -545,10 +617,8 @@ namespace Nuclei4
 
         void disableGpuDensityPreview()
         {
-            if (gpuDensityPreviewActive)
-            {
-                NucleiGpuDisplayManager.DisableVoxelDensityPreview(InstanceGuid);
-            }
+            // The foreground registry can also contain CPU food overlays.
+            NucleiGpuDisplayManager.DisableVoxelDensityPreview(InstanceGuid);
 
             gpuDensityPreviewActive = false;
             gpuDensitySolver = null;
@@ -557,11 +627,16 @@ namespace Nuclei4
 
         int CurrentValueIndex()
         {
+            return CurrentIntegerInputValue(1, valueIndex);
+        }
+
+        int CurrentIntegerInputValue(int inputIndex, int fallback)
+        {
             try
             {
-                if (Params != null && Params.Input != null && Params.Input.Count > 1 && Params.Input[1].VolatileData != null)
+                if (Params != null && Params.Input != null && Params.Input.Count > inputIndex && Params.Input[inputIndex].VolatileData != null)
                 {
-                    foreach (object item in Params.Input[1].VolatileData.AllData(true))
+                    foreach (object item in Params.Input[inputIndex].VolatileData.AllData(true))
                     {
                         GH_Integer integer = item as GH_Integer;
                         if (integer != null)
@@ -583,7 +658,7 @@ namespace Nuclei4
             {
             }
 
-            return valueIndex;
+            return fallback;
         }
 
         void ensureCombinedPreviewChoices()
@@ -650,7 +725,9 @@ namespace Nuclei4
         void clearPreviewCache()
         {
             voxel = null;
+            clearObstaclePreview();
             clearPointCloudPreview();
+            clearFoodPreview();
             disableGpuDensityPreview();
             invalidateStaticPreviewCache();
         }
@@ -661,7 +738,7 @@ namespace Nuclei4
             voxelValues = null;
             voxelPointCloud = null;
             stablePointBuckets = null;
-            planarPreviewMesh = null;
+            clearPlanarPreviewTexture();
             clippingBox = BoundingBox.Empty;
             invalidateStaticPreviewCache();
         }
@@ -704,6 +781,8 @@ namespace Nuclei4
             {
                 return false;
             }
+
+            if (!tridimensional && planarPreviewTexture == null) return false;
 
             if (staticPreviewCachePointCount > 0 && (voxelPointCloud == null || voxelPointCloud.Count != staticPreviewCachePointCount))
             {
@@ -749,111 +828,60 @@ namespace Nuclei4
             staticPreviewCachePointCount = 0;
         }
 
-        const int MaxPlanarPreviewMeshVertices = 400000;
+        // Planar previews use full-resolution textures; only 3D point clouds are sampled.
         const int MaxPointCloudPreviewSamples = 300000;
 
-        bool buildPlanarPreviewMesh(VoxelGridData previewData)
+        bool buildPlanarPreviewTexture(VoxelGridData previewData)
         {
-            planarPreviewMesh = null;
+            clearPlanarPreviewTexture();
             stablePointBuckets = null;
             if (voxel == null || tridimensional) return false;
+            int width = planarYZ ? voxel.ResY : voxel.ResX;
+            int height = planarXY ? voxel.ResY : voxel.ResZ;
+            if (width < 1 || height < 1) return false;
 
-            int resX = voxel.ResX;
-            int resY = voxel.ResY;
-            int resZ = voxel.ResZ;
-
-            int uCount;
-            int vCount;
-            if (planarXY)
-            {
-                uCount = resX;
-                vCount = resY;
-            }
-            else if (planarXZ)
-            {
-                uCount = resX;
-                vCount = resZ;
-            }
-            else if (planarYZ)
-            {
-                uCount = resY;
-                vCount = resZ;
-            }
-            else
-            {
-                return false;
-            }
-
-            if (uCount < 2 || vCount < 2) return false;
-
-            int sampleUCount;
-            int sampleVCount;
-            resolvePlanarSampleCounts(uCount, vCount, out sampleUCount, out sampleVCount);
-            if (sampleUCount < 2 || sampleVCount < 2) return false;
-
-            int vertexCount = sampleUCount * sampleVCount;
-            double[] values = new double[vertexCount];
-            bool[] hasValues = new bool[vertexCount];
             minExistingVoxelValue = double.PositiveInfinity;
             maxExistingVoxelValue = double.NegativeInfinity;
-
-            Mesh mesh = new Mesh();
-            mesh.Vertices.Capacity = vertexCount;
-            mesh.Faces.Capacity = (sampleUCount - 1) * (sampleVCount - 1);
-
-            for (int su = 0; su < sampleUCount; su++)
+            // Automatic colour ranges must include every voxel, including fine extrema
+            // that the old subsampled mesh could miss.
+            for (int u = 0; u < width; u++)
+            for (int v = 0; v < height; v++)
             {
-                int u = sampleIndexToSourceIndex(su, sampleUCount, uCount);
-                for (int sv = 0; sv < sampleVCount; sv++)
-                {
-                    int v = sampleIndexToSourceIndex(sv, sampleVCount, vCount);
-                    int vertexIndex = su * sampleVCount + sv;
-
-                    int x;
-                    int y;
-                    int z;
-                    planarCoordinates(u, v, out x, out y, out z);
-                    mesh.Vertices.Add(previewPointAt(previewData, x, y, z));
-
-                    double value;
-                    if (tryGetPreviewValueAt(previewData, x, y, z, out value))
-                    {
-                        values[vertexIndex] = value;
-                        hasValues[vertexIndex] = true;
-                        if (value < minExistingVoxelValue) minExistingVoxelValue = value;
-                        if (value > maxExistingVoxelValue) maxExistingVoxelValue = value;
-                    }
-                }
+                int x, y, z;
+                planarCoordinates(u, v, out x, out y, out z);
+                double value;
+                if (!tryGetPreviewValueAt(previewData, x, y, z, out value)) continue;
+                minExistingVoxelValue = Math.Min(minExistingVoxelValue, value);
+                maxExistingVoxelValue = Math.Max(maxExistingVoxelValue, value);
             }
-
             applyPreviewDomainFromSamples();
-
-            for (int i = 0; i < vertexCount; i++)
+            planarPreviewTexture = new PlanarVoxelTexture(width, height, (u, v) =>
             {
-                mesh.VertexColors.Add(hasValues[i] ? retrieveVoxelColor(values[i]) : Color.Black);
-            }
-
-            for (int su = 0; su < sampleUCount - 1; su++)
+                int x, y, z;
+                planarCoordinates(u, v, out x, out y, out z);
+                double value;
+                return tryGetPreviewValueAt(previewData, x, y, z, out value) ? retrieveVoxelColor(value) : Color.Black;
+            }, (u, v) =>
             {
-                for (int sv = 0; sv < sampleVCount - 1; sv++)
-                {
-                    int a = su * sampleVCount + sv;
-                    int b = (su + 1) * sampleVCount + sv;
-                    int c = (su + 1) * sampleVCount + sv + 1;
-                    int d = su * sampleVCount + sv + 1;
-                    mesh.Faces.AddFace(a, b, c, d);
-                }
-            }
-
-            mesh.Normals.ComputeNormals();
-            mesh.Compact();
-            planarPreviewMesh = mesh;
+                double offset = previewPlanarOffset();
+                if (planarXY) return new Point3d(u * voxelSize, v * voxelSize, offset);
+                if (planarXZ) return new Point3d(u * voxelSize, offset, v * voxelSize);
+                return new Point3d(offset, u * voxelSize, v * voxelSize);
+            });
+            setPlanarPreviewResolution(width, height);
             return true;
+        }
+
+        void clearPlanarPreviewTexture()
+        {
+            planarPreviewTexture?.Dispose();
+            planarPreviewTexture = null;
+            setPlanarPreviewResolution(0, 0);
         }
 
         void buildSampledPointCloud(VoxelGridData previewData, int resX, int resY, int resZ)
         {
-            planarPreviewMesh = null;
+            clearPlanarPreviewTexture();
             stablePointBuckets = null;
             List<VoxelPreviewSample> samples = new List<VoxelPreviewSample>();
             minExistingVoxelValue = double.PositiveInfinity;
@@ -893,6 +921,13 @@ namespace Nuclei4
                 voxelValues.Add(sample.Value);
                 voxelPointCloud.Add(sample.Point, sampleColor);
             }
+
+            if (!tridimensional)
+            {
+                int uCount = planarYZ ? resY : resX;
+                int vCount = planarXY ? resY : resZ;
+                setPlanarPreviewResolution((uCount - 1) / step + 1, (vCount - 1) / step + 1);
+            }
         }
 
         void applyPreviewDomainFromSamples()
@@ -917,47 +952,6 @@ namespace Nuclei4
             }
 
             updatePreviewDomainMessage();
-        }
-
-        void resolvePlanarSampleCounts(int uCount, int vCount, out int sampleUCount, out int sampleVCount)
-        {
-            sampleUCount = uCount;
-            sampleVCount = vCount;
-            long fullCount = (long)uCount * vCount;
-            if (fullCount <= MaxPlanarPreviewMeshVertices)
-            {
-                return;
-            }
-
-            double scale = Math.Sqrt(MaxPlanarPreviewMeshVertices / (double)fullCount);
-            sampleUCount = Math.Max(2, (int)Math.Floor(uCount * scale));
-            sampleVCount = Math.Max(2, (int)Math.Floor(vCount * scale));
-
-            while ((long)sampleUCount * sampleVCount > MaxPlanarPreviewMeshVertices)
-            {
-                if (sampleUCount >= sampleVCount && sampleUCount > 2)
-                {
-                    sampleUCount--;
-                }
-                else if (sampleVCount > 2)
-                {
-                    sampleVCount--;
-                }
-                else
-                {
-                    break;
-                }
-            }
-        }
-
-        static int sampleIndexToSourceIndex(int sampleIndex, int sampleCount, int sourceCount)
-        {
-            if (sourceCount <= 1) return 0;
-            if (sampleCount <= 1) return 0;
-            int value = (int)Math.Round(sampleIndex * (sourceCount - 1) / (double)(sampleCount - 1));
-            if (value < 0) return 0;
-            if (value >= sourceCount) return sourceCount - 1;
-            return value;
         }
 
         static int previewSampleStep(int resX, int resY, int resZ, int maxSamples)
@@ -1159,13 +1153,13 @@ namespace Nuclei4
         bool tridimensional = true;
 
         int valueIndex;
+        const int LegacyRendererInputIndex = 5;
         //bool display = false;
         double min, max;
 
         Color colour;
-        // Volumetric preview quality. The automatic budget saturates at 256 on
-        // large grids, and 128 is close enough that the difference rarely justifies
-        // the cost, so 128 is the default and High Resolution opts back in to 256.
+        // One 3D quality setting selects both the renderer and its ray budget:
+        // fast half-XY/128 by default, original full-resolution/256 when checked.
         bool highResolutionPreview;
 
         const int StandardVolumeSamples = 128;
@@ -1182,8 +1176,40 @@ namespace Nuclei4
         {
             this.highResolutionPreview = false;
             reader.TryGetBoolean("HighResolutionPreview", ref this.highResolutionPreview);
+            if (hasLegacyRendererInput(reader))
+            {
+                // Read six-input archives against their original schema, then retire
+                // only the selector and its wire. Never remap inputs 0-4 or delete
+                // its source value list, which may be shared or user-customized.
+                Params.RegisterInputParam(new Grasshopper.Kernel.Parameters.Param_Integer
+                {
+                    Name = "Renderer", NickName = "renderer", Optional = true,
+                    Access = GH_ParamAccess.item
+                }, LegacyRendererInputIndex);
+                try
+                {
+                    return base.Read(reader);
+                }
+                finally
+                {
+                    if (Params.Input.Count > LegacyRendererInputIndex)
+                        Params.UnregisterInputParameter(Params.Input[LegacyRendererInputIndex], true);
+                    Params.OnParametersChanged();
+                }
+            }
 
             return base.Read(reader);
+        }
+
+        static bool hasLegacyRendererInput(GH_IReader reader)
+        {
+            if (!reader.ChunkExists("param_input", LegacyRendererInputIndex)
+                || reader.ChunkExists("param_input", LegacyRendererInputIndex + 1)) return false;
+
+            GH_IReader renderer = reader.FindChunk("param_input", LegacyRendererInputIndex);
+            string name = string.Empty;
+            return renderer != null && renderer.TryGetString("Name", ref name)
+                && string.Equals(name, "Renderer", StringComparison.Ordinal);
         }
 
         protected override void AppendAdditionalComponentMenuItems(ToolStripDropDown menu)
@@ -1191,13 +1217,16 @@ namespace Nuclei4
             base.AppendAdditionalComponentMenuItems(menu);
 
             var highResolutionToggle = Menu_AppendItem(
-                menu, "High Resolution", highResolutionHandler, true, this.highResolutionPreview);
+                menu, "High Resolution (3D)", highResolutionHandler, true, this.highResolutionPreview);
             highResolutionToggle.ToolTipText =
-                "Doubles the volumetric preview ray samples from 128 to 256. Sharper, and roughly twice the display cost.";
+                "Checked: original full-resolution GPU volume renderer with 256 samples per ray. "
+                + "Unchecked: fast half-width/half-height renderer with 128 samples per ray. "
+                + "Only affects 3D volume previews.";
         }
 
         protected void highResolutionHandler(object sender, EventArgs e)
         {
+            RecordUndoEvent("3D volume preview quality");
             this.highResolutionPreview = !this.highResolutionPreview;
             this.ExpireSolution(true);
         }
@@ -1214,7 +1243,18 @@ namespace Nuclei4
 
         PointCloud voxelPointCloud;
         List<StablePointBucket> stablePointBuckets;
-        Mesh planarPreviewMesh;
+        PlanarVoxelTexture planarPreviewTexture;
+        VoxelObstaclePreview obstaclePreview;
+        VoxelFoodPreview foodPreview;
+        VoxelGridData foodPreviewData;
+        VoxelScalarMap foodPreviewSources;
+        double foodPreviewPlanarOffset;
+        bool foodPreviewStatic;
+        VoxelGridData obstaclePreviewData;
+        VoxelScalarMap obstaclePreviewMaximumDensity;
+        double obstaclePreviewPlanarOffset;
+        int planarPreviewWidth;
+        int planarPreviewHeight;
         BoundingBox clippingBox = BoundingBox.Empty;
         bool gpuDensityPreviewActive = false;
         SolverGPU gpuDensitySolver;
@@ -1351,6 +1391,21 @@ namespace Nuclei4
         void updatePreviewDomainMessage()
         {
             Message = formatDomainValue(currentPreviewDomain.T0) + " to " + formatDomainValue(currentPreviewDomain.T1);
+        }
+
+        void setPlanarPreviewResolution(int width, int height)
+        {
+            if (planarPreviewWidth == width && planarPreviewHeight == height) return;
+            planarPreviewWidth = width;
+            planarPreviewHeight = height;
+            updatePreviewDomainMessage();
+        }
+
+        void updateGpuPreviewResolution(GpuDensityFieldPreviewFrame frame)
+        {
+            // Report the rendered texture dimensions, which may differ from the voxel grid.
+            bool planar = frame.DomainResX == 1 || frame.DomainResY == 1 || frame.DomainResZ == 1;
+            setPlanarPreviewResolution(planar ? frame.Width : 0, planar ? frame.Height : 0);
         }
 
         static string formatDomainValue(double value)

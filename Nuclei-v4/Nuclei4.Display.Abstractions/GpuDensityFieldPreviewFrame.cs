@@ -33,11 +33,30 @@ namespace Nuclei4
         public int VolumeSampleCount = 0;
         public int VolumeRendererVersion = 1;
         public bool FancyRender;
+        public bool UseNewRenderer;
+        public bool FoodOverlay;
         public float ColorR = 0;
         public float ColorG = 0;
         public float ColorB = 0;
         public float ColorA = 0;
         public bool UseCustomColor;
+
+        public GpuDensityFieldPreviewFrame CreateFoodOverlay()
+        {
+            var overlay = (GpuDensityFieldPreviewFrame)MemberwiseClone();
+            overlay.ValueIndex = VoxelPreviewField.AntFood;
+            overlay.FoodOverlay = true;
+            overlay.MinimumThreshold = 0;
+            overlay.MaximumThreshold = float.MaxValue;
+            overlay.UseCustomColor = false;
+            overlay.FancyRender = false;
+            // The shared alpha channel is remaining ant food; the selected
+            // signal's gradient must not shade the final food-only pass.
+            overlay.GradientSharedHandle = IntPtr.Zero;
+            overlay.NativeGradientTextureDescriptor = default(GpuTextureHandleDescriptor);
+            overlay.VolumeRendererVersion = 1;
+            return overlay;
+        }
 
         public bool ColorTexture
         {

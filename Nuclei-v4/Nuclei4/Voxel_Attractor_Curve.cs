@@ -13,6 +13,15 @@ namespace Nuclei4
 {
     public class Voxel_Attractor_Curve : GH_Component
     {
+        long selectedVoxelCount;
+
+        public override void ClearData()
+        {
+            base.ClearData();
+            selectedVoxelCount = 0;
+            VoxelAttractorOutputs.WriteCount(this, ref selectedVoxelCount, 0);
+        }
+
         /// <summary>
         /// Initializes a new instance of the Voxel_CurveAttractor class.
         /// </summary>
@@ -26,6 +35,21 @@ namespace Nuclei4
         /// <summary>
         /// Registers all the input parameters for this component.
         /// </summary>
+        VoxelOutputDemand outputDemand;
+
+        public override void AddedToDocument(GH_Document document)
+        {
+            base.AddedToDocument(document);
+            if (outputDemand == null) outputDemand = new VoxelOutputDemand(this);
+            outputDemand.Attach(document);
+        }
+
+        public override void RemovedFromDocument(GH_Document document)
+        {
+            outputDemand?.Detach();
+            base.RemovedFromDocument(document);
+        }
+
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
             //0
@@ -34,9 +58,9 @@ namespace Nuclei4
             pManager.AddCurveParameter("Attractor Curves", "attractorCurves", "Attractor Curves", GH_ParamAccess.list);
             pManager[1].DataMapping = GH_DataMapping.Flatten;
             //2
-            pManager.AddNumberParameter("Minimum Range", "minRange", "Minimum Range for Attractor", GH_ParamAccess.item, 0.0);
+            pManager.AddNumberParameter("Minimum Range", "minRange", VoxelAttractorRange.MinimumDescription, GH_ParamAccess.item, 0.0);
             //3
-            pManager.AddNumberParameter("Maximum Range", "maxRange", "Maximum Range for Attractor", GH_ParamAccess.item, 1.0);
+            pManager.AddNumberParameter("Maximum Range", "maxRange", VoxelAttractorRange.MaximumDescription, GH_ParamAccess.item, 1.0);
             //4
             pManager.AddBooleanParameter("Invert Voxel Selection", "invertSelection", "Inverts the Voxel Selection", GH_ParamAccess.item, false);
         }
@@ -75,7 +99,10 @@ namespace Nuclei4
             this.average = false;
             reader.TryGetBoolean("Average", ref this.average);
 
-            return base.Read(reader);
+            bool result = base.Read(reader);
+            Params.Input[2].Description = VoxelAttractorRange.MinimumDescription;
+            Params.Input[3].Description = VoxelAttractorRange.MaximumDescription;
+            return result;
         }
 
         protected override void AppendAdditionalComponentMenuItems(ToolStripDropDown menu)
@@ -146,9 +173,9 @@ namespace Nuclei4
             attractorCurves = new List<Curve>();
 
             //initialize output lists 
-            voxelPositions = new Grasshopper.DataTree<Point3d>();
-            voxelDistances = new Grasshopper.DataTree<double>();
-            voxelIndices = new Grasshopper.DataTree<int>();
+            voxelPositions = Params.Output[1].Recipients.Count > 0 ? new Grasshopper.DataTree<Point3d>() : null;
+            voxelDistances = Params.Output[2].Recipients.Count > 0 ? new Grasshopper.DataTree<double>() : null;
+            voxelIndices = Params.Output[3].Recipients.Count > 0 ? new Grasshopper.DataTree<int>() : null;
 
             if (!VoxelFieldAccess.TryGet(DA, "Voxels", Globals.voxelSize, out inputVoxelField))
             {
@@ -156,9 +183,12 @@ namespace Nuclei4
                 return;
             }
             DA.GetDataList("Attractor Curves", attractorCurves);
+            minR = 0; maxR = 1;
             DA.GetData("Minimum Range", ref minR);
             DA.GetData("Maximum Range", ref maxR);
             DA.GetData("Invert Voxel Selection", ref invert);
+
+            if (!VoxelAttractorRange.TryNormalize(this, 3, 1, inputVoxelField.VoxelSize, ref minR, ref maxR)) return;
 
             if (trySolveWithSidecar(DA))
             {
@@ -337,12 +367,12 @@ namespace Nuclei4
 
                                 if (index != -1)
                                 {
-                                    voxelPositions.Add(V.loc, new Grasshopper.Kernel.Data.GH_Path(index));
-                                    voxelIndices.Add(indexCounter, new Grasshopper.Kernel.Data.GH_Path(index));
+                                    voxelPositions?.Add(V.loc, new Grasshopper.Kernel.Data.GH_Path(index));
+                                    voxelIndices?.Add(indexCounter, new Grasshopper.Kernel.Data.GH_Path(index));
 
-                                    if (min) voxelDistances.Add(minDist, new Grasshopper.Kernel.Data.GH_Path(index));
-                                    if (max) voxelDistances.Add(maxDist, new Grasshopper.Kernel.Data.GH_Path(index));
-                                    if (average) voxelDistances.Add(outputDist / outputDistCounter * 1f, new Grasshopper.Kernel.Data.GH_Path(index));
+                                    if (min) voxelDistances?.Add(minDist, new Grasshopper.Kernel.Data.GH_Path(index));
+                                    if (max) voxelDistances?.Add(maxDist, new Grasshopper.Kernel.Data.GH_Path(index));
+                                    if (average) voxelDistances?.Add(outputDist / outputDistCounter * 1f, new Grasshopper.Kernel.Data.GH_Path(index));
 
                                     indexCounter++;
                                 }
@@ -487,12 +517,12 @@ namespace Nuclei4
 
                                 if (index != -1)
                                 {
-                                    voxelPositions.Add(V.loc, new Grasshopper.Kernel.Data.GH_Path(index));
-                                    voxelIndices.Add(indexCounter, new Grasshopper.Kernel.Data.GH_Path(index));
+                                    voxelPositions?.Add(V.loc, new Grasshopper.Kernel.Data.GH_Path(index));
+                                    voxelIndices?.Add(indexCounter, new Grasshopper.Kernel.Data.GH_Path(index));
 
-                                    if (min) voxelDistances.Add(minDist, new Grasshopper.Kernel.Data.GH_Path(index));
-                                    if (max) voxelDistances.Add(maxDist, new Grasshopper.Kernel.Data.GH_Path(index));
-                                    if (average) voxelDistances.Add(outputDist / outputDistCounter * 1f, new Grasshopper.Kernel.Data.GH_Path(index));
+                                    if (min) voxelDistances?.Add(minDist, new Grasshopper.Kernel.Data.GH_Path(index));
+                                    if (max) voxelDistances?.Add(maxDist, new Grasshopper.Kernel.Data.GH_Path(index));
+                                    if (average) voxelDistances?.Add(outputDist / outputDistCounter * 1f, new Grasshopper.Kernel.Data.GH_Path(index));
 
                                     indexCounter++;
                                 }
@@ -508,13 +538,11 @@ namespace Nuclei4
         
 
             DA.SetData(0, voxels);
-            DA.SetDataTree(1, voxelPositions);
-            DA.SetDataTree(2, voxelDistances);
-            DA.SetDataTree(3, voxelIndices);
+            if (voxelPositions != null) DA.SetDataTree(1, voxelPositions);
+            if (voxelDistances != null) DA.SetDataTree(2, voxelDistances);
+            if (voxelIndices != null) DA.SetDataTree(3, voxelIndices);
 
-            if (min) this.Message = "Minimum";
-            if (max) this.Message = "Maximum";
-            if (average) this.Message = "Average";
+            VoxelAttractorOutputs.WriteCount(this, ref selectedVoxelCount, indexCounter);
 
         }
 
@@ -530,9 +558,11 @@ namespace Nuclei4
 
             double theRealMin = Math.Min(minR, maxR);
             double theRealMax = Math.Max(minR, maxR);
-            double minSquared = theRealMin * theRealMin;
-            double maxSquared = theRealMax * theRealMax;
-            int maxRange = Convert.ToInt32(Math.Ceiling(theRealMax / inputData.VoxelSize));
+            bool pairBand = VoxelAttractorBand.NeedsPairs(theRealMin, theRealMax, inputData.VoxelSize);
+            double searchMax = VoxelAttractorBand.SearchMaximum(theRealMin, theRealMax, inputData.VoxelSize);
+            double minSquared = pairBand ? 0 : theRealMin * theRealMin;
+            double maxSquared = searchMax * searchMax;
+            int maxRange = Convert.ToInt32(Math.Ceiling(searchMax / inputData.VoxelSize));
 
             List<Point3d> samplePoints = collectCurveSamplePoints(inputData);
             VoxelSelectionBuilder selected = new VoxelSelectionBuilder(inputData.Count);
@@ -581,73 +611,10 @@ namespace Nuclei4
             VoxelGridData outputData = selected.ApplyTo(inputData);
             VoxelField outputField = inputVoxelField.WithData(outputData);
 
-            int indexCounter = 0;
-            for (int ordinal = 0; ordinal < outputData.ActiveCount; ordinal++)
-            {
-                int flatIndex = outputData.ActiveFlatIndexAt(ordinal);
-                Point3d center = outputData.CenterPoint(flatIndex);
+            VoxelAttractorOutputs.Write(DA, outputField, attractorCurves.Count, (a, center) => { double d; return tryCurveDistance(attractorCurves[a], center, out d) ? d : double.NaN; },
+                theRealMin, theRealMax, invert, min, max, average, voxelPositions, voxelDistances, voxelIndices);
 
-                int index = -1;
-                double minDist = 999999;
-                double maxDist = -99999;
-                double outputDist = -1;
-                int outputDistCounter = 0;
-
-                for (int c = 0; c < attractorCurves.Count; c++)
-                {
-                    double dist;
-                    if (!tryCurveDistance(attractorCurves[c], center, out dist))
-                    {
-                        continue;
-                    }
-
-                    if (!invert)
-                    {
-                        if (theRealMin <= dist && dist <= theRealMax)
-                        {
-                            if (dist < minDist)
-                            {
-                                minDist = dist;
-                                index = c;
-                            }
-
-                            if (dist > maxDist) maxDist = dist;
-                            outputDist += dist;
-                            outputDistCounter++;
-                        }
-                    }
-                    else
-                    {
-                        index = 0;
-                        outputDist += dist;
-                        outputDistCounter++;
-                        if (dist < minDist) minDist = dist;
-                        if (dist > maxDist) maxDist = dist;
-                    }
-                }
-
-                if (index != -1 && outputDistCounter > 0)
-                {
-                    Grasshopper.Kernel.Data.GH_Path path = new Grasshopper.Kernel.Data.GH_Path(index);
-                    voxelPositions.Add(center, path);
-                    voxelIndices.Add(indexCounter, path);
-
-                    if (min) voxelDistances.Add(minDist, path);
-                    if (max) voxelDistances.Add(maxDist, path);
-                    if (average) voxelDistances.Add(outputDist / outputDistCounter * 1f, path);
-
-                    indexCounter++;
-                }
-            }
-
-            DA.SetData(0, outputField);
-            DA.SetDataTree(1, voxelPositions);
-            DA.SetDataTree(2, voxelDistances);
-            DA.SetDataTree(3, voxelIndices);
-
-            if (min) this.Message = "Minimum";
-            if (max) this.Message = "Maximum";
-            if (average) this.Message = "Average";
+            VoxelAttractorOutputs.WriteCount(this, ref selectedVoxelCount, outputData.ActiveCount);
             return true;
         }
 
@@ -711,7 +678,7 @@ namespace Nuclei4
                 for (int c = 0; c < attractorCurves.Count; c++)
                 {
                     double dist;
-                    if (tryCurveDistance(attractorCurves[c], center, out dist) && minDistance <= dist && dist <= maxDistance)
+                    if (tryCurveDistance(attractorCurves[c], center, out dist) && VoxelAttractorBand.Contains(inputData, flatIndex, dist, p => { double d; return tryCurveDistance(attractorCurves[c], p, out d) ? d : double.NaN; }, minDistance, maxDistance))
                     {
                         return true;
                     }

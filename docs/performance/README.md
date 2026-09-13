@@ -2,6 +2,22 @@
 
 Nuclei's biggest speed gains come from processing chemical maps more efficiently and avoiding unnecessary work. The latest comparison found the **GPU faster in all eight tested workloads**. Earlier before/after tests measured roughly **×3** improvement for CPU slime with food, **×1.6–1.8** for CPU ants, and **×1.21–1.22** for the combined GPU slime improvements.
 
+## Actual-food sensing priority — 2026-09-13
+
+Searching ants in V3 and V4 now prioritise remaining edible food at valid sensor locations over pheromone. They use the existing sensor lookup, with an additional food-value read; no neighbourhood search or GPU pass was added. Without sensed edible food, existing pheromone behaviour remains active. Returning ants and protected post-delivery departure retain their behaviour.
+
+Passed 56 CPU food-priority cases on each V3 runtime, 34 GPU food-priority cases, and existing CPU nest/movement/deposit plus 24 GPU protected-departure fixtures. Coverage includes 2D, 3D, depleted and blocked food, and stronger competing scent. Installed hashes and evidence are retained in `.codex-temp/ant-actual-food`. No throughput or food-collection improvement has been benchmarked for this change.
+
+## V4 exploration trial — reverted 2026-09-13
+
+The food > 0.5 / minimum-base exploration trial was reverted after user testing. The previous V4 sensing behaviour is restored; the deposition curve remains shape 2.5 with a 2% floor. Trial evidence is retained in `.codex-temp/ant-explore-threshold`.
+
+## Ant deposit curve — 2026-09-13
+
+V3 and V4 now use `0.02 + 0.98 * (1 - progress)^2.5` for both pheromone age multipliers, with progress clamped to the existing individual map-scaled launch duration. The curve starts at 100% and flattens into a 2% minimum. No component inputs were added.
+
+Validation passed 160 CPU trail cases on each V3 runtime and 40 actual GPU trail cases across 2D and 3D. CPU nest, movement and protected-departure regressions also passed. Installed binaries were hash-verified; evidence is retained in `.codex-temp/ant-curve-2pct`. This is a behaviour change; no new throughput improvement is claimed.
+
 ## How to read the results
 
 **×2.00 means twice as much simulation work per second**, or half the time for the same work. Lower times are better. A simulation step is one update of the particles and their environment; **ms/step** means milliseconds per update. A 3D grid such as **128³** contains 128 × 128 × 128 small cells, called voxels.
@@ -126,4 +142,4 @@ The tests used an **AMD Ryzen 5 7535HS, Radeon 660M integrated GPU and 32 GB DDR
 - Previews, mesh generation and changing the population add work beyond the timings shown here.
 - A chemical-map speedup applies only to updating the maps. Moving particles, drawing previews and updating Grasshopper still take time, so the overall speedup is smaller. For example, if maps originally took 60 ms and everything else took 40 ms, making the maps ×3 faster reduces the total from 100 ms to 60 ms—not to 33 ms.
 
-The historical CPU improvement tests use serial particle updates for repeatable comparisons and parallel map updates; the latest CPU/GPU table uses normal CPU parallelism. GPU timings measure completed work rather than just the time taken to submit commands. Detailed methods, raw timings and build hashes are retained locally in `docs/performance/latest-cpu-gpu-20260913-validated`; the reusable runner is in `tools/Nuclei.CpuGpuBenchmark`. Use the [benchmark template](BENCHMARK-TEMPLATE.md) when recording new results.
+The historical CPU improvement tests use serial particle updates for repeatable comparisons and parallel map updates; the latest CPU/GPU table uses normal CPU parallelism. GPU timings measure completed work rather than just the time taken to submit commands. Detailed methods, raw timings and build hashes are retained locally; the public summary above records the validated conclusions.

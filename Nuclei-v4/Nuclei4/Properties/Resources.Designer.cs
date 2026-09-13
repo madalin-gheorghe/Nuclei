@@ -473,6 +473,26 @@ namespace Nuclei4.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
+        internal static System.Drawing.Bitmap VoxelFunctionAttractor {
+            get {
+                object obj = ResourceManager.GetObject("VoxelFunctionAttractor", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap VoxelImageMapper {
+            get {
+                object obj = ResourceManager.GetObject("VoxelImageMapper", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
         internal static System.Drawing.Bitmap VoxelMeshAttractor {
             get {
                 object obj = ResourceManager.GetObject("VoxelMeshAttractor", resourceCulture);

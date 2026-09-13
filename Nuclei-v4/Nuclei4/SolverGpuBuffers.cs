@@ -93,7 +93,9 @@ namespace Nuclei4
             int densityLimitElementCount = 0;
             MinimumDensityOffset = ReserveChannel(ref densityLimitElementCount, voxelCount, HasDenseMap(data.MinimumDensity));
             MaximumDensityOffset = ReserveChannel(ref densityLimitElementCount, voxelCount, HasDenseMap(data.MaximumDensity));
-            bool hasFlags = !data.AllVoxelsActive || data.MayContainBlockedMaxDensity();
+            // Reflective outer boundaries have an effective maximum density of
+            // zero even when the authored field has no maximum-density map.
+            bool hasFlags = !wrapBoundaries || !data.AllVoxelsActive || data.MayContainBlockedMaxDensity();
 
             VoxelBehaviorData = behaviorElementCount > 0 ? new float[behaviorElementCount] : null;
             VoxelVectorData = hasVectors ? data.VectorData : null;
@@ -124,7 +126,7 @@ namespace Nuclei4
             bool mayHaveFood = data.Food.Values != null || PositiveValueOrZero(data.Food.DefaultValue) > 0;
             bool mayHaveAntFood = hasDynamicFood || data.AntFood.Values != null
                 || PositiveValueOrZero(data.AntFood.DefaultValue) > 0;
-            bool needsFlagScan = hasFlags && (!data.AllVoxelsActive || data.MaximumDensity.Values != null);
+            bool needsFlagScan = hasFlags && (!wrapBoundaries || !data.AllVoxelsActive || data.MaximumDensity.Values != null);
             bool needsVoxelScan = mayHaveDensity || mayHaveAntFields || mayHaveFood || mayHaveAntFood ||
                 VoxelBehaviorData != null || VoxelDensityLimits != null || needsFlagScan;
 
@@ -553,6 +555,7 @@ namespace Nuclei4
         {
             particle.foundFood = false;
             particle.antLaunchBoundaryHit = false;
+            particle.antDepartingNest = false;
             // inheritParticleGroups is immediately followed by
             // particleCheckParentVoxel on a V3 reset, which advances age once.
             particle.age = 1;
@@ -596,7 +599,8 @@ namespace Nuclei4
                 {
                     // V3 leaves a new retained group non-ant until an eligible ant
                     // particle is actually copied into it.
-                    ant = false
+                    ant = false,
+                    RequestedParticleCount = source.RequestedParticleCount
                 };
 
                 ParticleGroups[i] = simulationGroup;

@@ -12,7 +12,7 @@ Diffusion spreads those signals into nearby cells, and decay controls how long t
 
 ## Follow the definition
 
-The point-attractor and voxel-center chains establish initial positions and food regions. [Define Voxel Values](../components/define-voxel-values.md) is set to **Ant Food**, with a saved multiplier of 5. [Voxel Settings Ant](../components/voxel-settings-ant.md) controls the two pheromone fields.
+The point-attractor and voxel-center chains establish initial positions and food regions. [Define Voxel Values](../components/define-voxel-values.md) is set to **Ant Food**, with a saved multiplier of 1. [Voxel Settings Ant](../components/voxel-settings-ant.md) controls the two pheromone fields.
 
 <details>
 <summary>Components used</summary>

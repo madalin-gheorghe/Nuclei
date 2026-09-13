@@ -296,6 +296,7 @@ namespace Nuclei4
 
         public bool foundFood = false;
         public bool antLaunchBoundaryHit = false;
+        public bool antDepartingNest = false;
         #endregion
 
         //-------------------------------------------------------------------

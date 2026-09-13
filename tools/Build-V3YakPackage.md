@@ -3,12 +3,22 @@
 Run after committing the V3 source and packaging icon:
 
 ```powershell
-pwsh -NoProfile -File tools/Build-V3YakPackage.ps1 -Version 3.3.1
+pwsh -NoProfile -File tools/Build-V3YakPackage.ps1 -Version 3.3.2
 ```
+
+To build a local candidate from current source without committing or publishing:
+
+```powershell
+pwsh -NoProfile -File tools/Build-V3YakPackage.ps1 -Version 3.3.2 -UseWorkingTree
+```
+
+This snapshots tracked and non-ignored source files and records `SourceKind` as
+`WorkingTree` alongside source hashes. The default still requires committed source.
+V3.3.2 supports Rhino 8/9 and includes an **old v3** banner only in Rhino 9.
 
 Requires Git, the SDK selected by `global.json`, package restore access, and Rhino 8's Yak CLI. An alternative CLI path can be supplied with `-YakPath`.
 
-The script exports the committed source into a unique ignored `.publish-work` directory, builds both runtime variants, and creates `nuclei-<version>-rh8_0-any.yak`. It never installs or publishes. The package contains:
+The script exports the committed source into a unique ignored `.publish-work` directory, builds both runtime variants, and creates `nuclei3-<version>-rh8_0-any.yak` under the separate **Nuclei3** package name. It never installs or publishes. The package contains:
 
 - `net48/`: the original Windows .NET Framework build and its runtime dependencies.
 - `net7.0/Nuclei3.gha`: the portable modern Windows/Mac build, with the original PNG icons embedded directly and no companion DLLs.

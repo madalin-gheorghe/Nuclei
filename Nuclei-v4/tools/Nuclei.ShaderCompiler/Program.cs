@@ -1,5 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using System.Text;
+using System.Security.Cryptography;
 
 using SharpGen.Runtime;
 using Vortice.D3DCompiler;
@@ -22,6 +23,7 @@ string[] entryPoints =
     "CullParticleOwnerConflicts",
     "MoveParticlesAndDeposit",
     "MoveAntParticlesAndDeposit",
+    "MoveSlimeParticlesAndDeposit",
     "ApplyDeposits",
     "ProjectFoodSources",
     "ClearParticleCounts",
@@ -36,9 +38,17 @@ string[] entryPoints =
     "DiffuseAxisXTiled",
     "DiffuseAxisYTiled",
     "DiffuseAxisZTiled",
+    "DiffuseAntPairAxis",
+    "DiffuseAntPairAxisPlanarTiled",
+    "DiffuseAntPairAxisXTiled",
+    "DiffuseAntPairAxisYTiled",
+    "DiffuseAntPairAxisZTiled",
+    "ApplyAntPairDecay",
     "ApplyDecay",
     "BuildDensityPreview",
     "BuildCombinedDensityPreview",
+    "BuildDensityPreviewVolumeTiled",
+    "BuildCombinedDensityPreviewVolumeTiled",
     "BuildDensityGradientPreview",
     "BuildParticlePreview",
     "BuildParticleTrailPreview",
@@ -59,13 +69,24 @@ CompileToFile(rendererShaderSource, "PSMain", "ps_5_0", Path.Combine(outputDirec
 CompileToFile(rendererShaderSource, "CSBuildOccupancy", "cs_5_0", Path.Combine(outputDirectory, "DensityPreviewOccupancy.cso"));
 CompileToFile(rendererShaderSource, "CSBuildShadow", "cs_5_0", Path.Combine(outputDirectory, "DensityPreviewShadow.cso"));
 CompileToFile(rendererShaderSource, "PSComposite", "ps_5_0", Path.Combine(outputDirectory, "DensityPreviewComposite.cso"));
+CompileToFile(rendererShaderSource, "PSNewRenderer", "ps_5_0", Path.Combine(outputDirectory, "DensityPreviewNewRay.cso"));
+CompileToFile(rendererShaderSource, "PSNewComposite", "ps_5_0", Path.Combine(outputDirectory, "DensityPreviewNewComposite.cso"));
 
 File.WriteAllText(Path.Combine(outputDirectory, "shaders.complete"), DateTime.UtcNow.ToString("O"));
-Console.WriteLine("Compiled " + (entryPoints.Length + 5) + " Nuclei GPU shaders.");
+Console.WriteLine("Compiled " + (entryPoints.Length + 7) + " Nuclei GPU shaders.");
 return 0;
 
 static void CompileToFile(string source, string entryPoint, string profile, string outputPath)
 {
+    // C# dispatch changes do not alter extracted HLSL. Reuse only a matching
+    // source/options fingerprint and verified bytecode, including renderer shaders.
+    string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+        typeof(Compiler).Assembly.FullName + "\0" + Environment.OSVersion.VersionString + "\0"
+        + entryPoint + "\0" + profile + "\0" + ShaderFlags.OptimizationLevel3 + "\0" + source)));
+    string cachePath = outputPath + ".sha256";
+    if (File.Exists(outputPath) && File.Exists(cachePath)
+        && File.ReadAllText(cachePath) == fingerprint + ":" + Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(outputPath))))
+        return;
     Blob? shaderBytecode = null;
     Blob? errorBlob = null;
     Result result = Compiler.Compile(
@@ -90,6 +111,7 @@ static void CompileToFile(string source, string entryPoint, string profile, stri
         byte[] bytes = new byte[(int)shaderBytecode.BufferSize];
         Marshal.Copy(shaderBytecode.BufferPointer, bytes, 0, bytes.Length);
         File.WriteAllBytes(outputPath, bytes);
+        File.WriteAllText(cachePath, fingerprint + ":" + Convert.ToHexString(SHA256.HashData(bytes)));
     }
     finally
     {

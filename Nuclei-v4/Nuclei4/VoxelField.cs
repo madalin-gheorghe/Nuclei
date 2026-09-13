@@ -96,6 +96,11 @@ namespace Nuclei4
             return Data.IsWalkableFlatIndex(flatIndex) && !IsSolverBoundary(flatIndex);
         }
 
+        internal bool MayContainSolverBoundaries
+        {
+            get { return solverBoundaryMode && (!solverWrapBoundaries || !Data.AllVoxelsActive); }
+        }
+
         internal bool IsSolverBoundary(int flatIndex)
         {
             if (!solverBoundaryMode || flatIndex < 0 || flatIndex >= Data.Count || !Data.IsActive(flatIndex))

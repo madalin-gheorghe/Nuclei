@@ -1,17 +1,19 @@
 #requires -Version 7.0
 <#
 .SYNOPSIS
-Builds a Rhino 8 Windows/Mac Yak package from committed Nuclei V3 source.
+Builds a Rhino 8/9 Yak candidate from Nuclei V3 source.
 .DESCRIPTION
 Creates a fresh ignored .publish-work directory. The net48 build retains its
 runtime dependencies; the portable net7.0 build contains one GHA with direct PNG
 resources. Does not install, publish, or change the working source tree.
+Defaults to committed source; -UseWorkingTree snapshots current source instead.
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
     [ValidatePattern('^3\.\d+\.\d+$')]
     [string]$Version,
+    [switch]$UseWorkingTree,
     [string]$YakPath = 'C:\Program Files\Rhino 8\System\Yak.exe'
 )
 
@@ -48,18 +50,32 @@ function Write-Utf8 {
 Push-Location $repo
 try {
     $status = @(Invoke-Checked git @('status', '--porcelain', '--', $projectRelative, 'global.json', $iconRelative))
-    if ($status.Count -gt 0) {
+    if ($status.Count -gt 0 -and -not $UseWorkingTree) {
         throw "Commit the V3 source, SDK selection, and Yak icon before packaging:`n$($status -join "`n")"
     }
     $commit = (Invoke-Checked git @('rev-parse', 'HEAD')).Trim()
     $stage = Join-Path $repo ('.publish-work/yak-v3-' + $Version + '-' +
         (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
     New-Item -ItemType Directory -Path $stage | Out-Null
-    $archive = Join-Path $stage 'committed-source.zip'
-    Invoke-Checked git @('archive', '--format=zip', "--output=$archive", $commit,
-        $projectRelative, 'global.json', $iconRelative)
     $source = Join-Path $stage 'source'
-    Expand-Archive -LiteralPath $archive -DestinationPath $source
+    if ($UseWorkingTree) {
+        # Snapshot only source-controlled and non-ignored source files, never bin/obj.
+        $files = @(Invoke-Checked git @('ls-files', '--cached', '--others', '--exclude-standard', '--',
+            $projectRelative, 'global.json', $iconRelative)) | Sort-Object -Unique
+        foreach ($file in $files) {
+            $inputPath = Join-Path $repo $file
+            if (-not (Test-Path -LiteralPath $inputPath -PathType Leaf)) { continue }
+            $destination = Join-Path $source $file
+            New-Item -ItemType Directory -Path (Split-Path $destination -Parent) -Force | Out-Null
+            Copy-Item -LiteralPath $inputPath -Destination $destination
+        }
+    }
+    else {
+        $archive = Join-Path $stage 'committed-source.zip'
+        Invoke-Checked git @('archive', '--format=zip', "--output=$archive", $commit,
+            $projectRelative, 'global.json', $iconRelative)
+        Expand-Archive -LiteralPath $archive -DestinationPath $source
+    }
     $legacyProject = Join-Path $source $projectRelative
     $portableProject = Join-Path $source 'portable/Nuclei3'
     New-Item -ItemType Directory -Path (Split-Path $portableProject -Parent) | Out-Null
@@ -248,14 +264,17 @@ __RESOURCE_ITEMS__
     Copy-Item -LiteralPath $icon -Destination (Join-Path $package 'icon.png')
     $manifest = @'
 ---
-name: Nuclei
+name: Nuclei3
 version: __VERSION__
 authors:
   - Madalin Gheorghe
 description: >-
   Nuclei is a generative-design plugin for Grasshopper that combines behavior-based particle simulations with highly customizable voxel environments. Inspired by slime-mold transport networks and ant foraging systems, it allows particles to respond to spatial fields, producing branching networks, evolving patterns, and volumetric structures.
+  Nuclei 3 supports Rhino 8 and 9. Only in Rhino 9, its components display an "old v3" banner.
+  For migration, uninstall the old shared Nuclei package, then install Nuclei2 and Nuclei3 separately to use both together.
 url: https://www.food4rhino.com/en/app/nuclei
 keywords:
+  - guid:fe53d2b8-e56d-da70-cde9-0b078f8bc65d
   - grasshopper
   - generative-design
   - particles
@@ -269,7 +288,7 @@ icon: icon.png
     try { Invoke-Checked $YakPath @('build', '--platform', 'any') }
     finally { Pop-Location }
     $yakFiles = @(Get-ChildItem -LiteralPath $package -Filter '*.yak')
-    if ($yakFiles.Count -ne 1 -or $yakFiles[0].Name -ine "nuclei-$Version-rh8_0-any.yak") {
+    if ($yakFiles.Count -ne 1 -or $yakFiles[0].Name -ine "nuclei3-$Version-rh8_0-any.yak") {
         throw 'Yak did not produce the expected Rhino 8 any-platform package.'
     }
     $builtFiles = @(Get-ChildItem -LiteralPath $package -File -Recurse | Sort-Object FullName |
@@ -280,6 +299,7 @@ icon: icon.png
     $provenance = [ordered]@{
         Version = $Version
         GitCommit = $commit
+        SourceKind = $(if ($UseWorkingTree) { 'WorkingTree' } else { 'Commit' })
         RhinoSdkVersion = $rhinoSdkVersion
         IconOrigin = 'Unmodified approved icon from the Nuclei 3.0.0 Yak package'
         IconSha256 = $iconSha256
