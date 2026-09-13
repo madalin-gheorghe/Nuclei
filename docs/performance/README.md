@@ -1,188 +1,129 @@
 # Nuclei Performance
 
-This is the canonical summary of Nuclei's major CPU and GPU performance results. Raw benchmark data remains local.
+Nuclei's biggest speed gains come from processing chemical maps more efficiently and avoiding unnecessary work. The latest comparison found the **GPU faster in all eight tested workloads**. Earlier before/after tests measured roughly **×3** improvement for CPU slime with food, **×1.6–1.8** for CPU ants, and **×1.21–1.22** for the combined GPU slime improvements.
 
+## How to read the results
 
-## CPU versus GPU
+**×2.00 means twice as much simulation work per second**, or half the time for the same work. Lower times are better. A simulation step is one update of the particles and their environment; **ms/step** means milliseconds per update. A 3D grid such as **128³** contains 128 × 128 × 128 small cells, called voxels.
 
-Tests used matched solver settings and measured completed solver work.
+These timings measure calculations, not the complete Rhino experience. Drawing previews, creating meshes and updating Grasshopper can add time. Each table identifies what was measured.
 
-| Workload | V3 CPU | V4 GPU | Speedup |
+## CPU versus GPU — latest builds
+
+Run using the latest local V3 CPU and V4 GPU Release builds. These times measure **particle and chemical-map calculations**, excluding previews, trail bookkeeping, Grasshopper updates and setup.
+
+| Simulation | V3 CPU: ms/step | V4 GPU: ms/step | Speedup |
 | --- | ---: | ---: | ---: |
-| Standard 2D: 500 × 500 × 1, 25k particles | 4.235 ms/step | 0.683 ms/step | **×6.20** |
-| High 2D: 4000 × 4000 × 1, 1M particles | 330.512 ms/step | 63.016 ms/step | **×5.24** |
-| High 3D: 300³, 1M particles | 428.268 ms/step | 133.322 ms/step | **×3.21** |
+| Slime, 500 × 500, 25,000 particles, small network | 17.012 | 1.026 | **×16.58** |
+| Slime, 500 × 500, 25,000 particles, large network | 15.652 | 0.977 | **×16.02** |
+| Slime, 64³, 1,572 particles, small network | 4.487 | 0.713 | **×6.29** |
+| Slime, 64³, 1,572 particles, large network | 5.199 | 1.010 | **×5.15** |
+| Slime, 128³, 12,582 particles, small network | 14.044 | 5.467 | **×2.57** |
+| Slime, 128³, 12,582 particles, large network | 11.842 | 5.785 | **×2.05** |
+| Ants, 500 × 500, 25,000 particles | 17.511 | 1.453 | **×12.05** |
+| Ants, 64³, 1,572 particles | 9.164 | 1.120 | **×8.18** |
 
-GPU execution was measured using D3D11 hardware timestamps and synchronization fences. Software GPU fallback was rejected. These results measure solver throughput. They exclude startup, Grasshopper scheduling, output conversion, meshing, and Rhino viewport rendering.
+Small and large slime networks use matching CPU/GPU settings: particle speed and sensor distance are both doubled for the larger network. Each environment has eight food sources.
+
+Results are medians of ten timed batches per backend, from two runs of **450 steps** each; the first 300 steps allow the simulation to develop before timing. CPU calculations use normal parallel processing. GPU times include waiting for the work to finish. **Timings varied substantially between runs, so treat these ratios as indicative.**
 
 ## Major breakthroughs
 
-Only improvements exceeding 50% more throughput (greater than 1.5×) are listed here. Each result refers to its stated workload and measured stages.
+Only improvements above **×1.50** appear here. Each row compares a particular change with its own earlier version; the gains cannot be added or multiplied together.
 
-| Stage / measured scope | Before → after | Speedup |
+| Improvement and measured work | Before → after | Speedup |
+| --- | --- | ---: |
+| Earlier CPU optimization | 713.596 → 271.026 ms/frame | **×2.63** |
+| CPU slime with food: particles + chemical map | [Results below](#faster-slime-on-the-cpu) | **×2.77–3.01** |
+| CPU ants: chemical maps only | [Results below](#faster-ants-on-the-cpu) | **×2.49–3.03** |
+| CPU ants: particles + chemical maps | [Results below](#faster-ants-on-the-cpu) | **×1.62–1.83** |
+| First comparable GPU version versus the best CPU run at that time | 271.026 → 34.070 ms/frame | **×7.96** |
+| GPU: spreading chemicals and applying decay together | 152.053 → 90.050 ms/step | **×1.69** |
+| GPU ants: shared map processing and unnecessary work removed | 68.349 → 22.775 ms/step | **×3.00** |
+| GPU ants: faster preparation of 3D preview data, including simulation | 96.61 → 59.81 ms/step | **×1.61** |
+
+The first CPU/GPU milestone used a different historical workload from the matched comparisons above. Its original ms/frame units are preserved. Preparing preview data is not the same as drawing it: the preview result does not claim a matching increase in viewport frame rate.
+
+## Faster slime on the CPU
+
+Slime follows a chemical map that spreads and fades over time. The new implementation updates several cells at once using **SIMD**, a CPU feature for doing the same calculation on multiple values. It also avoids copying information that is already up to date.
+
+With food sources, the measured particle and chemical-map calculations became roughly **3 times faster**. Both smaller and larger networks were tested:
+
+| Simulation with food | Before: ms/step | After: ms/step | Speedup |
+| --- | ---: | ---: | ---: |
+| 64³, small network | 11.35 | 3.82 | **×2.97** |
+| 64³, large network | 11.31 | 3.82 | **×2.96** |
+| 128³, small network | 100.49 | 36.02 | **×2.79** |
+| 128³, large network | 98.95 | 35.06 | **×2.82** |
+
+Without food sources, the gain was smaller: **×1.14–1.24**. That calculation path was already cheaper, leaving less work to remove. This does not mean adding food makes a simulation run faster.
+
+This optimization currently applies to suitable full, cubic 3D grids with wrapping boundaries, diffusion radius 1 and gradual setting 1, on modern .NET. Wrapping means particles and signals can continue across opposite edges of the environment. Other settings keep the existing calculation method.
+
+## Faster slime and previews on the GPU
+
+The GPU also gained speed from simpler slime movement, more efficient 3D preview preparation and faster chemical-map processing. The combined change improved slime throughput by **×1.21–1.22** in the recorded small- and large-network tests.
+
+| Improvement and simulation | Before: ms/step | After: ms/step | Speedup |
+| --- | ---: | ---: | ---: |
+| Combined changes, 250³, 90,000 slime particles, smaller network | 31.568 | 26.154 | **×1.21** |
+| Combined changes, 250³, 90,000 slime particles, larger network | 31.768 | 26.070 | **×1.22** |
+| Movement change alone, 250³, 1 million slime particles | 72.38 | 61.00 | **×1.19** |
+| Slime 3D preview preparation, 250³, 90,000 particles | 78.78 | 66.76 | **×1.18** |
+| Ant 3D preview preparation, 250³, 1,436 particles | 96.61 | 59.81 | **×1.61** |
+
+These September 12 comparisons measure whole simulation steps, with preview-data preparation included only in the preview rows. Actual viewport drawing is excluded. Each isolated change has its own comparison; do not multiply these speedups together. Only the ant preview result exceeds the ×1.50 threshold for major breakthroughs.
+
+## Faster ants on the CPU
+
+Ants use separate chemical maps to find food and return home. Both maps now benefit from SIMD while keeping their own spreading and fading settings. Edible food itself stays in place until consumed; its scent is what spreads.
+
+| Simulation | Chemical-map speedup | Particles + maps speedup |
 | --- | ---: | ---: |
-| CPU optimization | 713.596 → 271.026 ms/frame | **×2.63** |
-| CPU slime SIMD, native food sources; particle + field | [By workload](#v3-cpu-simd-diffusion-and-decay-2026-09-12) | **×2.77–3.01** |
-| CPU ant pheromone SIMD; field updates | [By workload](#ant-pheromones) | **×2.49–3.03** |
-| CPU ant pheromone SIMD; particle + field | [By workload](#ant-pheromones) | **×1.62–1.83** |
-| First comparable GPU workload versus best CPU run | 271.026 → 34.070 ms/frame | **×7.96** |
-| Tiled 3D diffusion and fused decay; solver step | 152.053 → 90.050 ms/step | **×1.69** |
-| Paired ant fields, species gating and sparse deposits; solver step | 68.349 → 22.775 GPU ms/step | **×3.00** |
-| Coalesced 3D preview atlas, ants; simulation + preview publication | 96.61 → 59.81 GPU ms/step | **×1.61** |
+| 64³, small networks | ×2.54–2.56 | **×1.78–1.82** |
+| 64³, large networks | ×2.49–2.51 | **×1.64–1.66** |
+| 128³, small networks | ×2.77–3.03 | **×1.74–1.83** |
+| 128³, large networks | ×2.55 | **×1.62–1.71** |
 
-Speedup = before time / after time. **×1.56** means 56% more completed work per second. Historical frame timings retain their original unit; preview publication does not measure viewport FPS. Ranges cover different paired workloads and link to their individual results rather than implying one shared before/after time.
+The complete particle-plus-map gain is smaller because speeding up the maps does not remove the time spent moving particles. The optimization supports suitable full 2D and rectangular 3D grids with wrapping boundaries on modern .NET. It uses additional memory: about **64 MiB for a 128³ grid**.
 
-Use the [benchmark template](BENCHMARK-TEMPLATE.md) for new results and when standardizing older sections. The rightmost column consistently shows the speedup for the measured scope; percentages and method details stay outside the tables.
+An earlier, separate CPU update also improved chemical-map processing in closed environments:
 
-## Ant pheromone diffusion (2026-09-11)
-
-The saved `13_Ants Intro_3D.gh` and `15_3D Intro.gh` definitions both use a 250³ grid (15,625,000 voxels), with approximately 1,436 ants versus 90,000 slime particles. Both voxel previews are hidden. The ant workload is dominated by full-grid pheromone processing, rather than particle movement: two pheromone fields use diffusion radius 2, while the slime example uses one field with radius 1. This initial fix retained scalar-field processing; the follow-up below removes that work when no slime is present.
-
-The ant fields now use the same tiled diffusion dispatch as slime for radii 2–16. Fusing decay into the final axis removes two additional full-grid passes per ant step. Radius 0/1 and 17+ retain direct diffusion with fused decay; disabled diffusion retains separate decay. No simulation controls or particle behavior were simplified to improve the timings.
-
-The controlled comparison used the same candidate binary with private validation switches selecting legacy direct/separate and current tiled/fused execution. Each fresh engine received 120 warm-up steps and five 20-step measurement batches, in legacy/current/current/legacy order. All ten samples per variant were retained:
-
-| GPU time per step | Legacy | Optimized | Speedup |
+| Chemical-map update only | Before: ms/update | After: ms/update | Speedup |
 | --- | ---: | ---: | ---: |
-| Total median | 96.811 ms | **67.308 ms** | **×1.44** |
-| Total mean | 99.259 ms | **67.248 ms** | **×1.48** |
-| Total sample range | 93.971–107.373 ms | 66.082–67.843 ms | — |
-| Both pheromone fields, median | 68.602 ms | **39.287 ms** | **×1.75** |
+| 3D, 100³ cells | 80.286 | 27.942 | **×2.87** |
+| 2D, 512 × 512 cells | 19.391 | 7.915 | **×2.45** |
 
-Synchronized wall-time means were 99.492 and 67.406 ms. Ant movement remained approximately 0.072 ms per step. Device timing varied, particularly in the legacy samples; the complete sample ranges are shown rather than discarding slow runs. The separate four-variant diagnostic confirmed that both tiling and decay fusion contribute to the improvement. The optimized backend SHA-256 is `50B07A8AF39B2AEA60128AC13B2DD0DE22DAF4AD339EBAD574CC3998AAB42306`.
+These are different tests and versions, not extra multipliers to apply to the SIMD results.
 
-`tools/Nuclei.AntPerformanceProbe --intro-profile` reproduces the saved grid, particle counts and solver controls with synthetic initial state. Timings use D3D11 hardware timestamps, a synchronization fence, hidden voxel preview, and enabled shared particle-preview generation. They exclude Grasshopper scheduling, Rhino rasterization, trails, CPU output synchronization, and the original definitions' food geometry; they are solver diagnostics, not measured document frame rates. Correctness is checked separately: 24 ant fixtures compare four execution variants bit-for-bit over eight steps, and scalar tiled-diffusion and 135 voxel-preview frame regressions also pass.
+## Faster ants on the GPU
 
-## Paired ant fields and unused-work removal (2026-09-11)
+A large environment can take time to update even when it contains relatively few ants. Processing the two scent maps together, skipping unused slime-map updates and handling deposits without scanning every empty cell reduced that cost.
 
-The follow-up combines both pheromone fields into one neighbour traversal. Food and home retain independent diffusion strengths and decay rates, with one shared diffusion range. Tile loads share neighbour indexing and validity checks; target updates share limit reads. If only one field diffuses, only that field runs a stencil. If neither diffuses, a paired decay-only pass preserves their distinct boundary rules.
+In the 250³ test with approximately 1,436 ants, the measured solver time changed as follows. Voxel previews were hidden; particle-preview data preparation was included.
 
-Ant-only solvers now leave authored scalar slime density static. Mixed and slime-only solvers continue updating it. Fixed ant-only populations also use the existing particle-driven deposit resolver when particle capacity is at most `voxelCount / 1024`, avoiding a scan of millions of empty voxels. Larger, mixed, and dynamic populations keep coalesced voxel deposits. At 250³, the threshold is 15,258 slots; the particle path improved both the 1,436-ant intro workload and a 15,000-ant comparison. This conservative threshold is not a universal crossover.
-
-The final comparison uses the same compiled backend and private validation switches to reproduce the previous optimized path. It uses the same synthetic intro fixture and measurement scope above: 250³, 1,436 ants, hidden voxel preview, enabled particle-preview texture generation. Each fresh engine receives 120 warm-up steps and five 20-step batches in previous/current/current/previous order. All ten samples per variant are retained:
-
-| GPU time per step | Previous optimized | Final | Speedup |
+| Improvement | Before: ms/step | After: ms/step | Speedup |
 | --- | ---: | ---: | ---: |
-| Median | 68.349 ms | **22.775 ms** | **×3.00** |
-| Mean | 68.891 ms | **22.642 ms** | **×3.04** |
-| Sample range | 67.117–72.289 ms | 21.668–23.877 ms | — |
+| More efficient chemical spreading and fading | 96.811 | 67.308 | **×1.44** |
+| Shared map processing and unnecessary work removed | 68.349 | 22.775 | **×3.00** |
 
-Synchronized wall-time means were 69.060 and 22.720 ms. Mean GPU pass costs were:
+Each row comes from a separate comparison. The small difference between the first row's ending time and the second row's starting time reflects normal measurement variation.
 
-| Work | Previous optimized | Final | Speedup |
-| --- | ---: | ---: | ---: |
-| Food and home pheromones | 40.205 ms | 21.445 ms | **×1.87** |
-| Unused scalar updates | 22.802 ms | 0 ms | Removed |
-| Deposit collection | 4.369 ms | 0.016 ms | **≈×273** |
-| Ant movement | 0.070 ms | 0.070 ms | **×1.00** |
+## Do the simulations still behave correctly?
 
-Every final sample used the automatic sparse-ant deposit path, with the forced experimental switch disabled. A separate 15,000-ant diagnostic reduced deposit processing from 4.401 to 0.206 ms and total mean time from 26.803 to 23.840 ms. These are solver-throughput measurements, not Rhino viewport frame rates.
+The CPU SIMD comparisons matched the original chemical maps and particle positions throughout **600 iterations**, across small and large networks: 16 slime pairs and eight ant pairs. Additional checks covered boundaries, food consumption, different spreading and fading settings, and fallback behavior.
 
-The final backend SHA-256 is `D10D33815611AF31A4DE9399396A918A7BA673657CC9F91E70F030DCBFBD0EE8`. The full-state regression passes 33 fixtures × 10 variants (2,940 steps), including actual mixed species, independent settings, live range/wrap changes, static ant-only scalar values, and an observed automatic sparse-deposit dispatch. All 135 voxel-preview frames also pass. Raw evidence remains local under `.codex-temp/ant-paired/`. The scalar regression also passes with its zero-particle fixtures explicitly advancing density, plus an assertion that the first step changes the field; this prevents species gating from turning stencil parity into a frozen-field comparison.
+The latest CPU/GPU suite completed **32 runs and 14,400 simulation steps**, retaining the full populations and finite chemical fields. It checked for movement, but did not establish identical CPU/GPU behavior.
 
+Those controlled CPU SIMD tests make particle updates reproducible. They do not promise identical trajectories between CPU and GPU or identical networks in every normal run. The production speed gains described here use dense grids, **not octree coarsening**.
 
-## V3 ant behavior parity and CPU field updates (2026-09-11)
+## What to expect on your computer
 
-V3 now follows V4's improved food-scent behavior in **3D and all three planar orientations (XY, XZ, YZ)**. Searching ants prioritize a useful food gradient and reduce exploration forces to 2%; losing the gradient restores exploration. Fixed food emits its remaining quantity after pickup, through the Food Pheromone field's diffusion and decay settings. Sensor readings no longer leak between ants sharing a worker thread. Returning ants retain their homeward behavior.
+The tests used an **AMD Ryzen 5 7535HS, Radeon 660M integrated GPU and 32 GB DDR5-4800 memory**, running Windows 11 in Balanced power mode.
 
-The CPU field kernel snapshots both pheromones per axis line before writing, removing the previous concurrent read/write race. Both fields reuse the same neighbor traversal while retaining independent rates, with decay fused into the last axis. Slime-density processing is skipped when no slime is present; source projection visits only cached food-source voxels.
+- Larger chemical maps make diffusion and decay more expensive; more particles increase movement and sensing work.
+- Previews, mesh generation and changing the population add work beyond the timings shown here.
+- A chemical-map speedup applies only to updating the maps. Moving particles, drawing previews and updating Grasshopper still take time, so the overall speedup is smaller. For example, if maps originally took 60 ms and everything else took 40 ms, making the maps ×3 faster reduces the total from 100 ms to 60 ms—not to 33 ms.
 
-**These are CPU field-update timings: food-source projection plus diffusion and decay. They exclude particle sensing/movement, Grasshopper, output conversion and viewport rendering. They are not total simulation timings or V3-versus-V4 speedups.**
-
-| Synthetic ant-only workload | Previous V3 | Updated V3 | Speedup |
-| --- | ---: | ---: | ---: |
-| 3D: 100 × 100 × 100, 1,000,000 voxels | 80.286 ms | **27.942 ms** | **×2.87** |
-| 2D XY: 512 × 512 × 1, 262,144 voxels | 19.391 ms | **7.915 ms** | **×2.45** |
-
-Each shape used four fresh processes in updated/previous/previous/updated order, 12 warm-up steps and 36 measured steps per process. Values above are the median of the two process medians. The two 3D baseline medians were 87.008 and 73.564 ms; updated medians were 27.947 and 27.938 ms. The two 2D baseline medians were 18.339 and 20.444 ms; updated medians were 7.771 and 8.060 ms. All runs were retained. The ratios describe this workload and machine, not a guaranteed frame rate.
-
-Settings: non-wrapped dense grids, ant radius 2, food/base diffusion 0.1/0.1, food/base decay 0.031/0.073, scalar diffusion 0.15 at radius 1, scalar decay 0.01. Scalar settings remain configured so the comparison includes removal of unused scalar work. Initial fields are nonuniform; every 997th voxel holds 10 units of fixed ant food. The updated build additionally emits food scent, which the old build lacked. No particles or previews run in this field benchmark.
-
-Validation covers 320 CPU field fixtures × 6 steps, plus 96 actual V4 hardware field comparisons × 8 steps. It includes 3D/XY/XZ/YZ, independent and disabled rates, radius 0–17, repeated wrapping, sparse holes, obstacles, limits and decay. Maximum V3-double/V4-float field difference was **0.000002291**. Particle checks cover every sensor direction (including up/down), gradient acquisition/loss, food pickup/depletion, mixed-species food sources and nest reset. Eighteen movement fixtures cover every active axis, both boundary modes, searching/returning deposition, and rejection of deposits on same-voxel or occupied moves. Random particle trajectories are not expected to be identical across CPU and GPU.
-
-The packaged modern-runtime assembly passed the same regressions and all 37 component constructor/icon checks. Both modern and .NET Framework variants built successfully and were installed locally into the existing Rhino 8/9 packages, with backups and matching file hashes. This was a local update, not a Yak release.
-
-Reproduction: `tools/Nuclei.V3AntProbe/README.md`. Baseline assembly, raw timings, regression logs, build hashes and the benchmark summary remain local under `.codex-temp/v3-ants/`. These smaller field-only workloads must not be combined with the earlier 250³ GPU ant results or historical full-solver CPU measurements.
-
-## V3 CPU SIMD diffusion and decay (2026-09-12)
-
-The CPU research produced an exact dense SIMD implementation for slime and a subsequent SIMD implementation for ant food/base pheromones. Contiguous arrays, batched parallel rows and final-pass decay fusion reduce field-update costs. Native slime food deposits already update the shared density array, allowing a redundant full-field synchronization copy to be skipped when that binding is valid. Native food-aware sensing is preserved.
-
-These are **CPU stage measurements**, not Grasshopper FPS or updated CPU/GPU comparisons. Coupled tests use serial native particle operations for reproducible occupancy/deposition and normal parallel field updates. Rendering, output conversion and validation are outside the measured stages.
-
-### Slime
-
-Final production comparisons cover 64³ and 128³, small and large network scales, seeds 17/89, with and without native food sources. All **16 paired 600-iteration runs** match exactly in every field and particle-position comparison. The food table averages both seeds over iterations 301–600:
-
-| Food-aware workload | Before: particle + field | After: particle + field | Speedup |
-| --- | ---: | ---: | ---: |
-| 64³, small network | 11.35 ms | **3.82 ms** | **×2.97** |
-| 64³, large network | 11.31 ms | **3.82 ms** | **×2.96** |
-| 128³, small network | 100.49 ms | **36.02 ms** | **×2.79** |
-| 128³, large network | 98.95 ms | **35.06 ms** | **×2.82** |
-
-Across individual food-aware pairs, particle-plus-field throughput improves **2.77–3.01×**. Without food sources it improves **1.14–1.24×**. The previous food-free scalar path was already substantially cheaper; the food-aware path removes more original work. The larger food-aware ratio is not evidence that adding food makes a simulation faster. Original 128³ timings vary between processes, so the paired results and their full spread are retained.
-
-The specialization applies on modern .NET with hardware SIMD to complete, periodic cubic 3D grids of at least 16 cells per side, disabled density limits, radius 1, gradual 1, diffusion in (0,1] and finite nonnegative decay. Other configurations and net48 retain the existing algorithm. Numerical checks cover 93 production field configurations plus 21 experimental configurations; the exact comparisons have zero discrepancy. Adaptive/octree policies remain experimental and did not establish an advantage over optimized dense execution at acceptable behavioral agreement. No 0.05 coarsening threshold is used here.
-
-### Ant pheromones
-
-Both food and base pheromone maps use reusable dense buffers while retaining independent diffusion and decay. Edible ant food is consumed and emits scent; it has no diffusion pass. Coupled timings include field gathering/scattering, exclude first-use allocation, and omit the first 20 of 600 iterations:
-
-| Coupled workload | Field speedup | Particle + field speedup |
-| --- | ---: | ---: |
-| 64³, small networks, seeds 17/89 | **×2.54–2.56** | **×1.78–1.82** |
-| 64³, large networks, seeds 17/89 | **×2.49–2.51** | **×1.64–1.66** |
-| 128³, small networks, seeds 17/89 | **×2.77–3.03** | **×1.74–1.83** |
-| 128³, large networks, seeds 17/89 | **×2.55** | **×1.62–1.71** |
-
-Standalone field-only comparisons also cover 2D: 512 × 512 × 1, radius 1, falls from **10.376 to 4.876 ms (2.13×)**; 128³, radius 1, falls from **114.697 to 43.785 ms (2.62×)**. These standalone fixtures differ from the coupled workloads above and the earlier September 11 CPU field benchmarks; their speedups must not be multiplied together.
-
-All eight coupled ant cases match every step, including both pheromones, remaining food, particle state and food pickup/return counts. Validation also includes 480 paired field configurations, eight mixed/limits/reuse cases, 48 independent-reference production-GHA cases and existing native regressions. The measured SIMD path requires modern .NET, complete periodic grids, no custom density limits and at least 4096 voxels; rectangular 3D and 2D are supported. Other configurations retain the existing implementation. Four persistent double arrays add 32 bytes per voxel (64 MiB at 128³).
-
-The CPU update, including the earlier slime SIMD work, was installed and hash-verified in Rhino 8/9 on September 12 with full pre-install backups. The September 13 shared ant Falloff change below has separate correctness coverage; these SIMD benchmarks were not rerun for that behavior/control change.
-
-Local sources and reproduction notes (not published): `tools/Nuclei.CpuOctreeProbe/RESEARCH-EXPERIMENT-RESULTS.md`, `RESEARCH-PRODUCTION-TABLES.md`, and `ANT-SIMD-RESULTS.md`.
-
-## Additional costs
-
-Persistent counts eliminated a full 27-million-voxel clear and particle recount, saving approximately 5.582 ms/step. A particle-based deposit alternative was correct but slower, so the coalesced voxel implementation remained in production.
-
-- High-load particle-preview generation added approximately 1–3%.
-- Density-preview buffer generation added approximately 29% on large 3D grids.
-- In an earlier benchmark, a full random-population pass every step added approximately 89%.
-- Optimizing unnecessary neighbour-count rebuilding reduced the random-population path from 27.8 to 12.076 ms/step.
-
-Viewport drawing is not included in these figures.
-
-The current particle initializer uses a deterministic pseudo-random permutation without replacement. That improves distribution and avoids duplicate initial voxels; it is separate from the historical dynamic-population cost above.
-
-## Important limitations
-
-- Grasshopper measures GPU command submission, not completed GPU execution. Submission can appear instantaneous while the GPU continues working.
-- V3 CPU and V4 GPU implement equivalent behavior using different execution strategies; their particle trajectories are not bit-identical.
-- Results from different workloads or benchmark generations must not be combined.
-- The historical optimized GPU result of 83.632 ms/step cannot be combined with the older high-3D CPU result because particle generation changed between tests.
-- A new matched CPU/GPU run is required for an updated official high-3D speedup.
-
-## Test system
-
-Results were recorded on:
-
-- AMD Ryzen 5 7535HS
-- AMD Radeon 660M integrated GPU
-- 32 GiB DDR5-4800
-- Windows 11 Pro
-- Balanced power plan
-
-These ratios describe this machine and are not universal CPU-versus-GPU expectations.
-
-The local evidence archive contains 45 Visual Studio profiler captures, hardware-timestamp samples, and raw A/B logs. Only authoritative summaries belong in this document.
-
-## Shared ant Falloff (2026-09-13)
-
-V3 CPU and V4 GPU now share one Falloff control for food and base pheromones, with independent diffusion and decay rates. This applies in 3D and all three 2D planes. Falloff 0 preserves the previous diffusion behavior. Higher values use the same mixing, weighting and final-axis retention mechanics as slime.
-
-The paired neighbor traversal, CPU SIMD path, GPU tiled passes and fused decay remain in use. Ant-only simulations still skip slime-density updates. This is a behavior/control change; no new throughput improvement is claimed.
-
-Validation covered 960 independent-reference field fixtures, 144 production SIMD fixtures and 288 V3/V4 hardware GPU comparisons, with Falloff 0, 0.4 and 1. Each CPU fixture ran six axis-order steps; each GPU comparison ran eight steps. The maximum CPU/GPU field difference was 0.000002291 (tolerance 0.00002). These correctness checks do not measure complete simulation or viewport speed. Local evidence: `.codex-temp/ant-schema/cpu-tests.json`, `gpu-parity.json`, and `packaged-cpu-tests.json`.
+The historical CPU improvement tests use serial particle updates for repeatable comparisons and parallel map updates; the latest CPU/GPU table uses normal CPU parallelism. GPU timings measure completed work rather than just the time taken to submit commands. Detailed methods, raw timings and build hashes are retained locally in `docs/performance/latest-cpu-gpu-20260913-validated`; the reusable runner is in `tools/Nuclei.CpuGpuBenchmark`. Use the [benchmark template](BENCHMARK-TEMPLATE.md) when recording new results.
