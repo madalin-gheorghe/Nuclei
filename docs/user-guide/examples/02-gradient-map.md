@@ -4,62 +4,64 @@ Give slime particles different sensing distances depending on where they are in 
 
 The particles still deposit and follow a shared signal, but their sensing conditions vary from one region to another. Look for changes in the spacing and organization of paths across the gradient. Use this example to explore how a continuous change in one environmental property can produce variation within a single simulation.
 
-![Gradient Map: example simulation result.](../assets/examples/02-gradient-map/result.jpg)
+![Gradient Map: example simulation result.](<../.gitbook/assets/result (5).jpg>)
 
-[Download 07_Gradient Map.gh](files/02-gradient-map.gh)
+[Download 07\_Gradient Map.gh](files/02-gradient-map.gh)
 
-![Gradient Map: Grasshopper definition showing its connected components and controls.](../assets/examples/02-gradient-map/definition-clean.png)
+![Gradient Map: Grasshopper definition showing its connected components and controls.](<../.gitbook/assets/definition-clean (2).png>)
 
 ## Follow the definition
 
 Follow the voxel positions through the remapping chain into [Define Voxel Values](../components/define-voxel-values.md). The saved Type is **Sensor Distance**. Inspect the mapped field before comparing particle behavior across it.
 
 <details>
+
 <summary>Components used</summary>
 
-- [Construct Voxels](../components/construct-voxels.md)
-- [Extract Voxel Positions](../components/extract-voxel-positions.md)
-- [Define Voxel Values](../components/define-voxel-values.md)
-- [Voxel Wrap Settings](../components/voxel-wrap-settings.md)
-- [Nuclei4 Solver Iterations](../components/nuclei4-solver-iterations.md)
-- [Particle Trail Settings](../components/particle-trail-settings.md)
-- [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
-- [Particle Preview](../components/particle-preview.md)
-- [Voxel Preview](../components/voxel-preview.md)
-- [Voxel Settings Slime](../components/voxel-settings-slime.md)
-- [Construct Slime Particles](../components/construct-slime-particles.md)
-- [Particle Trail Preview](../components/particle-trail-preview.md)
+* [Construct Voxels](../components/construct-voxels.md)
+* [Extract Voxel Positions](../components/extract-voxel-positions.md)
+* [Define Voxel Values](../components/define-voxel-values.md)
+* [Voxel Wrap Settings](../components/voxel-wrap-settings.md)
+* [Nuclei4 Solver Iterations](../components/nuclei4-solver-iterations.md)
+* [Particle Trail Settings](../components/particle-trail-settings.md)
+* [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
+* [Particle Preview](../components/particle-preview.md)
+* [Voxel Preview](../components/voxel-preview.md)
+* [Voxel Settings Slime](../components/voxel-settings-slime.md)
+* [Construct Slime Particles](../components/construct-slime-particles.md)
+* [Particle Trail Preview](../components/particle-trail-preview.md)
 
 </details>
 
 <details>
+
 <summary>Saved controls</summary>
 
 Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
-| Component | Input | Saved control |
-| --- | --- | --- |
-| Construct Voxels | Voxel Size | 1 |
-| Construct Voxels | X Voxels | 1000 |
-| Construct Voxels | Y Voxels | 500 |
-| Construct Voxels | Z Voxels | 1 |
-| Define Voxel Values | Type | Sensor Distance |
-| Voxel Wrap Settings | Wrap | True |
-| Nuclei4 Solver Iterations | Iterations | 100 |
-| Particle Trail Settings | Trail Size | 25 |
-| Nuclei4 Solver GPU | Reset | True |
-| Voxel Preview | Type | Slime Chemoattractants |
-| Voxel Settings Slime | Diffuse Rate | 0.1 |
-| Voxel Settings Slime | Decay Rate | 0.03 |
-| Voxel Settings Slime | Falloff | 0 |
-| Voxel Settings Slime | Diffuse Range | 1 |
-| Construct Slime Particles | Particle Count | 50000 |
-| Construct Slime Particles | Speed | 1.3 |
-| Construct Slime Particles | Sensor Distance | 6 |
-| Construct Slime Particles | Sensor Angle | 45 |
-| Construct Slime Particles | Rotation Angle | 45 |
-| Construct Slime Particles | Deposit | 1 |
-| Construct Slime Particles | Wander | 0 |
+| Component                 | Input           | Saved control          |
+| ------------------------- | --------------- | ---------------------- |
+| Construct Voxels          | Voxel Size      | 1                      |
+| Construct Voxels          | X Voxels        | 1000                   |
+| Construct Voxels          | Y Voxels        | 500                    |
+| Construct Voxels          | Z Voxels        | 1                      |
+| Define Voxel Values       | Type            | Sensor Distance        |
+| Voxel Wrap Settings       | Wrap            | True                   |
+| Nuclei4 Solver Iterations | Iterations      | 100                    |
+| Particle Trail Settings   | Trail Size      | 25                     |
+| Nuclei4 Solver GPU        | Reset           | True                   |
+| Voxel Preview             | Type            | Slime Chemoattractants |
+| Voxel Settings Slime      | Diffuse Rate    | 0.1                    |
+| Voxel Settings Slime      | Decay Rate      | 0.03                   |
+| Voxel Settings Slime      | Falloff         | 0                      |
+| Voxel Settings Slime      | Diffuse Range   | 1                      |
+| Construct Slime Particles | Particle Count  | 50000                  |
+| Construct Slime Particles | Speed           | 1.3                    |
+| Construct Slime Particles | Sensor Distance | 6                      |
+| Construct Slime Particles | Sensor Angle    | 45                     |
+| Construct Slime Particles | Rotation Angle  | 45                     |
+| Construct Slime Particles | Deposit         | 1                      |
+| Construct Slime Particles | Wander          | 0                      |
 
 </details>
 
@@ -75,11 +77,12 @@ Change the remapped range while retaining its spatial ordering. Compare how part
 
 ## Example result
 
-![Gradient Map: example simulation result.](../assets/examples/02-gradient-map/result.jpg)
+![Gradient Map: example simulation result.](<../.gitbook/assets/result (5).jpg>)
 
-[Back to examples](README.md)
+[Back to examples](./)
 
 <details>
+
 <summary>Grasshopper definition (JSON)</summary>
 
 [Download JSON](data/02-gradient-map.json) · [JSON Schema](../reference/definition.schema.json) · [How to read this JSON](../reference/reading-json.md)

@@ -4,7 +4,7 @@ Display particles as points in the Rhino viewport.
 
 **Location:** Nuclei4 → Preview
 
-![Particle Preview with its connected controls and wires.](../assets/components/particle-preview-wired.png)
+![Particle Preview with its connected controls and wires.](../.gitbook/assets/particle-preview-wired.png)
 
 ## Use it
 
@@ -14,10 +14,10 @@ Connect the solver’s **particles** output to **particles**. Adjust **size** to
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Particles** (`particles`) | Generic Data / item | Required | Current particle collection from the solver. |
-| **Point Size** (`size`) | Number / item | Optional; 2 | Displayed particle point size. |
+| Input                       | Type / access       | Default     | Meaning                                      |
+| --------------------------- | ------------------- | ----------- | -------------------------------------------- |
+| **Particles** (`particles`) | Generic Data / item | Required    | Current particle collection from the solver. |
+| **Point Size** (`size`)     | Number / item       | Optional; 2 | Displayed particle point size.               |
 
 ## Output
 
@@ -25,16 +25,17 @@ Displays directly in the Rhino viewport.
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| Nothing appears | Enable Grasshopper preview and zoom to the field. |
+| Symptom            | Action                                              |
+| ------------------ | --------------------------------------------------- |
+| Nothing appears    | Enable Grasshopper preview and zoom to the field.   |
 | Points do not move | Check that the input comes from the running solver. |
 
 ## Continue
 
-[Gradient Map](../examples/02-gradient-map.md) · [Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Minimizing Transport Networks 2](../examples/04-minimizing-transport-networks-2.md) · [Component reference](README.md)
+[Gradient Map](../examples/02-gradient-map.md) · [Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Minimizing Transport Networks 2](../examples/04-minimizing-transport-networks-2.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/particle-preview.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

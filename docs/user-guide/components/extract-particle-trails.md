@@ -4,7 +4,7 @@ Extract recorded trail points in separate branches so each particle can become i
 
 **Location:** Nuclei4 → Particles
 
-![Extract Particle Trails with a solver particle collection entering and a trail-point tree leaving.](../assets/components/extract-particle-trails-wired.png)
+![Extract Particle Trails with a solver particle collection entering and a trail-point tree leaving.](../.gitbook/assets/extract-particle-trails-wired.png)
 
 ## Use it
 
@@ -14,13 +14,13 @@ For separate curves, connect **trailPos** to Grasshopper **Polyline** and preser
 
 ## Input and output
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
+| Input                       | Type / access       | Default  | Meaning                                    |
+| --------------------------- | ------------------- | -------- | ------------------------------------------ |
 | **Particles** (`particles`) | Generic Data / item | Required | The solver's evolving particle collection. |
 
-| Output | Registered type / access | Actual result |
-| --- | --- | --- |
-| **Particle Positions** (`trailPos`) | Point / list | A point tree with a branch for each particle that has history. |
+| Output                              | Registered type / access | Actual result                                                  |
+| ----------------------------------- | ------------------------ | -------------------------------------------------------------- |
+| **Particle Positions** (`trailPos`) | Point / list             | A point tree with a branch for each particle that has history. |
 
 **Registered as a list, emitted as a tree:** preserve the actual output structure.
 
@@ -30,7 +30,7 @@ Paths use **`{groupIndex;particleIndex}`**. Both indices are zero-based. The sec
 
 For example, if group 0 contains particles 0 and 1, and group 1 begins at particle 2:
 
-```text
+```
 {0;0}: group 0, particle 0's trail points
 {0;1}: group 0, particle 1's trail points
 {1;2}: group 1, particle 2's trail points
@@ -42,20 +42,21 @@ Trail Size limits recent point history, not curve length in model units. Reset c
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| Empty output | Check solver connection and Trail Size, then advance after reset. |
-| One curve jumps between unrelated trails | Remove flattening before Polyline and inspect paths with a Panel or Parameter Viewer. |
-| Fewer branches than requested particles | The solver can retain fewer particles, and empty trails are omitted. |
-| Extraction is slow | Reduce particle count or Trail Size while experimenting; pause before large extractions. |
+| Symptom                                  | Action                                                                                   |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Empty output                             | Check solver connection and Trail Size, then advance after reset.                        |
+| One curve jumps between unrelated trails | Remove flattening before Polyline and inspect paths with a Panel or Parameter Viewer.    |
+| Fewer branches than requested particles  | The solver can retain fewer particles, and empty trails are omitted.                     |
+| Extraction is slow                       | Reduce particle count or Trail Size while experimenting; pause before large extractions. |
 
 The [Slime Intro walkthrough](../getting-started/first-slime-simulation.md) explains the original six-component setup. The extractor can be added downstream when you need curve geometry; see the [validation scope](../reference/pilot-validation.md).
 
 ## Continue
 
-[Particle Trail Settings](particle-trail-settings.md) · [Particles and populations](../core-concepts/particles-and-populations.md) · [Component reference](README.md)
+[Particle Trail Settings](particle-trail-settings.md) · [Particles and populations](../core-concepts/particles-and-populations.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/extract-particle-trails.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

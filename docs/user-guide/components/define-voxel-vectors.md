@@ -4,7 +4,7 @@ Assign directions to voxels to influence particle movement.
 
 **Location:** Nuclei4 → Environment
 
-![Define Voxel Vectors with its connected controls and wires.](../assets/components/define-voxel-vectors-wired.png)
+![Define Voxel Vectors with its connected controls and wires.](../.gitbook/assets/define-voxel-vectors-wired.png)
 
 ## Use it
 
@@ -16,30 +16,31 @@ Send the mapped field to the solver. Use [Extract Voxel Vector](extract-voxel-ve
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
-| **Voxel Vector** (`vector`) | Vector / list | Required | Directions to assign to the field. |
-| **Frequency** (`frequency`) | Integer / list | 1 | How often mapped directions influence particles; smaller values increase their influence. |
+| Input                       | Type / access       | Default  | Meaning                                                                                   |
+| --------------------------- | ------------------- | -------- | ----------------------------------------------------------------------------------------- |
+| **Voxels** (`voxels`)       | Generic Data / item | Required | Voxel field or selection to use.                                                          |
+| **Voxel Vector** (`vector`) | Vector / list       | Required | Directions to assign to the field.                                                        |
+| **Frequency** (`frequency`) | Integer / list      | 1        | How often mapped directions influence particles; smaller values increase their influence. |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
+| Output                       | Type / access       | Meaning                           |
+| ---------------------------- | ------------------- | --------------------------------- |
 | **Output Voxels** (`voxels`) | Generic Data / item | Selected or modified voxel field. |
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| Unexpected directions | Check the vector order against the voxel order. |
+| Symptom                    | Action                                                         |
+| -------------------------- | -------------------------------------------------------------- |
+| Unexpected directions      | Check the vector order against the voxel order.                |
 | Weak influence on movement | Check Frequency and that the solver receives the mapped field. |
 
 ## Continue
 
-[Vector Fields 1](../examples/08-vector-fields-1.md) · [Vector Fields 2](../examples/09-vector-fields-2.md) · [Component reference](README.md)
+[Vector Fields 1](../examples/08-vector-fields-1.md) · [Vector Fields 2](../examples/09-vector-fields-2.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/define-voxel-vectors.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

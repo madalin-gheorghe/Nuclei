@@ -4,7 +4,7 @@ Restrict particle movement to a supplied set of directions.
 
 **Location:** Nuclei4 → Environment
 
-![Define Discrete Vectors with its connected controls and wires.](../assets/components/define-discrete-vectors-wired.png)
+![Define Discrete Vectors with its connected controls and wires.](../.gitbook/assets/define-discrete-vectors-wired.png)
 
 ## Use it
 
@@ -14,28 +14,29 @@ Supply direction vectors to **discreteVectors**, then connect **discreteSettings
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
+| Input                                          | Type / access | Default  | Meaning                                                     |
+| ---------------------------------------------- | ------------- | -------- | ----------------------------------------------------------- |
 | **Voxel Discrete Vectors** (`discreteVectors`) | Vector / list | Required | Direction vectors to normalize and use as movement choices. |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
-| **Discrete Vector Settings** (`discreteSettings`) | Text / list | Discrete direction settings for the solver. |
+| Output                                            | Type / access | Meaning                                     |
+| ------------------------------------------------- | ------------- | ------------------------------------------- |
+| **Discrete Vector Settings** (`discreteSettings`) | Text / list   | Discrete direction settings for the solver. |
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| Directions are not applied | Check the settings connection and reset the solver. |
-| Unexpected movement | Check the supplied vectors and remove zero-length vectors. |
+| Symptom                    | Action                                                     |
+| -------------------------- | ---------------------------------------------------------- |
+| Directions are not applied | Check the settings connection and reset the solver.        |
+| Unexpected movement        | Check the supplied vectors and remove zero-length vectors. |
 
 ## Continue
 
-[Component reference](README.md)
+[Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/define-discrete-vectors.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

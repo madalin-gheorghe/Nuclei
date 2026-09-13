@@ -4,7 +4,7 @@ Extract the directions stored in a voxel field.
 
 **Location:** Nuclei4 → Environment
 
-![Extract Voxel Vector with its connected controls and wires.](../assets/components/extract-voxel-vector-wired.png)
+![Extract Voxel Vector with its connected controls and wires.](../.gitbook/assets/extract-voxel-vector-wired.png)
 
 ## Use it
 
@@ -14,28 +14,29 @@ Connect a field containing mapped vectors. Pair **voxelVector** with [Extract Vo
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
+| Input                 | Type / access       | Default  | Meaning                          |
+| --------------------- | ------------------- | -------- | -------------------------------- |
 | **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
+| Output                            | Type / access | Meaning                            |
+| --------------------------------- | ------------- | ---------------------------------- |
 | **Voxel Vectors** (`voxelVector`) | Vector / list | Mapped directions, in voxel order. |
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| Vectors are empty or zero | Check the upstream vector mapping. |
+| Symptom                            | Action                                        |
+| ---------------------------------- | --------------------------------------------- |
+| Vectors are empty or zero          | Check the upstream vector mapping.            |
 | Vectors and positions do not match | Use the same field and preserve output order. |
 
 ## Continue
 
-[Component reference](README.md)
+[Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/extract-voxel-vector.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

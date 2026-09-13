@@ -4,63 +4,65 @@ Use curves to guide where a slime network develops. Curve attractors select voxe
 
 The curves establish the attraction pattern, while particles add their own signal as they move. Watch how the trails respond to the mapped regions and develop connections around them. Use this example to explore how changing a curve or the selection distance changes the area of influence and the resulting particle network.
 
-![Attractor Curves 1: example simulation result.](../assets/examples/06-attractor-curves-1/result.jpg)
+![Attractor Curves 1: example simulation result.](<../.gitbook/assets/result (4).jpg>)
 
-[Download 10_Attractor Curves 1.gh](files/06-attractor-curves-1.gh)
+[Download 10\_Attractor Curves 1.gh](files/06-attractor-curves-1.gh)
 
-![Attractor Curves 1: Grasshopper definition showing its connected components and controls.](../assets/examples/06-attractor-curves-1/definition-clean.png)
+![Attractor Curves 1: Grasshopper definition showing its connected components and controls.](<../.gitbook/assets/definition-clean (7).png>)
 
 ## Follow the definition
 
 The curve attractors feed remapping and [Define Voxel Values](../components/define-voxel-values.md) components set to **Minimum Density**. Follow each branch through the union into the solver; the curves select where the map is applied.
 
 <details>
+
 <summary>Components used</summary>
 
-- [Construct Voxels](../components/construct-voxels.md)
-- [Curve Attractor for Voxels](../components/curve-attractor-for-voxels.md)
-- [Extract Voxel Bounding Box](../components/extract-voxel-bounding-box.md)
-- [Voxel Preview](../components/voxel-preview.md)
-- [Define Voxel Values](../components/define-voxel-values.md)
-- [Particle Trail Settings](../components/particle-trail-settings.md)
-- [Voxel Selection Union](../components/voxel-selection-union.md)
-- [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
-- [Voxel Settings Slime](../components/voxel-settings-slime.md)
-- [Construct Slime Particles](../components/construct-slime-particles.md)
-- [Particle Trail Preview](../components/particle-trail-preview.md)
-- [Voxel Wrap Settings](../components/voxel-wrap-settings.md)
+* [Construct Voxels](../components/construct-voxels.md)
+* [Curve Attractor for Voxels](../components/curve-attractor-for-voxels.md)
+* [Extract Voxel Bounding Box](../components/extract-voxel-bounding-box.md)
+* [Voxel Preview](../components/voxel-preview.md)
+* [Define Voxel Values](../components/define-voxel-values.md)
+* [Particle Trail Settings](../components/particle-trail-settings.md)
+* [Voxel Selection Union](../components/voxel-selection-union.md)
+* [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
+* [Voxel Settings Slime](../components/voxel-settings-slime.md)
+* [Construct Slime Particles](../components/construct-slime-particles.md)
+* [Particle Trail Preview](../components/particle-trail-preview.md)
+* [Voxel Wrap Settings](../components/voxel-wrap-settings.md)
 
 </details>
 
 <details>
+
 <summary>Saved controls</summary>
 
 Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
-| Component | Input | Saved control |
-| --- | --- | --- |
-| Construct Voxels | Voxel Size | 1 |
-| Construct Voxels | X Voxels | 1000 |
-| Construct Voxels | Y Voxels | 1000 |
-| Construct Voxels | Z Voxels | 1 |
-| Curve Attractor for Voxels | Maximum Range | 5 |
-| Voxel Preview | Type | Minimum Density |
-| Define Voxel Values | Type | Minimum Density |
-| Define Voxel Values | Type | Minimum Density |
-| Particle Trail Settings | Trail Size | 15 |
-| Nuclei4 Solver GPU | Reset | True |
-| Voxel Settings Slime | Diffuse Rate | 0.1 |
-| Voxel Settings Slime | Decay Rate | 0.03 |
-| Voxel Settings Slime | Falloff | 0.5 |
-| Voxel Settings Slime | Diffuse Range | 1 |
-| Construct Slime Particles | Particle Count | 30000 |
-| Construct Slime Particles | Speed | 1.3 |
-| Construct Slime Particles | Sensor Distance | 6 |
-| Construct Slime Particles | Sensor Angle | 45 |
-| Construct Slime Particles | Rotation Angle | 60 |
-| Construct Slime Particles | Deposit | 2 |
-| Construct Slime Particles | Wander | 0 |
-| Voxel Wrap Settings | Wrap | True |
+| Component                  | Input           | Saved control   |
+| -------------------------- | --------------- | --------------- |
+| Construct Voxels           | Voxel Size      | 1               |
+| Construct Voxels           | X Voxels        | 1000            |
+| Construct Voxels           | Y Voxels        | 1000            |
+| Construct Voxels           | Z Voxels        | 1               |
+| Curve Attractor for Voxels | Maximum Range   | 5               |
+| Voxel Preview              | Type            | Minimum Density |
+| Define Voxel Values        | Type            | Minimum Density |
+| Define Voxel Values        | Type            | Minimum Density |
+| Particle Trail Settings    | Trail Size      | 15              |
+| Nuclei4 Solver GPU         | Reset           | True            |
+| Voxel Settings Slime       | Diffuse Rate    | 0.1             |
+| Voxel Settings Slime       | Decay Rate      | 0.03            |
+| Voxel Settings Slime       | Falloff         | 0.5             |
+| Voxel Settings Slime       | Diffuse Range   | 1               |
+| Construct Slime Particles  | Particle Count  | 30000           |
+| Construct Slime Particles  | Speed           | 1.3             |
+| Construct Slime Particles  | Sensor Distance | 6               |
+| Construct Slime Particles  | Sensor Angle    | 45              |
+| Construct Slime Particles  | Rotation Angle  | 60              |
+| Construct Slime Particles  | Deposit         | 2               |
+| Construct Slime Particles  | Wander          | 0               |
+| Voxel Wrap Settings        | Wrap            | True            |
 
 </details>
 
@@ -74,11 +76,12 @@ Change the attractor range or curve geometry separately. Inspect the voxel map b
 
 ## Example result
 
-![Attractor Curves 1: example simulation result.](../assets/examples/06-attractor-curves-1/result.jpg)
+![Attractor Curves 1: example simulation result.](<../.gitbook/assets/result (4).jpg>)
 
-[Back to examples](README.md)
+[Back to examples](./)
 
 <details>
+
 <summary>Grasshopper definition (JSON)</summary>
 
 [Download JSON](data/06-attractor-curves-1.json) · [JSON Schema](../reference/definition.schema.json) · [How to read this JSON](../reference/reading-json.md)

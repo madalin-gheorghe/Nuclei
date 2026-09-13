@@ -4,7 +4,7 @@ Choose whether particles wrap around the field boundaries.
 
 **Location:** Nuclei4 → Environment
 
-![Voxel Wrap Settings with its connected controls and wires.](../assets/components/voxel-wrap-settings-wired.png)
+![Voxel Wrap Settings with its connected controls and wires.](../.gitbook/assets/voxel-wrap-settings-wired.png)
 
 ## Use it
 
@@ -14,27 +14,28 @@ Connect **wrapSettings** to the solver’s **settings** input. With Wrap True, m
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
+| Input             | Type / access  | Default         | Meaning                                                             |
+| ----------------- | -------------- | --------------- | ------------------------------------------------------------------- |
 | **Wrap** (`wrap`) | Boolean / item | Optional; False | True wraps movement across edges; False uses reflective boundaries. |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
-| **Wrap Settings** (`wrapSettings`) | Text / list | Boundary settings for the solver. |
+| Output                             | Type / access | Meaning                           |
+| ---------------------------------- | ------------- | --------------------------------- |
+| **Wrap Settings** (`wrapSettings`) | Text / list   | Boundary settings for the solver. |
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
+| Symptom                         | Action                                  |
+| ------------------------------- | --------------------------------------- |
 | Unexpected movement at the edge | Check Wrap and reset after changing it. |
 
 ## Continue
 
-[Gradient Map](../examples/02-gradient-map.md) · [City Map](../examples/05-city-map.md) · [City Map — alternate definition](../examples/05-city-map2.md) · [Component reference](README.md)
+[Gradient Map](../examples/02-gradient-map.md) · [City Map](../examples/05-city-map.md) · [City Map — alternate definition](../examples/05-city-map2.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/voxel-wrap-settings.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

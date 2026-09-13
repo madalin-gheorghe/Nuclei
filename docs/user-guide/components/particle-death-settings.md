@@ -4,7 +4,7 @@ Remove particles when their age and neighborhood meet the death conditions.
 
 **Location:** Nuclei4 → Particles
 
-![Particle Death Settings with its connected controls and wires.](../assets/components/particle-death-settings-wired.png)
+![Particle Death Settings with its connected controls and wires.](../.gitbook/assets/particle-death-settings-wired.png)
 
 ## Use it
 
@@ -14,32 +14,33 @@ Enable **Die** and connect **dieSettings** to the solver’s **settings** input.
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Die** (`die`) | Boolean / item | False | Enable neighborhood-based death. |
-| **Minimum Age** (`minAge`) | Integer / item | 10 | Minimum particle age, in simulation steps. |
-| **Die Range** (`dieRange`) | Integer / item | 3 | Neighborhood range used to count particles. |
-| **Minimum Neighbours** (`minN`) | Integer / item | 0 | Eligible particles die if they have fewer neighbors than this. |
-| **Maximum Neighbours** (`maxN`) | Integer / item | 10 | Eligible particles die if they have more neighbors than this. |
-| **Frequency** (`dieFrequency`) | Integer / item | 5 | Check the death rule every this many simulation steps. |
+| Input                           | Type / access  | Default | Meaning                                                        |
+| ------------------------------- | -------------- | ------- | -------------------------------------------------------------- |
+| **Die** (`die`)                 | Boolean / item | False   | Enable neighborhood-based death.                               |
+| **Minimum Age** (`minAge`)      | Integer / item | 10      | Minimum particle age, in simulation steps.                     |
+| **Die Range** (`dieRange`)      | Integer / item | 3       | Neighborhood range used to count particles.                    |
+| **Minimum Neighbours** (`minN`) | Integer / item | 0       | Eligible particles die if they have fewer neighbors than this. |
+| **Maximum Neighbours** (`maxN`) | Integer / item | 10      | Eligible particles die if they have more neighbors than this.  |
+| **Frequency** (`dieFrequency`)  | Integer / item | 5       | Check the death rule every this many simulation steps.         |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
-| **Death Settings** (`dieSettings`) | Text / list | Death settings for the solver. |
+| Output                             | Type / access | Meaning                        |
+| ---------------------------------- | ------------- | ------------------------------ |
+| **Death Settings** (`dieSettings`) | Text / list   | Death settings for the solver. |
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
+| Symptom                    | Action                                                          |
+| -------------------------- | --------------------------------------------------------------- |
 | Population does not shrink | Check Die, Minimum Age, neighbor limits, and population limits. |
 
 ## Continue
 
-[Growth 1](../examples/11-growth-1.md) · [Growth 2](../examples/12-growth-2.md) · [Component reference](README.md)
+[Growth 1](../examples/11-growth-1.md) · [Growth 2](../examples/12-growth-2.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/particle-death-settings.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

@@ -4,7 +4,7 @@ Select voxels along curves.
 
 **Location:** Nuclei4 → Environment
 
-![Curve Attractor for Voxels with its connected controls and wires.](../assets/components/curve-attractor-for-voxels-wired.png)
+![Curve Attractor for Voxels with its connected controls and wires.](../.gitbook/assets/curve-attractor-for-voxels-wired.png)
 
 ## Use it
 
@@ -16,22 +16,22 @@ Use **voxelDistance** when the mapped value should vary with distance from a cur
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
-| **Attractor Curves** (`attractorCurves`) | Curve / list | Required | Curves defining the selected regions. |
-| **Minimum Range** (`minRange`) | Number / item | 0 | Minimum distance from the attractor, in model units. |
-| **Maximum Range** (`maxRange`) | Number / item | 1 | Maximum distance from the attractor, in model units. |
-| **Invert Voxel Selection** (`invertSelection`) | Boolean / item | False | Keep the other cells of the input field instead. |
+| Input                                          | Type / access       | Default  | Meaning                                              |
+| ---------------------------------------------- | ------------------- | -------- | ---------------------------------------------------- |
+| **Voxels** (`voxels`)                          | Generic Data / item | Required | Voxel field or selection to use.                     |
+| **Attractor Curves** (`attractorCurves`)       | Curve / list        | Required | Curves defining the selected regions.                |
+| **Minimum Range** (`minRange`)                 | Number / item       | 0        | Minimum distance from the attractor, in model units. |
+| **Maximum Range** (`maxRange`)                 | Number / item       | 1        | Maximum distance from the attractor, in model units. |
+| **Invert Voxel Selection** (`invertSelection`) | Boolean / item      | False    | Keep the other cells of the input field instead.     |
 
 ## Outputs
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
-| **Output Voxels** (`voxels`) | Generic Data / item | Selected or modified voxel field. |
-| **Output Voxel Positions** (`voxelPosition`) | Point / tree | Centers of the selected voxels. |
-| **Output Distances to Voxels** (`voxelDistance`) | Number / tree | Distances paired with the selected voxel centers. |
-| **Output Voxel Indices** (`voxelIndex`) | Integer / tree | Indices of the selected voxels, paired with the position output. |
+| Output                                           | Type / access       | Meaning                                                          |
+| ------------------------------------------------ | ------------------- | ---------------------------------------------------------------- |
+| **Output Voxels** (`voxels`)                     | Generic Data / item | Selected or modified voxel field.                                |
+| **Output Voxel Positions** (`voxelPosition`)     | Point / tree        | Centers of the selected voxels.                                  |
+| **Output Distances to Voxels** (`voxelDistance`) | Number / tree       | Distances paired with the selected voxel centers.                |
+| **Output Voxel Indices** (`voxelIndex`)          | Integer / tree      | Indices of the selected voxels, paired with the position output. |
 
 ## Distance and resolution
 
@@ -41,16 +41,17 @@ Position, distance, and index outputs use matching branches. Keep them together 
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| No selected voxels | Check the curve location and the range. |
+| Symptom                       | Action                                                             |
+| ----------------------------- | ------------------------------------------------------------------ |
+| No selected voxels            | Check the curve location and the range.                            |
 | Mapped gradient is misaligned | Keep the distance values in the same order as the selected voxels. |
 
 ## Continue
 
-[Attractor Curves 1](../examples/06-attractor-curves-1.md) · [Attractor Curves 2](../examples/07-attractor-curves-2.md) · [Ants Complex](../examples/14-ants-complex.md) · [Component reference](README.md)
+[Attractor Curves 1](../examples/06-attractor-curves-1.md) · [Attractor Curves 2](../examples/07-attractor-curves-2.md) · [Ants Complex](../examples/14-ants-complex.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/curve-attractor-for-voxels.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

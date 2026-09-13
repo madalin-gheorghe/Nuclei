@@ -6,7 +6,7 @@ A particle is a moving agent. A **particle group** collects agents that share be
 
 Connect the voxel field to the particle constructor. **Construct Slime Particles** accepts initial positions or a positive Particle Count for generated positions. **Construct Ant Particles** requires starting points in the nest region; those points determine the starting population and remembered home positions.
 
-![Construct slime with connected controls and wires.](../assets/construct-slime-clean.png)
+![Construct slime with connected controls and wires.](../.gitbook/assets/construct-slime-clean.png)
 
 The constructor defines starting conditions. The solver's **particles** output carries the evolving simulation. Connect previews and particle extractors to that output.
 

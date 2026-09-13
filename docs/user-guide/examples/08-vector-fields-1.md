@@ -4,60 +4,62 @@ Give the environment directions that influence how slime particles move. This de
 
 The mapped vectors act alongside the particles' sensing and response to chemoattractant signal. Observe how the trails align with the supplied directions and how connections develop between influenced regions. Use this example to explore the effect of changing the vector geometry or how often the field influences the particles.
 
-![Vector Fields 1: example simulation result.](../assets/examples/08-vector-fields-1/result.jpg)
+![Vector Fields 1: example simulation result.](<../.gitbook/assets/result (10).jpg>)
 
-[Download 12_Vector Fields 1.gh](files/08-vector-fields-1.gh)
+[Download 12\_Vector Fields 1.gh](files/08-vector-fields-1.gh)
 
-![Vector Fields 1: Grasshopper definition showing its connected components and controls.](../assets/examples/08-vector-fields-1/definition-clean.png)
+![Vector Fields 1: Grasshopper definition showing its connected components and controls.](<../.gitbook/assets/definition-clean (9).png>)
 
 ## Follow the definition
 
 Follow the geometric vector construction into [Define Voxel Vectors](../components/define-voxel-vectors.md). Point-attractor selections and the union determine which cells receive the map. The vector field acts alongside the slime behavior settings.
 
 <details>
+
 <summary>Components used</summary>
 
-- [Construct Voxels](../components/construct-voxels.md)
-- [Extract Voxel Bounding Box](../components/extract-voxel-bounding-box.md)
-- [Point Attractor for Voxels](../components/point-attractor-for-voxels.md)
-- [Define Voxel Vectors](../components/define-voxel-vectors.md)
-- [Voxel Selection Union](../components/voxel-selection-union.md)
-- [Nuclei4 Solver Iterations](../components/nuclei4-solver-iterations.md)
-- [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
-- [Particle Trail Settings](../components/particle-trail-settings.md)
-- [Voxel Settings Slime](../components/voxel-settings-slime.md)
-- [Construct Slime Particles](../components/construct-slime-particles.md)
-- [Particle Trail Preview](../components/particle-trail-preview.md)
+* [Construct Voxels](../components/construct-voxels.md)
+* [Extract Voxel Bounding Box](../components/extract-voxel-bounding-box.md)
+* [Point Attractor for Voxels](../components/point-attractor-for-voxels.md)
+* [Define Voxel Vectors](../components/define-voxel-vectors.md)
+* [Voxel Selection Union](../components/voxel-selection-union.md)
+* [Nuclei4 Solver Iterations](../components/nuclei4-solver-iterations.md)
+* [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
+* [Particle Trail Settings](../components/particle-trail-settings.md)
+* [Voxel Settings Slime](../components/voxel-settings-slime.md)
+* [Construct Slime Particles](../components/construct-slime-particles.md)
+* [Particle Trail Preview](../components/particle-trail-preview.md)
 
 </details>
 
 <details>
+
 <summary>Saved controls</summary>
 
 Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
-| Component | Input | Saved control |
-| --- | --- | --- |
-| Construct Voxels | Voxel Size | 1 |
-| Construct Voxels | X Voxels | 800 |
-| Construct Voxels | Y Voxels | 800 |
-| Construct Voxels | Z Voxels | 1 |
-| Point Attractor for Voxels | Minimum Range | 50 |
-| Point Attractor for Voxels | Maximum Range | 300 |
-| Nuclei4 Solver Iterations | Iterations | 300 |
-| Nuclei4 Solver GPU | Reset | True |
-| Particle Trail Settings | Trail Size | 5 |
-| Voxel Settings Slime | Diffuse Rate | 0.1 |
-| Voxel Settings Slime | Decay Rate | 0.03 |
-| Voxel Settings Slime | Falloff | 0 |
-| Voxel Settings Slime | Diffuse Range | 1 |
-| Construct Slime Particles | Particle Count | 65000 |
-| Construct Slime Particles | Speed | 1.3 |
-| Construct Slime Particles | Sensor Distance | 6 |
-| Construct Slime Particles | Sensor Angle | 45 |
-| Construct Slime Particles | Rotation Angle | 45 |
-| Construct Slime Particles | Deposit | 0.4 |
-| Construct Slime Particles | Exploration | 0 |
+| Component                  | Input           | Saved control |
+| -------------------------- | --------------- | ------------- |
+| Construct Voxels           | Voxel Size      | 1             |
+| Construct Voxels           | X Voxels        | 800           |
+| Construct Voxels           | Y Voxels        | 800           |
+| Construct Voxels           | Z Voxels        | 1             |
+| Point Attractor for Voxels | Minimum Range   | 50            |
+| Point Attractor for Voxels | Maximum Range   | 300           |
+| Nuclei4 Solver Iterations  | Iterations      | 300           |
+| Nuclei4 Solver GPU         | Reset           | True          |
+| Particle Trail Settings    | Trail Size      | 5             |
+| Voxel Settings Slime       | Diffuse Rate    | 0.1           |
+| Voxel Settings Slime       | Decay Rate      | 0.03          |
+| Voxel Settings Slime       | Falloff         | 0             |
+| Voxel Settings Slime       | Diffuse Range   | 1             |
+| Construct Slime Particles  | Particle Count  | 65000         |
+| Construct Slime Particles  | Speed           | 1.3           |
+| Construct Slime Particles  | Sensor Distance | 6             |
+| Construct Slime Particles  | Sensor Angle    | 45            |
+| Construct Slime Particles  | Rotation Angle  | 45            |
+| Construct Slime Particles  | Deposit         | 0.4           |
+| Construct Slime Particles  | Exploration     | 0             |
 
 </details>
 
@@ -71,11 +73,12 @@ Change the mapped vector direction or frequency, then reset. Compare directional
 
 ## Example result
 
-![Vector Fields 1: example simulation result.](../assets/examples/08-vector-fields-1/result.jpg)
+![Vector Fields 1: example simulation result.](<../.gitbook/assets/result (10).jpg>)
 
-[Back to examples](README.md)
+[Back to examples](./)
 
 <details>
+
 <summary>Grasshopper definition (JSON)</summary>
 
 [Download JSON](data/08-vector-fields-1.json) · [JSON Schema](../reference/definition.schema.json) · [How to read this JSON](../reference/reading-json.md)

@@ -4,7 +4,7 @@ Select voxels near mesh surfaces.
 
 **Location:** Nuclei4 → Environment
 
-![Mesh Attractor for Voxel with its connected controls and wires.](../assets/components/mesh-attractor-for-voxel-wired.png)
+![Mesh Attractor for Voxel with its connected controls and wires.](../.gitbook/assets/mesh-attractor-for-voxel-wired.png)
 
 ## Use it
 
@@ -16,22 +16,22 @@ For cells inside a closed mesh, use [Voxel Inclusion in Mesh](voxel-inclusion-in
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
-| **Attractor Meshes** (`attractorMeshes`) | Mesh / list | Required | Meshes defining the selected surface regions. |
-| **Minimum Range** (`minRange`) | Number / item | 0 | Minimum distance from the attractor, in model units. |
-| **Maximum Range** (`maxRange`) | Number / item | 1 | Maximum distance from the attractor, in model units. |
-| **Invert Voxel Selection** (`invertSelection`) | Boolean / item | False | Keep the other cells of the input field instead. |
+| Input                                          | Type / access       | Default  | Meaning                                              |
+| ---------------------------------------------- | ------------------- | -------- | ---------------------------------------------------- |
+| **Voxels** (`voxels`)                          | Generic Data / item | Required | Voxel field or selection to use.                     |
+| **Attractor Meshes** (`attractorMeshes`)       | Mesh / list         | Required | Meshes defining the selected surface regions.        |
+| **Minimum Range** (`minRange`)                 | Number / item       | 0        | Minimum distance from the attractor, in model units. |
+| **Maximum Range** (`maxRange`)                 | Number / item       | 1        | Maximum distance from the attractor, in model units. |
+| **Invert Voxel Selection** (`invertSelection`) | Boolean / item      | False    | Keep the other cells of the input field instead.     |
 
 ## Outputs
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
-| **Output Voxels** (`voxels`) | Generic Data / item | Selected or modified voxel field. |
-| **Output Voxel Positions** (`voxelPosition`) | Point / tree | Centers of the selected voxels. |
-| **Output Distances to Voxels** (`voxelDistance`) | Number / tree | Distances paired with the selected voxel centers. |
-| **Output Voxel Indices** (`voxelIndex`) | Integer / tree | Indices of the selected voxels, paired with the position output. |
+| Output                                           | Type / access       | Meaning                                                          |
+| ------------------------------------------------ | ------------------- | ---------------------------------------------------------------- |
+| **Output Voxels** (`voxels`)                     | Generic Data / item | Selected or modified voxel field.                                |
+| **Output Voxel Positions** (`voxelPosition`)     | Point / tree        | Centers of the selected voxels.                                  |
+| **Output Distances to Voxels** (`voxelDistance`) | Number / tree       | Distances paired with the selected voxel centers.                |
+| **Output Voxel Indices** (`voxelIndex`)          | Integer / tree      | Indices of the selected voxels, paired with the position output. |
 
 ## Distance and resolution
 
@@ -41,16 +41,17 @@ Position, distance, and index outputs use matching branches. Keep them together 
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
+| Symptom                            | Action                                                  |
+| ---------------------------------- | ------------------------------------------------------- |
 | Selection follows the surface only | Use Voxel Inclusion in Mesh when you need the interior. |
-| No selected voxels | Check the mesh location and distance range. |
+| No selected voxels                 | Check the mesh location and distance range.             |
 
 ## Continue
 
-[Component reference](README.md)
+[Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/mesh-attractor-for-voxel.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

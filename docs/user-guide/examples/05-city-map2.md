@@ -4,71 +4,73 @@ Explore another slime simulation guided by a city map. Image Mapper for Voxels t
 
 This version includes a different set of particle controls and a lower signal decay rate than City Map. The image supplies the underlying structure, while particle movement and deposited signal shape the evolving paths. Compare the two setups to explore how changes in simulation behavior affect a network guided by the same kind of image mapping.
 
-![City Map + Multiple Populations: example simulation result.](../assets/examples/05-city-map2/result.jpg)
+![City Map + Multiple Populations: example simulation result.](<../.gitbook/assets/result (15).jpg>)
 
-[Download 09_City Map + Multiple Populations.gh](files/05-city-map2.gh)
+[Download 09\_City Map + Multiple Populations.gh](files/05-city-map2.gh)
 
-![City Map — alternate definition: Grasshopper definition showing its connected components and controls.](../assets/examples/05-city-map2/definition-clean.png)
+![City Map — alternate definition: Grasshopper definition showing its connected components and controls.](<../.gitbook/assets/definition-clean (6).png>)
 
 ## Follow the definition
 
 This is a separate supplied file. Compare its mapped values and wiring with City Map rather than assuming the two produce identical results. Both use the image mapper and a planar 3000 × 3000 field.
 
 <details>
+
 <summary>Components used</summary>
 
-- [Construct Voxels](../components/construct-voxels.md)
-- [Particle Trail Settings](../components/particle-trail-settings.md)
-- [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
-- [Voxel Wrap Settings](../components/voxel-wrap-settings.md)
-- [Voxel Settings Slime](../components/voxel-settings-slime.md)
-- [Voxel Preview](../components/voxel-preview.md)
-- [Construct Slime Particles](../components/construct-slime-particles.md)
-- [Particle Trail Preview](../components/particle-trail-preview.md)
-- [Nuclei4 Solver Iterations](../components/nuclei4-solver-iterations.md)
-- [Image Mapper for Voxels](../components/image-mapper-for-voxels.md)
-- [Voxel Selection Union](../components/voxel-selection-union.md)
+* [Construct Voxels](../components/construct-voxels.md)
+* [Particle Trail Settings](../components/particle-trail-settings.md)
+* [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
+* [Voxel Wrap Settings](../components/voxel-wrap-settings.md)
+* [Voxel Settings Slime](../components/voxel-settings-slime.md)
+* [Voxel Preview](../components/voxel-preview.md)
+* [Construct Slime Particles](../components/construct-slime-particles.md)
+* [Particle Trail Preview](../components/particle-trail-preview.md)
+* [Nuclei4 Solver Iterations](../components/nuclei4-solver-iterations.md)
+* [Image Mapper for Voxels](../components/image-mapper-for-voxels.md)
+* [Voxel Selection Union](../components/voxel-selection-union.md)
 
 </details>
 
 <details>
+
 <summary>Saved controls</summary>
 
 Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
-| Component | Input | Saved control |
-| --- | --- | --- |
-| Construct Voxels | Voxel Size | 1 |
-| Construct Voxels | X Voxels | 3000 |
-| Construct Voxels | Y Voxels | 3000 |
-| Construct Voxels | Z Voxels | 1 |
-| Particle Trail Settings | Trail Size | 20 |
-| Nuclei4 Solver GPU | Reset | True |
-| Voxel Wrap Settings | Wrap | False |
-| Voxel Settings Slime | Diffuse Rate | 0.05 |
-| Voxel Settings Slime | Decay Rate | 0.005 |
-| Voxel Settings Slime | Falloff | 0.5 |
-| Voxel Settings Slime | Diffuse Range | 1 |
-| Voxel Preview | Type | Minimum Density |
-| Construct Slime Particles | Particle Count | 100000 |
-| Construct Slime Particles | Speed | 1.5 |
-| Construct Slime Particles | Sensor Distance | 10 |
-| Construct Slime Particles | Sensor Angle | 45 |
-| Construct Slime Particles | Rotation Angle | 45 |
-| Construct Slime Particles | Deposit | 3 |
-| Construct Slime Particles | Wander | 0 |
-| Nuclei4 Solver Iterations | Iterations | 500 |
-| Image Mapper for Voxels | Type | Minimum Density |
-| Image Mapper for Voxels | Target Start | 0 |
-| Image Mapper for Voxels | Target End | 0.5 |
-| Image Mapper for Voxels | Type | Maximum Density |
-| Construct Slime Particles | Particle Count | 10000 |
-| Construct Slime Particles | Speed | 6 |
-| Construct Slime Particles | Sensor Distance | 20 |
-| Construct Slime Particles | Sensor Angle | 45 |
-| Construct Slime Particles | Rotation Angle | 45 |
-| Construct Slime Particles | Deposit | 5 |
-| Construct Slime Particles | Wander | 0 |
+| Component                 | Input           | Saved control   |
+| ------------------------- | --------------- | --------------- |
+| Construct Voxels          | Voxel Size      | 1               |
+| Construct Voxels          | X Voxels        | 3000            |
+| Construct Voxels          | Y Voxels        | 3000            |
+| Construct Voxels          | Z Voxels        | 1               |
+| Particle Trail Settings   | Trail Size      | 20              |
+| Nuclei4 Solver GPU        | Reset           | True            |
+| Voxel Wrap Settings       | Wrap            | False           |
+| Voxel Settings Slime      | Diffuse Rate    | 0.05            |
+| Voxel Settings Slime      | Decay Rate      | 0.005           |
+| Voxel Settings Slime      | Falloff         | 0.5             |
+| Voxel Settings Slime      | Diffuse Range   | 1               |
+| Voxel Preview             | Type            | Minimum Density |
+| Construct Slime Particles | Particle Count  | 100000          |
+| Construct Slime Particles | Speed           | 1.5             |
+| Construct Slime Particles | Sensor Distance | 10              |
+| Construct Slime Particles | Sensor Angle    | 45              |
+| Construct Slime Particles | Rotation Angle  | 45              |
+| Construct Slime Particles | Deposit         | 3               |
+| Construct Slime Particles | Wander          | 0               |
+| Nuclei4 Solver Iterations | Iterations      | 500             |
+| Image Mapper for Voxels   | Type            | Minimum Density |
+| Image Mapper for Voxels   | Target Start    | 0               |
+| Image Mapper for Voxels   | Target End      | 0.5             |
+| Image Mapper for Voxels   | Type            | Maximum Density |
+| Construct Slime Particles | Particle Count  | 10000           |
+| Construct Slime Particles | Speed           | 6               |
+| Construct Slime Particles | Sensor Distance | 20              |
+| Construct Slime Particles | Sensor Angle    | 45              |
+| Construct Slime Particles | Rotation Angle  | 45              |
+| Construct Slime Particles | Deposit         | 5               |
+| Construct Slime Particles | Wander          | 0               |
 
 </details>
 
@@ -80,9 +82,10 @@ Open it in Rhino 9 with Nuclei V4, pause the existing Trigger, and inspect the m
 
 Open the two files separately and compare their saved mapping controls. Change one range in a working copy and observe its effect.
 
-[Back to examples](README.md)
+[Back to examples](./)
 
 <details>
+
 <summary>Grasshopper definition (JSON)</summary>
 
 [Download JSON](data/05-city-map2.json) · [JSON Schema](../reference/definition.schema.json) · [How to read this JSON](../reference/reading-json.md)

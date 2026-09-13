@@ -4,7 +4,7 @@ Keep only voxels shared by all connected selections.
 
 **Location:** Nuclei4 → Environment
 
-![Voxel Selection Intersection with its connected controls and wires.](../assets/components/voxel-selection-intersection-wired.png)
+![Voxel Selection Intersection with its connected controls and wires.](../.gitbook/assets/voxel-selection-intersection-wired.png)
 
 ## Use it
 
@@ -16,15 +16,15 @@ Zoom in on the component to add more input ports when comparing additional selec
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxel** (`V1`) | Generic Data / item | Required | First voxel selection. |
+| Input            | Type / access       | Default  | Meaning                 |
+| ---------------- | ------------------- | -------- | ----------------------- |
+| **Voxel** (`V1`) | Generic Data / item | Required | First voxel selection.  |
 | **Voxel** (`V2`) | Generic Data / item | Required | Second voxel selection. |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
+| Output                       | Type / access       | Meaning                           |
+| ---------------------------- | ------------------- | --------------------------------- |
 | **Output Voxels** (`voxels`) | Generic Data / item | Selected or modified voxel field. |
 
 ## Overlapping values
@@ -33,16 +33,17 @@ Right-click to choose **Minimum**, **Maximum**, or **Average** for values in the
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| Output is empty | Check whether the two selections overlap. |
+| Symptom                      | Action                                                 |
+| ---------------------------- | ------------------------------------------------------ |
+| Output is empty              | Check whether the two selections overlap.              |
 | Values in the overlap differ | Check the component’s right-click combination setting. |
 
 ## Continue
 
-[Component reference](README.md)
+[Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/voxel-selection-intersection.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

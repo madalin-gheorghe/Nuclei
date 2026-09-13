@@ -4,7 +4,7 @@ Set the number of recent positions retained in each particle trail.
 
 **Location:** Nuclei4 → Particles
 
-![Particle Trail Settings with its connected controls and wires.](../assets/components/particle-trail-settings-wired.png)
+![Particle Trail Settings with its connected controls and wires.](../.gitbook/assets/particle-trail-settings-wired.png)
 
 ## Use it
 
@@ -16,28 +16,29 @@ Trail Size controls movement history. It does not change the deposited signal’
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
+| Input                        | Type / access  | Default     | Meaning                                                |
+| ---------------------------- | -------------- | ----------- | ------------------------------------------------------ |
 | **Trail Size** (`trailSize`) | Integer / item | Optional; 5 | Maximum number of recent positions retained per trail. |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
-| **Trail Settings** (`trailSettings`) | Text / list | Trail history settings for the solver. |
+| Output                               | Type / access | Meaning                                |
+| ------------------------------------ | ------------- | -------------------------------------- |
+| **Trail Settings** (`trailSettings`) | Text / list   | Trail history settings for the solver. |
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
+| Symptom              | Action                                   |
+| -------------------- | ---------------------------------------- |
 | No trail after reset | Advance the simulation to build history. |
-| Trails are too short | Increase Trail Size. |
+| Trails are too short | Increase Trail Size.                     |
 
 ## Continue
 
-[Slime Intro](../examples/01-slime-intro.md) · [Gradient Map](../examples/02-gradient-map.md) · [Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Component reference](README.md)
+[Slime Intro](../examples/01-slime-intro.md) · [Gradient Map](../examples/02-gradient-map.md) · [Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/particle-trail-settings.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

@@ -4,7 +4,7 @@ Extract values for a chosen voxel property.
 
 **Location:** Nuclei4 → Environment
 
-![Extract Voxel Values with its connected controls and wires.](../assets/components/extract-voxel-values-wired.png)
+![Extract Voxel Values with its connected controls and wires.](../.gitbook/assets/extract-voxel-values-wired.png)
 
 ## Use it
 
@@ -16,45 +16,46 @@ Pair **voxelValues** with positions extracted from the same field to keep values
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
-| **Type** (`type`) | Integer / item | 0 | Property to use; see **Type choices** below. |
+| Input                 | Type / access       | Default  | Meaning                                      |
+| --------------------- | ------------------- | -------- | -------------------------------------------- |
+| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use.             |
+| **Type** (`type`)     | Integer / item      | 0        | Property to use; see **Type choices** below. |
 
 ### Type choices
 
-| Value | Choice |
-| --- | --- |
-| 0 | Minimum Density |
-| 1 | Maximum Density |
-| 2 | Speed |
-| 3 | Sensor Distance |
-| 4 | Sensor Angle |
-| 5 | Rotation Angle |
-| 6 | Slime Food |
-| 13 | Ant Food |
-| 7 | Slime Chemoattractants |
-| 8 | Ant Food Pheromones |
-| 9 | Ant Base Pheromones |
+| Value | Choice                 |
+| ----- | ---------------------- |
+| 0     | Minimum Density        |
+| 1     | Maximum Density        |
+| 2     | Speed                  |
+| 3     | Sensor Distance        |
+| 4     | Sensor Angle           |
+| 5     | Rotation Angle         |
+| 6     | Slime Food             |
+| 13    | Ant Food               |
+| 7     | Slime Chemoattractants |
+| 8     | Ant Food Pheromones    |
+| 9     | Ant Base Pheromones    |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
+| Output                           | Type / access | Meaning                                         |
+| -------------------------------- | ------------- | ----------------------------------------------- |
 | **Voxel Values** (`voxelValues`) | Number / list | Values for the chosen property, in voxel order. |
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| Unexpected values | Check Type and which field is connected. |
+| Symptom                        | Action                                         |
+| ------------------------------ | ---------------------------------------------- |
+| Unexpected values              | Check Type and which field is connected.       |
 | Values do not match the points | Extract both from the same field or selection. |
 
 ## Continue
 
-[Component reference](README.md)
+[Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/extract-voxel-values.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

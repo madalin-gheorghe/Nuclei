@@ -4,7 +4,7 @@ Create ants that search for food and return to their starting colony.
 
 **Location:** Nuclei4 → Particles
 
-![Construct Ant Particles with its connected controls and wires.](../assets/components/construct-ant-particles-wired.png)
+![Construct Ant Particles with its connected controls and wires.](../.gitbook/assets/construct-ant-particles-wired.png)
 
 ## Use it
 
@@ -16,22 +16,22 @@ Connect **particles** to the solver, and use [Define Voxel Values](define-voxel-
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxel Field** (`voxels`) | Generic Data / item | Required | Field containing the nest and starting positions. |
-| **Initial Particle Positions** (`particlePos`) | Point / list | Required | Starting points in the nest region and remembered home locations. |
-| **Speed** (`speed`) | Number / item | 1.3 | Movement distance per step in model units, before local mapping. |
-| **Sensor Distance** (`sensorDistance`) | Number / item | 6 | Sensing distance in model units, before local mapping. |
-| **Sensor Angle** (`sensorAngle`) | Number / item | 45 | Sensing angle in degrees. |
-| **Rotation Angle** (`rotationAngle`) | Number / item | 45 | Steering angle in degrees. |
-| **Deposit** (`deposit`) | Number / item | 1 | Pheromone deposited by particles. |
-| **Wander** (`wander`) | Number / item | 0 | Random-turn control, from 0 to 1. |
-| **Colour** (`colour`) | Colour / item | Optional; 66,236,122 (125) | Population display color. |
+| Input                                          | Type / access       | Default                    | Meaning                                                           |
+| ---------------------------------------------- | ------------------- | -------------------------- | ----------------------------------------------------------------- |
+| **Voxel Field** (`voxels`)                     | Generic Data / item | Required                   | Field containing the nest and starting positions.                 |
+| **Initial Particle Positions** (`particlePos`) | Point / list        | Required                   | Starting points in the nest region and remembered home locations. |
+| **Speed** (`speed`)                            | Number / item       | 1.3                        | Movement distance per step in model units, before local mapping.  |
+| **Sensor Distance** (`sensorDistance`)         | Number / item       | 6                          | Sensing distance in model units, before local mapping.            |
+| **Sensor Angle** (`sensorAngle`)               | Number / item       | 45                         | Sensing angle in degrees.                                         |
+| **Rotation Angle** (`rotationAngle`)           | Number / item       | 45                         | Steering angle in degrees.                                        |
+| **Deposit** (`deposit`)                        | Number / item       | 1                          | Pheromone deposited by particles.                                 |
+| **Wander** (`wander`)                          | Number / item       | 0                          | Random-turn control, from 0 to 1.                                 |
+| **Colour** (`colour`)                          | Colour / item       | Optional; 66,236,122 (125) | Population display color.                                         |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
+| Output                                  | Type / access         | Meaning                                          |
+| --------------------------------------- | --------------------- | ------------------------------------------------ |
 | **Output Particle Group** (`particles`) | Particle Group / item | Starting ant population and its shared settings. |
 
 ## Starting the colony
@@ -42,16 +42,17 @@ The population after reset can be smaller than the supplied point list because t
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| No particles | Connect starting points inside the nest region and check that its voxels are usable. |
-| Ants do not find food | Check the Ant Food map and the field entering the solver. |
+| Symptom               | Action                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| No particles          | Connect starting points inside the nest region and check that its voxels are usable. |
+| Ants do not find food | Check the Ant Food map and the field entering the solver.                            |
 
 ## Continue
 
-[Ants Intro — 3D](../examples/13-ants-intro-3d.md) · [Ants Intro](../examples/13-ants-intro.md) · [Ants Complex](../examples/14-ants-complex.md) · [Component reference](README.md)
+[Ants Intro — 3D](../examples/13-ants-intro-3d.md) · [Ants Intro](../examples/13-ants-intro.md) · [Ants Complex](../examples/14-ants-complex.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/construct-ant-particles.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

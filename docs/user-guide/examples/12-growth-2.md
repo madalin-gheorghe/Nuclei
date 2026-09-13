@@ -4,69 +4,71 @@ Explore a second balance between slime movement, division, and death. Like Growt
 
 Follow how the population and its trails develop together as these rules are applied. Compare the saved setup with Growth 1, then change one control at a time to identify its effect. This example helps you investigate how local population rules and particle behavior combine to shape growth.
 
-![Growth 2: example simulation result.](../assets/examples/12-growth-2/result.jpg)
+![Growth 2: example simulation result.](<../.gitbook/assets/result (12).jpg>)
 
-[Download 05_Growth 2.gh](files/12-growth-2.gh)
+[Download 05\_Growth 2.gh](files/12-growth-2.gh)
 
-![Growth 2: Grasshopper definition showing its connected components and controls.](../assets/examples/12-growth-2/definition-clean.png)
+![Growth 2: Grasshopper definition showing its connected components and controls.](<../.gitbook/assets/definition-clean (13).png>)
 
 ## Follow the definition
 
 Use Growth 1 as the starting comparison. This file also combines local division/death settings with population controls; its saved values and initial selection define a separate experiment.
 
 <details>
+
 <summary>Components used</summary>
 
-- [Construct Voxels](../components/construct-voxels.md)
-- [Extract Voxel Bounding Box](../components/extract-voxel-bounding-box.md)
-- [Point Attractor for Voxels](../components/point-attractor-for-voxels.md)
-- [Particle Death Settings](../components/particle-death-settings.md)
-- [Particle Division Settings](../components/particle-division-settings.md)
-- [Particle Population Settings](../components/particle-population-settings.md)
-- [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
-- [Voxel Preview](../components/voxel-preview.md)
-- [Voxel Settings Slime](../components/voxel-settings-slime.md)
-- [Construct Slime Particles](../components/construct-slime-particles.md)
+* [Construct Voxels](../components/construct-voxels.md)
+* [Extract Voxel Bounding Box](../components/extract-voxel-bounding-box.md)
+* [Point Attractor for Voxels](../components/point-attractor-for-voxels.md)
+* [Particle Death Settings](../components/particle-death-settings.md)
+* [Particle Division Settings](../components/particle-division-settings.md)
+* [Particle Population Settings](../components/particle-population-settings.md)
+* [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
+* [Voxel Preview](../components/voxel-preview.md)
+* [Voxel Settings Slime](../components/voxel-settings-slime.md)
+* [Construct Slime Particles](../components/construct-slime-particles.md)
 
 </details>
 
 <details>
+
 <summary>Saved controls</summary>
 
 Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
-| Component | Input | Saved control |
-| --- | --- | --- |
-| Construct Voxels | X Voxels | 500 |
-| Construct Voxels | Y Voxels | 500 |
-| Construct Voxels | Z Voxels | 1 |
-| Point Attractor for Voxels | Maximum Range | 50 |
-| Particle Death Settings | Die | True |
-| Particle Death Settings | Minimum Age | 15 |
-| Particle Death Settings | Die Range | 2 |
-| Particle Death Settings | Minimum Neighbours | 3 |
-| Particle Death Settings | Maximum Neighbours | 8 |
-| Particle Death Settings | Frequency | 3 |
-| Particle Division Settings | Divide | True |
-| Particle Division Settings | Minimum Age | 2 |
-| Particle Division Settings | Division Range | 3 |
-| Particle Division Settings | Minimum Neighbours | 5 |
-| Particle Division Settings | Maximum Neighbours | 8 |
-| Particle Division Settings | Frequency | 1 |
-| Particle Population Settings | Minimum Population | 2000 |
-| Particle Population Settings | Maximum Population | 50000 |
-| Nuclei4 Solver GPU | Reset | False |
-| Voxel Preview | Type | Slime Chemoattractants |
-| Voxel Settings Slime | Diffuse Rate | 0.5 |
-| Voxel Settings Slime | Decay Rate | 0.04 |
-| Voxel Settings Slime | Falloff | 0.75 |
-| Voxel Settings Slime | Diffuse Range | 4 |
-| Construct Slime Particles | Speed | 3 |
-| Construct Slime Particles | Sensor Distance | 6 |
-| Construct Slime Particles | Sensor Angle | 30 |
-| Construct Slime Particles | Rotation Angle | 75 |
-| Construct Slime Particles | Deposit | 4 |
-| Construct Slime Particles | Exploration | 0.5 |
+| Component                    | Input              | Saved control          |
+| ---------------------------- | ------------------ | ---------------------- |
+| Construct Voxels             | X Voxels           | 500                    |
+| Construct Voxels             | Y Voxels           | 500                    |
+| Construct Voxels             | Z Voxels           | 1                      |
+| Point Attractor for Voxels   | Maximum Range      | 50                     |
+| Particle Death Settings      | Die                | True                   |
+| Particle Death Settings      | Minimum Age        | 15                     |
+| Particle Death Settings      | Die Range          | 2                      |
+| Particle Death Settings      | Minimum Neighbours | 3                      |
+| Particle Death Settings      | Maximum Neighbours | 8                      |
+| Particle Death Settings      | Frequency          | 3                      |
+| Particle Division Settings   | Divide             | True                   |
+| Particle Division Settings   | Minimum Age        | 2                      |
+| Particle Division Settings   | Division Range     | 3                      |
+| Particle Division Settings   | Minimum Neighbours | 5                      |
+| Particle Division Settings   | Maximum Neighbours | 8                      |
+| Particle Division Settings   | Frequency          | 1                      |
+| Particle Population Settings | Minimum Population | 2000                   |
+| Particle Population Settings | Maximum Population | 50000                  |
+| Nuclei4 Solver GPU           | Reset              | False                  |
+| Voxel Preview                | Type               | Slime Chemoattractants |
+| Voxel Settings Slime         | Diffuse Rate       | 0.5                    |
+| Voxel Settings Slime         | Decay Rate         | 0.04                   |
+| Voxel Settings Slime         | Falloff            | 0.75                   |
+| Voxel Settings Slime         | Diffuse Range      | 4                      |
+| Construct Slime Particles    | Speed              | 3                      |
+| Construct Slime Particles    | Sensor Distance    | 6                      |
+| Construct Slime Particles    | Sensor Angle       | 30                     |
+| Construct Slime Particles    | Rotation Angle     | 75                     |
+| Construct Slime Particles    | Deposit            | 4                      |
+| Construct Slime Particles    | Exploration        | 0.5                    |
 
 </details>
 
@@ -80,11 +82,12 @@ Compare saved settings between the two examples, then change only one parameter 
 
 ## Example result
 
-![Growth 2: example simulation result.](../assets/examples/12-growth-2/result.jpg)
+![Growth 2: example simulation result.](<../.gitbook/assets/result (12).jpg>)
 
-[Back to examples](README.md)
+[Back to examples](./)
 
 <details>
+
 <summary>Grasshopper definition (JSON)</summary>
 
 [Download JSON](data/12-growth-2.json) · [JSON Schema](../reference/definition.schema.json) · [How to read this JSON](../reference/reading-json.md)

@@ -4,66 +4,68 @@ Explore ant foraging in an environment with multiple food regions and an obstacl
 
 The ants explore the available space and reinforce routes through their food and home pheromone signals. Watch how the food arrangement and the obstacle affect the paths that develop. Use this example to investigate changes to one food region while keeping the obstacle fixed, then compare the resulting foraging routes.
 
-![Ants Complex: example simulation result.](../assets/examples/14-ants-complex/result.jpg)
+![Ants Complex: example simulation result.](<../.gitbook/assets/result (13).jpg>)
 
-[Download 17_Ants Complex.gh](files/14-ants-complex.gh)
+[Download 17\_Ants Complex.gh](files/14-ants-complex.gh)
 
-![Ants Complex: Grasshopper definition showing its connected components and controls.](../assets/examples/14-ants-complex/definition-clean.png)
+![Ants Complex: Grasshopper definition showing its connected components and controls.](<../.gitbook/assets/definition-clean (16).png>)
 
 ## Follow the definition
 
 Two mapping branches assign **Ant Food** with multiplier 1. A separate branch assigns **Maximum Density** with multiplier 0. Follow the selections and unions carefully to distinguish food from the region that restricts occupancy.
 
 <details>
+
 <summary>Components used</summary>
 
-- [Construct Voxels](../components/construct-voxels.md)
-- [Point Attractor for Voxels](../components/point-attractor-for-voxels.md)
-- [Curve Attractor for Voxels](../components/curve-attractor-for-voxels.md)
-- [Define Voxel Values](../components/define-voxel-values.md)
-- [Voxel Selection Union](../components/voxel-selection-union.md)
-- [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
-- [Particle Preview](../components/particle-preview.md)
-- [Voxel Preview](../components/voxel-preview.md)
-- [Construct Ant Particles](../components/construct-ant-particles.md)
-- [Voxel Settings Ant](../components/voxel-settings-ant.md)
+* [Construct Voxels](../components/construct-voxels.md)
+* [Point Attractor for Voxels](../components/point-attractor-for-voxels.md)
+* [Curve Attractor for Voxels](../components/curve-attractor-for-voxels.md)
+* [Define Voxel Values](../components/define-voxel-values.md)
+* [Voxel Selection Union](../components/voxel-selection-union.md)
+* [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
+* [Particle Preview](../components/particle-preview.md)
+* [Voxel Preview](../components/voxel-preview.md)
+* [Construct Ant Particles](../components/construct-ant-particles.md)
+* [Voxel Settings Ant](../components/voxel-settings-ant.md)
 
 </details>
 
 <details>
+
 <summary>Saved controls</summary>
 
 Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
-| Component | Input | Saved control |
-| --- | --- | --- |
-| Construct Voxels | X Voxels | 800 |
-| Construct Voxels | Y Voxels | 800 |
-| Construct Voxels | Z Voxels | 1 |
-| Point Attractor for Voxels | Maximum Range | 5 |
-| Curve Attractor for Voxels | Maximum Range | 2 |
-| Point Attractor for Voxels | Maximum Range | 50 |
-| Point Attractor for Voxels | Maximum Range | 40 |
-| Define Voxel Values | Type | Ant Food |
-| Define Voxel Values | Multiplier Value | 2 |
-| Define Voxel Values | Type | Ant Food |
-| Define Voxel Values | Multiplier Value | 1 |
-| Define Voxel Values | Type | Maximum Density |
-| Define Voxel Values | Multiplier Value | 0 |
-| Nuclei4 Solver GPU | Reset | True |
-| Voxel Preview | Type | Ants and Slime |
-| Construct Ant Particles | Speed | 3 |
-| Construct Ant Particles | Sensor Distance | 9 |
-| Construct Ant Particles | Sensor Angle | 45 |
-| Construct Ant Particles | Rotation Angle | 45 |
-| Construct Ant Particles | Deposit | 8 |
-| Construct Ant Particles | Wander | 0.1 |
-| Voxel Settings Ant | Food Pheromones Diffuse Rate | 0.15 |
-| Voxel Settings Ant | Food Decay Rate | 0.001 |
-| Voxel Settings Ant | Base Pheromones Diffuse Rate | 0.1 |
-| Voxel Settings Ant | Base Decay Rate | 0.003 |
-| Voxel Settings Ant | Falloff | 0 |
-| Voxel Settings Ant | Diffuse Range | 2 |
+| Component                  | Input                        | Saved control   |
+| -------------------------- | ---------------------------- | --------------- |
+| Construct Voxels           | X Voxels                     | 800             |
+| Construct Voxels           | Y Voxels                     | 800             |
+| Construct Voxels           | Z Voxels                     | 1               |
+| Point Attractor for Voxels | Maximum Range                | 5               |
+| Curve Attractor for Voxels | Maximum Range                | 2               |
+| Point Attractor for Voxels | Maximum Range                | 50              |
+| Point Attractor for Voxels | Maximum Range                | 40              |
+| Define Voxel Values        | Type                         | Ant Food        |
+| Define Voxel Values        | Multiplier Value             | 2               |
+| Define Voxel Values        | Type                         | Ant Food        |
+| Define Voxel Values        | Multiplier Value             | 1               |
+| Define Voxel Values        | Type                         | Maximum Density |
+| Define Voxel Values        | Multiplier Value             | 0               |
+| Nuclei4 Solver GPU         | Reset                        | True            |
+| Voxel Preview              | Type                         | Ants and Slime  |
+| Construct Ant Particles    | Speed                        | 3               |
+| Construct Ant Particles    | Sensor Distance              | 9               |
+| Construct Ant Particles    | Sensor Angle                 | 45              |
+| Construct Ant Particles    | Rotation Angle               | 45              |
+| Construct Ant Particles    | Deposit                      | 8               |
+| Construct Ant Particles    | Wander                       | 0.1             |
+| Voxel Settings Ant         | Food Pheromones Diffuse Rate | 0.15            |
+| Voxel Settings Ant         | Food Decay Rate              | 0.001           |
+| Voxel Settings Ant         | Base Pheromones Diffuse Rate | 0.1             |
+| Voxel Settings Ant         | Base Decay Rate              | 0.003           |
+| Voxel Settings Ant         | Falloff                      | 0               |
+| Voxel Settings Ant         | Diffuse Range                | 2               |
 
 </details>
 
@@ -77,11 +79,12 @@ Change one food region while keeping the restrictive map fixed. Inspect both Typ
 
 ## Example result
 
-![Ants Complex: example simulation result.](../assets/examples/14-ants-complex/result.jpg)
+![Ants Complex: example simulation result.](<../.gitbook/assets/result (13).jpg>)
 
-[Back to examples](README.md)
+[Back to examples](./)
 
 <details>
+
 <summary>Grasshopper definition (JSON)</summary>
 
 [Download JSON](data/14-ants-complex.json) · [JSON Schema](../reference/definition.schema.json) · [How to read this JSON](../reference/reading-json.md)

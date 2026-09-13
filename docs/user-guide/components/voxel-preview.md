@@ -4,7 +4,7 @@ Display a property of the voxel field in the Rhino viewport.
 
 **Location:** Nuclei4 → Preview
 
-![Voxel Preview with its connected controls and wires.](../assets/components/voxel-preview-wired.png)
+![Voxel Preview with its connected controls and wires.](../.gitbook/assets/voxel-preview-wired.png)
 
 ## Use it
 
@@ -20,31 +20,31 @@ These views draw food last, above signals and obstacles. Slime food sources and 
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
-| **Type** (`type`) | Integer / item | 0 | Property to use; see **Type choices** below. |
-| **Minimum Treshold** (`min`) | Number / item | Optional; 0 | Lower displayed value. |
-| **Maximum Treshold** (`max`) | Number / item | Optional; 1 | Upper displayed value. |
-| **Colour** (`colour`) | Colour / item | Optional; 0,0,0 (0) | Display color. |
+| Input                        | Type / access       | Default             | Meaning                                      |
+| ---------------------------- | ------------------- | ------------------- | -------------------------------------------- |
+| **Voxels** (`voxels`)        | Generic Data / item | Required            | Voxel field or selection to use.             |
+| **Type** (`type`)            | Integer / item      | 0                   | Property to use; see **Type choices** below. |
+| **Minimum Treshold** (`min`) | Number / item       | Optional; 0         | Lower displayed value.                       |
+| **Maximum Treshold** (`max`) | Number / item       | Optional; 1         | Upper displayed value.                       |
+| **Colour** (`colour`)        | Colour / item       | Optional; 0,0,0 (0) | Display color.                               |
 
 ### Type choices
 
-| Value | Choice |
-| --- | --- |
-| 0 | Minimum Density |
-| 1 | Maximum Density |
-| 2 | Speed |
-| 3 | Sensor Distance |
-| 4 | Sensor Angle |
-| 5 | Rotation Angle |
-| 6 | Slime Food |
-| 13 | Ant Food |
-| 7 | Slime Chemoattractants |
-| 8 | Ant Food Pheromones |
-| 9 | Ant Base Pheromones |
-| 10 | Ant Pheromones |
-| 11 | Ants and Slime |
+| Value | Choice                 |
+| ----- | ---------------------- |
+| 0     | Minimum Density        |
+| 1     | Maximum Density        |
+| 2     | Speed                  |
+| 3     | Sensor Distance        |
+| 4     | Sensor Angle           |
+| 5     | Rotation Angle         |
+| 6     | Slime Food             |
+| 13    | Ant Food               |
+| 7     | Slime Chemoattractants |
+| 8     | Ant Food Pheromones    |
+| 9     | Ant Base Pheromones    |
+| 10    | Ant Pheromones         |
+| 11    | Ants and Slime         |
 
 ## Output
 
@@ -52,16 +52,17 @@ Displays directly in the Rhino viewport.
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| Nothing appears | Check Type, the displayed range, and Grasshopper preview. |
-| The preview stays unchanged | Use the solver output when viewing evolving signals. |
+| Symptom                     | Action                                                    |
+| --------------------------- | --------------------------------------------------------- |
+| Nothing appears             | Check Type, the displayed range, and Grasshopper preview. |
+| The preview stays unchanged | Use the solver output when viewing evolving signals.      |
 
 ## Continue
 
-[Gradient Map](../examples/02-gradient-map.md) · [Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Minimizing Transport Networks 2](../examples/04-minimizing-transport-networks-2.md) · [Component reference](README.md)
+[Gradient Map](../examples/02-gradient-map.md) · [Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Minimizing Transport Networks 2](../examples/04-minimizing-transport-networks-2.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/voxel-preview.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

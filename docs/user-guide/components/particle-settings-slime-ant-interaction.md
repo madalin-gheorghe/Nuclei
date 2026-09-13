@@ -4,7 +4,7 @@ Control how slime and ant populations respond to each other’s signals.
 
 **Location:** Nuclei4 → Particles
 
-![Particle Settings Slime Ant Interaction with its connected controls and wires.](../assets/components/particle-settings-slime-ant-interaction-wired.png)
+![Particle Settings Slime Ant Interaction with its connected controls and wires.](../.gitbook/assets/particle-settings-slime-ant-interaction-wired.png)
 
 ## Use it
 
@@ -14,30 +14,31 @@ Connect **interactionSettings** to the solver’s **settings** input in a simula
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Slime -> Ant Food** (`slime ~ antFood`) | Number / item | 0.5 | Slime response to ant food pheromones, from 0 to 1. |
-| **Slime -> Ant Base** (`slime ~ antBase`) | Number / item | 0.5 | Slime response to ant home pheromones, from 0 to 1. |
-| **Ant -> Slime** (`ant ~ slime`) | Number / item | 0.5 | Ant response to slime signal, from 0 to 1. |
+| Input                                     | Type / access | Default | Meaning                                             |
+| ----------------------------------------- | ------------- | ------- | --------------------------------------------------- |
+| **Slime -> Ant Food** (`slime ~ antFood`) | Number / item | 0.5     | Slime response to ant food pheromones, from 0 to 1. |
+| **Slime -> Ant Base** (`slime ~ antBase`) | Number / item | 0.5     | Slime response to ant home pheromones, from 0 to 1. |
+| **Ant -> Slime** (`ant ~ slime`)          | Number / item | 0.5     | Ant response to slime signal, from 0 to 1.          |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
-| **Interaction Settings** (`interactionSettings`) | Text / list | Slime–ant interaction settings for the solver. |
+| Output                                           | Type / access | Meaning                                        |
+| ------------------------------------------------ | ------------- | ---------------------------------------------- |
+| **Interaction Settings** (`interactionSettings`) | Text / list   | Slime–ant interaction settings for the solver. |
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
+| Symptom                | Action                                                     |
+| ---------------------- | ---------------------------------------------------------- |
 | No visible interaction | Check that both populations and their signals are present. |
-| One response dominates | Adjust its interaction value separately. |
+| One response dominates | Adjust its interaction value separately.                   |
 
 ## Continue
 
-[Component reference](README.md)
+[Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/particle-settings-slime-ant-interaction.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

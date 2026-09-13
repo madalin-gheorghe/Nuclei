@@ -4,7 +4,7 @@ Map the light and dark areas of an image to values in a 2D voxel field.
 
 **Location:** Nuclei4 → Environment
 
-![Image Mapper for Voxels with its connected controls and wires.](../assets/components/image-mapper-for-voxels-wired.png)
+![Image Mapper for Voxels with its connected controls and wires.](../.gitbook/assets/image-mapper-for-voxels-wired.png)
 
 ## Use it
 
@@ -16,30 +16,30 @@ Connect a 2D field to **voxels**. Double-click the component, or right-click and
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
-| **Type** (`type`) | Integer / item | 0 | Property to use; see **Type choices** below. |
-| **Target Start** (`targetStart`) | Number / item | 0 | Value assigned to black pixels. |
-| **Target End** (`targetEnd`) | Number / item | 1 | Value assigned to white pixels. |
+| Input                            | Type / access       | Default  | Meaning                                      |
+| -------------------------------- | ------------------- | -------- | -------------------------------------------- |
+| **Voxels** (`voxels`)            | Generic Data / item | Required | Voxel field or selection to use.             |
+| **Type** (`type`)                | Integer / item      | 0        | Property to use; see **Type choices** below. |
+| **Target Start** (`targetStart`) | Number / item       | 0        | Value assigned to black pixels.              |
+| **Target End** (`targetEnd`)     | Number / item       | 1        | Value assigned to white pixels.              |
 
 ### Type choices
 
-| Value | Choice |
-| --- | --- |
-| 0 | Minimum Density |
-| 1 | Maximum Density |
-| 2 | Speed |
-| 3 | Sensor Distance |
-| 4 | Sensor Angle |
-| 5 | Rotation Angle |
-| 6 | Slime Food |
-| 13 | Ant Food |
+| Value | Choice          |
+| ----- | --------------- |
+| 0     | Minimum Density |
+| 1     | Maximum Density |
+| 2     | Speed           |
+| 3     | Sensor Distance |
+| 4     | Sensor Angle    |
+| 5     | Rotation Angle  |
+| 6     | Slime Food      |
+| 13    | Ant Food        |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
+| Output                       | Type / access       | Meaning                           |
+| ---------------------------- | ------------------- | --------------------------------- |
 | **Output Voxels** (`voxels`) | Generic Data / item | Selected or modified voxel field. |
 
 ## Image mapping
@@ -48,17 +48,18 @@ The image covers the full grid domain. XY, XZ, and YZ fields are supported. Swap
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| Only 2D Voxel Field Allowed | Use a field with one cell along one axis. |
-| No image selected | Double-click the component and choose an image. |
-| Map appears unchanged | Check Type and the two target values. |
+| Symptom                     | Action                                          |
+| --------------------------- | ----------------------------------------------- |
+| Only 2D Voxel Field Allowed | Use a field with one cell along one axis.       |
+| No image selected           | Double-click the component and choose an image. |
+| Map appears unchanged       | Check Type and the two target values.           |
 
 ## Continue
 
-[City Map](../examples/05-city-map.md) · [City Map — alternate definition](../examples/05-city-map2.md) · [Component reference](README.md)
+[City Map](../examples/05-city-map.md) · [City Map — alternate definition](../examples/05-city-map2.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/image-mapper-for-voxels.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

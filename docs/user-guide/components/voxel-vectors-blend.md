@@ -4,7 +4,7 @@ Smooth directions across nearby voxels.
 
 **Location:** Nuclei4 → Environment
 
-![Voxel Vectors Blend with its connected controls and wires.](../assets/components/voxel-vectors-blend-wired.png)
+![Voxel Vectors Blend with its connected controls and wires.](../.gitbook/assets/voxel-vectors-blend-wired.png)
 
 ## Use it
 
@@ -16,32 +16,33 @@ Use [Extract Voxel Vector](extract-voxel-vector.md) to inspect the result.
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
-| **Blend Strength** (`blendStrength`) | Number / item | Optional; 0.25 | Amount of smoothing, from 0 to 1. |
-| **Blend Range** (`range`) | Integer / item | Optional; 1 | Neighborhood range in voxel cells. |
-| **Blend Iterations** (`iterations`) | Integer / item | Optional; 1 | Number of smoothing passes. |
-| **Wrap Blend** (`wrap`) | Boolean / item | Optional; False | Wrap the operation across opposite grid edges. |
+| Input                                | Type / access       | Default         | Meaning                                        |
+| ------------------------------------ | ------------------- | --------------- | ---------------------------------------------- |
+| **Voxels** (`voxels`)                | Generic Data / item | Required        | Voxel field or selection to use.               |
+| **Blend Strength** (`blendStrength`) | Number / item       | Optional; 0.25  | Amount of smoothing, from 0 to 1.              |
+| **Blend Range** (`range`)            | Integer / item      | Optional; 1     | Neighborhood range in voxel cells.             |
+| **Blend Iterations** (`iterations`)  | Integer / item      | Optional; 1     | Number of smoothing passes.                    |
+| **Wrap Blend** (`wrap`)              | Boolean / item      | Optional; False | Wrap the operation across opposite grid edges. |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
+| Output                       | Type / access       | Meaning                           |
+| ---------------------------- | ------------------- | --------------------------------- |
 | **Output Voxels** (`voxels`) | Generic Data / item | Selected or modified voxel field. |
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| No change | Check that the input field contains mapped vectors. |
-| Directions are too uniform | Reduce Blend Strength or Blend Iterations. |
+| Symptom                    | Action                                              |
+| -------------------------- | --------------------------------------------------- |
+| No change                  | Check that the input field contains mapped vectors. |
+| Directions are too uniform | Reduce Blend Strength or Blend Iterations.          |
 
 ## Continue
 
-[Component reference](README.md)
+[Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/voxel-vectors-blend.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

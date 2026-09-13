@@ -4,7 +4,7 @@ Select voxels around one or more points.
 
 **Location:** Nuclei4 → Environment
 
-![Point Attractor for Voxels with its connected controls and wires.](../assets/components/point-attractor-for-voxels-wired.png)
+![Point Attractor for Voxels with its connected controls and wires.](../.gitbook/assets/point-attractor-for-voxels-wired.png)
 
 ## Use it
 
@@ -16,22 +16,22 @@ Connect the selected **voxels** to [Define Voxel Values](define-voxel-values.md)
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
-| **Attractor Points** (`attractorPoints`) | Point / list | Required | Points defining the selected regions. |
-| **Minimum Range** (`minRange`) | Number / item | 0 | Minimum distance from the attractor, in model units. |
-| **Maximum Range** (`maxRange`) | Number / item | 1 | Maximum distance from the attractor, in model units. |
-| **Invert Voxel Selection** (`invertSelection`) | Boolean / item | False | Keep the other cells of the input field instead. |
+| Input                                          | Type / access       | Default  | Meaning                                              |
+| ---------------------------------------------- | ------------------- | -------- | ---------------------------------------------------- |
+| **Voxels** (`voxels`)                          | Generic Data / item | Required | Voxel field or selection to use.                     |
+| **Attractor Points** (`attractorPoints`)       | Point / list        | Required | Points defining the selected regions.                |
+| **Minimum Range** (`minRange`)                 | Number / item       | 0        | Minimum distance from the attractor, in model units. |
+| **Maximum Range** (`maxRange`)                 | Number / item       | 1        | Maximum distance from the attractor, in model units. |
+| **Invert Voxel Selection** (`invertSelection`) | Boolean / item      | False    | Keep the other cells of the input field instead.     |
 
 ## Outputs
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
-| **Output Voxels** (`voxels`) | Generic Data / item | Selected or modified voxel field. |
-| **Output Voxel Positions** (`voxelPosition`) | Point / tree | Centers of the selected voxels. |
-| **Output Distances to Voxels** (`voxelDistance`) | Number / tree | Distances paired with the selected voxel centers. |
-| **Output Voxel Indices** (`voxelIndex`) | Integer / tree | Indices of the selected voxels, paired with the position output. |
+| Output                                           | Type / access       | Meaning                                                          |
+| ------------------------------------------------ | ------------------- | ---------------------------------------------------------------- |
+| **Output Voxels** (`voxels`)                     | Generic Data / item | Selected or modified voxel field.                                |
+| **Output Voxel Positions** (`voxelPosition`)     | Point / tree        | Centers of the selected voxels.                                  |
+| **Output Distances to Voxels** (`voxelDistance`) | Number / tree       | Distances paired with the selected voxel centers.                |
+| **Output Voxel Indices** (`voxelIndex`)          | Integer / tree      | Indices of the selected voxels, paired with the position output. |
 
 ## Distance and resolution
 
@@ -41,16 +41,17 @@ Position, distance, and index outputs use matching branches. Keep them together 
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| No selected voxels | Check the point locations and whether the minimum and maximum distances include any voxels in the input field. |
-| Selection is wider than expected | Thin selections follow the voxel resolution; use the field size when judging the boundary. |
+| Symptom                          | Action                                                                                                         |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| No selected voxels               | Check the point locations and whether the minimum and maximum distances include any voxels in the input field. |
+| Selection is wider than expected | Thin selections follow the voxel resolution; use the field size when judging the boundary.                     |
 
 ## Continue
 
-[Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Minimizing Transport Networks 2](../examples/04-minimizing-transport-networks-2.md) · [Vector Fields 1](../examples/08-vector-fields-1.md) · [Component reference](README.md)
+[Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Minimizing Transport Networks 2](../examples/04-minimizing-transport-networks-2.md) · [Vector Fields 1](../examples/08-vector-fields-1.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/point-attractor-for-voxels.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

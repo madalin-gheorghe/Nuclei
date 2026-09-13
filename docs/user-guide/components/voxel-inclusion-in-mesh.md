@@ -4,7 +4,7 @@ Select voxels inside meshes.
 
 **Location:** Nuclei4 → Environment
 
-![Voxel Inclusion in Mesh with its connected controls and wires.](../assets/components/voxel-inclusion-in-mesh-wired.png)
+![Voxel Inclusion in Mesh with its connected controls and wires.](../.gitbook/assets/voxel-inclusion-in-mesh-wired.png)
 
 ## Use it
 
@@ -14,19 +14,19 @@ Connect a field and closed meshes. The **voxels** output contains the selected r
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
-| **Inclusion Meshes** (`inclusionMeshes`) | Mesh / list | Required | Closed meshes enclosing the selected cells. |
-| **Invert Voxel Selection** (`invertSelection`) | Boolean / item | False | Keep the other cells of the input field instead. |
+| Input                                          | Type / access       | Default  | Meaning                                          |
+| ---------------------------------------------- | ------------------- | -------- | ------------------------------------------------ |
+| **Voxels** (`voxels`)                          | Generic Data / item | Required | Voxel field or selection to use.                 |
+| **Inclusion Meshes** (`inclusionMeshes`)       | Mesh / list         | Required | Closed meshes enclosing the selected cells.      |
+| **Invert Voxel Selection** (`invertSelection`) | Boolean / item      | False    | Keep the other cells of the input field instead. |
 
 ## Outputs
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
-| **Output Voxels** (`voxels`) | Generic Data / item | Selected or modified voxel field. |
-| **Output Voxel Positions** (`voxelPosition`) | Point / tree | Centers of the selected voxels. |
-| **Output Voxel Indices** (`voxelIndex`) | Integer / tree | Indices of the selected voxels, paired with the position output. |
+| Output                                       | Type / access       | Meaning                                                          |
+| -------------------------------------------- | ------------------- | ---------------------------------------------------------------- |
+| **Output Voxels** (`voxels`)                 | Generic Data / item | Selected or modified voxel field.                                |
+| **Output Voxel Positions** (`voxelPosition`) | Point / tree        | Centers of the selected voxels.                                  |
+| **Output Voxel Indices** (`voxelIndex`)      | Integer / tree      | Indices of the selected voxels, paired with the position output. |
 
 ## Selection outputs
 
@@ -34,16 +34,17 @@ Position and index outputs share the same branches. Each branch corresponds to t
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
+| Symptom                           | Action                                      |
+| --------------------------------- | ------------------------------------------- |
 | Interior is missing or unexpected | Check that the meshes are closed and valid. |
-| Points and indices do not line up | Keep matching output branches together. |
+| Points and indices do not line up | Keep matching output branches together.     |
 
 ## Continue
 
-[Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Minimizing Transport Networks 2](../examples/04-minimizing-transport-networks-2.md) · [Component reference](README.md)
+[Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Minimizing Transport Networks 2](../examples/04-minimizing-transport-networks-2.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/voxel-inclusion-in-mesh.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

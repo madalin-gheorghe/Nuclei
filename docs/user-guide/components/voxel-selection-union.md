@@ -4,7 +4,7 @@ Combine voxel selections, keeping cells found in any of them.
 
 **Location:** Nuclei4 → Environment
 
-![Voxel Selection Union with its connected controls and wires.](../assets/components/voxel-selection-union-wired.png)
+![Voxel Selection Union with its connected controls and wires.](../.gitbook/assets/voxel-selection-union-wired.png)
 
 ## Use it
 
@@ -16,15 +16,15 @@ Zoom in on the component to add more input ports when combining additional selec
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxel** (`V1`) | Generic Data / item | Required | First voxel selection. |
+| Input            | Type / access       | Default  | Meaning                 |
+| ---------------- | ------------------- | -------- | ----------------------- |
+| **Voxel** (`V1`) | Generic Data / item | Required | First voxel selection.  |
 | **Voxel** (`V2`) | Generic Data / item | Required | Second voxel selection. |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
+| Output                       | Type / access       | Meaning                           |
+| ---------------------------- | ------------------- | --------------------------------- |
 | **Output Voxels** (`voxels`) | Generic Data / item | Selected or modified voxel field. |
 
 ## Overlapping values
@@ -33,15 +33,16 @@ Right-click to choose **Minimum**, **Maximum**, or **Average** for values where 
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
+| Symptom                      | Action                                                                              |
+| ---------------------------- | ----------------------------------------------------------------------------------- |
 | Combined field is unexpected | Check that both selections come from the same grid and inspect the overlap setting. |
 
 ## Continue
 
-[Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Minimizing Transport Networks 2](../examples/04-minimizing-transport-networks-2.md) · [City Map](../examples/05-city-map.md) · [Component reference](README.md)
+[Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Minimizing Transport Networks 2](../examples/04-minimizing-transport-networks-2.md) · [City Map](../examples/05-city-map.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/voxel-selection-union.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

@@ -4,61 +4,63 @@ Watch a slime network develop throughout a three-dimensional voxel field. Partic
 
 The deposited field can then be converted with Nuclei4 to Dendro Volume and passed to Dendro's meshing components. This turns the simulation's signal into a surface that can be inspected as geometry. Use this example to explore the relationship between particle paths, signal density, and the forms produced by different conversion and smoothing settings.
 
-![3D Intro: example simulation result.](../assets/examples/15-3d-intro/result.jpg)
+![3D Intro: example simulation result.](<../.gitbook/assets/result (14).jpg>)
 
-[Download 14_3D Intro.gh](files/15-3d-intro.gh)
+[Download 14\_3D Intro.gh](files/15-3d-intro.gh)
 
-![3D Intro: Grasshopper definition showing its connected components and controls.](../assets/examples/15-3d-intro/definition-clean.png)
+![3D Intro: Grasshopper definition showing its connected components and controls.](<../.gitbook/assets/definition-clean (15).png>)
 
 ## Follow the definition
 
 The definition uses a 250 × 250 × 250 domain and includes [Nuclei4 to Dendro Volume](../components/nuclei4-to-dendro-volume.md), Dendro volume controls, and meshing components. Inspect the scalar preview and pause before rebuilding a heavy conversion.
 
 <details>
+
 <summary>Components used</summary>
 
-- [Construct Voxels](../components/construct-voxels.md)
-- [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
-- [Voxel Preview](../components/voxel-preview.md)
-- [Voxel Wrap Settings](../components/voxel-wrap-settings.md)
-- [Construct Slime Particles](../components/construct-slime-particles.md)
-- [Voxel Settings Slime](../components/voxel-settings-slime.md)
-- [Nuclei4 to Dendro Volume](../components/nuclei4-to-dendro-volume.md)
-- [Particle Trail Settings](../components/particle-trail-settings.md)
-- [Particle Preview](../components/particle-preview.md)
-- [Particle Trail Preview](../components/particle-trail-preview.md)
+* [Construct Voxels](../components/construct-voxels.md)
+* [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
+* [Voxel Preview](../components/voxel-preview.md)
+* [Voxel Wrap Settings](../components/voxel-wrap-settings.md)
+* [Construct Slime Particles](../components/construct-slime-particles.md)
+* [Voxel Settings Slime](../components/voxel-settings-slime.md)
+* [Nuclei4 to Dendro Volume](../components/nuclei4-to-dendro-volume.md)
+* [Particle Trail Settings](../components/particle-trail-settings.md)
+* [Particle Preview](../components/particle-preview.md)
+* [Particle Trail Preview](../components/particle-trail-preview.md)
 
 </details>
 
 <details>
+
 <summary>Saved controls</summary>
 
 Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
-| Component | Input | Saved control |
-| --- | --- | --- |
-| Construct Voxels | X Voxels | 250 |
-| Construct Voxels | Y Voxels | 250 |
-| Construct Voxels | Z Voxels | 250 |
-| Nuclei4 Solver GPU | Reset | True |
-| Voxel Preview | Type | Slime Chemoattractants |
-| Voxel Wrap Settings | Wrap | True |
-| Construct Slime Particles | Particle Count | 90000 |
-| Construct Slime Particles | Speed | 3 |
-| Construct Slime Particles | Sensor Distance | 9 |
-| Construct Slime Particles | Sensor Angle | 45 |
-| Construct Slime Particles | Rotation Angle | 45 |
-| Construct Slime Particles | Deposit | 1 |
-| Construct Slime Particles | Wander | 0 |
-| Voxel Settings Slime | Diffuse Rate | 0.15 |
-| Voxel Settings Slime | Decay Rate | 0.01 |
-| Voxel Settings Slime | Falloff | 0.5 |
-| Voxel Settings Slime | Diffuse Range | 1 |
-| Nuclei4 to Dendro Volume | Type | Slime Chemoattractants |
-| Nuclei4 to Dendro Volume | Iso Value | 0.5 |
-| Nuclei4 to Dendro Volume | Method | Continuous |
-| Nuclei4 to Dendro Volume | Update | False |
-| Particle Trail Settings | Trail Size | 10 |
+| Component                 | Input           | Saved control          |
+| ------------------------- | --------------- | ---------------------- |
+| Construct Voxels          | X Voxels        | 250                    |
+| Construct Voxels          | Y Voxels        | 250                    |
+| Construct Voxels          | Z Voxels        | 250                    |
+| Nuclei4 Solver GPU        | Reset           | True                   |
+| Voxel Preview             | Type            | Slime Chemoattractants |
+| Voxel Wrap Settings       | Wrap            | True                   |
+| Construct Slime Particles | Particle Count  | 90000                  |
+| Construct Slime Particles | Speed           | 3                      |
+| Construct Slime Particles | Sensor Distance | 9                      |
+| Construct Slime Particles | Sensor Angle    | 45                     |
+| Construct Slime Particles | Rotation Angle  | 45                     |
+| Construct Slime Particles | Deposit         | 1                      |
+| Construct Slime Particles | Wander          | 0                      |
+| Voxel Settings Slime      | Diffuse Rate    | 0.15                   |
+| Voxel Settings Slime      | Decay Rate      | 0.01                   |
+| Voxel Settings Slime      | Falloff         | 0.5                    |
+| Voxel Settings Slime      | Diffuse Range   | 1                      |
+| Nuclei4 to Dendro Volume  | Type            | Slime Chemoattractants |
+| Nuclei4 to Dendro Volume  | Iso Value       | 0.5                    |
+| Nuclei4 to Dendro Volume  | Method          | Continuous             |
+| Nuclei4 to Dendro Volume  | Update          | False                  |
+| Particle Trail Settings   | Trail Size      | 10                     |
 
 </details>
 
@@ -74,11 +76,12 @@ Compare Iso Value and smoothing on a retained simulation state. Keep the particl
 
 ## Example result
 
-![3D Intro: example simulation result.](../assets/examples/15-3d-intro/result.jpg)
+![3D Intro: example simulation result.](<../.gitbook/assets/result (14).jpg>)
 
-[Back to examples](README.md)
+[Back to examples](./)
 
 <details>
+
 <summary>Grasshopper definition (JSON)</summary>
 
 [Download JSON](data/15-3d-intro.json) · [JSON Schema](../reference/definition.schema.json) · [How to read this JSON](../reference/reading-json.md)

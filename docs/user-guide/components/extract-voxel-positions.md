@@ -4,7 +4,7 @@ Extract voxel centers as Rhino points.
 
 **Location:** Nuclei4 → Environment
 
-![Extract Voxel Positions with its connected controls and wires.](../assets/components/extract-voxel-positions-wired.png)
+![Extract Voxel Positions with its connected controls and wires.](../.gitbook/assets/extract-voxel-positions-wired.png)
 
 ## Use it
 
@@ -14,28 +14,29 @@ Connect the field or selection to **voxels**. Use **voxelPosition** for point-ba
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
+| Input                 | Type / access       | Default  | Meaning                          |
+| --------------------- | ------------------- | -------- | -------------------------------- |
 | **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
-| **Voxel Positions** (`voxelPosition`) | Point / list | Centers of the selected voxels. |
+| Output                                | Type / access | Meaning                         |
+| ------------------------------------- | ------------- | ------------------------------- |
+| **Voxel Positions** (`voxelPosition`) | Point / list  | Centers of the selected voxels. |
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| Only part of the grid appears | Check whether the input is a selection. |
-| Points are offset from the grid boundary | The output contains cell centers. |
+| Symptom                                  | Action                                  |
+| ---------------------------------------- | --------------------------------------- |
+| Only part of the grid appears            | Check whether the input is a selection. |
+| Points are offset from the grid boundary | The output contains cell centers.       |
 
 ## Continue
 
-[Gradient Map](../examples/02-gradient-map.md) · [Component reference](README.md)
+[Gradient Map](../examples/02-gradient-map.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/extract-voxel-positions.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

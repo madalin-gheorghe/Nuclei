@@ -4,7 +4,7 @@ Display each particle’s recent path in the Rhino viewport.
 
 **Location:** Nuclei4 → Preview
 
-![Particle Trail Preview with its connected controls and wires.](../assets/components/particle-trail-preview-wired.png)
+![Particle Trail Preview with its connected controls and wires.](../.gitbook/assets/particle-trail-preview-wired.png)
 
 ## Use it
 
@@ -16,11 +16,11 @@ Connect the solver’s **particles** output and provide [Particle Trail Settings
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Particles** (`particles`) | Generic Data / item | Required | Current particle collection from the solver. |
-| **Alpha** (`alpha`) | Number / item | Optional; 0.35 | Trail opacity multiplier. |
-| **Depth Focus** (`depth`) | Number / item | Optional; 0.55 | Camera-depth fading: 0 disables it; 1 gives the strongest effect. |
+| Input                       | Type / access       | Default        | Meaning                                                           |
+| --------------------------- | ------------------- | -------------- | ----------------------------------------------------------------- |
+| **Particles** (`particles`) | Generic Data / item | Required       | Current particle collection from the solver.                      |
+| **Alpha** (`alpha`)         | Number / item       | Optional; 0.35 | Trail opacity multiplier.                                         |
+| **Depth Focus** (`depth`)   | Number / item       | Optional; 0.55 | Camera-depth fading: 0 disables it; 1 gives the strongest effect. |
 
 ## Output
 
@@ -28,16 +28,17 @@ Displays directly in the Rhino viewport.
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| No trail | Check Trail Size and advance after reset. |
+| Symptom                | Action                                             |
+| ---------------------- | -------------------------------------------------- |
+| No trail               | Check Trail Size and advance after reset.          |
 | Trails are hard to see | Check Alpha, Depth Focus, and Grasshopper preview. |
 
 ## Continue
 
-[Slime Intro](../examples/01-slime-intro.md) · [Gradient Map](../examples/02-gradient-map.md) · [Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Component reference](README.md)
+[Slime Intro](../examples/01-slime-intro.md) · [Gradient Map](../examples/02-gradient-map.md) · [Minimizing Transport Networks 1](../examples/03-minimizing-transport-networks-1.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/particle-trail-preview.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

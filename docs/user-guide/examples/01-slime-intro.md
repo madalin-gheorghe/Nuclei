@@ -4,51 +4,53 @@ Watch a slime network emerge from particles moving across a flat voxel field. Ea
 
 This example introduces the complete workflow: create the environment, add particles, connect their behavior settings, and run the solver. Follow the trails as local movements develop into connected paths. Use it to learn how sensing, movement, and signal settings influence the network before adding food regions, attractors, or mapped values.
 
-![Slime Intro: example simulation result.](../assets/examples/01-slime-intro/result.jpg)
+![Slime Intro: example simulation result.](<../.gitbook/assets/result (6).jpg>)
 
-[Download 01_Slime Intro.gh](files/01-slime-intro.gh)
+[Download 01\_Slime Intro.gh](files/01-slime-intro.gh)
 
-![Slime Intro: Grasshopper definition showing its connected components and controls.](../assets/examples/01-slime-intro/definition-clean.png)
+![Slime Intro: Grasshopper definition showing its connected components and controls.](<../.gitbook/assets/definition-clean (1).png>)
 
 ## Follow the definition
 
 Start with the [first slime simulation walkthrough](../getting-started/first-slime-simulation.md), which explains each saved group in detail.
 
 <details>
+
 <summary>Components used</summary>
 
-- [Construct Voxels](../components/construct-voxels.md)
-- [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
-- [Construct Slime Particles](../components/construct-slime-particles.md)
-- [Voxel Settings Slime](../components/voxel-settings-slime.md)
-- [Particle Trail Preview](../components/particle-trail-preview.md)
-- [Particle Trail Settings](../components/particle-trail-settings.md)
+* [Construct Voxels](../components/construct-voxels.md)
+* [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
+* [Construct Slime Particles](../components/construct-slime-particles.md)
+* [Voxel Settings Slime](../components/voxel-settings-slime.md)
+* [Particle Trail Preview](../components/particle-trail-preview.md)
+* [Particle Trail Settings](../components/particle-trail-settings.md)
 
 </details>
 
 <details>
+
 <summary>Saved controls</summary>
 
 Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
-| Component | Input | Saved control |
-| --- | --- | --- |
-| Construct Voxels | X Voxels | 1000 |
-| Construct Voxels | Y Voxels | 1000 |
-| Construct Voxels | Z Voxels | 1 |
-| Nuclei4 Solver GPU | Reset | True |
-| Construct Slime Particles | Particle Count | 50000 |
-| Construct Slime Particles | Speed | 1.3 |
-| Construct Slime Particles | Sensor Distance | 6 |
-| Construct Slime Particles | Sensor Angle | 45 |
-| Construct Slime Particles | Rotation Angle | 45 |
-| Construct Slime Particles | Deposit | 1 |
-| Construct Slime Particles | Exploration | 0 |
-| Voxel Settings Slime | Diffuse Rate | 0.15 |
-| Voxel Settings Slime | Decay Rate | 0.03 |
-| Voxel Settings Slime | Falloff | 0 |
-| Voxel Settings Slime | Diffuse Range | 5 |
-| Particle Trail Settings | Trail Size | 10 |
+| Component                 | Input           | Saved control |
+| ------------------------- | --------------- | ------------- |
+| Construct Voxels          | X Voxels        | 1000          |
+| Construct Voxels          | Y Voxels        | 1000          |
+| Construct Voxels          | Z Voxels        | 1             |
+| Nuclei4 Solver GPU        | Reset           | True          |
+| Construct Slime Particles | Particle Count  | 50000         |
+| Construct Slime Particles | Speed           | 1.3           |
+| Construct Slime Particles | Sensor Distance | 6             |
+| Construct Slime Particles | Sensor Angle    | 45            |
+| Construct Slime Particles | Rotation Angle  | 45            |
+| Construct Slime Particles | Deposit         | 1             |
+| Construct Slime Particles | Exploration     | 0             |
+| Voxel Settings Slime      | Diffuse Rate    | 0.15          |
+| Voxel Settings Slime      | Decay Rate      | 0.03          |
+| Voxel Settings Slime      | Falloff         | 0             |
+| Voxel Settings Slime      | Diffuse Range   | 5             |
+| Particle Trail Settings   | Trail Size      | 10            |
 
 </details>
 
@@ -62,11 +64,12 @@ Compare Sensor Distance while keeping the other sliders fixed. Look for changes 
 
 ## Example result
 
-![Slime Intro: example simulation result.](../assets/examples/01-slime-intro/result.jpg)
+![Slime Intro: example simulation result.](<../.gitbook/assets/result (6).jpg>)
 
-[Back to examples](README.md)
+[Back to examples](./)
 
 <details>
+
 <summary>Grasshopper definition (JSON)</summary>
 
 [Download JSON](data/01-slime-intro.json) · [JSON Schema](../reference/definition.schema.json) · [How to read this JSON](../reference/reading-json.md)

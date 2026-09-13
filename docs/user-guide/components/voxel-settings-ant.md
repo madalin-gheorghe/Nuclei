@@ -4,7 +4,7 @@ Control the spread and decay of ant food and home pheromones.
 
 **Location:** Nuclei4 → Environment
 
-![Voxel Settings Ant with its connected controls and wires.](../assets/components/voxel-settings-ant-wired.png)
+![Voxel Settings Ant with its connected controls and wires.](../.gitbook/assets/voxel-settings-ant-wired.png)
 
 ## Use it
 
@@ -18,33 +18,34 @@ Ant Food stays in place. Its emitted scent uses the food-pheromone settings, inc
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Food Pheromones Diffuse Rate** (`foodDiffuse`) | Number / item | Optional; 0.05 | Rate at which food pheromones spread. |
-| **Food Decay Rate** (`foodDecay`) | Number / item | Optional; 0.005 | Rate at which food pheromones fade. |
-| **Base Pheromones Diffuse Rate** (`baseDiffuse`) | Number / item | Optional; 0.1 | Rate at which home pheromones spread. |
-| **Base Decay Rate** (`baseDecay`) | Number / item | Optional; 0.01 | Rate at which home pheromones fade. |
-| **Falloff** (`falloff`) | Number / item | Optional; 0 | At **0**, diffusion gives more weight to nearby voxels. At **1**, it spreads evenly across the neighborhood set by **Diffuse Range**. Values between 0 and 1 gradually blend these effects. Applies to both food and base pheromones. |
-| **Diffuse Range** (`range`) | Integer / item | Optional; 1 | Neighborhood range in voxel cells. |
+| Input                                            | Type / access  | Default         | Meaning                                                                                                                                                                                                                               |
+| ------------------------------------------------ | -------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Food Pheromones Diffuse Rate** (`foodDiffuse`) | Number / item  | Optional; 0.05  | Rate at which food pheromones spread.                                                                                                                                                                                                 |
+| **Food Decay Rate** (`foodDecay`)                | Number / item  | Optional; 0.005 | Rate at which food pheromones fade.                                                                                                                                                                                                   |
+| **Base Pheromones Diffuse Rate** (`baseDiffuse`) | Number / item  | Optional; 0.1   | Rate at which home pheromones spread.                                                                                                                                                                                                 |
+| **Base Decay Rate** (`baseDecay`)                | Number / item  | Optional; 0.01  | Rate at which home pheromones fade.                                                                                                                                                                                                   |
+| **Falloff** (`falloff`)                          | Number / item  | Optional; 0     | At **0**, diffusion gives more weight to nearby voxels. At **1**, it spreads evenly across the neighborhood set by **Diffuse Range**. Values between 0 and 1 gradually blend these effects. Applies to both food and base pheromones. |
+| **Diffuse Range** (`range`)                      | Integer / item | Optional; 1     | Neighborhood range in voxel cells.                                                                                                                                                                                                    |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
-| **Voxel Settings** (`voxelSettings`) | Text / list | Field behavior settings for the solver. |
+| Output                               | Type / access | Meaning                                 |
+| ------------------------------------ | ------------- | --------------------------------------- |
+| **Voxel Settings** (`voxelSettings`) | Text / list   | Field behavior settings for the solver. |
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| Pheromone trails disappear quickly | Check the decay rate for the signal you are viewing. |
-| Ants do not find food | Check the Ant Food map as well as the food-pheromone settings. |
+| Symptom                            | Action                                                         |
+| ---------------------------------- | -------------------------------------------------------------- |
+| Pheromone trails disappear quickly | Check the decay rate for the signal you are viewing.           |
+| Ants do not find food              | Check the Ant Food map as well as the food-pheromone settings. |
 
 ## Continue
 
-[Ants Intro — 3D](../examples/13-ants-intro-3d.md) · [Ants Intro](../examples/13-ants-intro.md) · [Ants Complex](../examples/14-ants-complex.md) · [Component reference](README.md)
+[Ants Intro — 3D](../examples/13-ants-intro-3d.md) · [Ants Intro](../examples/13-ants-intro.md) · [Ants Complex](../examples/14-ants-complex.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/voxel-settings-ant.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

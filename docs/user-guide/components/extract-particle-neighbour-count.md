@@ -4,7 +4,7 @@ Read the neighbor count stored for each particle by the division rule.
 
 **Location:** Nuclei4 → Particles
 
-![Extract Particle Neighbour Count with its connected controls and wires.](../assets/components/extract-particle-neighbour-count-wired.png)
+![Extract Particle Neighbour Count with its connected controls and wires.](../.gitbook/assets/extract-particle-neighbour-count-wired.png)
 
 ## Use it
 
@@ -14,27 +14,28 @@ Connect the solver’s **particles** output. Use **particleNC** to inspect the n
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
+| Input                       | Type / access       | Default  | Meaning                                      |
+| --------------------------- | ------------------- | -------- | -------------------------------------------- |
 | **Particles** (`particles`) | Generic Data / item | Required | Current particle collection from the solver. |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
+| Output                                      | Type / access | Meaning                                               |
+| ------------------------------------------- | ------------- | ----------------------------------------------------- |
 | **Particle Neighbour Count** (`particleNC`) | Number / list | Stored division-neighborhood count for each particle. |
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
+| Symptom               | Action                                                               |
+| --------------------- | -------------------------------------------------------------------- |
 | Counts stay unchanged | Check whether the division rule is enabled and when it last updated. |
 
 ## Continue
 
-[Component reference](README.md)
+[Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/extract-particle-neighbour-count.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

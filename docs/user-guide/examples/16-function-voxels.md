@@ -4,65 +4,67 @@ Use a mathematical pattern to organize a three-dimensional slime environment. Fu
 
 The definition also converts the mapped minimum-density field to a volume, allowing you to inspect the geometry of the supplied pattern alongside the simulation. Use this example to explore how function choice, scale, and selection range change the attraction geometry, then observe how the particle trails respond to that environment.
 
-![Function Voxels: example simulation result.](../assets/examples/16-function-voxels/result.jpg)
+![Function Voxels: example simulation result.](<../.gitbook/assets/result (16).jpg>)
 
-[Download 15_Function Voxels.gh](files/16-function-voxels.gh)
+[Download 15\_Function Voxels.gh](files/16-function-voxels.gh)
 
-![Function Voxels: Grasshopper definition showing its connected components and controls.](../assets/examples/16-function-voxels/definition-clean.png)
+![Function Voxels: Grasshopper definition showing its connected components and controls.](<../.gitbook/assets/definition-clean (17).png>)
 
 ## Follow the definition
 
 The saved grid is 300 × 300 × 300. [Function Attractor](../components/function-attractor.md) selects the region; [Define Voxel Values](../components/define-voxel-values.md) assigns **Minimum Density** with multiplier 1. Follow that field to the solver and volume conversion.
 
 <details>
+
 <summary>Components used</summary>
 
-- [Construct Voxels](../components/construct-voxels.md)
-- [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
-- [Construct Slime Particles](../components/construct-slime-particles.md)
-- [Voxel Settings Slime](../components/voxel-settings-slime.md)
-- [Particle Trail Preview](../components/particle-trail-preview.md)
-- [Particle Trail Settings](../components/particle-trail-settings.md)
-- [Function Attractor](../components/function-attractor.md)
-- [Define Voxel Values](../components/define-voxel-values.md)
-- [Nuclei4 to Dendro Volume](../components/nuclei4-to-dendro-volume.md)
-- [Voxel Preview](../components/voxel-preview.md)
+* [Construct Voxels](../components/construct-voxels.md)
+* [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
+* [Construct Slime Particles](../components/construct-slime-particles.md)
+* [Voxel Settings Slime](../components/voxel-settings-slime.md)
+* [Particle Trail Preview](../components/particle-trail-preview.md)
+* [Particle Trail Settings](../components/particle-trail-settings.md)
+* [Function Attractor](../components/function-attractor.md)
+* [Define Voxel Values](../components/define-voxel-values.md)
+* [Nuclei4 to Dendro Volume](../components/nuclei4-to-dendro-volume.md)
+* [Voxel Preview](../components/voxel-preview.md)
 
 </details>
 
 <details>
+
 <summary>Saved controls</summary>
 
 Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
-| Component | Input | Saved control |
-| --- | --- | --- |
-| Construct Voxels | X Voxels | 300 |
-| Construct Voxels | Y Voxels | 300 |
-| Construct Voxels | Z Voxels | 300 |
-| Nuclei4 Solver GPU | Reset | True |
-| Construct Slime Particles | Particle Count | 100000 |
-| Construct Slime Particles | Speed | 1.3 |
-| Construct Slime Particles | Sensor Distance | 6 |
-| Construct Slime Particles | Sensor Angle | 45 |
-| Construct Slime Particles | Rotation Angle | 45 |
-| Construct Slime Particles | Deposit | 5 |
-| Construct Slime Particles | Wander | 0 |
-| Voxel Settings Slime | Diffuse Rate | 0.1 |
-| Voxel Settings Slime | Decay Rate | 0.005 |
-| Voxel Settings Slime | Falloff | 0 |
-| Voxel Settings Slime | Diffuse Range | 6 |
-| Particle Trail Settings | Trail Size | 10 |
-| Function Attractor | Surface | Gyroid |
-| Function Attractor | Scale | 9 |
-| Function Attractor | Maximum Range | 7 |
-| Define Voxel Values | Type | Minimum Density |
-| Define Voxel Values | Multiplier Value | 1 |
-| Nuclei4 to Dendro Volume | Type | Minimum Density |
-| Nuclei4 to Dendro Volume | Method | Continuous |
-| Nuclei4 to Dendro Volume | Maximum Elements | 50000000 |
-| Nuclei4 to Dendro Volume | Update | True |
-| Voxel Preview | Type | Slime Chemoattractants |
+| Component                 | Input            | Saved control          |
+| ------------------------- | ---------------- | ---------------------- |
+| Construct Voxels          | X Voxels         | 300                    |
+| Construct Voxels          | Y Voxels         | 300                    |
+| Construct Voxels          | Z Voxels         | 300                    |
+| Nuclei4 Solver GPU        | Reset            | True                   |
+| Construct Slime Particles | Particle Count   | 100000                 |
+| Construct Slime Particles | Speed            | 1.3                    |
+| Construct Slime Particles | Sensor Distance  | 6                      |
+| Construct Slime Particles | Sensor Angle     | 45                     |
+| Construct Slime Particles | Rotation Angle   | 45                     |
+| Construct Slime Particles | Deposit          | 5                      |
+| Construct Slime Particles | Wander           | 0                      |
+| Voxel Settings Slime      | Diffuse Rate     | 0.1                    |
+| Voxel Settings Slime      | Decay Rate       | 0.005                  |
+| Voxel Settings Slime      | Falloff          | 0                      |
+| Voxel Settings Slime      | Diffuse Range    | 6                      |
+| Particle Trail Settings   | Trail Size       | 10                     |
+| Function Attractor        | Surface          | Gyroid                 |
+| Function Attractor        | Scale            | 9                      |
+| Function Attractor        | Maximum Range    | 7                      |
+| Define Voxel Values       | Type             | Minimum Density        |
+| Define Voxel Values       | Multiplier Value | 1                      |
+| Nuclei4 to Dendro Volume  | Type             | Minimum Density        |
+| Nuclei4 to Dendro Volume  | Method           | Continuous             |
+| Nuclei4 to Dendro Volume  | Maximum Elements | 50000000               |
+| Nuclei4 to Dendro Volume  | Update           | True                   |
+| Voxel Preview             | Type             | Slime Chemoattractants |
 
 </details>
 
@@ -76,9 +78,10 @@ This file also uses **Dendro** components. Those require Dendro to be installed;
 
 Change the preset or function range in a copy, then inspect selected voxels before running. Small changes in Iso Value can change topology, not merely move the same surface.
 
-[Back to examples](README.md)
+[Back to examples](./)
 
 <details>
+
 <summary>Grasshopper definition (JSON)</summary>
 
 [Download JSON](data/16-function-voxels.json) · [JSON Schema](../reference/definition.schema.json) · [How to read this JSON](../reference/reading-json.md)

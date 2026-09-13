@@ -4,7 +4,7 @@ Extract current particle positions as Rhino points.
 
 **Location:** Nuclei4 → Particles
 
-![Extract Particle Positions with its connected controls and wires.](../assets/components/extract-particle-positions-wired.png)
+![Extract Particle Positions with its connected controls and wires.](../.gitbook/assets/extract-particle-positions-wired.png)
 
 ## Use it
 
@@ -14,15 +14,15 @@ Connect the solver’s **particles** output. Use **particlePos** wherever Grassh
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
+| Input                       | Type / access       | Default  | Meaning                                      |
+| --------------------------- | ------------------- | -------- | -------------------------------------------- |
 | **Particles** (`particles`) | Generic Data / item | Required | Current particle collection from the solver. |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
-| **Particle Positions** (`particlePos`) | Point / tree | Current positions, grouped by particle population. |
+| Output                                 | Type / access | Meaning                                            |
+| -------------------------------------- | ------------- | -------------------------------------------------- |
+| **Particle Positions** (`particlePos`) | Point / tree  | Current positions, grouped by particle population. |
 
 ## Output branches
 
@@ -30,15 +30,16 @@ Points are grouped into branches by particle group. Keep those branches when wor
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
+| Symptom            | Action                                                                   |
+| ------------------ | ------------------------------------------------------------------------ |
 | Points do not move | Check that the input comes from the solver, rather than the constructor. |
 
 ## Continue
 
-[Component reference](README.md)
+[Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/extract-particle-positions.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

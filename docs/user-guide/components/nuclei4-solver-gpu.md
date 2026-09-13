@@ -4,7 +4,7 @@ Advance the simulation and provide its evolving particles and voxel field.
 
 **Location:** Nuclei4 → Solver
 
-![Nuclei4 Solver GPU with Reset, incoming field, particle and settings wires, and two output wires.](../assets/components/nuclei4-solver-gpu-wired.png)
+![Nuclei4 Solver GPU with Reset, incoming field, particle and settings wires, and two output wires.](../.gitbook/assets/nuclei4-solver-gpu-wired.png)
 
 ## Use it
 
@@ -19,12 +19,12 @@ Each non-reset solver solution advances one iteration while the inputs and GPU a
 
 Required inputs have no stored default on a fresh component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Reset** (`reset`) | Boolean / item | Required | True initializes; False allows advancement. |
-| **Voxels** (`voxels`) | Generic Data / item | Required | One Nuclei field describing the environment. |
-| **Particles** (`particles`) | Particle Group / list | Required | One or more starting populations. Incoming groups are flattened. |
-| **Solver Settings** (`settings`) | Text / list | Optional | Outputs from Nuclei settings components. Incoming settings are flattened. |
+| Input                            | Type / access         | Default  | Meaning                                                                   |
+| -------------------------------- | --------------------- | -------- | ------------------------------------------------------------------------- |
+| **Reset** (`reset`)              | Boolean / item        | Required | True initializes; False allows advancement.                               |
+| **Voxels** (`voxels`)            | Generic Data / item   | Required | One Nuclei field describing the environment.                              |
+| **Particles** (`particles`)      | Particle Group / list | Required | One or more starting populations. Incoming groups are flattened.          |
+| **Solver Settings** (`settings`) | Text / list           | Optional | Outputs from Nuclei settings components. Incoming settings are flattened. |
 
 Multiple settings wires are intentional. Hold **Shift** while adding another wire in Grasshopper to preserve an existing connection. Slime Intro connects both Particle Trail Settings and Voxel Settings Slime to **settings**.
 
@@ -34,10 +34,10 @@ Without settings, built-in limits include **100,000 maximum iterations**, reflec
 
 ## Outputs
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
+| Output                             | Type / access       | Meaning                                                     |
+| ---------------------------------- | ------------------- | ----------------------------------------------------------- |
 | **Output Particles** (`particles`) | Generic Data / item | One evolving collection for Nuclei previews and extractors. |
-| **Output Voxels** (`voxels`) | Generic Data / item | The evolving field, including simulation signals. |
+| **Output Voxels** (`voxels`)       | Generic Data / item | The evolving field, including simulation signals.           |
 
 These are Nuclei objects, not ordinary Grasshopper geometry lists. Use particle extractors for points. Connect voxel preview/extraction to the solver output when inspecting changing signals.
 
@@ -51,22 +51,23 @@ At the iteration limit, the solver can pause its dedicated Trigger. Reset or rai
 
 ## If something is wrong
 
-| Message or symptom | Action |
-| --- | --- |
-| `Solution is Reset` never changes | Return Reset to False before starting the Trigger. |
-| Iteration does not advance | Check Trigger targeting, runtime errors, and the iteration limit. |
-| `GPU unavailable` | Inspect the warning and confirm the supported Rhino/Windows/GPU setup. |
-| `GPU reset failed:` or `GPU solver failed:` | Include the full runtime error and a small definition when reporting the issue. |
-| Empty trails after reset | Use Trail Size greater than 1 and advance several steps. |
-| Extraction slows the graph | It requests CPU-visible data and builds Grasshopper geometry. Pause large downstream operations while tuning. |
+| Message or symptom                          | Action                                                                                                        |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `Solution is Reset` never changes           | Return Reset to False before starting the Trigger.                                                            |
+| Iteration does not advance                  | Check Trigger targeting, runtime errors, and the iteration limit.                                             |
+| `GPU unavailable`                           | Inspect the warning and confirm the supported Rhino/Windows/GPU setup.                                        |
+| `GPU reset failed:` or `GPU solver failed:` | Include the full runtime error and a small definition when reporting the issue.                               |
+| Empty trails after reset                    | Use Trail Size greater than 1 and advance several steps.                                                      |
+| Extraction slows the graph                  | It requests CPU-visible data and builds Grasshopper geometry. Pause large downstream operations while tuning. |
 
 Read the component message and runtime warnings/errors.
 
 ## Continue
 
-[Slime Intro](../getting-started/first-slime-simulation.md) · [Extract Particle Trails](extract-particle-trails.md) · [Troubleshooting](../troubleshooting.md) · [Component reference](README.md)
+[Slime Intro](../getting-started/first-slime-simulation.md) · [Extract Particle Trails](extract-particle-trails.md) · [Troubleshooting](../troubleshooting.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/nuclei4-solver-gpu.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

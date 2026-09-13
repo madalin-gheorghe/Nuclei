@@ -4,7 +4,7 @@ Select voxels around a mathematical surface.
 
 **Location:** Nuclei4 → Environment
 
-![Function Attractor with its connected controls and wires.](../assets/components/function-attractor-wired.png)
+![Function Attractor with its connected controls and wires.](../.gitbook/assets/function-attractor-wired.png)
 
 ## Use it
 
@@ -16,49 +16,49 @@ Use the **voxels** output to map properties or initialize particles in the selec
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
-| **Surface** (`surface`) | Integer / item | Optional; 1 | Preset surface; see **Surface choices** below. A connected Custom formula overrides it. |
-| **Custom** (`custom`) | Text / item | Optional; empty | Optional expression in x, y, and z. |
-| **Scale** (`scale`) | Number / item | 2.0 * Pi | Coordinate span across each grid axis; 2π gives one period for periodic presets. |
-| **Iso Value** (`isoValue`) | Number / item | 0 | Function level defining the surface. |
-| **Minimum Range** (`minRange`) | Number / item | 0 | Minimum distance from the attractor, in model units. |
-| **Maximum Range** (`maxRange`) | Number / item | 2 | Maximum distance from the attractor, in model units. |
+| Input                          | Type / access       | Default         | Meaning                                                                                 |
+| ------------------------------ | ------------------- | --------------- | --------------------------------------------------------------------------------------- |
+| **Voxels** (`voxels`)          | Generic Data / item | Required        | Voxel field or selection to use.                                                        |
+| **Surface** (`surface`)        | Integer / item      | Optional; 1     | Preset surface; see **Surface choices** below. A connected Custom formula overrides it. |
+| **Custom** (`custom`)          | Text / item         | Optional; empty | Optional expression in x, y, and z.                                                     |
+| **Scale** (`scale`)            | Number / item       | 2.0 \* Pi       | Coordinate span across each grid axis; 2π gives one period for periodic presets.        |
+| **Iso Value** (`isoValue`)     | Number / item       | 0               | Function level defining the surface.                                                    |
+| **Minimum Range** (`minRange`) | Number / item       | 0               | Minimum distance from the attractor, in model units.                                    |
+| **Maximum Range** (`maxRange`) | Number / item       | 2               | Maximum distance from the attractor, in model units.                                    |
 
 ### Surface choices
 
-| Value | Choice |
-| --- | --- |
-| 1 | Gyroid |
-| 2 | Schwarz D |
-| 3 | Schwarz G |
-| 4 | Schwarz P |
-| 5 | Neovius |
-| 6 | Diamond |
-| 7 | P W Hybrid |
-| 9 | IWP |
-| 10 | Fischer-Koch S |
-| 11 | Lidinoid |
-| 12 | Twisted Sheets |
-| 14 | Interference Field |
-| 15 | Tanglecube |
-| 16 | Trefoil Knot |
-| 18 | Warped Caves |
+| Value | Choice             |
+| ----- | ------------------ |
+| 1     | Gyroid             |
+| 2     | Schwarz D          |
+| 3     | Schwarz G          |
+| 4     | Schwarz P          |
+| 5     | Neovius            |
+| 6     | Diamond            |
+| 7     | P W Hybrid         |
+| 9     | IWP                |
+| 10    | Fischer-Koch S     |
+| 11    | Lidinoid           |
+| 12    | Twisted Sheets     |
+| 14    | Interference Field |
+| 15    | Tanglecube         |
+| 16    | Trefoil Knot       |
+| 18    | Warped Caves       |
 
 ## Outputs
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
-| **Output Voxels** (`voxels`) | Generic Data / item | Selected or modified voxel field. |
-| **Output Voxel Positions** (`voxelPosition`) | Point / list | Centers of the selected voxels. |
-| **Output Voxel Indices** (`voxelIndex`) | Integer / list | Indices of the selected voxels, paired with the position output. |
+| Output                                       | Type / access       | Meaning                                                          |
+| -------------------------------------------- | ------------------- | ---------------------------------------------------------------- |
+| **Output Voxels** (`voxels`)                 | Generic Data / item | Selected or modified voxel field.                                |
+| **Output Voxel Positions** (`voxelPosition`) | Point / list        | Centers of the selected voxels.                                  |
+| **Output Voxel Indices** (`voxelIndex`)      | Integer / list      | Indices of the selected voxels, paired with the position output. |
 
 ## Custom formulas
 
 Connect a text Panel to **Custom** to use your own formula in `x`, `y`, and `z`. For example:
 
-```text
+```
 Math.Cos(x) * Math.Sin(y) + Math.Cos(y) * Math.Sin(z) + Math.Cos(z) * Math.Sin(x)
 ```
 
@@ -66,17 +66,18 @@ Custom overrides Surface while connected. Disconnect it to use the preset again.
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| Custom formula error | Check the expression and remove any assignment or semicolon. |
-| Changing Surface has no effect | Disconnect Custom to return to presets. |
-| Thin features disappear | Check the voxel resolution and range. |
+| Symptom                        | Action                                                       |
+| ------------------------------ | ------------------------------------------------------------ |
+| Custom formula error           | Check the expression and remove any assignment or semicolon. |
+| Changing Surface has no effect | Disconnect Custom to return to presets.                      |
+| Thin features disappear        | Check the voxel resolution and range.                        |
 
 ## Continue
 
-[Function Voxels](../examples/16-function-voxels.md) · [Component reference](README.md)
+[Function Voxels](../examples/16-function-voxels.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/function-attractor.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

@@ -4,7 +4,7 @@ Find the voxel containing each supplied point.
 
 **Location:** Nuclei4 → Utility
 
-![Extract Parent Voxel with its connected controls and wires.](../assets/components/extract-parent-voxel-wired.png)
+![Extract Parent Voxel with its connected controls and wires.](../.gitbook/assets/extract-parent-voxel-wired.png)
 
 ## Use it
 
@@ -14,15 +14,15 @@ Connect points to **points** and their field to **voxels**. The output gives the
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Points** (`points`) | Point / tree | Required | Points to locate in the field. |
+| Input                 | Type / access       | Default  | Meaning                          |
+| --------------------- | ------------------- | -------- | -------------------------------- |
+| **Points** (`points`) | Point / tree        | Required | Points to locate in the field.   |
 | **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
+| Output                                 | Type / access | Meaning                                                       |
+| -------------------------------------- | ------------- | ------------------------------------------------------------- |
 | **Point Parent Voxel** (`parentVoxel`) | Number / tree | Containing voxel index for each point; -1 when none is found. |
 
 ## Output branches
@@ -31,15 +31,16 @@ The result preserves the input point branches. A value of **-1** means no active
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
+| Symptom          | Action                                                                      |
+| ---------------- | --------------------------------------------------------------------------- |
 | The result is -1 | Check whether the point lies inside an active voxel of the connected field. |
 
 ## Continue
 
-[Component reference](README.md)
+[Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/extract-parent-voxel.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

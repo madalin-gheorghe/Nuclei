@@ -4,61 +4,63 @@ Guide slime movement with a vector field built from Grasshopper point charges. T
 
 Particles respond to those directions while also sensing and reinforcing the slime signal. Inspect the vectors first, then follow how the trails organize in relation to them. Use this example to explore how a small set of field sources can influence movement throughout an environment and shape the larger pattern of connections.
 
-![Vector Fields 2: example simulation result.](../assets/examples/09-vector-fields-2/result.jpg)
+![Vector Fields 2: example simulation result.](<../.gitbook/assets/result (8).jpg>)
 
-[Download 13_Vector Fields 2.gh](files/09-vector-fields-2.gh)
+[Download 13\_Vector Fields 2.gh](files/09-vector-fields-2.gh)
 
-![Vector Fields 2: Grasshopper definition showing its connected components and controls.](../assets/examples/09-vector-fields-2/definition-clean.png)
+![Vector Fields 2: Grasshopper definition showing its connected components and controls.](<../.gitbook/assets/definition-clean (10).png>)
 
 ## Follow the definition
 
 The saved graph contains charge construction, field merging, and field evaluation before [Define Voxel Vectors](../components/define-voxel-vectors.md). Inspect those directions before tracing the field into the solver.
 
 <details>
+
 <summary>Components used</summary>
 
-- [Construct Voxels](../components/construct-voxels.md)
-- [Extract Voxel Bounding Box](../components/extract-voxel-bounding-box.md)
-- [Point Attractor for Voxels](../components/point-attractor-for-voxels.md)
-- [Voxel Selection Union](../components/voxel-selection-union.md)
-- [Define Voxel Vectors](../components/define-voxel-vectors.md)
-- [Voxel Wrap Settings](../components/voxel-wrap-settings.md)
-- [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
-- [Nuclei4 Solver Iterations](../components/nuclei4-solver-iterations.md)
-- [Voxel Settings Slime](../components/voxel-settings-slime.md)
-- [Construct Slime Particles](../components/construct-slime-particles.md)
-- [Particle Trail Preview](../components/particle-trail-preview.md)
-- [Particle Trail Settings](../components/particle-trail-settings.md)
+* [Construct Voxels](../components/construct-voxels.md)
+* [Extract Voxel Bounding Box](../components/extract-voxel-bounding-box.md)
+* [Point Attractor for Voxels](../components/point-attractor-for-voxels.md)
+* [Voxel Selection Union](../components/voxel-selection-union.md)
+* [Define Voxel Vectors](../components/define-voxel-vectors.md)
+* [Voxel Wrap Settings](../components/voxel-wrap-settings.md)
+* [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
+* [Nuclei4 Solver Iterations](../components/nuclei4-solver-iterations.md)
+* [Voxel Settings Slime](../components/voxel-settings-slime.md)
+* [Construct Slime Particles](../components/construct-slime-particles.md)
+* [Particle Trail Preview](../components/particle-trail-preview.md)
+* [Particle Trail Settings](../components/particle-trail-settings.md)
 
 </details>
 
 <details>
+
 <summary>Saved controls</summary>
 
 Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
-| Component | Input | Saved control |
-| --- | --- | --- |
-| Construct Voxels | Voxel Size | 1 |
-| Construct Voxels | X Voxels | 800 |
-| Construct Voxels | Y Voxels | 800 |
-| Construct Voxels | Z Voxels | 1 |
-| Point Attractor for Voxels | Maximum Range | 500 |
-| Voxel Wrap Settings | Wrap | True |
-| Nuclei4 Solver GPU | Reset | True |
-| Nuclei4 Solver Iterations | Iterations | 200 |
-| Voxel Settings Slime | Diffuse Rate | 0.1 |
-| Voxel Settings Slime | Decay Rate | 0.03 |
-| Voxel Settings Slime | Falloff | 0.5 |
-| Voxel Settings Slime | Diffuse Range | 1 |
-| Construct Slime Particles | Particle Count | 65000 |
-| Construct Slime Particles | Speed | 1.3 |
-| Construct Slime Particles | Sensor Distance | 6 |
-| Construct Slime Particles | Sensor Angle | 45 |
-| Construct Slime Particles | Rotation Angle | 45 |
-| Construct Slime Particles | Deposit | 0.4 |
-| Construct Slime Particles | Exploration | 0 |
-| Particle Trail Settings | Trail Size | 5 |
+| Component                  | Input           | Saved control |
+| -------------------------- | --------------- | ------------- |
+| Construct Voxels           | Voxel Size      | 1             |
+| Construct Voxels           | X Voxels        | 800           |
+| Construct Voxels           | Y Voxels        | 800           |
+| Construct Voxels           | Z Voxels        | 1             |
+| Point Attractor for Voxels | Maximum Range   | 500           |
+| Voxel Wrap Settings        | Wrap            | True          |
+| Nuclei4 Solver GPU         | Reset           | True          |
+| Nuclei4 Solver Iterations  | Iterations      | 200           |
+| Voxel Settings Slime       | Diffuse Rate    | 0.1           |
+| Voxel Settings Slime       | Decay Rate      | 0.03          |
+| Voxel Settings Slime       | Falloff         | 0.5           |
+| Voxel Settings Slime       | Diffuse Range   | 1             |
+| Construct Slime Particles  | Particle Count  | 65000         |
+| Construct Slime Particles  | Speed           | 1.3           |
+| Construct Slime Particles  | Sensor Distance | 6             |
+| Construct Slime Particles  | Sensor Angle    | 45            |
+| Construct Slime Particles  | Rotation Angle  | 45            |
+| Construct Slime Particles  | Deposit         | 0.4           |
+| Construct Slime Particles  | Exploration     | 0             |
+| Particle Trail Settings    | Trail Size      | 5             |
 
 </details>
 
@@ -72,11 +74,12 @@ Move one charge in a copy while retaining the particle settings. Compare the fie
 
 ## Example result
 
-![Vector Fields 2: example simulation result.](../assets/examples/09-vector-fields-2/result.jpg)
+![Vector Fields 2: example simulation result.](<../.gitbook/assets/result (8).jpg>)
 
-[Back to examples](README.md)
+[Back to examples](./)
 
 <details>
+
 <summary>Grasshopper definition (JSON)</summary>
 
 [Download JSON](data/09-vector-fields-2.json) · [JSON Schema](../reference/definition.schema.json) · [How to read this JSON](../reference/reading-json.md)

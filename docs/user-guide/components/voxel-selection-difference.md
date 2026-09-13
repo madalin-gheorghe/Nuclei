@@ -4,7 +4,7 @@ Remove one voxel selection from another.
 
 **Location:** Nuclei4 → Environment
 
-![Voxel Selection Difference with its connected controls and wires.](../assets/components/voxel-selection-difference-wired.png)
+![Voxel Selection Difference with its connected controls and wires.](../.gitbook/assets/voxel-selection-difference-wired.png)
 
 ## Use it
 
@@ -14,29 +14,30 @@ Connect the selection to keep to **V1** and the selection to remove to **V2**. T
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxel** (`V1`) | Generic Data / item | Required | First voxel selection. |
+| Input            | Type / access       | Default  | Meaning                 |
+| ---------------- | ------------------- | -------- | ----------------------- |
+| **Voxel** (`V1`) | Generic Data / item | Required | First voxel selection.  |
 | **Voxel** (`V2`) | Generic Data / item | Required | Second voxel selection. |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
+| Output                       | Type / access       | Meaning                           |
+| ---------------------------- | ------------------- | --------------------------------- |
 | **Output Voxels** (`voxels`) | Generic Data / item | Selected or modified voxel field. |
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
+| Symptom                  | Action                        |
+| ------------------------ | ----------------------------- |
 | The wrong region remains | Check the order of V1 and V2. |
-| Output is empty | V2 may cover all of V1. |
+| Output is empty          | V2 may cover all of V1.       |
 
 ## Continue
 
-[Component reference](README.md)
+[Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/voxel-selection-difference.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

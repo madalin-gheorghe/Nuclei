@@ -6,7 +6,7 @@ A **voxel** is one cell of Nuclei's environment. The voxel field gives particles
 
 **Construct Voxels** sets cell size and cell counts along X, Y, and Z. The number of cells is X × Y × Z. Keep Z at 1 for an XY study; increasing all three dimensions creates a volume.
 
-![Construct voxels with connected controls and wires.](../assets/construct-voxels-clean.png)
+![Construct voxels with connected controls and wires.](../.gitbook/assets/construct-voxels-clean.png)
 
 Voxel Size sets each cell’s edge length in model units. The grid starts at the world origin; its dimensions are the cell counts multiplied by Voxel Size.
 
@@ -32,4 +32,4 @@ Choose the named Type from the component's value list. Keep Type consistent betw
 
 Create the field, select cells, assign values, preview the mapped field, and only then connect the solver. This lets you distinguish a mapping issue from a simulation issue.
 
-See [the component reference](../components/README.md) for inputs, outputs, and examples of each tool.
+See [the component reference](../components/) for inputs, outputs, and examples of each tool.

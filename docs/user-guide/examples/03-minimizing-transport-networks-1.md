@@ -4,68 +4,70 @@ Explore how slime particles form connections around food regions in a bounded en
 
 As the simulation develops, particles reinforce frequently followed routes and the network reorganizes around the food arrangement. Watch which connections persist and how they respond when the food strength changes. This example lets you study the relationship between source locations, the available space, and the paths that emerge between them.
 
-![Minimizing Transport Networks 1: example simulation result.](../assets/examples/03-minimizing-transport-networks-1/result.jpg)
+![Minimizing Transport Networks 1: example simulation result.](<../.gitbook/assets/result (1).jpg>)
 
-[Download 02_Minimizing Transport Networks Simple.gh](files/03-minimizing-transport-networks-1.gh)
+[Download 02\_Minimizing Transport Networks Simple.gh](files/03-minimizing-transport-networks-1.gh)
 
-![Minimizing Transport Networks 1: Grasshopper definition showing its connected components and controls.](../assets/examples/03-minimizing-transport-networks-1/definition-clean.png)
+![Minimizing Transport Networks 1: Grasshopper definition showing its connected components and controls.](<../.gitbook/assets/definition-clean (4).png>)
 
 ## Follow the definition
 
 The definition combines point-attractor and mesh-inclusion selections with [Voxel Selection Union](../components/voxel-selection-union.md). [Define Voxel Values](../components/define-voxel-values.md) assigns **Slime Food** with a saved multiplier of 2. Follow the resulting field into the solver.
 
 <details>
+
 <summary>Components used</summary>
 
-- [Particle Population Settings](../components/particle-population-settings.md)
-- [Voxel Preview](../components/voxel-preview.md)
-- [Define Voxel Values](../components/define-voxel-values.md)
-- [Particle Preview](../components/particle-preview.md)
-- [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
-- [Voxel Selection Union](../components/voxel-selection-union.md)
-- [Voxel Inclusion in Mesh](../components/voxel-inclusion-in-mesh.md)
-- [Point Attractor for Voxels](../components/point-attractor-for-voxels.md)
-- [Extract Voxel Bounding Box](../components/extract-voxel-bounding-box.md)
-- [Construct Voxels](../components/construct-voxels.md)
-- [Voxel Settings Slime](../components/voxel-settings-slime.md)
-- [Construct Slime Particles](../components/construct-slime-particles.md)
-- [Nuclei4 Solver Iterations](../components/nuclei4-solver-iterations.md)
-- [Particle Trail Preview](../components/particle-trail-preview.md)
-- [Particle Trail Settings](../components/particle-trail-settings.md)
+* [Particle Population Settings](../components/particle-population-settings.md)
+* [Voxel Preview](../components/voxel-preview.md)
+* [Define Voxel Values](../components/define-voxel-values.md)
+* [Particle Preview](../components/particle-preview.md)
+* [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
+* [Voxel Selection Union](../components/voxel-selection-union.md)
+* [Voxel Inclusion in Mesh](../components/voxel-inclusion-in-mesh.md)
+* [Point Attractor for Voxels](../components/point-attractor-for-voxels.md)
+* [Extract Voxel Bounding Box](../components/extract-voxel-bounding-box.md)
+* [Construct Voxels](../components/construct-voxels.md)
+* [Voxel Settings Slime](../components/voxel-settings-slime.md)
+* [Construct Slime Particles](../components/construct-slime-particles.md)
+* [Nuclei4 Solver Iterations](../components/nuclei4-solver-iterations.md)
+* [Particle Trail Preview](../components/particle-trail-preview.md)
+* [Particle Trail Settings](../components/particle-trail-settings.md)
 
 </details>
 
 <details>
+
 <summary>Saved controls</summary>
 
 Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
-| Component | Input | Saved control |
-| --- | --- | --- |
-| Particle Population Settings | Minimum Population | 20000 |
-| Particle Population Settings | Maximum Population | 20000 |
-| Particle Population Settings | Random Death | 0.025 |
-| Particle Population Settings | Frequency | 1 |
-| Voxel Preview | Type | Slime Chemoattractants |
-| Define Voxel Values | Type | Slime Food |
-| Define Voxel Values | Multiplier Value | 2 |
-| Nuclei4 Solver GPU | Reset | True |
-| Point Attractor for Voxels | Maximum Range | 5 |
-| Construct Voxels | X Voxels | 250 |
-| Construct Voxels | Y Voxels | 250 |
-| Construct Voxels | Z Voxels | 1 |
-| Voxel Settings Slime | Diffuse Rate | 0.15 |
-| Voxel Settings Slime | Decay Rate | 0.01 |
-| Voxel Settings Slime | Falloff | 1 |
-| Voxel Settings Slime | Diffuse Range | 3 |
-| Construct Slime Particles | Particle Count | 20000 |
-| Construct Slime Particles | Speed | 3 |
-| Construct Slime Particles | Sensor Distance | 9 |
-| Construct Slime Particles | Sensor Angle | 45 |
-| Construct Slime Particles | Rotation Angle | 45 |
-| Construct Slime Particles | Deposit | 1.1 |
-| Nuclei4 Solver Iterations | Iterations | 500 |
-| Particle Trail Settings | Trail Size | 15 |
+| Component                    | Input              | Saved control          |
+| ---------------------------- | ------------------ | ---------------------- |
+| Particle Population Settings | Minimum Population | 20000                  |
+| Particle Population Settings | Maximum Population | 20000                  |
+| Particle Population Settings | Random Death       | 0.025                  |
+| Particle Population Settings | Frequency          | 1                      |
+| Voxel Preview                | Type               | Slime Chemoattractants |
+| Define Voxel Values          | Type               | Slime Food             |
+| Define Voxel Values          | Multiplier Value   | 2                      |
+| Nuclei4 Solver GPU           | Reset              | True                   |
+| Point Attractor for Voxels   | Maximum Range      | 5                      |
+| Construct Voxels             | X Voxels           | 250                    |
+| Construct Voxels             | Y Voxels           | 250                    |
+| Construct Voxels             | Z Voxels           | 1                      |
+| Voxel Settings Slime         | Diffuse Rate       | 0.15                   |
+| Voxel Settings Slime         | Decay Rate         | 0.01                   |
+| Voxel Settings Slime         | Falloff            | 1                      |
+| Voxel Settings Slime         | Diffuse Range      | 3                      |
+| Construct Slime Particles    | Particle Count     | 20000                  |
+| Construct Slime Particles    | Speed              | 3                      |
+| Construct Slime Particles    | Sensor Distance    | 9                      |
+| Construct Slime Particles    | Sensor Angle       | 45                     |
+| Construct Slime Particles    | Rotation Angle     | 45                     |
+| Construct Slime Particles    | Deposit            | 1.1                    |
+| Nuclei4 Solver Iterations    | Iterations         | 500                    |
+| Particle Trail Settings      | Trail Size         | 15                     |
 
 </details>
 
@@ -79,11 +81,12 @@ Compare food strength while keeping the source geometry fixed. Observe which con
 
 ## Example result
 
-![Minimizing Transport Networks 1: example simulation result.](../assets/examples/03-minimizing-transport-networks-1/result.jpg)
+![Minimizing Transport Networks 1: example simulation result.](<../.gitbook/assets/result (1).jpg>)
 
-[Back to examples](README.md)
+[Back to examples](./)
 
 <details>
+
 <summary>Grasshopper definition (JSON)</summary>
 
 [Download JSON](data/03-minimizing-transport-networks-1.json) · [JSON Schema](../reference/definition.schema.json) · [How to read this JSON](../reference/reading-json.md)

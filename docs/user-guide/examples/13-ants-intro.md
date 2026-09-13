@@ -4,60 +4,62 @@ Watch ants discover food and establish routes back to their colony in a flat vox
 
 Diffusion spreads those signals into nearby cells, and decay controls how long they remain. Follow the change from early exploration to routes reinforced by repeated journeys. Use this example to learn the basic ant workflow and explore how food placement and pheromone settings affect the paths that develop.
 
-![Ants Intro: example simulation result.](../assets/examples/13-ants-intro/result.jpg)
+![Ants Intro: example simulation result.](../.gitbook/assets/result.jpg)
 
-[Download 16_Ants Intro.gh](files/13-ants-intro.gh)
+[Download 16\_Ants Intro.gh](files/13-ants-intro.gh)
 
-![Ants Intro: Grasshopper definition showing its connected components and controls.](../assets/examples/13-ants-intro/definition-clean.png)
+![Ants Intro: Grasshopper definition showing its connected components and controls.](../.gitbook/assets/definition-clean.png)
 
 ## Follow the definition
 
 The point-attractor and voxel-center chains establish initial positions and food regions. [Define Voxel Values](../components/define-voxel-values.md) is set to **Ant Food**, with a saved multiplier of 1. [Voxel Settings Ant](../components/voxel-settings-ant.md) controls the two pheromone fields.
 
 <details>
+
 <summary>Components used</summary>
 
-- [Construct Voxels](../components/construct-voxels.md)
-- [Point Attractor for Voxels](../components/point-attractor-for-voxels.md)
-- [Extract Voxel Bounding Box](../components/extract-voxel-bounding-box.md)
-- [Construct Ant Particles](../components/construct-ant-particles.md)
-- [Voxel Settings Ant](../components/voxel-settings-ant.md)
-- [Define Voxel Values](../components/define-voxel-values.md)
-- [Voxel Selection Union](../components/voxel-selection-union.md)
-- [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
-- [Voxel Preview](../components/voxel-preview.md)
-- [Particle Preview](../components/particle-preview.md)
+* [Construct Voxels](../components/construct-voxels.md)
+* [Point Attractor for Voxels](../components/point-attractor-for-voxels.md)
+* [Extract Voxel Bounding Box](../components/extract-voxel-bounding-box.md)
+* [Construct Ant Particles](../components/construct-ant-particles.md)
+* [Voxel Settings Ant](../components/voxel-settings-ant.md)
+* [Define Voxel Values](../components/define-voxel-values.md)
+* [Voxel Selection Union](../components/voxel-selection-union.md)
+* [Nuclei4 Solver GPU](../components/nuclei4-solver-gpu.md)
+* [Voxel Preview](../components/voxel-preview.md)
+* [Particle Preview](../components/particle-preview.md)
 
 </details>
 
 <details>
+
 <summary>Saved controls</summary>
 
 Slider and value-list settings saved in this definition. Repeated rows belong to different component instances.
 
-| Component | Input | Saved control |
-| --- | --- | --- |
-| Construct Voxels | X Voxels | 1000 |
-| Construct Voxels | Y Voxels | 1000 |
-| Construct Voxels | Z Voxels | 1 |
-| Point Attractor for Voxels | Maximum Range | 15 |
-| Point Attractor for Voxels | Maximum Range | 60 |
-| Construct Ant Particles | Speed | 3 |
-| Construct Ant Particles | Sensor Distance | 9 |
-| Construct Ant Particles | Sensor Angle | 45 |
-| Construct Ant Particles | Rotation Angle | 45 |
-| Construct Ant Particles | Deposit | 8 |
-| Construct Ant Particles | Wander | 0.1 |
-| Voxel Settings Ant | Food Pheromones Diffuse Rate | 0.15 |
-| Voxel Settings Ant | Food Decay Rate | 0.001 |
-| Voxel Settings Ant | Base Pheromones Diffuse Rate | 0.1 |
-| Voxel Settings Ant | Base Decay Rate | 0.003 |
-| Voxel Settings Ant | Falloff | 0 |
-| Voxel Settings Ant | Diffuse Range | 2 |
-| Define Voxel Values | Type | Ant Food |
-| Define Voxel Values | Multiplier Value | 1 |
-| Nuclei4 Solver GPU | Reset | True |
-| Voxel Preview | Type | Ants and Slime |
+| Component                  | Input                        | Saved control  |
+| -------------------------- | ---------------------------- | -------------- |
+| Construct Voxels           | X Voxels                     | 1000           |
+| Construct Voxels           | Y Voxels                     | 1000           |
+| Construct Voxels           | Z Voxels                     | 1              |
+| Point Attractor for Voxels | Maximum Range                | 15             |
+| Point Attractor for Voxels | Maximum Range                | 60             |
+| Construct Ant Particles    | Speed                        | 3              |
+| Construct Ant Particles    | Sensor Distance              | 9              |
+| Construct Ant Particles    | Sensor Angle                 | 45             |
+| Construct Ant Particles    | Rotation Angle               | 45             |
+| Construct Ant Particles    | Deposit                      | 8              |
+| Construct Ant Particles    | Wander                       | 0.1            |
+| Voxel Settings Ant         | Food Pheromones Diffuse Rate | 0.15           |
+| Voxel Settings Ant         | Food Decay Rate              | 0.001          |
+| Voxel Settings Ant         | Base Pheromones Diffuse Rate | 0.1            |
+| Voxel Settings Ant         | Base Decay Rate              | 0.003          |
+| Voxel Settings Ant         | Falloff                      | 0              |
+| Voxel Settings Ant         | Diffuse Range                | 2              |
+| Define Voxel Values        | Type                         | Ant Food       |
+| Define Voxel Values        | Multiplier Value             | 1              |
+| Nuclei4 Solver GPU         | Reset                        | True           |
+| Voxel Preview              | Type                         | Ants and Slime |
 
 </details>
 
@@ -71,11 +73,12 @@ Let the colony explore before judging the network. Compare searching and returni
 
 ## Example result
 
-![Ants Intro: example simulation result.](../assets/examples/13-ants-intro/result.jpg)
+![Ants Intro: example simulation result.](../.gitbook/assets/result.jpg)
 
-[Back to examples](README.md)
+[Back to examples](./)
 
 <details>
+
 <summary>Grasshopper definition (JSON)</summary>
 
 [Download JSON](data/13-ants-intro.json) · [JSON Schema](../reference/definition.schema.json) · [How to read this JSON](../reference/reading-json.md)

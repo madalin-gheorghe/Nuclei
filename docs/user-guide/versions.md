@@ -2,11 +2,11 @@
 
 This documentation teaches **V4**, using components from the **Nuclei4** tab and examples from the V4 collection.
 
-| Version | Compatibility | Main role |
-| --- | --- | --- |
-| V4.2 — GPU | Rhino 9 on Windows | GPU simulations and previews, image mapping, periodic surfaces, slime and ants, and volume conversion. |
-| V3.4 — CPU | Rhino 8/9 | Accelerated CPU slime and ant workflows. |
-| V2 — Legacy | Rhino 6–9 on Windows | Original slime simulation workflows. |
+| Version     | Compatibility        | Main role                                                                           |
+| ----------- | -------------------- | ----------------------------------------------------------------------------------- |
+| V4 — GPU    | Rhino 9 on Windows   | GPU simulations and previews, slime and ants, voxel mapping, and volume conversion. |
+| V3 — CPU    | Rhino 8/9            | CPU slime and ant workflows.                                                        |
+| V2 — Legacy | Rhino 6–9 on Windows | Original slime simulation workflows.                                                |
 
 ## Match the example to the plugin
 

@@ -4,7 +4,7 @@ Convert a voxel property into a Dendro volume or Rhino mesh.
 
 **Location:** Nuclei4 → Voxels
 
-![Nuclei4 to Dendro Volume with its connected controls and wires.](../assets/components/nuclei4-to-dendro-volume-wired.png)
+![Nuclei4 to Dendro Volume with its connected controls and wires.](../.gitbook/assets/nuclei4-to-dendro-volume-wired.png)
 
 ## Use it
 
@@ -14,45 +14,45 @@ Connect a field, choose **Type**, and set **Iso Value** to select the density le
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
-| **Type** (`type`) | Integer / item | 7 | Property to use; see **Type choices** below. |
-| **Iso Value** (`iso`) | Number / item | 0.8 | Value defining the extracted density level. |
-| **Method** (`method`) | Integer / item | 0 | 0: Continuous; 1: Discrete. |
-| **Maximum Elements** (`max`) | Integer / item | 5000000 | Maximum triangles or selected centers, depending on Method. |
-| **Update** (`update`) | Boolean / item | False | True rebuilds the result; False holds the previous result. |
-| **Smoothing Iterations** (`smooth`) | Integer / item | 1 | Smoothing passes for Continuous mode; 0 disables smoothing. |
+| Input                               | Type / access       | Default  | Meaning                                                     |
+| ----------------------------------- | ------------------- | -------- | ----------------------------------------------------------- |
+| **Voxels** (`voxels`)               | Generic Data / item | Required | Voxel field or selection to use.                            |
+| **Type** (`type`)                   | Integer / item      | 7        | Property to use; see **Type choices** below.                |
+| **Iso Value** (`iso`)               | Number / item       | 0.8      | Value defining the extracted density level.                 |
+| **Method** (`method`)               | Integer / item      | 0        | 0: Continuous; 1: Discrete.                                 |
+| **Maximum Elements** (`max`)        | Integer / item      | 5000000  | Maximum triangles or selected centers, depending on Method. |
+| **Update** (`update`)               | Boolean / item      | False    | True rebuilds the result; False holds the previous result.  |
+| **Smoothing Iterations** (`smooth`) | Integer / item      | 1        | Smoothing passes for Continuous mode; 0 disables smoothing. |
 
 ### Type choices
 
-| Value | Choice |
-| --- | --- |
-| 0 | Minimum Density |
-| 1 | Maximum Density |
-| 2 | Speed |
-| 3 | Sensor Distance |
-| 4 | Sensor Angle |
-| 5 | Rotation Angle |
-| 6 | Slime Food |
-| 13 | Ant Food |
-| 7 | Slime Chemoattractants |
-| 8 | Ant Food Pheromones |
-| 9 | Ant Base Pheromones |
-| 10 | Ant Pheromones |
-| 11 | Ants and Slime |
+| Value | Choice                 |
+| ----- | ---------------------- |
+| 0     | Minimum Density        |
+| 1     | Maximum Density        |
+| 2     | Speed                  |
+| 3     | Sensor Distance        |
+| 4     | Sensor Angle           |
+| 5     | Rotation Angle         |
+| 6     | Slime Food             |
+| 13    | Ant Food               |
+| 7     | Slime Chemoattractants |
+| 8     | Ant Food Pheromones    |
+| 9     | Ant Base Pheromones    |
+| 10    | Ant Pheromones         |
+| 11    | Ants and Slime         |
 
 ### Method choices
 
-| Value | Choice |
-| --- | --- |
-| 0 | Continuous |
-| 1 | Discrete |
+| Value | Choice     |
+| ----- | ---------- |
+| 0     | Continuous |
+| 1     | Discrete   |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
+| Output                              | Type / access       | Meaning                                                  |
+| ----------------------------------- | ------------------- | -------------------------------------------------------- |
 | **Dendro Volume / Mesh** (`volume`) | Generic Data / item | Dendro volume, or Rhino mesh when Dendro is unavailable. |
 
 ## Conversion methods
@@ -63,17 +63,18 @@ When Dendro is unavailable, the component outputs a Rhino mesh. Maximum Elements
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| Nothing updates | Set Update True. |
-| The output is empty | Check whether the field reaches the selected Iso Value. |
-| Output is a mesh instead of a volume | Check that Dendro is installed and loaded. |
+| Symptom                              | Action                                                  |
+| ------------------------------------ | ------------------------------------------------------- |
+| Nothing updates                      | Set Update True.                                        |
+| The output is empty                  | Check whether the field reaches the selected Iso Value. |
+| Output is a mesh instead of a volume | Check that Dendro is installed and loaded.              |
 
 ## Continue
 
-[3D Intro](../examples/15-3d-intro.md) · [Function Voxels](../examples/16-function-voxels.md) · [Component reference](README.md)
+[3D Intro](../examples/15-3d-intro.md) · [Function Voxels](../examples/16-function-voxels.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/nuclei4-to-dendro-volume.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

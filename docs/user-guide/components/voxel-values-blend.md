@@ -4,7 +4,7 @@ Smooth a chosen property across nearby voxels.
 
 **Location:** Nuclei4 → Environment
 
-![Voxel Values Blend with its connected controls and wires.](../assets/components/voxel-values-blend-wired.png)
+![Voxel Values Blend with its connected controls and wires.](../.gitbook/assets/voxel-values-blend-wired.png)
 
 ## Use it
 
@@ -16,46 +16,47 @@ This changes the input map. The solver’s diffusion and decay settings control 
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
-| **Voxels** (`voxels`) | Generic Data / item | Required | Voxel field or selection to use. |
-| **Type** (`type`) | Integer / item | 0 | Property to use; see **Type choices** below. |
-| **Blend Strength** (`blendStrength`) | Number / item | Optional; 0.25 | Amount of smoothing, from 0 to 1. |
-| **Blend Range** (`range`) | Integer / item | Optional; 1 | Neighborhood range in voxel cells. |
-| **Blend Iterations** (`iterations`) | Integer / item | Optional; 1 | Number of smoothing passes. |
-| **Wrap Blend** (`wrap`) | Boolean / item | Optional; False | Wrap the operation across opposite grid edges. |
+| Input                                | Type / access       | Default         | Meaning                                        |
+| ------------------------------------ | ------------------- | --------------- | ---------------------------------------------- |
+| **Voxels** (`voxels`)                | Generic Data / item | Required        | Voxel field or selection to use.               |
+| **Type** (`type`)                    | Integer / item      | 0               | Property to use; see **Type choices** below.   |
+| **Blend Strength** (`blendStrength`) | Number / item       | Optional; 0.25  | Amount of smoothing, from 0 to 1.              |
+| **Blend Range** (`range`)            | Integer / item      | Optional; 1     | Neighborhood range in voxel cells.             |
+| **Blend Iterations** (`iterations`)  | Integer / item      | Optional; 1     | Number of smoothing passes.                    |
+| **Wrap Blend** (`wrap`)              | Boolean / item      | Optional; False | Wrap the operation across opposite grid edges. |
 
 ### Type choices
 
-| Value | Choice |
-| --- | --- |
-| 0 | Minimum Density |
-| 1 | Maximum Density |
-| 2 | Speed |
-| 3 | Sensor Distance |
-| 4 | Sensor Angle |
-| 5 | Rotation Angle |
-| 6 | Slime Food |
-| 13 | Ant Food |
+| Value | Choice          |
+| ----- | --------------- |
+| 0     | Minimum Density |
+| 1     | Maximum Density |
+| 2     | Speed           |
+| 3     | Sensor Distance |
+| 4     | Sensor Angle    |
+| 5     | Rotation Angle  |
+| 6     | Slime Food      |
+| 13    | Ant Food        |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
+| Output                       | Type / access       | Meaning                           |
+| ---------------------------- | ------------------- | --------------------------------- |
 | **Output Voxels** (`voxels`) | Generic Data / item | Selected or modified voxel field. |
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
-| No visible change | Check that Type matches the property you mapped and previewed. |
-| Too much smoothing | Reduce Blend Strength or Blend Iterations. |
+| Symptom            | Action                                                         |
+| ------------------ | -------------------------------------------------------------- |
+| No visible change  | Check that Type matches the property you mapped and previewed. |
+| Too much smoothing | Reduce Blend Strength or Blend Iterations.                     |
 
 ## Continue
 
-[Attractor Curves 2](../examples/07-attractor-curves-2.md) · [Component reference](README.md)
+[Attractor Curves 2](../examples/07-attractor-curves-2.md) · [Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/voxel-values-blend.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)

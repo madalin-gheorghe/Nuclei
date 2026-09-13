@@ -4,7 +4,7 @@
 
 Nuclei is a generative-design plugin that lets you explore how simple particle behaviors create complex forms. Particles sense their surroundings, move through a voxel field, and leave signals that guide other particles. Over time, those interactions can produce branching networks, connected paths, and volumetric patterns.
 
-![3D slime simulation showing particle trails alongside the resulting volumetric structure.](assets/examples/15-3d-intro/result.jpg)
+![3D slime simulation showing particle trails alongside the resulting volumetric structure.](<.gitbook/assets/result (14).jpg>)
 
 ## What can you make?
 
@@ -17,11 +17,9 @@ Shape either simulation with **voxel fields**: the cells that describe its envir
 ## Start here
 
 1. [Check installation and compatibility](installation.md).
-
 2. [Build your first slime simulation](getting-started/first-slime-simulation.md).
-
 3. [Follow your first ant simulation.](getting-started/first-ant-simulation.md)
-4. [Explore the V4 example collection.](examples/README.md)
+4. [Explore the V4 example collection.](examples/)
 
 You should be comfortable placing Grasshopper components, connecting wires, and using number sliders and Boolean Toggles. No programming is required.
 

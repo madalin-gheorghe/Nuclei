@@ -4,7 +4,7 @@ Extract each particle’s current direction.
 
 **Location:** Nuclei4 → Particles
 
-![Extract Particle Vectors with its connected controls and wires.](../assets/components/extract-particle-vectors-wired.png)
+![Extract Particle Vectors with its connected controls and wires.](../.gitbook/assets/extract-particle-vectors-wired.png)
 
 ## Use it
 
@@ -14,27 +14,28 @@ Connect the solver’s **particles** output. Pair **particleVec** with particle 
 
 Defaults describe a newly placed component.
 
-| Input | Type / access | Default | Meaning |
-| --- | --- | --- | --- |
+| Input                       | Type / access       | Default  | Meaning                                      |
+| --------------------------- | ------------------- | -------- | -------------------------------------------- |
 | **Particles** (`particles`) | Generic Data / item | Required | Current particle collection from the solver. |
 
 ## Output
 
-| Output | Type / access | Meaning |
-| --- | --- | --- |
+| Output                               | Type / access | Meaning                      |
+| ------------------------------------ | ------------- | ---------------------------- |
 | **Particle Vectors** (`particleVec`) | Vector / list | Current particle directions. |
 
 ## If something is wrong
 
-| Symptom | Action |
-| --- | --- |
+| Symptom                         | Action                                                                    |
+| ------------------------------- | ------------------------------------------------------------------------- |
 | Vectors and points do not match | Use the same solver state and keep particle order when combining outputs. |
 
 ## Continue
 
-[Component reference](README.md)
+[Component reference](./)
 
 <details>
+
 <summary>Machine-readable reference (JSON)</summary>
 
 [Download JSON](../reference/components/extract-particle-vectors.json) · [JSON Schema](../reference/component.schema.json) · [How to read this JSON](../reference/reading-json.md)
