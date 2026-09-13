@@ -4,13 +4,15 @@ This guide uses **Nuclei V4 in Rhino 9 on Windows**. V4 runs its simulation on t
 
 ## Choose the matching version
 
-| Version | Environment | Use with this guide |
-| --- | --- | --- |
-| V4 — GPU | Rhino 9, Windows | Yes: use the Nuclei4 components and V4 examples. |
-| V3 — CPU | Rhino 8/9 | Earlier version; component layouts and behavior can differ. |
-| V2 — Legacy | Rhino 6–9, Windows | Legacy examples and workflows. |
+| Version     | Environment        | Use with this guide                                         |
+| ----------- | ------------------ | ----------------------------------------------------------- |
+| V4 — GPU    | Rhino 9, Windows   | Yes: use the Nuclei4 components and V4 examples.            |
+| V3 — CPU    | Rhino 8/9          | Earlier version; component layouts and behavior can differ. |
+| V2 — Legacy | Rhino 6–9, Windows | Legacy examples and workflows.                              |
 
-## Install with Rhino Package Manager (recommended)
+## Install V4 with Rhino Package Manager
+
+**Nuclei V4 is available only through Package Manager in Rhino 9.** Follow these steps to install the version used in this guide.
 
 1. Open **Rhino 9 on Windows**.
 2. Run the **PackageManager** command.
@@ -18,20 +20,20 @@ This guide uses **Nuclei V4 in Rhino 9 on Windows**. V4 runs its simulation on t
 4. Install the package and restart Rhino when prompted.
 5. Open Grasshopper and check for the **Nuclei4** tab.
 
-## Install from Food4Rhino
+## V2 and V3 downloads on Food4Rhino
 
-Alternatively, visit [Nuclei on Food4Rhino](https://www.food4rhino.com/en/app/nuclei), choose the V4 download for Rhino 9, and follow the instructions supplied with that download. Restart Rhino after installation, then check the Nuclei4 tab.
+The downloads on [Nuclei on Food4Rhino](https://www.food4rhino.com/en/app/nuclei) are for **V2 and V3 only**. To use an older version, follow the instructions supplied with its download.
 
-Use one installation route for a given version to avoid duplicate plugin copies. If the components are missing, first confirm that Rhino 9 loaded the V4 package.
+For **V4**, use **Package Manager in Rhino 9** as described above. There is no V4 download on Food4Rhino.
 
 ## Check your setup
 
 Open Grasshopper in Rhino 9 and look for the **Nuclei4** tab. Confirm that you can find these components:
 
-- **Construct Voxels**
-- **Construct Slime Particles**
-- **Nuclei4 Solver GPU**
-- **Particle Trail Preview**
+* **Construct Voxels**
+* **Construct Slime Particles**
+* **Nuclei4 Solver GPU**
+* **Particle Trail Preview**
 
 Use the V4 examples rather than examples from the V2 or V3 folders. If Grasshopper reports missing components when opening a definition, check the installed version before continuing.
 
