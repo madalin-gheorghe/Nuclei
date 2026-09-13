@@ -4,11 +4,11 @@ This guide uses **Nuclei V4 in Rhino 9 on Windows**. V4 runs its simulation on t
 
 ## Choose the matching version
 
-| Version     | Environment        | Use with this guide                                         |
-| ----------- | ------------------ | ----------------------------------------------------------- |
-| V4 — GPU    | Rhino 9, Windows   | Yes: use the Nuclei4 components and V4 examples.            |
-| V3 — CPU    | Rhino 8/9          | Earlier version; component layouts and behavior can differ. |
-| V2 — Legacy | Rhino 6–9, Windows | Legacy examples and workflows.                              |
+| Version     | Environment        | Use with this guide                                                                                        |
+| ----------- | ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| V4 — GPU    | Rhino 9, Windows   | Yes: use the Nuclei4 components and V4 examples.                                                           |
+| V3 — CPU    | Rhino 8/9          | Components and simulation behavior match V4 as closely as possible. Use the V3 examples with this version. |
+| V2 — Legacy | Rhino 6–9, Windows | Legacy examples and workflows.                                                                             |
 
 ## Install V4 with Rhino Package Manager
 
