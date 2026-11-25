@@ -111,6 +111,8 @@ namespace Nuclei4
                     Alpha = alpha,
                     FadePower = fadePower,
                     DepthFocus = IsPlanar(frame) ? 0.0 : depthFocus,
+                    IsPlanar = IsPlanar(frame),
+                    PlanarBackgroundPolygon = (particles as ParticleList)?.PlanarBackgroundPolygon,
                     ClippingBox = clippingBox,
                     HasPoint = clippingBox.IsValid
                 };
@@ -122,6 +124,8 @@ namespace Nuclei4
             return new ParticleTrailPreviewDisplayFrame
             {
                 CpuBatches = cpuTrailFrame.Batches,
+                IsPlanar = (particles as ParticleList)?.IsPlanar ?? false,
+                PlanarBackgroundPolygon = (particles as ParticleList)?.PlanarBackgroundPolygon,
                 ClippingBox = clippingBox,
                 HasPoint = clippingBox.IsValid
             };

@@ -15,6 +15,8 @@ namespace Nuclei4
         public double Alpha;
         public double FadePower;
         public double DepthFocus;
+        public bool IsPlanar;
+        public Point3d[] PlanarBackgroundPolygon;
         public BoundingBox ClippingBox;
         public bool HasPoint;
     }

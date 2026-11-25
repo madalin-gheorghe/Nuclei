@@ -1,0 +1,26 @@
+[
+  {
+    "Path": "C:\\Nuclei\\Nuclei-v4\\Nuclei4\\bin\\Release\\net7.0-windows\\Nuclei4.Gpu.D3D11.dll",
+    "Hash": "1AFE1EA96D2BA699DB3AFA79137ED8E52DC15DA1E2A755765A4848968A6A0D8F"
+  },
+  {
+    "Path": "C:\\Nuclei\\Nuclei-v4\\Nuclei4\\bin\\Release\\net7.0-windows\\Nuclei4.gha",
+    "Hash": "5EAEBE587674521C8314973D79237F4DCC7BD586FC9115F1E2780A279411E64C"
+  },
+  {
+    "Path": "C:\\Nuclei\\Nuclei-v4\\Nuclei4.Gpu.D3D11\\GpuFullSlimeSolverEngine.cs",
+    "Hash": "BB75730327DA7984B12D832FE9B3E50835E471EF37CC5BB5AB084ECC30A8DB7D"
+  },
+  {
+    "Path": "C:\\Nuclei\\tools\\Nuclei.GpuResearchProbe\\Program.cs",
+    "Hash": "9DC908512ECA40D1A097C86EE0272BFBB05A5EB7060DB280C9D08DB69D5D837A"
+  },
+  {
+    "Path": "C:\\Nuclei\\tools\\Nuclei.GpuResearchProbe\\bin\\Release\\net8.0-windows\\Nuclei.GpuResearchProbe.dll",
+    "Hash": "65BFDC1BDF18AC273651E031AF08FD04C16C3CC2CF3D9A02AA838F98D0F6C734"
+  },
+  {
+    "Path": "C:\\Nuclei\\tools\\Nuclei.AntPerformanceProbe\\Program.cs",
+    "Hash": "052B92FEC0C541FDA21FA947D22CCFD8539D6BCA92A1836A28EE6213F44963B9"
+  }
+]

@@ -128,7 +128,9 @@ namespace Nuclei4
             }
 
             tryUseCachedPointClouds(refreshAsync);
-            if (slimePointCloud.Count == 0 && antPointCloud1.Count == 0 && antPointCloud2.Count == 0)
+            if ((slimePointCloud == null || slimePointCloud.Count == 0)
+                && (antPointCloud1 == null || antPointCloud1.Count == 0)
+                && (antPointCloud2 == null || antPointCloud2.Count == 0))
             {
                 return null;
             }
@@ -155,6 +157,7 @@ namespace Nuclei4
             antPointCloud1 = new PointCloud();
             antPointCloud2 = new PointCloud();
             clippingBox = BoundingBox.Empty;
+            borrowsPreviewCache = false;
         }
 
         void rebuildPointClouds()
@@ -217,12 +220,27 @@ namespace Nuclei4
             {
                 cache.TryRefreshAsync();
             }
-            if (!cache.IsValid) return false;
+            if (!cache.IsValid)
+            {
+                if (borrowsPreviewCache)
+                {
+                    // A retained display frame owns its references for the duration
+                    // of that draw. Drop only this component's borrowed references;
+                    // never dispose cache clouds while a conduit may still hold them.
+                    slimePointCloud = null;
+                    antPointCloud1 = null;
+                    antPointCloud2 = null;
+                    clippingBox = BoundingBox.Empty;
+                    borrowsPreviewCache = false;
+                }
+                return false;
+            }
 
             slimePointCloud = cache.SlimePointCloud ?? new PointCloud();
             antPointCloud1 = cache.AntPointCloud1 ?? new PointCloud();
             antPointCloud2 = cache.AntPointCloud2 ?? new PointCloud();
             clippingBox = cache.HasPoint ? cache.ClippingBox : BoundingBox.Empty;
+            borrowsPreviewCache = true;
             return true;
         }
 
@@ -311,6 +329,7 @@ namespace Nuclei4
         PointCloud slimePointCloud = new PointCloud();
         PointCloud antPointCloud1 = new PointCloud();
         PointCloud antPointCloud2 = new PointCloud();
+        bool borrowsPreviewCache;
         BoundingBox clippingBox = BoundingBox.Empty;
         //bool display;
         Color colour;

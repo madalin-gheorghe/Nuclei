@@ -7,7 +7,7 @@ using System.Runtime.Loader;
 using System.Security.Cryptography;
 using System.Text;
 
-internal static class Program
+internal static partial class Program
 {
     const string ExpectedComponentGuidHash = "BA5DD56D2DB434E2FEEC0AD489F1DF481FAFC4FA2E3843C3C21E49DED4DCB126";
     const string ExpectedPublicApiHash = "CC2F81667507021DC7CCD16452CB0BB6CAE0AD5D9373D12036E91925DF643252";
@@ -208,6 +208,19 @@ internal static class Program
                 TestParticleSeedingOrder(args);
                 return 0;
             }
+            if (Array.IndexOf(args, "--particle-seeding-density") >= 0)
+            {
+                TestParticleDensityBoundaryFlags();
+                if (RhinoInsideCore == null) EnsureRhinoNativeLibrary();
+                TestParticleSeedingDensity();
+                if (Array.IndexOf(args, "--gpu") >= 0) TestGpuParticleDensityBoundaries();
+                return 0;
+            }
+            if (Array.IndexOf(args, "--particle-density-boundaries-gpu") >= 0)
+            {
+                TestGpuParticleDensityBoundaries();
+                return 0;
+            }
             if (Array.IndexOf(args, "--exclusive-occupancy-gpu-core") >= 0)
             {
                 TestUniqueProbePlacement();
@@ -331,6 +344,7 @@ internal static class Program
             TestVectorPacking();
             TestBooleanFieldMerges();
             TestGpuSnapshotPacking();
+            TestParticleDensityBoundaryFlags();
             TestAntResetAndNestParity();
             TestRetainedSpeciesAndGroupMetadataParity();
             TestDendroContinuousUpdateAndCache();
@@ -352,6 +366,7 @@ internal static class Program
             if (Array.IndexOf(args, "--gpu") >= 0)
             {
                 TestGpuEngineInitialization();
+                TestGpuParticleDensityBoundaries();
                 TestGpuDensityEvolutionWithoutSlime();
                 TestGpuPlanarOriginPreservation();
                 TestGpuWrapTransitions();
@@ -651,7 +666,7 @@ internal static class Program
 
         GC.Collect();
         before = GC.GetAllocatedBytesForCurrentThread();
-        object snapshot = CaptureVoxelSnapshot(CreateField(data));
+        object snapshot = CaptureVoxelSnapshot(CreateField(data), true);
         long snapshotAllocated = GC.GetAllocatedBytesForCurrentThread() - before;
         True(snapshotAllocated < 2 * 1024 * 1024, "Capturing an empty 300^3 field allocated dense CPU channels.");
         Null(Field<object>(snapshot, "VoxelDensity"), "empty 300^3 density should remain implicit");
@@ -850,7 +865,8 @@ internal static class Program
         object emptySnapshot = CaptureVoxelSnapshot(CreateField(data));
         Null(Field<object>(emptySnapshot, "VoxelDensity"), "zero initial density should be implicit");
         Null(Field<object>(emptySnapshot, "VoxelBehaviorData"), "default behavior should be implicit");
-        Null(Field<object>(emptySnapshot, "VoxelFlags"), "full walkable field should have implicit flags");
+        object wrappedEmptySnapshot = CaptureVoxelSnapshot(CreateField(data), true);
+        Null(Field<object>(wrappedEmptySnapshot, "VoxelFlags"), "wrapped full walkable field should have implicit flags");
 
         object speedData = Invoke(data, "WithScalarValues", 2, new List<double> { 1.75 });
         object speedSnapshot = CaptureVoxelSnapshot(CreateField(speedData));
@@ -928,8 +944,8 @@ internal static class Program
         string moveFunction = ShaderFunctionSource(shaderSource, "MoveParticlesAndDepositCore");
         True(moveFunction.Contains("float speed = group0.x * behavior.x;", StringComparison.Ordinal),
             "ant parity probe no longer exercises a voxel speed multiplier");
-        True(moveFunction.Contains("if (nextHomeDistance < group0.x)", StringComparison.Ordinal),
-            "ant nest reset radius is not the raw signed group speed");
+        True(moveFunction.Contains("if (nextHomeDistance <= (foundFood ? 0.000001 * VoxelSize : group0.x))", StringComparison.Ordinal),
+            "nest visits must reset at raw group speed before pickup and at home after delivery");
         False(moveFunction.Contains("nextHomeDistance < max(speed", StringComparison.Ordinal),
             "ant nest reset radius still uses effective voxel-multiplied speed");
         True(moveFunction.Contains("float rawSensorDistance = group0.y;", StringComparison.Ordinal),
@@ -1606,8 +1622,8 @@ internal static class Program
         };
         float[] directions =
         {
-            2.0f, 0.0f, 0.0f, 2.0f,
-            0.0f, 0.0f, 0.0f, -1.0f
+            2.0f, 0.0f, 0.0f, BitConverter.Int32BitsToSingle(2),
+            0.0f, 0.0f, 0.0f, BitConverter.Int32BitsToSingle(-1)
         };
         float[] yAxes =
         {
@@ -2205,8 +2221,8 @@ internal static class Program
         {
             InvokeGpuStep(emptyEngine, emptySnapshot, settings, dimensionMode, 0);
             Invoke(emptyEngine, "ReadBackDensity");
-            Near(0.5, Field<float[]>(emptyEngine, "densityReadback")[centerIndex], 1e-5,
-                "empty-population scalar density decay");
+            Near(0.6, Field<float[]>(emptyEngine, "densityReadback")[centerIndex], 1e-5,
+                "empty-population scalar density remains static without slime");
             object combinedFrame = Invoke(
                 emptyEngine,
                 "CreateVoxelFieldPreviewFrame",
@@ -2239,8 +2255,8 @@ internal static class Program
         {
             InvokeGpuStep(antEngine, antSnapshot, settings, dimensionMode, 0);
             Invoke(antEngine, "ReadBackDensity");
-            Near(0.5, Field<float[]>(antEngine, "densityReadback")[centerIndex], 1e-5,
-                "ant-only scalar density decay");
+            Near(0.6, Field<float[]>(antEngine, "densityReadback")[centerIndex], 1e-5,
+                "ant-only scalar density remains static without slime");
         }
         finally
         {
@@ -2284,11 +2300,8 @@ internal static class Program
         {
             InvokeGpuStep(blockedEngine, blockedSnapshot, settings, dimensionMode, 0);
             Invoke(blockedEngine, "ReadBackDensity");
-            // V3 keeps the active target's own contribution even though its
-            // sub-0.01 maximum makes it ineligible as a neighbour. The first
-            // axis clamps 0.3 to 0.005; the next two retain half each.
-            Near(0.00125, Field<float[]>(blockedEngine, "densityReadback")[centerIndex], 1e-6,
-                "active blocked diffusion target did not retain its own density across all three axes");
+            Near(0.6, Field<float[]>(blockedEngine, "densityReadback")[centerIndex], 1e-5,
+                "no-slime scalar field changed during blocked-diffusion probe");
         }
         finally
         {
@@ -2913,6 +2926,10 @@ internal static class Program
         object reference = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
         object optimized = CreateGpuEngine(engineType, snapshot, settings, false, false, false, 0, 1);
         SetField(reference, "forceDirectDiffusionForValidation", true);
+        // These zero-particle fixtures isolate the scalar stencil. Bypass the
+        // normal species gate so parity cannot pass by comparing frozen fields.
+        SetOptionalField(reference, "forceScalarDensityUpdatesForValidation", true);
+        SetOptionalField(optimized, "forceScalarDensityUpdatesForValidation", true);
 
         int[] ranges = { 1, 2, 5, 16, 17, 3, 0, 8, 5 };
         double[] diffuse = { 0.17, 0.11, 0.20, 0.08, 0.16, 0.12, 0.19, 0.14, 0.23 };
@@ -2921,6 +2938,8 @@ internal static class Program
 
         try
         {
+            Invoke(reference, "ReadBackDensity");
+            float[] initialDensity = (float[])Field<float[]>(reference, "densityReadback").Clone();
             for (int i = 0; i < ranges.Length; i++)
             {
                 SetField(settings, "DiffuseRange", ranges[i]);
@@ -2940,6 +2959,11 @@ internal static class Program
                 InvokeGpuStep(optimized, snapshot, settings, dimensionMode, iteration);
                 Invoke(reference, "ReadBackDensity");
                 Invoke(optimized, "ReadBackDensity");
+                if (i == 0)
+                {
+                    False(initialDensity.SequenceEqual(Field<float[]>(reference, "densityReadback")),
+                        "live planar-" + planeLabel + " scalar fixture must advance on its first step");
+                }
                 EqualFloatBits(
                     Field<float[]>(reference, "densityReadback"),
                     Field<float[]>(optimized, "densityReadback"),
@@ -2980,6 +3004,11 @@ internal static class Program
         SetField(reference, "disableScalarDecayFusionForValidation", true);
         SetField(directFused, "forceDirectDiffusionForValidation", true);
         SetField(tiledSeparate, "disableScalarDecayFusionForValidation", true);
+        // Keep this stencil-only matrix active despite its empty population.
+        SetOptionalField(reference, "forceScalarDensityUpdatesForValidation", true);
+        SetOptionalField(directFused, "forceScalarDensityUpdatesForValidation", true);
+        SetOptionalField(tiledSeparate, "forceScalarDensityUpdatesForValidation", true);
+        SetOptionalField(optimized, "forceScalarDensityUpdatesForValidation", true);
 
         bool planar = !Field<bool>(dimensionMode, "Tridimensional");
         if (planar)
@@ -2994,6 +3023,8 @@ internal static class Program
 
         try
         {
+            Invoke(reference, "ReadBackDensity");
+            float[] initialDensity = (float[])Field<float[]>(reference, "densityReadback").Clone();
             for (int iteration = 1; iteration <= iterations; iteration++)
             {
                 InvokeGpuStep(reference, snapshot, settings, dimensionMode, iteration);
@@ -3008,6 +3039,10 @@ internal static class Program
                 float[] expected = Field<float[]>(reference, "densityReadback");
                 string label = "range-" + diffuseRange + " " + caseLabel + " " + (wrap ? "wrapped" : "fixed")
                     + " diffusion iteration " + iteration;
+                if (iteration == 1)
+                {
+                    False(initialDensity.SequenceEqual(expected), label + " scalar fixture must advance on its first step");
+                }
                 EqualFloatBits(expected, Field<float[]>(directFused, "densityReadback"), label + " direct/fused");
                 EqualFloatBits(expected, Field<float[]>(tiledSeparate, "densityReadback"), label + " tiled/separate");
                 EqualFloatBits(expected, Field<float[]>(optimized, "densityReadback"), label + " tiled/fused");
@@ -3299,6 +3334,7 @@ internal static class Program
             optimized,
             optimizedCounts,
             optimizedOwners,
+            antParticles,
             label + " optimized occupancy");
         AssertGpuResolvedDepositChannels(
             optimized,
@@ -3342,9 +3378,13 @@ internal static class Program
         object engine,
         int[] counts,
         int[] owners,
+        bool antParticles,
         string label)
     {
         int voxelCount = Field<int>(engine, "voxelCount");
+        int resX = Field<int>(engine, "resX");
+        int resY = Field<int>(engine, "resY");
+        int resZ = Field<int>(engine, "resZ");
         int particleCapacity = Field<int>(engine, "particleCapacity");
         int groupCount = Field<int>(engine, "groupCount");
         Equal(voxelCount, owners.Length, label + " owner length");
@@ -3352,6 +3392,8 @@ internal static class Program
 
         float[] positions = Field<float[]>(engine, "particlePositionReadback");
         float[] directions = Field<float[]>(engine, "particleDirectionReadback");
+        float[] homes = Field<float[]>(engine, "particleHomeReadback");
+        float voxelSize = Field<float>(engine, "voxelSize");
         bool[] live = new bool[particleCapacity];
         int liveCount = 0;
         for (int slot = 0; slot < particleCapacity; slot++)
@@ -3368,7 +3410,30 @@ internal static class Program
             True(count == 0 || count == 1, label + " non-binary count at voxel " + voxel);
             if (owner < 0)
             {
-                Equal(0, count, label + " empty owner retained occupancy at voxel " + voxel);
+                if (count > 0)
+                {
+                    True(antParticles, label + " non-ant has ownerless occupancy at voxel " + voxel);
+                    int sharedNestOccupants = 0;
+                    for (int slot = 0; slot < particleCapacity; slot++)
+                    {
+                        if (!live[slot]) continue;
+                        int x = (int)Math.Floor(positions[slot * 4] / voxelSize);
+                        int y = (int)Math.Floor(positions[slot * 4 + 1] / voxelSize);
+                        int z = (int)Math.Floor(positions[slot * 4 + 2] / voxelSize);
+                        int parent = x * resY * resZ + y * resZ + z;
+                        if (parent != voxel) continue;
+
+                        double dx = positions[slot * 4] - homes[slot * 4];
+                        double dy = positions[slot * 4 + 1] - homes[slot * 4 + 1];
+                        double dz = positions[slot * 4 + 2] - homes[slot * 4 + 2];
+                        True(dx * dx + dy * dy + dz * dz < 4.7 * 4.7,
+                            label + " ownerless ant is outside its shared nest at voxel " + voxel);
+                        sharedNestOccupants++;
+                    }
+                    Equal(count, sharedNestOccupants,
+                        label + " ownerless shared-nest occupancy count at voxel " + voxel);
+                    occupiedCount += count;
+                }
                 continue;
             }
 
@@ -3377,7 +3442,7 @@ internal static class Program
             Equal(1, count, label + " live owner lacks occupancy at voxel " + voxel);
             Equal(
                 voxel,
-                (int)Math.Round(directions[owner * 4 + 3], MidpointRounding.ToEven),
+                BitConverter.SingleToInt32Bits(directions[owner * 4 + 3]),
                 label + " stored parent/owner mismatch for slot " + owner);
             occupiedCount++;
         }
@@ -5822,7 +5887,7 @@ internal static class Program
             float[] directions = Field<float[]>(authoredEngine, "particleDirectionReadback");
             Near(3.1, positions[0], 1e-4, "active blocked parent did not apply its authored speed");
             Near(2.5, positions[1], 1e-4, "active blocked parent changed the planar movement axis");
-            Equal(3 * grid + 2, (int)Math.Round(directions[3], MidpointRounding.ToEven),
+            Equal(3 * grid + 2, BitConverter.SingleToInt32Bits(directions[3]),
                 "active blocked parent movement did not resolve the destination parent");
         }
         finally
@@ -5842,7 +5907,7 @@ internal static class Program
             Invoke(recoveryEngine, "ReadBackParticles");
             float[] positions = Field<float[]>(recoveryEngine, "particlePositionReadback");
             float[] directions = Field<float[]>(recoveryEngine, "particleDirectionReadback");
-            int recoveredIndex = (int)Math.Round(directions[3], MidpointRounding.ToEven);
+            int recoveredIndex = BitConverter.SingleToInt32Bits(directions[3]);
             True(recoveredIndex >= 0 && recoveredIndex != centerIndex,
                 "active blocked parent did not recover into a walkable neighbour");
             uint[] flags = Field<uint[]>(recoverySnapshot, "VoxelFlags");
@@ -5880,7 +5945,7 @@ internal static class Program
             float[] directions = Field<float[]>(isolatedEngine, "particleDirectionReadback");
             Near(2.5, positions[0], 1e-4, "isolated blocked-parent fallback changed particle X");
             Near(2.5, positions[1], 1e-4, "isolated blocked-parent fallback changed particle Y");
-            Equal(centerIndex, (int)Math.Round(directions[3], MidpointRounding.ToEven),
+            Equal(centerIndex, BitConverter.SingleToInt32Bits(directions[3]),
                 "isolated active blocked parent was discarded");
             Near(-1.0, directions[0], 1e-4, "isolated blocked-parent fallback did not reverse direction");
             Invoke(isolatedEngine, "ReadBackDensity");
@@ -5916,7 +5981,7 @@ internal static class Program
             InvokeGpuStep(transitionEngine, transitionSnapshot, transitionSettings, dimensionMode, 0);
             Invoke(transitionEngine, "ReadBackParticles");
             Equal(centerIndex,
-                (int)Math.Round(Field<float[]>(transitionEngine, "particleDirectionReadback")[3], MidpointRounding.ToEven),
+                BitConverter.SingleToInt32Bits(Field<float[]>(transitionEngine, "particleDirectionReadback")[3]),
                 "sparse boundary-mode transition lost an active parent");
         }
         finally
@@ -6092,7 +6157,7 @@ internal static class Program
             Invoke(nestEngine, "ReadBackParticles");
             Equal(0, ReadParticleAuxiliaryChannel(nestEngine, "particleAntStateOffset", 0),
                 "nest visit did not clear found-food state");
-            Equal(0, ReadParticleAuxiliaryChannel(nestEngine, "particleAntLaunchBoundaryOffset", 0),
+            Equal(0, ReadParticleAuxiliaryChannel(nestEngine, "particleAntLaunchBoundaryOffset", 0) & 1,
                 "nest visit did not reset the ant launch-boundary latch");
             Equal(1, ReadParticleAuxiliaryChannel(nestEngine, "particleAgeOffset", 0),
                 "nest visit did not reset ant age to the V3 post-visit value");
@@ -7262,13 +7327,13 @@ internal static class Program
             int blockedSlot = -1;
             foreach (int slot in liveSlots)
             {
-                int parent = (int)Math.Round(directions[slot * 4 + 3], MidpointRounding.ToEven);
+                int parent = BitConverter.SingleToInt32Bits(directions[slot * 4 + 3]);
                 if (parent == targetParent) targetWinners++;
                 else if (parent == leftParent || parent == rightParent) blockedSlot = slot;
             }
             Equal(1, targetWinners, "GPU contention target winner count");
             True(blockedSlot >= 0, "GPU contention did not leave one rejected particle at its source");
-            int blockedParent = (int)Math.Round(directions[blockedSlot * 4 + 3], MidpointRounding.ToEven);
+            int blockedParent = BitConverter.SingleToInt32Bits(directions[blockedSlot * 4 + 3]);
             double blockedX = blockedParent == leftParent ? 2.5 : 4.5;
             Near(blockedX, positions[blockedSlot * 4], 1e-5, "GPU rejected move changed source X");
             Near(3.5, positions[blockedSlot * 4 + 1], 1e-5, "GPU rejected move changed source Y");
@@ -7303,7 +7368,7 @@ internal static class Program
             AssertGpuOccupancyInvariant(blockedEngine, 2, "GPU preoccupied target");
             float[] positions = Field<float[]>(blockedEngine, "particlePositionReadback");
             float[] directions = Field<float[]>(blockedEngine, "particleDirectionReadback");
-            Equal(leftParent, (int)Math.Round(directions[3], MidpointRounding.ToEven),
+            Equal(leftParent, BitConverter.SingleToInt32Bits(directions[3]),
                 "GPU blocked particle changed parent");
             Near(2.5, positions[0], 1e-5, "GPU blocked particle changed X");
             Near(3.5, positions[1], 1e-5, "GPU blocked particle changed Y");
@@ -7359,9 +7424,9 @@ internal static class Program
                 "GPU wrap-transition collision changed the live slots");
             float[] positions = Field<float[]>(engine, "particlePositionReadback");
             float[] directions = Field<float[]>(engine, "particleDirectionReadback");
-            Equal(outerParent, (int)Math.Round(directions[3], MidpointRounding.ToEven),
+            Equal(outerParent, BitConverter.SingleToInt32Bits(directions[3]),
                 "GPU wrap-transition loser changed parent");
-            Equal(inwardParent, (int)Math.Round(directions[7], MidpointRounding.ToEven),
+            Equal(inwardParent, BitConverter.SingleToInt32Bits(directions[7]),
                 "GPU wrap-transition incumbent changed parent");
             Near(0.1, positions[0], 1e-5, "GPU wrap-transition loser changed X");
             Near(2.5, positions[1], 1e-5, "GPU wrap-transition loser changed Y");
@@ -7503,10 +7568,10 @@ internal static class Program
             List<int> liveSlots = AssertGpuOccupancyInvariant(engine, 9, "GPU birth contention");
             float[] readbackDirections = Field<float[]>(engine, "particleDirectionReadback");
             True(liveSlots.Contains(1), "GPU birth did not reuse the culled middle slot");
-            Equal(grid + 1, (int)Math.Round(readbackDirections[1 * 4 + 3], MidpointRounding.ToEven),
+            Equal(grid + 1, BitConverter.SingleToInt32Bits(readbackDirections[1 * 4 + 3]),
                 "GPU recovered middle slot did not claim the only empty voxel");
             True(liveSlots.Any(slot =>
-                    (int)Math.Round(readbackDirections[slot * 4 + 3], MidpointRounding.ToEven) == grid + 1),
+                    BitConverter.SingleToInt32Bits(readbackDirections[slot * 4 + 3]) == grid + 1),
                 "GPU birth contention did not claim the only empty voxel");
         }
         finally
@@ -7630,7 +7695,7 @@ internal static class Program
         for (int slot = 0; slot < capacity; slot++)
         {
             if (positions[slot * 4 + 3] < -0.5f) continue;
-            int parent = (int)Math.Round(directions[slot * 4 + 3], MidpointRounding.ToEven);
+            int parent = BitConverter.SingleToInt32Bits(directions[slot * 4 + 3]);
             True(parent >= 0 && parent < voxelCount, label + " live particle parent outside field");
             int x = (int)Math.Floor(positions[slot * 4] / voxelSize);
             int y = (int)Math.Floor(positions[slot * 4 + 1] / voxelSize);

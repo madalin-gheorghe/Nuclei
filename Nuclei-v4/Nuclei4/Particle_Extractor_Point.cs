@@ -76,6 +76,13 @@ namespace Nuclei4
 
         int retrieveIndex(Particle P)
         {
+            ParticleList owner = particles as ParticleList;
+            int ownerIndex = owner != null ? owner.GetGroupIndex(P) : -1;
+            if (ownerIndex >= 0)
+            {
+                return ownerIndex;
+            }
+
             int index = Globals.particleGroups.IndexOf(P.parentParticleGroup);
             if (index >= 0)
             {

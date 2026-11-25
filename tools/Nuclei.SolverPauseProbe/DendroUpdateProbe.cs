@@ -21,7 +21,7 @@ internal static class DendroUpdateProbe
         document.AddObject(converter, false);
         document.AddObject(sink, false);
         converter.Params.Input[0].AddSource(source.Params.Output[0]);
-        converter.Params.Input[4].AddSource(update);
+        converter.Params.Input[version == "4" ? 5 : 4].AddSource(update);
         sink.Params.Input[0].AddSource(converter.Params.Output[0]);
         object cache = new GH_ObjectWrapper("retained volume");
         FieldInfo cacheField = converter.GetType().GetField(version == "4" ? "cachedOutput" : "cachedVolume",
@@ -69,7 +69,7 @@ internal static class DendroUpdateProbe
         document.NewSolution(false);
         Require(sink.Solves == baseline + 1 && sink.Last == "retained volume", "Explicit downstream refresh lost cached output.");
 
-        converter.Params.Input[4].RemoveAllSources();
+        converter.Params.Input[version == "4" ? 5 : 4].RemoveAllSources();
         document.NewSolution(false);
         baseline = sink.Solves;
         source.ExpireSolution(false);

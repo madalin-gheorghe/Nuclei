@@ -6,6 +6,7 @@ using Grasshopper;
 using Grasshopper.GUI.Canvas;
 using Grasshopper.Kernel;
 using Rhino.Display;
+using Rhino.Geometry;
 
 namespace Nuclei4
 {
@@ -82,11 +83,11 @@ namespace Nuclei4
                     continue;
                 }
 
-                if (!Globals.tridimensional
+                if (frame.IsPlanar
                     && !drewBackground
                     && !NucleiGpuDisplayManager.HasActivePlanarVoxelDensityPreview())
                 {
-                    e.Display.DrawPolygon(Globals.bgPolygon, Color.Black, true);
+                    e.Display.DrawPolygon(frame.PlanarBackgroundPolygon ?? new Point3d[0], Color.Black, true);
                     drewBackground = true;
                 }
 

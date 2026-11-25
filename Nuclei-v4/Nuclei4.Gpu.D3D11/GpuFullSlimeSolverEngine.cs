@@ -393,6 +393,8 @@ namespace Nuclei4
                 throw new ArgumentNullException(nameof(outputSink));
             }
 
+            try
+            {
             this.outputSink = outputSink;
 
             resX = snapshot.ResX;
@@ -550,6 +552,20 @@ namespace Nuclei4
             if (enableSharedParticleTrailPreview)
             {
                 DispatchParticleTrailPreviewPass(new SolverGpuSettings { TrailSize = particleTrailPreviewTrailSize, TrailFreq = 1 }, SolverGpuDimensionMode.FromResolution(resX, resY, resZ), 0);
+            }
+            }
+            catch
+            {
+                try
+                {
+                    DisposeAfterConstructionFailure();
+                }
+                catch
+                {
+                    // Cleanup must never replace the original initialization error.
+                }
+
+                throw;
             }
         }
 
@@ -4789,11 +4805,36 @@ namespace Nuclei4
 
             public void Dispose()
             {
-                if (View != null) View.Dispose();
-                if (Texture != null) Texture.Dispose();
+                Exception disposeError = null;
+                try
+                {
+                    View?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    disposeError = ex;
+                }
+
+                try
+                {
+                    Texture?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    if (disposeError == null)
+                    {
+                        disposeError = ex;
+                    }
+                }
+
                 View = null;
                 Texture = null;
                 SharedHandle = IntPtr.Zero;
+
+                if (disposeError != null)
+                {
+                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(disposeError).Throw();
+                }
             }
         }
 
@@ -6324,6 +6365,151 @@ namespace Nuclei4
             if (device != null) device.Dispose();
         }
 
+        void DisposeAfterConstructionFailure()
+        {
+            System.Reflection.FieldInfo[] fields = Array.Empty<System.Reflection.FieldInfo>();
+            try
+            {
+                fields = GetType().GetFields(
+                    System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.Public
+                    | System.Reflection.BindingFlags.NonPublic);
+            }
+            catch
+            {
+                // Continue to context/device cleanup even if field discovery fails.
+            }
+
+            try
+            {
+                Array.Sort(fields, delegate (System.Reflection.FieldInfo left, System.Reflection.FieldInfo right)
+                {
+                    return right.MetadataToken.CompareTo(left.MetadataToken);
+                });
+            }
+            catch
+            {
+                // Field order is best effort; attempt every discovered field anyway.
+            }
+
+            // Release views and child resources before their owning device/context.
+            // Resource fields are declared with parent objects before their views.
+            // Metadata order is explicit so views are attempted before parent resources.
+            foreach (System.Reflection.FieldInfo field in fields)
+            {
+                if (field.Name == nameof(device) || field.Name == nameof(context))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    DisposeFieldValue(field);
+                }
+                catch
+                {
+                    // A failed field inspection must not block later resources.
+                }
+            }
+
+            try
+            {
+                context?.Dispose();
+            }
+            catch
+            {
+                // Keep the constructor exception and still attempt device release.
+            }
+
+            try
+            {
+                device?.Dispose();
+            }
+            catch
+            {
+                // Keep the constructor exception.
+            }
+
+            context = null;
+            device = null;
+        }
+
+        void DisposeFieldValue(System.Reflection.FieldInfo field)
+        {
+            object value = field.GetValue(this);
+            if (value is IDisposable resource)
+            {
+                try
+                {
+                    resource.Dispose();
+                }
+                catch
+                {
+                    // Continue releasing remaining resources without replacing the
+                    // constructor's original exception.
+                }
+
+                if (!field.IsInitOnly)
+                {
+                    field.SetValue(this, null);
+                }
+
+                return;
+            }
+
+            if (value is System.Collections.IDictionary dictionary)
+            {
+                foreach (System.Collections.DictionaryEntry entry in dictionary)
+                {
+                    if (entry.Value is IDisposable dictionaryResource)
+                    {
+                        try
+                        {
+                            dictionaryResource.Dispose();
+                        }
+                        catch
+                        {
+                            // Keep cleaning remaining dictionary values.
+                        }
+                    }
+                }
+
+                try
+                {
+                    dictionary.Clear();
+                }
+                catch
+                {
+                    // The engine is failing construction; best-effort only.
+                }
+
+                return;
+            }
+
+            if (value is System.Collections.IEnumerable resources && !(value is string))
+            {
+                foreach (object item in resources)
+                {
+                    if (item is IDisposable itemResource)
+                    {
+                        try
+                        {
+                            itemResource.Dispose();
+                        }
+                        catch
+                        {
+                            // Per-item cleanup is best effort for partially filled arrays.
+                        }
+                    }
+                }
+
+                if (!field.IsInitOnly)
+                {
+                    field.SetValue(this, null);
+                }
+            }
+        }
+
         void DisposeWeights()
         {
             if (weightsView != null)
@@ -6862,35 +7048,6 @@ bool ParticleOwnsVoxel(int particleIndex, int voxelIndex)
            ParticleOwners[voxelIndex] == (uint)particleIndex;
 }
 
-bool TryClaimParticleMove(int particleIndex, int currentVoxelIndex, int targetVoxelIndex, bool sourceShared, bool targetShared)
-{
-    if (currentVoxelIndex < 0 || currentVoxelIndex >= VoxelCount || targetVoxelIndex < 0 || targetVoxelIndex >= VoxelCount) return false;
-    bool sourceOwned = ParticleOwnsVoxel(particleIndex, currentVoxelIndex);
-    if (!sourceOwned && !sourceShared) return false;
-    if (!targetShared && (!sourceOwned || targetVoxelIndex != currentVoxelIndex))
-    {
-        uint previous;
-        InterlockedCompareExchange(ParticleOwners[targetVoxelIndex], EmptyParticleOwner(), (uint)particleIndex, previous);
-        if (previous != EmptyParticleOwner()) return false;
-    }
-    if (targetVoxelIndex != currentVoxelIndex)
-    {
-        uint ignored;
-        if (HasAntParticles != 0)
-        {
-            InterlockedAdd(ParticleCounts[targetVoxelIndex], 1u, ignored);
-            InterlockedAdd(ParticleCounts[currentVoxelIndex], 0xffffffffu, ignored);
-        }
-        else { ParticleCounts[targetVoxelIndex] = 1u; ParticleCounts[currentVoxelIndex] = 0u; }
-    }
-    if (sourceOwned && (targetShared || targetVoxelIndex != currentVoxelIndex))
-    {
-        uint ignored;
-        InterlockedCompareExchange(ParticleOwners[currentVoxelIndex], (uint)particleIndex, EmptyParticleOwner(), ignored);
-    }
-    return true;
-}
-
 void ReleaseParticleVoxel(int particleIndex, int voxelIndex)
 {
     if (voxelIndex < 0 || voxelIndex >= VoxelCount) return;
@@ -7049,6 +7206,43 @@ int ActiveVoxelIndexFromPosition(float3 position)
 
     int index = FlatIndex(x, y, z);
     return IsActiveVoxelIndex(index) ? index : -1;
+}
+
+bool IsRetainedBlockedParent(int particleIndex, int parentIndex)
+{
+    return parentIndex >= 0 && parentIndex < VoxelCount &&
+           IsActiveVoxelIndex(parentIndex) && !IsValidVoxelIndex(parentIndex) &&
+           ActiveVoxelIndexFromPosition(ParticlePosition[particleIndex].xyz) == parentIndex;
+}
+
+bool TryClaimParticleMove(int particleIndex, int currentVoxelIndex, int targetVoxelIndex, bool sourceShared, bool targetShared)
+{
+    if (currentVoxelIndex < 0 || currentVoxelIndex >= VoxelCount || targetVoxelIndex < 0 || targetVoxelIndex >= VoxelCount) return false;
+    bool sourceOwned = ParticleOwnsVoxel(particleIndex, currentVoxelIndex);
+    bool sourceBlocked = IsRetainedBlockedParent(particleIndex, currentVoxelIndex);
+    if (!sourceOwned && !sourceShared && !sourceBlocked) return false;
+    if (!targetShared && IsValidVoxelIndex(targetVoxelIndex) && (!sourceOwned || targetVoxelIndex != currentVoxelIndex))
+    {
+        uint previous;
+        InterlockedCompareExchange(ParticleOwners[targetVoxelIndex], EmptyParticleOwner(), (uint)particleIndex, previous);
+        if (previous != EmptyParticleOwner()) return false;
+    }
+    if (targetVoxelIndex != currentVoxelIndex)
+    {
+        uint ignored;
+        if (HasAntParticles != 0)
+        {
+            InterlockedAdd(ParticleCounts[targetVoxelIndex], 1u, ignored);
+            InterlockedAdd(ParticleCounts[currentVoxelIndex], 0xffffffffu, ignored);
+        }
+        else { ParticleCounts[targetVoxelIndex] = 1u; ParticleCounts[currentVoxelIndex] = 0u; }
+    }
+    if (sourceOwned && (targetShared || targetVoxelIndex != currentVoxelIndex))
+    {
+        uint ignored;
+        InterlockedCompareExchange(ParticleOwners[currentVoxelIndex], (uint)particleIndex, EmptyParticleOwner(), ignored);
+    }
+    return true;
 }
 
 float3 NormalizeOr(float3 value, float3 fallback)
@@ -7632,6 +7826,7 @@ void CullParticleOwnerConflicts(uint3 id : SV_DispatchThreadID)
 
     float4 position = ParticlePosition[particleIndex];
     int voxelIndex = VoxelIndexFromPosition(position.xyz);
+    int storedParentIndex = DecodeParticleParentIndex(ParticleDirection[particleIndex].w);
     if (voxelIndex >= 0 && (ParticleOwnsVoxel(particleIndex, voxelIndex) || AntSharesNestVoxel(particleIndex, position.xyz)))
     {
         float4 direction = ParticleDirection[particleIndex];
@@ -7639,6 +7834,10 @@ void CullParticleOwnerConflicts(uint3 id : SV_DispatchThreadID)
         ParticleDirection[particleIndex] = direction;
         return;
     }
+
+    // Preserve an active stored parent that became non-walkable so the movement
+    // pass can recover the particle into a valid neighbour.
+    if (IsRetainedBlockedParent(particleIndex, storedParentIndex)) return;
 
     position.w = -1.0;
     ParticlePosition[particleIndex] = position;
@@ -8270,7 +8469,10 @@ void CountParticles(uint3 id : SV_DispatchThreadID)
     InterlockedAdd(ParticleCounts[ActivePopulationIndex()], 1u, ignoredActive);
 
     int parentIndex = DecodeParticleParentIndex(ParticleDirection[index].w);
-    if (PreviewPadding0 != 0 && parentIndex >= 0 && (ParticleOwnsVoxel(index, parentIndex) || AntSharesNestVoxel(index, ParticlePosition[index].xyz)))
+    if (PreviewPadding0 != 0 && parentIndex >= 0 &&
+        (ParticleOwnsVoxel(index, parentIndex) ||
+         AntSharesNestVoxel(index, ParticlePosition[index].xyz) ||
+         IsRetainedBlockedParent(index, parentIndex)))
     {
         uint ignored;
         InterlockedAdd(ParticleCounts[parentIndex], 1u, ignored);

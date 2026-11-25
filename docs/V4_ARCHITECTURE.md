@@ -8,6 +8,42 @@ The product namespace remains `Nuclei4`. Existing GH1 component identities,
 public model/Goo types, archive schemas, shader contracts, and the
 `Nuclei4.gha` assembly remain compatibility boundaries.
 
+## Current implementation map (reviewed 2026-11-24)
+
+The graph and lifecycle below describe the intended boundaries. Current exceptions
+and verification limits are recorded here and in the
+[review report](../Nuclei-v4/REVIEW_2026-11-24.md). Historical passing results at the
+end of this document are not current acceptance evidence.
+
+| Project/path | Current responsibility and owning entry points |
+| --- | --- |
+| `Nuclei4` | GH1 compatibility/composition assembly. [Solver_GPU.cs](../Nuclei-v4/Nuclei4/Solver_GPU.cs) selects graph demand, resets, steps, caps iterations and detaches output callbacks. [SolverGpuBuffers.cs](../Nuclei-v4/Nuclei4/SolverGpuBuffers.cs) captures host inputs. [Gh1GpuSolverOutputSink.cs](../Nuclei-v4/Nuclei4/Gh1GpuSolverOutputSink.cs) applies readbacks. |
+| `Nuclei4.Core` | [GpuPlatform.cs](../Nuclei-v4/Nuclei4.Core/GpuPlatform.cs) and [VoxelPreviewField.cs](../Nuclei-v4/Nuclei4.Core/VoxelPreviewField.cs): platform/field identities, no host or native resource ownership. |
+| `Nuclei4.Gpu.Abstractions` | [GpuSolverInput.cs](../Nuclei-v4/Nuclei4.Gpu.Abstractions/GpuSolverInput.cs), [GpuBackendContracts.cs](../Nuclei-v4/Nuclei4.Gpu.Abstractions/GpuBackendContracts.cs), output views and settings: coarse array-based input/demand/readback contracts. |
+| `Nuclei4.Gpu.D3D11` | [GpuFullSlimeSolverEngine.cs](../Nuclei-v4/Nuclei4.Gpu.D3D11/GpuFullSlimeSolverEngine.cs): session, device/context, resident buffers, dispatch, staging, mesh extraction, preview textures and embedded HLSL. [GpuImageMapper.cs](../Nuclei-v4/Nuclei4.Gpu.D3D11/GpuImageMapper.cs) owns a separate device/cache. |
+| `Nuclei4.Display.Abstractions` | Borrowed handle descriptors and frame metadata. **Currently references RhinoCommon and Rhino geometry**, so it is not fully host-neutral. Compute inherits this dependency and directly references RhinoCommon too. |
+| `Nuclei4.Display.D3D11` | [GpuDensityFieldD3DRenderer.cs](../Nuclei-v4/Nuclei4.Display.D3D11/GpuDensityFieldD3DRenderer.cs), particle/trail renderers and [NewVolumeD3DRenderer.cs](../Nuclei-v4/Nuclei4.Display.D3D11/NewVolumeD3DRenderer.cs): Rhino D3D interop, opened shared views and render targets. |
+| GH1 authoring/helpers | [VoxelGridData.cs](../Nuclei-v4/Nuclei4/VoxelGridData.cs) stores authored maps/selections; [Voxel_PeriodicSurface.cs](../Nuclei-v4/Nuclei4/Voxel_PeriodicSurface.cs) uses [GpuPeriodicSurface.cs](../Nuclei-v4/Nuclei4/GpuPeriodicSurface.cs). GPU helpers still exist inside GH1; not all compute has moved to the backend. |
+| `tools/Nuclei.ShaderCompiler` | [Program.cs](../Nuclei-v4/tools/Nuclei.ShaderCompiler/Program.cs) extracts C# verbatim HLSL and compiles named entry points. Three project targets embed overlapping outputs. Image mapper/periodic shaders compile at runtime separately. |
+| `Nuclei4.GH2`, `BenchmarkSuite1` | GH2 is documentation only. BenchmarkSuite1 is an auxiliary executable, not the shipped adapter; root `tools` contains additional reflective verification hosts. |
+
+Flow: GH inputs → snapshot/settings/demand → resident compute session → borrowed
+preview descriptors to renderers, or demanded staging readback → GH1 output sink →
+lazy particle/voxel outputs. Preview components and conduits register/unregister
+display resources. A frame does not own its native handle; the producing session
+must remain alive until use ends. Document/canvas callbacks and reset/disposal
+ordering therefore matter as much as buffer disposal.
+
+Current GH1 `ResetState` always disposes/recreates its session. Backend `FastReset`
+exists but the GH1 reset path does not use it. Fast reuse below is a design target,
+not a description of the active reset implementation. Process-wide `Globals` still
+couples group extraction and some dimensional/background display decisions.
+
+Use [V4 agent rules](../Nuclei-v4/AGENTS.md), [coding guide](../Nuclei-v4/CODING_GUIDE.md)
+and [review checklist](../Nuclei-v4/REVIEW_GUIDE.md) for safe commands and current
+review practice. The preservation verifier currently fails against older constants;
+do not treat its historical green result as approval for current binary changes.
+
 ## Dependency graph
 
 Arrows mean "depends on". Dashed nodes are future design targets.
@@ -154,7 +190,7 @@ GH1 remains supported alongside it.
 The executable compatibility and performance gates are defined in
 `docs/V4_PRESERVATION_CONTRACT.md`.
 
-## Verified split result
+## Historical split result (not revalidated for current V4.2)
 
 - Rhino 7 (`net48`) and Rhino 8/9 (`net7.0-windows`) Release builds pass with
   zero errors.

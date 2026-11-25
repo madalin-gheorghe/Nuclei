@@ -15,6 +15,7 @@ packages/
 .codex-backups/
 .codex-baseline-worktree/
 .codex-temp/
+/.codex-temp-v4-review-20261124-current/
 .diag-work/
 .build-appdata*/
 .codex-build-appdata/
@@ -52,6 +53,7 @@ Nuclei-v2-old/*
 !Nuclei-v2-old/release/
 .tools/
 tmp/
+/.local-context/
 /backups/
 /output/
 /docs/reference/

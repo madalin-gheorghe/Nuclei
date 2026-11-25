@@ -84,7 +84,8 @@ namespace Nuclei4
             if (blendIterations < 2) blendIterations = 2;
 
             VoxelGridData data = inputField.Data;
-            Globals.tridimensional = data.ResX > 1 && data.ResY > 1 && data.ResZ > 1;
+            bool tridimensional = data.ResX > 1 && data.ResY > 1 && data.ResZ > 1;
+            Globals.tridimensional = tridimensional;
             if (diffuse <= 0 || data.ActiveCount == 0)
             {
                 DA.SetData(0, inputField);
@@ -117,7 +118,7 @@ namespace Nuclei4
                 planarXZ = false;
                 planarYZ = false;
             }
-            if (Globals.tridimensional)
+            if (tridimensional)
             {
                 planarXY = false;
                 planarXZ = false;

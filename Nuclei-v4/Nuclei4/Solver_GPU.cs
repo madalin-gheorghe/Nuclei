@@ -36,6 +36,7 @@ namespace Nuclei4
         {
             pManager.AddGenericParameter("Output Particles", "particles", "Output Particles", GH_ParamAccess.item);
             pManager.AddGenericParameter("Output Voxels", "voxels", "Output Voxels", GH_ParamAccess.item);
+            pManager.AddTextParameter("GPU Status", "status", "GPU compute status", GH_ParamAccess.item);
         }
 
         public override GH_Exposure Exposure
@@ -108,11 +109,16 @@ namespace Nuclei4
 
             bool atMaxIterationsAtEntry = !reset && iteration >= solverSettings.MaxIterations;
             bool shouldResetState = reset
-                || voxels == null
-                || particles == null
-                || !StateMatches(inputVoxels, inputParticleGroups)
-                || (fullSolverEngine != null && !fullSolverEngine.SupportsPopulationCapacity(solverSettings));
-            bool stateResetFailed = false;
+                || (gpuFaultMessage == null && (voxels == null
+                    || particles == null
+                    || !StateMatches(inputVoxels, inputParticleGroups)
+                    || (fullSolverEngine != null && !fullSolverEngine.SupportsPopulationCapacity(solverSettings))));
+            bool stateResetFailed = gpuFaultMessage != null && !reset;
+            if (stateResetFailed)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, gpuFaultMessage);
+                Message = gpuFaultStatus;
+            }
 
             if (shouldResetState)
             {
@@ -124,14 +130,19 @@ namespace Nuclei4
                     {
                         BuildPreviewCacheFromCurrentParticles();
                     }
+                    gpuFaultMessage = null;
+                    gpuFaultStatus = null;
+                    stateResetFailed = false;
                     inputsTicks += Stopwatch.GetTimestamp() - stageStart;
                 }
                 catch (Exception ex)
                 {
                     DisposeGpuEngines();
                     stateResetFailed = true;
-                    AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "GPU reset failed: " + ex.Message);
-                    Message = "GPU reset error";
+                    gpuFaultMessage = "GPU reset failed: " + ex.Message;
+                    gpuFaultStatus = "GPU reset error";
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Error, gpuFaultMessage);
+                    Message = gpuFaultStatus;
                 }
             }
 
@@ -188,8 +199,10 @@ namespace Nuclei4
                 {
                     DisposeGpuEngines();
                     stateResetFailed = true;
-                    AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "GPU particle settings update failed: " + ex.Message);
-                    Message = "GPU settings error";
+                    gpuFaultMessage = "GPU particle settings update failed: " + ex.Message;
+                    gpuFaultStatus = "GPU settings error";
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Error, gpuFaultMessage);
+                    Message = gpuFaultStatus;
                 }
             }
 
@@ -226,8 +239,11 @@ namespace Nuclei4
                 catch (Exception ex)
                 {
                     DisposeGpuEngines();
-                    AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "GPU solver failed: " + ex.Message);
-                    Message = "GPU solver error";
+                    stateResetFailed = true;
+                    gpuFaultMessage = "GPU solver failed: " + ex.Message;
+                    gpuFaultStatus = "GPU solver error";
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Error, gpuFaultMessage);
+                    Message = gpuFaultStatus;
                 }
             }
 
@@ -293,7 +309,11 @@ namespace Nuclei4
 
             if (gpuStatus.Available)
             {
-                if (Message != "GPU solver error" && Message != "GPU reset error")
+                if (gpuFaultMessage != null)
+                {
+                    Message = gpuFaultStatus;
+                }
+                else
                 {
                     Message = reset
                         ? "Solution is Reset"
@@ -304,9 +324,53 @@ namespace Nuclei4
             }
             else
             {
-                Message = "GPU unavailable";
+                Message = gpuFaultMessage != null ? gpuFaultStatus : "GPU unavailable";
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, gpuStatus.Message);
             }
+
+            DA.SetData(2, CreateStatus(solverSettings, solverResult));
+        }
+
+        string CreateStatus(SolverGpuSettings settings, GpuFullSolverStepResult solverResult)
+        {
+            string status = gpuStatus.Message
+                + " | driver: " + (string.IsNullOrEmpty(gpuStatus.Driver) ? "none" : gpuStatus.Driver)
+                + " | feature: " + gpuStatus.FeatureLevel
+                + " | iteration: " + iteration
+                + " | particles: " + (particles != null ? particles.Count : 0)
+                + " | active voxels: " + activeVoxelCount
+                + " | mode: " + SolverGpuDimensionMode.FromResolution(resX, resY, resZ).Name
+                + " | field preview: " + (gpuDensityFieldPreviewEnabled ? "on" : "off")
+                + " | max iterations: " + settings.MaxIterations
+                + " | state: " + (iteration >= settings.MaxIterations ? "complete" : "running")
+                + " | wrap: " + settings.WrapBoundaries
+                + " | range: " + settings.DiffuseRange;
+
+            if (!string.IsNullOrEmpty(unsupportedGpuReason)) status += " | " + unsupportedGpuReason;
+            if (!string.IsNullOrEmpty(gpuFaultMessage)) status += " | fault: " + gpuFaultMessage;
+            if (gpuStatus.Milliseconds > 0) status += " | smoke test ms: " + gpuStatus.Milliseconds.ToString("0.###");
+            if (solverResult != null)
+            {
+                status += " | gpu step ms: " + solverResult.TotalMilliseconds.ToString("0.###")
+                    + " | particle ms: " + solverResult.ParticleMilliseconds.ToString("0.###")
+                    + " | population ms: " + solverResult.PopulationMilliseconds.ToString("0.###")
+                    + " | diffusion ms: " + solverResult.DiffusionMilliseconds.ToString("0.###")
+                    + " | readback ms: " + solverResult.ReadbackMilliseconds.ToString("0.###")
+                    + " | sync: " + ParticleSyncMarker(solverResult) + (solverResult.SyncedVoxels ? "v" : "-")
+                    + (solverResult.SyncedParticles && solverResult.BuiltPreviewCache ? " cache" : "")
+                    + " | passes: " + solverResult.Passes
+                    + " | moved: " + solverResult.MovedParticles;
+            }
+
+            return status;
+        }
+
+        static string ParticleSyncMarker(GpuFullSolverStepResult solverResult)
+        {
+            if (solverResult.SyncedParticles) return "p";
+            if (solverResult.BuiltPreviewCache) return "c";
+            if (solverResult.QueuedPreviewReadback) return "q";
+            return "-";
         }
 
         void ResetState(VoxelField inputVoxels, List<ParticleGroup> inputParticleGroups, SolverGpuSettings settings, bool enableDensityFieldPreview, bool enableParticlePreview, bool enableParticleTrailPreview, int particleTrailPreviewSize, int densityPreviewScale)
@@ -335,6 +399,8 @@ namespace Nuclei4
             resY = snapshot.ResY;
             resZ = snapshot.ResZ;
             voxelSize = snapshot.VoxelSize;
+            particles.IsPlanar = resX <= 1 || resY <= 1 || resZ <= 1;
+            particles.PlanarBackgroundPolygon = VoxelPlanarPreviewGeometry.CreateBackgroundPolygon(resX, resY, resZ, voxelSize);
             ApplyGlobalDimensionState();
             activeVoxelCount = snapshot.ActiveVoxelCount;
             UpdateWalkableVoxelCount();
@@ -342,6 +408,7 @@ namespace Nuclei4
             particleGroupCount = snapshot.GroupCount;
             antParticles = snapshot.HasAntParticles;
             particleGroupReferences = snapshot.ParticleGroups ?? new ParticleGroup[0];
+            particles.OrderedParticleGroups = (ParticleGroup[])particleGroupReferences.Clone();
             Globals.particleGroups = new List<ParticleGroup>(particleGroupReferences);
             particleGroupParticleCounts = CaptureInputParticleGroupCounts(inputParticleGroups);
             liveParticleGroupPopulations = CaptureRetainedParticleGroupCounts(particleGroupReferences);
@@ -1286,9 +1353,9 @@ namespace Nuclei4
                 long drawStart = Stopwatch.GetTimestamp();
                 base.DrawViewportWires(args);
 
-                if (!Globals.tridimensional)
+                if (resX <= 1 || resY <= 1 || resZ <= 1)
                 {
-                    args.Display.DrawPolygon(Globals.bgPolygon, Color.Black, true);
+                    args.Display.DrawPolygon(particles.PlanarBackgroundPolygon, Color.Black, true);
                 }
 
                 if (cache.SlimePointCloud != null && cache.SlimePointCloud.Count > 0)
@@ -1603,6 +1670,8 @@ namespace Nuclei4
         }
 
         GpuComputeSmokeTestResult gpuStatus;
+        string gpuFaultMessage;
+        string gpuFaultStatus;
         GpuFullSlimeSolverEngine fullSolverEngine;
         Gh1GpuSolverOutputSink gpuOutputSink;
         VoxelField voxels;

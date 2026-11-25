@@ -219,6 +219,9 @@ namespace Nuclei4
 
     public class ParticleList : List<Particle>
     {
+        internal ParticleGroup[] OrderedParticleGroups;
+        internal bool IsPlanar;
+        internal Point3d[] PlanarBackgroundPolygon = new Point3d[0];
         public ParticlePreviewCache PreviewCache = new ParticlePreviewCache();
         internal Func<GpuParticlePreviewFrame> GpuPreviewFrameProvider;
         internal Func<GpuParticleTrailPreviewFrame> GpuTrailPreviewFrameProvider;
@@ -259,6 +262,24 @@ namespace Nuclei4
                 gpuParticles.EnsureCpuStateCurrent();
             }
         }
+
+        internal int GetGroupIndex(Particle particle)
+        {
+            if (particle == null || OrderedParticleGroups == null)
+            {
+                return -1;
+            }
+
+            for (int i = 0; i < OrderedParticleGroups.Length; i++)
+            {
+                if (ReferenceEquals(OrderedParticleGroups[i], particle.parentParticleGroup))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
     }
 
     public class Particle
@@ -296,7 +317,7 @@ namespace Nuclei4
 
         public bool foundFood = false;
         public bool antLaunchBoundaryHit = false;
-        public bool antDepartingNest = false;
+        internal bool antDepartingNest = false;
         #endregion
 
         //-------------------------------------------------------------------

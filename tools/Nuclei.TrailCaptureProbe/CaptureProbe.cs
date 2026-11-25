@@ -14,6 +14,8 @@ public static class CaptureProbe
 {
     public static int Run(string[] args, string assemblyPath)
     {
+        if (args.Contains("--mixed-resolution")) return MixedResolutionRenderProbe.Run(args, assemblyPath);
+        if (args.Contains("--preview")) return PreviewCaptureProbe.Run(args, assemblyPath);
         string output = Path.GetFullPath(Program.Option(args, "--output", ".codex-temp/trail-capture-current"));
         Directory.CreateDirectory(output);
         Assembly renderer = AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath);

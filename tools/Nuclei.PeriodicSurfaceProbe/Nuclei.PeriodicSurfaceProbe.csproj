@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0-windows</TargetFramework><UseWindowsForms>true</UseWindowsForms><ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable><PlatformTarget>x64</PlatformTarget></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Nuclei.VolumeRendererModeProbe/Bootstrap.cs" Link="Bootstrap.cs" />
+    <Compile Include="../Nuclei.VolumeRendererModeProbe/RhinoStage.cs" Link="RhinoStage.cs" />
+    <Reference Include="RhinoCommon"><HintPath>C:\Program Files\Rhino 9 WIP\System\netcore\RhinoCommon.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Grasshopper"><HintPath>C:\Program Files\Rhino 9 WIP\Plug-ins\Grasshopper\Grasshopper.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="GH_IO"><HintPath>C:\Program Files\Rhino 9 WIP\Plug-ins\Grasshopper\GH_IO.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

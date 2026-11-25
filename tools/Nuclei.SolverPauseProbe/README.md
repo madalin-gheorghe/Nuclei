@@ -41,3 +41,9 @@ resume in the same solution on enable, keep propagating while held true, and
 freeze again on disable. An explicit downstream refresh still retrieves the cache.
 The test also covers the unconnected false default. Actual Dendro volume
 generation and viewport timing are outside this regression's scope.
+
+The Dendro probe also checks V4's 13 scalar types, closed fallback meshes,
+smoothing, zero/negative iso values, element limits, empty selections, and
+migration of the old six-input component to the new second `Type` input.
+These tests passed on 2026-09-10 using the net48 harness and Grasshopper
+9.0.26251.12303. Native Dendro construction is not exercised.

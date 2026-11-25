@@ -25,6 +25,7 @@ internal static class PauseProbe
             if (args.Contains("--dendro"))
             {
                 DendroUpdateProbe.Run(assembly, version);
+                if (version == "4") DendroTypesProbe.Run(assembly);
                 continue;
             }
             MethodInfo pause = assembly.GetType("Nuclei" + version + ".SolverIterationLimit", true)

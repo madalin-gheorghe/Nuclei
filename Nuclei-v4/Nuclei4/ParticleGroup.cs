@@ -23,7 +23,7 @@ namespace Nuclei4
         public List<Particle> particles = new List<Particle>();
 
         // Preserve the user's count before generation caps it to walkable cells.
-        public int RequestedParticleCount;
+        internal int RequestedParticleCount;
 
         public double speed, sensorDistance, depositValue = 0;
         public double wanderFrequency, baseWanderFrequency = 0;

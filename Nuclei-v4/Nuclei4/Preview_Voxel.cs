@@ -122,6 +122,7 @@ namespace Nuclei4
 
                 //determine voxelSize
                 voxelSize = voxel.VoxelSize;
+                planarBackgroundPolygon = VoxelPlanarPreviewGeometry.CreateBackgroundPolygon(resX, resY, resZ, voxelSize);
 
                 //determine whether 3D or 2D 
                 planarXY = false;
@@ -216,16 +217,16 @@ namespace Nuclei4
             if (!hasPlanarTexture && !hasPointCloud && obstaclePreview == null && foodPreview == null) return;
 
             //draw background polygon
-            if (!Globals.tridimensional)
+            if (!tridimensional)
             {
-                args.Display.DrawPolygon(Globals.bgPolygon, Color.Black, true);
+                args.Display.DrawPolygon(planarBackgroundPolygon, Color.Black, true);
             }
 
             if (hasPlanarTexture)
             {
                 planarPreviewTexture.Draw(args.Display);
             }
-            else if (!Globals.tridimensional && stablePointBuckets != null && stablePointBuckets.Count > 0)
+            else if (!tridimensional && stablePointBuckets != null && stablePointBuckets.Count > 0)
             {
                 drawStablePlanarPreview(args);
             }
@@ -1151,6 +1152,7 @@ namespace Nuclei4
         bool planarXZ = false;
         bool planarYZ = false;
         bool tridimensional = true;
+        Point3d[] planarBackgroundPolygon = new Point3d[0];
 
         int valueIndex;
         const int LegacyRendererInputIndex = 5;

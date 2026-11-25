@@ -86,9 +86,7 @@
 		<GpuDensityRendererSource Condition="Exists('$(MSBuildProjectDirectory)\..\Nuclei4.Display.D3D11\GpuDensityFieldD3DRenderer.cs')">$(MSBuildProjectDirectory)\..\Nuclei4.Display.D3D11\GpuDensityFieldD3DRenderer.cs</GpuDensityRendererSource>
 	</PropertyGroup>
 
-	<Target Name="CompileGpuShaders" BeforeTargets="PrepareResources"
-		Inputs="$(GpuSolverSource);$(GpuDensityRendererSource);$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Program.cs;$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Nuclei.ShaderCompiler.csproj"
-		Outputs="$(IntermediateOutputPath)GpuShaders\shaders.complete">
+	<Target Name="CompileGpuShaders" BeforeTargets="PrepareResources">
 		<MSBuild Projects="$(MSBuildProjectDirectory)\..\tools\Nuclei.ShaderCompiler\Nuclei.ShaderCompiler.csproj" Targets="Build"
 			Properties="Configuration=Release;TargetFramework=net8.0-windows"
 			RemoveProperties="RuntimeIdentifier;SelfContained;TargetFrameworkIdentifier;TargetFrameworkVersion"
